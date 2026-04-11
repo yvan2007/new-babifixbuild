@@ -1,0 +1,82 @@
+[
+  {
+    "model": "vitrine.faqitem",
+    "pk": 1,
+    "fields": {
+      "question": "Comment fonctionne BABIFIX ?",
+      "answer": "BABIFIX vous met en relation avec des prestataires de services à domicile vérifiés. Vous pouvez rechercher un professionnel par catégorie, réserver un créneau et payer en toute sécurité via Mobile Money ou espèces.",
+      "ordre_affichage": 1,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.faqitem",
+    "pk": 2,
+    "fields": {
+      "question": "Comment payer mes prestations ?",
+      "answer": "Vous pouvez payer directement en espèces au prestataire après la mission, ou via Mobile Money (MTN, Orange, Wave, Moov) depuis l'application BABIFIX.",
+      "ordre_affichage": 2,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.faqitem",
+    "pk": 3,
+    "fields": {
+      "question": "Les prestataires sont-ils fiables ?",
+      "answer": "Tous nos prestataires sont vérifiés par notre équipe. Nous vérifions leurs pièces d'identité et validons leur profil avant qu'ils puissent accepter des missions.",
+      "ordre_affichage": 3,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.faqitem",
+    "pk": 4,
+    "fields": {
+      "question": "Comment devenir prestataire BABIFIX ?",
+      "answer": "Téléchargez l'application BABIFIX Prestataire, créez un compte, remplissez votre profil et soumettez vos pièces d'identité. Notre équipe validera votre dossier sous 24-48h.",
+      "ordre_affichage": 4,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.faqitem",
+    "pk": 5,
+    "fields": {
+      "question": "Que faire en cas de litige ?",
+      "answer": "Si vous rencontrez un problème avec une prestation, vous pouvez signaler un litige directement depuis l'application. Notre équipe de médiation interviendra sous 24h.",
+      "ordre_affichage": 5,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.faqitem",
+    "pk": 6,
+    "fields": {
+      "question": "Quelle est la zone de couverture ?",
+      "answer": "BABIFIX est disponible dans toute la Côte d'Ivoire, avec une couverture principale à Abidjan, Bouaké, Yamoussoukro et les grandes villes.",
+      "ordre_affichage": 6,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.faqitem",
+    "pk": 7,
+    "fields": {
+      "question": "Puis-je annuler une réservation ?",
+      "answer": "Oui, vous pouvez annuler une réservation jusqu'à 2 heures avant le créneau prévu sans frais. Au-delà, des frais d'annulation peuvent s'appliquer.",
+      "ordre_affichage": 7,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.faqitem",
+    "pk": 8,
+    "fields": {
+      "question": "Comment noter un prestataire ?",
+      "answer": "Après chaque mission terminée, vous recevrez une invitation à noter votre expérience. Les notes vont de 1 à 5 étoiles et aident la communauté.",
+      "ordre_affichage": 8,
+      "actif": true
+    }
+  }
+]

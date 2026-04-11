@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "772061649757",
+    "project_id": "babifix",
+    "storage_bucket": "babifix.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:772061649757:android:665fd184158ee3259726b4",
+        "android_client_info": {
+          "package_name": "com.babifix.client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCDzdHbBeHdoe08f7XrfPzvDsdnJkda7w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:772061649757:android:6654bfe8e363d4b99726b4",
+        "android_client_info": {
+          "package_name": "com.babifix.prestataire"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCDzdHbBeHdoe08f7XrfPzvDsdnJkda7w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

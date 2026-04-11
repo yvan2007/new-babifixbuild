@@ -1,0 +1,168 @@
+{% load static %}
+<div class="categories-admin-layout">
+  {% if user.is_staff %}
+  <article class="card card-elevate category-import-card">
+    <h3>Importer le catalogue officiel BABIFIX</h3>
+    <p class="section-help">Crée ou met à jour les catégories du catalogue à partir de <code>data/categories-services-domicile.json</code> (ordre, descriptions, slugs d’icônes). Les compteurs <strong>services</strong> et <strong>réservations</strong> ne sont pas remis à zéro.</p>
+    <form method="post" class="inline-import-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Lancer l’import du catalogue JSON ?');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="category_import_catalog">
+      <button type="submit" class="btn-primary">Importer le catalogue JSON</button>
+    </form>
+  </article>
+  {% endif %}
+
+  <div class="category-form-layout">
+    <article class="card card-elevate crud-form-card category-form-panel">
+      <h3>{% if edit_category_id %}Modifier{% else %}Ajouter{% endif %} une catégorie</h3>
+      <p class="section-help">Choisissez un pictogramme dans la bibliothèque (recherche ci‑contre). Fichiers <code>static/category-icons/*.svg</code> — jeu <strong>multicolore</strong> (style marketplace). Pour des packs type <a href="https://iconscout.com/" rel="noopener noreferrer" target="_blank">IconScout</a>, exportez en SVG sous licence, gardez le <strong>même nom de fichier</strong> (slug, ex. <code>goutte.svg</code>) et <code>viewBox="0 0 24 24"</code>.</p>
+      <form method="post" class="crud-form" id="category-form-babifix" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="category_save">
+        {% if edit_category_id %}<input type="hidden" name="pk" value="{{ edit_category_id }}">{% endif %}
+        <div class="form-grid">{{ category_form.as_p }}</div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Enregistrer</button>
+          {% if edit_category_id %}<a href="?section=categories" class="btn-link-cancel">Annuler</a>{% endif %}
+        </div>
+      </form>
+    </article>
+
+    <article class="card card-elevate category-picker-panel" x-data="{ searchIcon: '' }">
+      <h3>Bibliothèque d’icônes</h3>
+      <label class="category-icon-search-label" for="category-icon-search">Filtrer les pictogrammes</label>
+      <input id="category-icon-search" type="search" class="category-icon-search-input" placeholder="Ex. plomberie, goutte, ménage…" x-model="searchIcon" autocomplete="off">
+      <p class="picker-label">Cliquer une vignette remplit le champ « slug » du formulaire.</p>
+      <div class="category-icon-grid" role="listbox" aria-label="Icônes catégories">
+        {% for slug, label in category_icon_slugs %}
+        {% with icon_path='category-icons/'|add:slug|add:'.svg' %}
+        <button type="button" class="category-icon-btn{% if category_form.icone_slug.value == slug %} is-selected{% endif %}"
+          data-slug="{{ slug }}"
+          data-label="{{ label|escape }}"
+          role="option"
+          x-show="(() => { const q = (searchIcon || '').trim().toLowerCase(); if (!q) return true; const s = ($el.dataset.slug || '').toLowerCase(); const l = ($el.dataset.label || '').toLowerCase(); return s.includes(q) || l.includes(q); })()"
+          onclick="(function(s,u){var el=document.getElementById('id_icone_slug');if(el)el.value=s;var im=document.getElementById('cat-icon-preview');if(im)im.src=u;document.querySelectorAll('.category-icon-btn').forEach(function(b){b.classList.toggle('is-selected',b.dataset.slug===s);});})('{{ slug|escapejs }}','{% static icon_path %}')"
+          title="{{ label }} — {{ slug }}">
+          <img src="{% static icon_path %}" alt="" width="40" height="40" loading="lazy">
+          <span class="category-icon-label">{{ label }}</span>
+        </button>
+        {% endwith %}
+        {% endfor %}
+      </div>
+      <p class="section-help category-preview-row">Aperçu sélection :
+        {% with sel=category_form.icone_slug.value|default:'goutte' %}
+        {% with pv='category-icons/'|add:sel|add:'.svg' %}
+        <img id="cat-icon-preview" src="{% static pv %}" alt="" width="48" height="48" class="cat-preview-img">
+        {% endwith %}
+        {% endwith %}
+      </p>
+    </article>
+  </div>
+
+  <article class="card card-elevate category-list-card">
+    <div class="category-list-header">
+      <h3>Liste des catégories</h3>
+      {% if user.is_staff %}
+      <div class="category-list-actions">
+        <form method="post" class="category-clear-icons-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Effacer le slug d’icône et l’URL d’icône pour toutes les catégories actives ? Les fichiers SVG ne sont pas supprimés du serveur.');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="category_clear_icons_active">
+          <button type="submit" class="table-btn danger category-clear-icons-btn">Effacer toutes les icônes (actives)</button>
+        </form>
+        <form method="post" class="category-delete-all-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('SUPPRIMER DÉFINITIVEMENT toutes les catégories ?\n\nCette action est irréversible. Les comptes prestataires ne sont pas supprimés : leur catégorie sera simplement vide jusqu’à nouvelle attribution ou réimport du catalogue JSON.');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="category_delete_all">
+          <button type="submit" class="table-btn danger category-delete-all-btn">Supprimer toutes les catégories</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    <div class="table-wrap category-table-desktop">
+      <table>
+        <thead>
+          <tr>
+            <th class="th-icon">Icône</th>
+            <th>Catégorie</th>
+            <th>Description</th>
+            <th>Services</th>
+            <th>Réservations</th>
+            <th>État</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in categories %}
+          <tr>
+            <td class="td-icon">
+              {% if cat.icone_slug %}
+              <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="36" height="36" class="category-row-thumb" loading="lazy">
+              {% else %}
+              <span class="category-thumb-fallback">—</span>
+              {% endif %}
+            </td>
+            <td><strong>{{ cat.nom }}</strong><br><span class="slug-hint">{{ cat.icone_slug }}</span></td>
+            <td class="td-desc">{{ cat.description|truncatewords:18 }}</td>
+            <td>{{ cat.services }}</td>
+            <td>{{ cat.reservations }}</td>
+            <td>{% if cat.actif %}Active{% else %}Inactive{% endif %}</td>
+            <td class="td-actions">
+              <a href="?section=categories&amp;edit_category={{ cat.id }}" class="link-edit">Modifier</a>
+              <form method="post" class="inline-delete" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Supprimer ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="category_delete">
+                <input type="hidden" name="pk" value="{{ cat.id }}">
+                <button type="submit" class="table-btn danger">Supprimer</button>
+              </form>
+              <form method="post" class="inline-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="category_toggle">
+                <input type="hidden" name="category_name" value="{{ cat.nom }}">
+                <button type="submit" class="table-btn">Basculer actif</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7">Aucune catégorie — importez le catalogue ou ajoutez une ligne.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="category-cards-mobile">
+      {% for cat in categories %}
+      <div class="category-mobile-card">
+        <div class="category-mobile-card-head">
+          {% if cat.icone_slug %}
+          <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="44" height="44" loading="lazy">
+          {% endif %}
+          <div>
+            <strong>{{ cat.nom }}</strong>
+            <p class="category-mobile-desc">{{ cat.description|truncatewords:22 }}</p>
+          </div>
+        </div>
+        <div class="category-mobile-meta">
+          <span>Services {{ cat.services }}</span>
+          <span>Résa. {{ cat.reservations }}</span>
+          <span>{% if cat.actif %}Active{% else %}Inactive{% endif %}</span>
+        </div>
+        <div class="category-mobile-actions">
+          <a href="?section=categories&amp;edit_category={{ cat.id }}" class="link-edit">Modifier</a>
+          <form method="post" class="inline-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="category_toggle">
+            <input type="hidden" name="category_name" value="{{ cat.nom }}">
+            <button type="submit" class="table-btn">Basculer actif</button>
+          </form>
+          <form method="post" class="inline-delete" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Supprimer ?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="category_delete">
+            <input type="hidden" name="pk" value="{{ cat.id }}">
+            <button type="submit" class="table-btn danger">Supprimer</button>
+          </form>
+        </div>
+      </div>
+      {% empty %}
+      <p class="empty-categories">Aucune catégorie.</p>
+      {% endfor %}
+    </div>
+  </article>
+</div>

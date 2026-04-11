@@ -1,0 +1,347 @@
+[
+  {
+    "model": "adminpanel.category",
+    "pk": 1,
+    "fields": {
+      "nom": "Plomberie",
+      "description": "Réparation fuite, installation robinets,WC,douche",
+      "services": 12,
+      "reservations": 234,
+      "actif": true,
+      "icone_slug": "plomberie",
+      "icone_url": "",
+      "ordre_affichage": 1
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 2,
+    "fields": {
+      "nom": "Électricité",
+      "description": "Réparation électrique, installation prise,ampoule",
+      "services": 10,
+      "reservations": 189,
+      "actif": true,
+      "icone_slug": "electricite",
+      "icone_url": "",
+      "ordre_affichage": 2
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 3,
+    "fields": {
+      "nom": "Ménage",
+      "description": "Nettoyage domicile,bureau,jogging",
+      "services": 8,
+      "reservations": 456,
+      "actif": true,
+      "icone_slug": "menage",
+      "icone_url": "",
+      "ordre_affichage": 3
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 4,
+    "fields": {
+      "nom": "Jardinage",
+      "description": "Tonte pelouse, élagage, jardin",
+      "services": 6,
+      "reservations": 123,
+      "actif": true,
+      "icone_slug": "jardinage",
+      "icone_url": "",
+      "ordre_affichage": 4
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 5,
+    "fields": {
+      "nom": "Peinture",
+      "description": "Peinture intérieur, extérieur, decoration",
+      "services": 5,
+      "reservations": 78,
+      "actif": true,
+      "icone_slug": "peinture",
+      "icone_url": "",
+      "ordre_affichage": 5
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 6,
+    "fields": {
+      "nom": "Maconnerie",
+      "description": "Petits travaux maconnerie, reparation mur",
+      "services": 4,
+      "reservations": 56,
+      "actif": true,
+      "icone_slug": "maconnerie",
+      "icone_url": "",
+      "ordre_affichage": 6
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 7,
+    "fields": {
+      "nom": "Menuiserie",
+      "description": "Meuble, portes, fenetres, bois",
+      "services": 7,
+      "reservations": 89,
+      "actif": true,
+      "icone_slug": "menuiserie",
+      "icone_url": "",
+      "ordre_affichage": 7
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 8,
+    "fields": {
+      "nom": "Climatisation",
+      "description": "Installation, maintenance clim",
+      "services": 4,
+      "reservations": 67,
+      "actif": true,
+      "icone_slug": "climatisation",
+      "icone_url": "",
+      "ordre_affichage": 8
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 9,
+    "fields": {
+      "nom": "Serrurerie",
+      "description": "Ouverture porte, changement serrure",
+      "services": 3,
+      "reservations": 45,
+      "actif": true,
+      "icone_slug": "serrurerie",
+      "icone_url": "",
+      "ordre_affichage": 9
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 10,
+    "fields": {
+      "nom": "Aide a domicile",
+      "description": "Aide personnes agees, assistance quotidienne",
+      "services": 6,
+      "reservations": 156,
+      "actif": true,
+      "icone_slug": "aide_domicile",
+      "icone_url": "",
+      "ordre_affichage": 10
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 11,
+    "fields": {
+      "nom": "Livraison",
+      "description": "Livraison courses, colis, courses",
+      "services": 4,
+      "reservations": 234,
+      "actif": true,
+      "icone_slug": "livraison",
+      "icone_url": "",
+      "ordre_affichage": 11
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 12,
+    "fields": {
+      "nom": "Reparation vehicule",
+      "description": "Depannage route, petite reparations auto",
+      "services": 5,
+      "reservations": 89,
+      "actif": true,
+      "icone_slug": "vehicule",
+      "icone_url": "",
+      "ordre_affichage": 12
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 13,
+    "fields": {
+      "nom": "Informatique",
+      "description": "Reparation ordinateur, installation wifi",
+      "services": 5,
+      "reservations": 112,
+      "actif": true,
+      "icone_slug": "informatique",
+      "icone_url": "",
+      "ordre_affichage": 13
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 14,
+    "fields": {
+      "nom": "Cuisine",
+      "description": "Chef a domicile, preparation repas",
+      "services": 3,
+      "reservations": 67,
+      "actif": true,
+      "icone_slug": "cuisine",
+      "icone_url": "",
+      "ordre_affichage": 14
+    }
+  },
+  {
+    "model": "adminpanel.category",
+    "pk": 15,
+    "fields": {
+      "nom": "Blanchisserie",
+      "description": "Lavage, repassage, retouche",
+      "services": 3,
+      "reservations": 145,
+      "actif": true,
+      "icone_slug": "blanchisserie",
+      "icone_url": "",
+      "ordre_affichage": 15
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 1,
+    "fields": {
+      "category": 1,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 2,
+    "fields": {
+      "category": 2,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 3,
+    "fields": {
+      "category": 3,
+      "commission_rate": 8,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 4,
+    "fields": {
+      "category": 4,
+      "commission_rate": 8,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 5,
+    "fields": {
+      "category": 5,
+      "commission_rate": 12,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 6,
+    "fields": {
+      "category": 6,
+      "commission_rate": 12,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 7,
+    "fields": {
+      "category": 7,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 8,
+    "fields": {
+      "category": 8,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 9,
+    "fields": {
+      "category": 9,
+      "commission_rate": 15,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 10,
+    "fields": {
+      "category": 10,
+      "commission_rate": 5,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 11,
+    "fields": {
+      "category": 11,
+      "commission_rate": 8,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 12,
+    "fields": {
+      "category": 12,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 13,
+    "fields": {
+      "category": 13,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 14,
+    "fields": {
+      "category": 14,
+      "commission_rate": 15,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 15,
+    "fields": {
+      "category": 15,
+      "commission_rate": 8,
+      "actif": true
+    }
+  }
+]

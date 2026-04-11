@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+env/
+*.egg
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flutter
+.dart_tool/
+.packages
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+android/app/build/
+ios/Pods/
+
+# Node
+node_modules/
+
+# Build outputs
+*.exe
+*.dll
+*.so
+*.ilk
+*.pdb
+*.lib
+*.exp
+
+# Docs (optionnel)
+*.docx
+*.doc
+*.pdf

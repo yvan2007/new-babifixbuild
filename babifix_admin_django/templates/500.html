@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erreur serveur — BABIFIX</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0B1B34 0%, #7C0000 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .card {
+      text-align: center;
+      padding: 48px 40px;
+      max-width: 460px;
+      width: 90%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 28px;
+      backdrop-filter: blur(12px);
+    }
+    .code { font-size: 96px; font-weight: 900; color: #FCA5A5; line-height: 1; letter-spacing: -4px; }
+    .logo { font-size: 22px; font-weight: 800; color: #4CC9F0; margin: 16px 0 8px; }
+    h1 { font-size: 22px; font-weight: 700; margin: 8px 0 12px; color: #fff; }
+    p { font-size: 14px; color: rgba(255,255,255,0.65); line-height: 1.6; margin-bottom: 32px; }
+    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    a.btn {
+      display: inline-block;
+      background: #4CC9F0;
+      color: #0B1B34;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 12px 22px;
+      border-radius: 14px;
+      text-decoration: none;
+      transition: opacity .2s;
+    }
+    a.btn.outline {
+      background: transparent;
+      border: 2px solid rgba(255,255,255,0.3);
+      color: #fff;
+    }
+    a.btn:hover { opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="code">500</div>
+    <div class="logo">● BABIFIX</div>
+    <h1>Erreur serveur</h1>
+    <p>Une erreur interne s'est produite. Notre équipe a été notifiée.<br>
+       Veuillez réessayer dans quelques instants.</p>
+    <div class="actions">
+      <a href="/" class="btn">← Retour à l'accueil</a>
+      <a href="mailto:contact@babifix.ci" class="btn outline">Contacter le support</a>
+    </div>
+  </div>
+</body>
+</html>
