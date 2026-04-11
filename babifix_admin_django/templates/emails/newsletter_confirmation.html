@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmez votre inscription à la newsletter</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background-color: #FF6B00; padding: 30px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 24px; }
+        .content { padding: 40px 30px; text-align: center; }
+        .content p { color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px; }
+        .btn { display: inline-block; background-color: #FF6B00; color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; margin: 20px 0; }
+        .footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #666666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>BABIFIX</h1>
+        </div>
+        <div class="content">
+            <p>Bonjour,</p>
+            <p>Vous avez demandé à recevoir notre newsletter. Cliquez sur le bouton ci-dessous pour confirmer votre inscription.</p>
+            <a href="{{ confirm_url }}" class="btn">Confirmer mon inscription</a>
+            <p>Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email.</p>
+            <p>À très bientôt sur <strong>babifix.ci</strong> !</p>
+        </div>
+        <div class="footer">
+            <p>BABIFIX — Côte d'Ivoire<br>
+            contact@babifix.ci</p>
+        </div>
+    </div>
+</body>
+</html>

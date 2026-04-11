@@ -1,0 +1,137 @@
+[
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 1,
+    "fields": {
+      "category": 1,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 2,
+    "fields": {
+      "category": 2,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 3,
+    "fields": {
+      "category": 3,
+      "commission_rate": 8,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 4,
+    "fields": {
+      "category": 4,
+      "commission_rate": 8,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 5,
+    "fields": {
+      "category": 5,
+      "commission_rate": 12,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 6,
+    "fields": {
+      "category": 6,
+      "commission_rate": 12,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 7,
+    "fields": {
+      "category": 7,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 8,
+    "fields": {
+      "category": 8,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 9,
+    "fields": {
+      "category": 9,
+      "commission_rate": 15,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 10,
+    "fields": {
+      "category": 10,
+      "commission_rate": 5,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 11,
+    "fields": {
+      "category": 11,
+      "commission_rate": 8,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 12,
+    "fields": {
+      "category": 12,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 13,
+    "fields": {
+      "category": 13,
+      "commission_rate": 10,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 14,
+    "fields": {
+      "category": 14,
+      "commission_rate": 15,
+      "actif": true
+    }
+  },
+  {
+    "model": "adminpanel.categorycommission",
+    "pk": 15,
+    "fields": {
+      "category": 15,
+      "commission_rate": 8,
+      "actif": true
+    }
+  }
+]

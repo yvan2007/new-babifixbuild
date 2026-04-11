@@ -1,0 +1,72 @@
+[
+  {
+    "model": "vitrine.testimonial",
+    "pk": 1,
+    "fields": {
+      "nom": "Aminata Koné",
+      "role": "Particulier",
+      "ville": "Abidjan Cocody",
+      "texte": "J'ai trouvé un excellent plombier en moins de 10 minutes. Service rapide et professionnel. Je recommande à 100% !",
+      "note": 5,
+      "avatar_url": "",
+      "actif": true,
+      "ordre_affichage": 1
+    }
+  },
+  {
+    "model": "vitrine.testimonial",
+    "pk": 2,
+    "fields": {
+      "nom": "Ibrahim Touré",
+      "role": "Chef d'entreprise",
+      "ville": "Bouaké",
+      "texte": "BABIFIX a révolutionné ma façon de trouver des prestataires. Fini les longues recherches, tout est simple et sécurisé.",
+      "note": 5,
+      "avatar_url": "",
+      "actif": true,
+      "ordre_affichage": 2
+    }
+  },
+  {
+    "model": "vitrine.testimonial",
+    "pk": 3,
+    "fields": {
+      "nom": "Marie Koffi",
+      "role": "Électricienne - Prestataire BABIFIX",
+      "ville": "Abidjan Plateau",
+      "texte": "En tant qu'électricienne, BABIFIX m'a permis de développer ma clientèle rapidement. Les paiements sont toujours sécurisés.",
+      "note": 5,
+      "avatar_url": "",
+      "actif": true,
+      "ordre_affichage": 3
+    }
+  },
+  {
+    "model": "vitrine.testimonial",
+    "pk": 4,
+    "fields": {
+      "nom": "Konan Bertille",
+      "role": "Commerçante",
+      "ville": "Abidjan Marcory",
+      "texte": "Les femmes de ménage trouvées sur BABIFIX sont fiabilitées et délicates. Je ne peux plus m'en passer!",
+      "note": 4,
+      "avatar_url": "",
+      "actif": true,
+      "ordre_affichage": 4
+    }
+  },
+  {
+    "model": "vitrine.testimonial",
+    "pk": 5,
+    "fields": {
+      "nom": "Doumbia Mamadou",
+      "role": "Architecte",
+      "ville": "Abidjan Riviera",
+      "texte": "Excellent service client. Quand j'ai eu un souci, l'équipe BABIFIX a résolu le problème en moins d'une heure.",
+      "note": 5,
+      "avatar_url": "",
+      "actif": true,
+      "ordre_affichage": 5
+    }
+  }
+]

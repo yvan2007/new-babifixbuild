@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Votre mission est terminée — BABIFIX</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background-color: #FF6B00; padding: 30px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 24px; }
+        .content { padding: 40px 30px; }
+        .content p { color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 15px; }
+        .success-icon { font-size: 60px; text-align: center; margin: 20px 0; color: #28a745; }
+        .details-box { background: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .details-box p { margin: 8px 0; }
+        .details-label { font-weight: bold; color: #666666; }
+        .btn { display: inline-block; background-color: #FF6B00; color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; margin: 20px 5px 0; }
+        .btn-secondary { background-color: #6c757d; }
+        .footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #666666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>BABIFIX</h1>
+        </div>
+        <div class="content">
+            <div class="success-icon">&#10003;</div>
+            <p>Bonjour <strong>{{ client_name }}</strong>,</p>
+            <p>Votre mission vient d'être marquée comme terminée par le prestataire. Merci de votre confiance !</p>
+            
+            <div class="details-box">
+                <p><span class="details-label">Mission :</span> {{ reservation_title }}</p>
+                <p><span class="details-label">Prestataire :</span> {{ prestataire_name }}</p>
+                <p><span class="details-label">Montant :</span> {{ montant }}</p>
+                {% if date_mission %}<p><span class="details-label">Date :</span> {{ date_mission }}</p>{% endif %}
+            </div>
+            
+            <p>Votre avis nous est précieux ! Prenez un moment pour évaluer le prestataire.</p>
+            
+            <p>L'équipe BABIFIX — Côte d'Ivoire<br>
+            <a href="https://babifix.ci" style="color: #FF6B00;">babifix.ci</a> | contact@babifix.ci</p>
+        </div>
+        <div class="footer">
+            <p>BABIFIX — Connection. Service. Confiance.</p>
+        </div>
+    </div>
+</body>
+</html>

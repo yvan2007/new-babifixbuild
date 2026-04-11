@@ -1,0 +1,2554 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BABIFIX – Services à domicile en Côte d'Ivoire</title>
+  <meta name="description" content="Trouvez des prestataires vérifiés pour tous vos services à domicile en Côte d'Ivoire. Plomberie, électricité, ménage et plus. Payez en Mobile Money – Orange Money, MTN, Wave.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://babifix.ci/">
+  <meta property="og:title" content="BABIFIX – Services à domicile en Côte d'Ivoire">
+  <meta property="og:description" content="Trouvez des prestataires vérifiés pour tous vos services à domicile en Côte d'Ivoire. Plomberie, électricité, ménage et plus. Payez en Mobile Money.">
+  <meta property="og:locale" content="fr_CI">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://babifix.ci/">
+  <meta name="robots" content="index, follow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   BABIFIX DESIGN SYSTEM — Awwwards Edition
+================================================================ */
+:root {
+  --c-blue:    #0284c7;
+  --c-sky:     #0ea5e9;
+  --c-orange:  #f97316;
+  --c-green:   #10b981;
+  --c-dark:    #0f172a;
+  --c-navy:    #0c2340;
+  --c-white:   #ffffff;
+  --c-surface: #f8fafc;
+  --c-surf2:   #f0f9ff;
+  --c-border:  rgba(2,132,199,.10);
+  --c-text:    #0f172a;
+  --c-muted:   #94a3b8;
+  --c-mid:     #475569;
+  --r-sm:  12px;
+  --r-md:  18px;
+  --r-lg:  28px;
+  --r-pill: 999px;
+  --sh-xs: 0 2px 8px rgba(15,23,42,.06);
+  --sh-sm: 0 4px 16px rgba(15,23,42,.08);
+  --sh-md: 0 12px 36px rgba(15,23,42,.10);
+  --sh-lg: 0 24px 60px rgba(15,23,42,.14);
+  --sh-brand: 0 16px 40px rgba(2,132,199,.28);
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-spring: cubic-bezier(.34,1.56,.64,1);
+  --ease-in-out: cubic-bezier(.65,0,.35,1);
+  --dur-fast: 180ms;
+  --dur-mid: 300ms;
+  --dur-slow: 600ms;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+html, body { overflow-x: hidden; }
+body {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  color: var(--c-text);
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+img { display: block; max-width: 100%; }
+a { text-decoration: none; color: inherit; }
+section[id], header[id] { scroll-margin-top: 80px; }
+
+/* ── Progress bar ── */
+#progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--c-blue), var(--c-sky), var(--c-orange));
+  z-index: 9999;
+  transition: width 80ms linear;
+  border-radius: 0 2px 2px 0;
+}
+
+/* ── Utilities ── */
+.container { width: min(1180px, 92vw); margin: 0 auto; }
+.grad-text {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9, #38bdf8);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.grad-text-orange {
+  background: linear-gradient(135deg, #f97316, #fb923c);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.eyebrow {
+  display: inline-block;
+  font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--c-blue);
+  background: rgba(2,132,199,.09);
+  border-radius: var(--r-pill);
+  padding: 6px 14px; margin-bottom: 14px;
+}
+.eyebrow.orange { color: var(--c-orange); background: rgba(249,115,22,.10); }
+.eyebrow.green  { color: var(--c-green); background: rgba(16,185,129,.10); }
+.section-head { text-align: center; margin-bottom: 56px; }
+.section-title { font-size: clamp(24px,3.6vw,40px); font-weight: 900; line-height: 1.13; letter-spacing: -0.025em; margin-bottom: 12px; }
+.section-sub   { font-size: 16px; color: var(--c-mid); max-width: 600px; margin: 0 auto; line-height: 1.6; letter-spacing: -0.01em; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 700;
+  padding: 14px 28px; border-radius: var(--r-pill);
+  border: none; cursor: pointer; white-space: nowrap;
+  transition: transform var(--dur-fast) var(--ease-spring),
+              box-shadow var(--dur-fast) ease;
+}
+.btn:hover { transform: translateY(-3px); }
+.btn-primary {
+  background: linear-gradient(135deg,#0284c7,#0ea5e9);
+  color: #fff; box-shadow: var(--sh-brand);
+}
+.btn-primary:hover { box-shadow: 0 20px 48px rgba(2,132,199,.42); }
+.btn-ghost  {
+  background: transparent; color: var(--c-blue);
+  border: 2px solid var(--c-blue);
+}
+.btn-ghost:hover { background: rgba(2,132,199,.06); }
+.btn-orange {
+  background: linear-gradient(135deg,#f97316,#fb923c);
+  color: #fff; box-shadow: 0 16px 40px rgba(249,115,22,.32);
+}
+.btn-orange:hover { box-shadow: 0 20px 48px rgba(249,115,22,.44); }
+.btn-white  { background: #fff; color: var(--c-blue); box-shadow: var(--sh-md); }
+.btn-white:hover  { box-shadow: var(--sh-lg); }
+
+/* ================================================================
+   NAVIGATION
+================================================================ */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: 72px;
+  background: rgba(255,255,255,.94);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--c-border);
+  box-shadow: 0 1px 0 rgba(15,23,42,.04), 0 4px 20px rgba(15,23,42,.05);
+  transition: height 200ms var(--ease-out), background 200ms ease;
+}
+.nav.scrolled { height: 62px; box-shadow: 0 2px 20px rgba(15,23,42,.10); }
+.nav-inner {
+  width: min(1180px,94vw); height: 100%;
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-logo { width: 36px; height: 36px; border-radius: 10px; object-fit: cover; }
+.brand-name {
+  font-size: 22px; font-weight: 900; letter-spacing: .3px;
+  background: linear-gradient(90deg,#0284c7,#0ea5e9);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.nav-links { display: flex; align-items: center; gap: 2px; }
+.nav-links a {
+  font-size: 14px; font-weight: 500; color: var(--c-mid);
+  padding: 7px 12px; border-radius: var(--r-sm);
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+.nav-links a:hover, .nav-links a.active {
+  color: var(--c-blue); background: rgba(2,132,199,.07);
+}
+.nav-links a.active { font-weight: 700; }
+.nav-cta {
+  font-size: 14px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg,#0284c7,#0ea5e9);
+  padding: 9px 20px; border-radius: var(--r-pill);
+  box-shadow: 0 4px 16px rgba(2,132,199,.30);
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast) ease;
+}
+.nav-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(2,132,199,.40); }
+
+/* Mobile burger */
+.burger {
+  display: none; flex-direction: column; justify-content: center; align-items: center;
+  gap: 5px; width: 40px; height: 40px; border: none; background: none; cursor: pointer;
+}
+.burger span {
+  display: block; width: 22px; height: 2px; border-radius: 2px;
+  background: var(--c-text);
+  transition: transform 220ms var(--ease-out), opacity 220ms ease, width 220ms ease;
+}
+.burger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.burger.open span:nth-child(2) { opacity: 0; width: 0; }
+.burger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Mobile overlay */
+.nav-overlay {
+  position: fixed; inset: 0; z-index: 190;
+  background: rgba(15,23,42,.5); backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 300ms ease;
+}
+.nav-overlay.open { opacity: 1; pointer-events: auto; }
+.nav-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 195;
+  width: min(360px, 90vw);
+  background: #fff;
+  padding: 80px 28px 40px;
+  display: flex; flex-direction: column; gap: 8px;
+  transform: translateX(110%);
+  transition: transform 350ms var(--ease-out);
+  box-shadow: -20px 0 60px rgba(15,23,42,.12);
+}
+.nav-drawer.open { transform: translateX(0); }
+.drawer-close {
+  position: absolute; top: 20px; right: 20px;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--c-surface); border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--c-mid);
+  transition: background var(--dur-fast) ease;
+}
+.drawer-close:hover { background: #e2e8f0; }
+.drawer-link {
+  font-size: 16px; font-weight: 600; color: var(--c-text);
+  padding: 14px 16px; border-radius: var(--r-md);
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.drawer-link:hover { background: var(--c-surface); color: var(--c-blue); }
+.drawer-cta {
+  margin-top: 16px;
+  background: linear-gradient(135deg,#0284c7,#0ea5e9);
+  color: #fff; font-weight: 700; font-size: 15px;
+  padding: 15px; border-radius: var(--r-pill);
+  text-align: center;
+}
+
+/* ================================================================
+   HERO
+================================================================ */
+.hero {
+  position: relative; overflow: hidden;
+  background: linear-gradient(150deg, #fff 0%, #f0f9ff 45%, #e0f2fe 100%);
+  padding: 130px 0 110px;
+  min-height: 100vh;
+  display: flex; align-items: center;
+}
+/* Animated gradient orbs */
+.hero-orbs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(72px); opacity: .55;
+  animation: orb-drift linear infinite;
+}
+.orb-1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, #bae6fd, #7dd3fc 50%, transparent);
+  top: -200px; right: -120px;
+  animation-duration: 18s; animation-delay: 0s;
+}
+.orb-2 {
+  width: 480px; height: 480px;
+  background: radial-gradient(circle, #93c5fd, #c7d2fe 50%, transparent);
+  bottom: -180px; left: -100px;
+  animation-duration: 22s; animation-delay: -8s;
+  animation-direction: reverse;
+}
+.orb-3 {
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, #fed7aa, #fde68a 50%, transparent);
+  top: 38%; left: 38%;
+  animation-duration: 28s; animation-delay: -14s;
+  opacity: .22;
+}
+@keyframes orb-drift {
+  0%   { transform: translate(0,0) scale(1) rotate(0deg); }
+  25%  { transform: translate(20px,-24px) scale(1.05) rotate(3deg); }
+  50%  { transform: translate(-14px,18px) scale(.96) rotate(-2deg); }
+  75%  { transform: translate(12px,8px) scale(1.02) rotate(2deg); }
+  100% { transform: translate(0,0) scale(1) rotate(0deg); }
+}
+/* Noise texture overlay */
+.hero::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  opacity: .4;
+}
+.hero-wrap { position: relative; z-index: 2; width: 100%; }
+.hero-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 60px; align-items: center;
+}
+.hero-left { padding-right: 20px; }
+
+/* Badge live */
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700; color: #0369a1;
+  background: linear-gradient(90deg,#e0f2fe,#dbeafe);
+  border: 1px solid rgba(14,165,233,.25);
+  border-radius: var(--r-pill); padding: 7px 14px; margin-bottom: 24px;
+}
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--c-green);
+  box-shadow: 0 0 0 3px rgba(16,185,129,.25);
+  animation: pulse-ring 2.4s ease infinite;
+}
+@keyframes pulse-ring {
+  0%,100% { box-shadow: 0 0 0 3px rgba(16,185,129,.25); }
+  50%      { box-shadow: 0 0 0 8px rgba(16,185,129,.06); }
+}
+
+/* Word-reveal title */
+.hero-title {
+  font-size: clamp(32px, 4.2vw, 58px);
+  font-weight: 900;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--c-text);
+  margin-bottom: 20px;
+  animation: fade-up .7s .1s var(--ease-out) both;
+}
+
+/* Rotating word in hero title */
+.hero-word-rotator {
+  display: inline-block;
+  position: relative;
+  min-width: clamp(180px, 38vw, 380px);
+  height: 1.13em;
+  vertical-align: middle;
+  overflow: hidden;
+}
+.hero-word-rotator .rw-word {
+  display: block;
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%;
+  background: linear-gradient(135deg, var(--c-sky) 0%, var(--c-orange) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 900;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity .45s cubic-bezier(.34,1.56,.64,1), transform .45s cubic-bezier(.34,1.56,.64,1);
+}
+.hero-word-rotator .rw-word.rw-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+.hero-word-rotator .rw-word.rw-exit {
+  opacity: 0;
+  transform: translateY(-36px);
+  transition: opacity .3s ease, transform .3s ease;
+}
+.hero-sub {
+  font-size: 16px; color: var(--c-mid); line-height: 1.6;
+  margin-bottom: 32px; max-width: 480px;
+  letter-spacing: -0.01em;
+  animation: fade-up .8s .35s var(--ease-out) both;
+}
+.hero-actions {
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 36px;
+  animation: fade-up .8s .5s var(--ease-out) both;
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Trust strip — 3 cards */
+.trust {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  align-items: center;
+  gap: 0;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(2,132,199,.13);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(2,132,199,.1), 0 2px 8px rgba(0,0,0,.06);
+  max-width: 520px;
+  overflow: hidden;
+  animation: fade-up .8s .65s var(--ease-out) both;
+}
+.trust-rating {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 18px 20px;
+  border-right: 1px solid #e8f0f8;
+}
+.stars { display: flex; gap: 3px; }
+.star { width: 17px; height: 17px; fill: #f59e0b; color: #f59e0b; }
+.trust-txt { font-size: 12.5px; font-weight: 600; color: var(--c-mid); white-space: nowrap; }
+.trust-kpi {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 18px 16px;
+  text-align: center;
+  border-right: 1px solid #e8f0f8;
+  min-width: 120px;
+}
+.trust-kpi:last-child { border-right: none; }
+.trust-kpi-val {
+  font-size: 22px; font-weight: 900;
+  background: linear-gradient(135deg, var(--c-blue), var(--c-sky));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.1; margin-bottom: 3px;
+}
+.trust-kpi-lbl { font-size: 11px; font-weight: 500; color: var(--c-muted); line-height: 1.3; }
+
+/* Phone mockup */
+.hero-right {
+  display: flex; justify-content: center; align-items: center;
+  animation: fade-up .9s .2s var(--ease-out) both;
+}
+.phone-wrap { position: relative; display: inline-block; }
+.phone {
+  width: 300px;
+  height: 620px;
+  background: #fff;
+  border-radius: 40px;
+  box-shadow: 0 40px 100px rgba(15,23,42,.20), 0 0 0 10px rgba(255,255,255,.65);
+  overflow: hidden;
+  border: 7px solid #fff;
+  animation: phone-float 5s ease-in-out infinite;
+}
+@keyframes phone-float {
+  0%,100% { transform: translateY(0) rotate(.5deg); }
+  50%      { transform: translateY(-14px) rotate(-.5deg); }
+}
+.phone-status {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--c-dark); color: #fff;
+  padding: 8px 18px; font-size: 11px; font-weight: 600;
+  position: relative;
+}
+.phone-notch {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  width: 100px; height: 28px;
+  background: #000;
+  border-radius: 20px;
+  z-index: 2;
+}
+.phone-home {
+  position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+  width: 100px; height: 4px; background: rgba(255,255,255,.4);
+  border-radius: 2px;
+}
+.signal { display: flex; gap: 3px; align-items: center; }
+.sig-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-green); }
+.phone-body { padding: 14px 14px 18px; }
+.phone-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.phone-logo { width: 34px; height: 34px; border-radius: 10px; object-fit: cover; }
+.phone-h { font-size: 12px; font-weight: 800; color: var(--c-text); line-height: 1.2; }
+.phone-p { font-size: 10px; color: var(--c-muted); line-height: 1.2; white-space: nowrap; }
+.phone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.phone-search {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--c-surf2); border-radius: 20px;
+  padding: 8px 12px; margin-bottom: 12px;
+}
+.phone-section-title {
+  font-size: 9px; font-weight: 700; color: var(--c-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin: 12px 0 8px;
+}
+.phone-provider {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--c-surf2); border-radius: 12px;
+  padding: 10px 12px;
+}
+.phone-provider-avatar { font-size: 28px; }
+.phone-provider-info { flex: 1; }
+.phone-provider-name { font-size: 11px; font-weight: 700; color: var(--c-text); }
+.phone-provider-rating { font-size: 9px; color: var(--c-muted); }
+.phone-provider-badge {
+  font-size: 8px; font-weight: 600; color: var(--c-green);
+  background: rgba(34,197,94,.1); padding: 4px 8px;
+  border-radius: 10px;
+}
+.phone-card {
+  background: var(--c-surf2);
+  border-radius: 12px; padding: 12px 8px; text-align: center;
+  transition: transform 200ms ease;
+}
+.phone-card:hover { transform: scale(1.04); }
+.phone-emoji { font-size: 28px; line-height: 1; margin-bottom: 6px; }
+.phone-card-label { font-size: 9px; font-weight: 700; color: var(--c-text); }
+/* phone badges */
+.float-badge {
+  position: absolute;
+  display: flex; align-items: center; gap: 10px;
+  background: #fff; border-radius: var(--r-sm);
+  padding: 10px 14px;
+  box-shadow: 0 8px 28px rgba(15,23,42,.14);
+  font-size: 12px; white-space: nowrap;
+  border: 1px solid rgba(255,255,255,.8);
+}
+.fb-top { top: -20px; left: -44px; animation: float-y 4.2s ease-in-out infinite; }
+.fb-bot { bottom: 20px; right: -44px; animation: float-y 4.2s 2s ease-in-out infinite; }
+@keyframes float-y {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+.fb-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.fb-green { background: rgba(16,185,129,.12); }
+.fb-blue  { background: rgba(2,132,199,.12); }
+.fb-title { font-size: 12px; font-weight: 700; color: var(--c-text); }
+.fb-sub   { font-size: 10px; color: var(--c-muted); }
+
+/* Scroll indicator */
+.scroll-cue {
+  width: 26px; height: 44px; border: 2px solid rgba(2,132,199,.25);
+  border-radius: 13px; margin: 44px auto 0; position: relative;
+}
+.scroll-cue::before {
+  content: ''; position: absolute; left: 50%; top: 7px;
+  width: 4px; height: 10px; border-radius: 2px;
+  background: var(--c-blue); transform: translateX(-50%);
+  animation: scroll-dot 1.8s ease-in-out infinite;
+}
+@keyframes scroll-dot {
+  0%,100% { top: 7px; opacity: 1; }
+  50%      { top: 20px; opacity: .3; }
+}
+
+/* ================================================================
+   MOBILE MONEY MARQUEE BAR
+================================================================ */
+.mm-bar {
+  background: #fff;
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 0; overflow: hidden; position: relative;
+}
+.mm-bar::before, .mm-bar::after {
+  content: ''; position: absolute; top: 0; bottom: 0; z-index: 2; width: 100px;
+  pointer-events: none;
+}
+.mm-bar::before { left: 0; background: linear-gradient(90deg,#fff,transparent); }
+.mm-bar::after  { right: 0; background: linear-gradient(-90deg,#fff,transparent); }
+.mm-track {
+  display: flex; align-items: center;
+  animation: marquee 24s linear infinite;
+  width: max-content;
+}
+.mm-track:hover { animation-play-state: paused; }
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.mm-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 32px;
+  border-right: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+.mm-chip {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 900; color: #fff; flex-shrink: 0;
+}
+.mm-chip.om   { background: #FF6600; }
+.mm-chip.mtn  { background: #FFCC00; color: #1a1a1a; }
+.mm-chip.wave { background: #1B9EDB; }
+.mm-chip.moov { background: #007AC1; }
+.mm-chip.cash { background: var(--c-green); }
+.mm-logo { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+.mm-logo.mtn-logo { width: 60px; height: 60px; }
+.mm-name { font-size: 13px; font-weight: 700; color: var(--c-text); }
+.mm-sub  { font-size: 11px; color: var(--c-muted); }
+
+/* ================================================================
+   STATS / CHIFFRES CLÉS
+================================================================ */
+.stats-section {
+  background: linear-gradient(150deg, #0f172a 0%, #0c2340 55%, #1a3a5c 100%);
+  padding: 80px 0;
+  position: relative; overflow: hidden;
+}
+.stats-section::before {
+  content: ''; position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23fff' fill-opacity='0.018'%3E%3Ccircle cx='30' cy='30' r='1.5'/%3E%3C/g%3E%3C/svg%3E");
+}
+.stats-grid {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 20px;
+  position: relative; z-index: 1;
+}
+.kpi-card {
+  text-align: center; padding: 36px 20px;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(8px);
+  transition: transform var(--dur-mid) var(--ease-spring), background var(--dur-mid) ease;
+  cursor: default;
+}
+.kpi-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  background: rgba(255,255,255,.10);
+}
+.kpi-ico {
+  width: 56px; height: 56px; border-radius: 16px;
+  background: linear-gradient(135deg,rgba(14,165,233,.22),rgba(2,132,199,.14));
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px; font-size: 26px;
+}
+.kpi-val {
+  font-size: clamp(30px,4vw,48px); font-weight: 900; line-height: 1;
+  background: linear-gradient(135deg,#fff,#7dd3fc);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  margin-bottom: 8px;
+}
+.kpi-lbl { font-size: 14px; color: #94a3b8; font-weight: 500; }
+
+/* ================================================================
+   CATEGORIES — Grille icônes professionnelles
+================================================================ */
+.cats-section {
+  padding: 100px 0;
+  background: var(--c-surface);
+}
+.cats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px,1fr));
+  gap: 16px;
+}
+.cat-card {
+  background: #fff;
+  border-radius: var(--r-lg);
+  padding: 28px 16px 22px;
+  text-align: center;
+  border: 1.5px solid #f1f5f9;
+  box-shadow: var(--sh-xs);
+  cursor: pointer;
+  transition: transform var(--dur-mid) var(--ease-spring),
+              box-shadow var(--dur-mid) ease,
+              border-color var(--dur-mid) ease;
+  position: relative; overflow: hidden;
+}
+.cat-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  opacity: 0;
+  background: var(--cat-color, rgba(2,132,199,.06));
+  transition: opacity var(--dur-mid) ease;
+}
+.cat-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: var(--sh-lg);
+  border-color: transparent;
+}
+.cat-card:hover::before { opacity: 1; }
+.cat-ico-wrap {
+  width: 72px; height: 72px; border-radius: 22px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+  background: var(--cat-bg, linear-gradient(135deg,#dbeafe,#e0f2fe));
+  transition: transform var(--dur-mid) var(--ease-spring);
+}
+.cat-card:hover .cat-ico-wrap { transform: scale(1.15) rotate(-4deg); }
+.cat-emoji { font-size: 34px; line-height: 1; }
+.cat-name {
+  font-size: 13px; font-weight: 700; color: var(--c-text);
+  margin-bottom: 4px; line-height: 1.3;
+  position: relative; z-index: 1;
+}
+.cat-desc {
+  font-size: 11px; color: var(--c-muted); line-height: 1.4;
+  position: relative; z-index: 1;
+}
+.cats-more {
+  display: flex; justify-content: center; margin-top: 40px;
+}
+
+/* ================================================================
+   HOW IT WORKS
+================================================================ */
+.how-section {
+  padding: 100px 0; background: #fff;
+  position: relative; overflow: hidden;
+}
+.how-section::before {
+  content: ''; position: absolute;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle,rgba(2,132,199,.045),transparent 70%);
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+  pointer-events: none;
+}
+.steps-wrap {
+  display: grid; grid-template-columns: repeat(3,1fr);
+  gap: 36px; position: relative; z-index: 1;
+}
+/* Animated connector */
+.steps-connector {
+  position: absolute;
+  top: 54px; left: calc(16.66% + 36px); right: calc(16.66% + 36px);
+  height: 2px; z-index: 0;
+  overflow: hidden;
+}
+.steps-connector-fill {
+  height: 100%;
+  background: linear-gradient(90deg,rgba(2,132,199,.3),rgba(14,165,233,.7),rgba(2,132,199,.3));
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 1.2s 0.3s var(--ease-out);
+}
+.steps-connector.visible .steps-connector-fill { transform: scaleX(1); }
+.step-card {
+  background: #fff; border-radius: var(--r-lg);
+  padding: 40px 28px 36px; text-align: center;
+  border: 1.5px solid #f1f5f9;
+  box-shadow: var(--sh-sm);
+  position: relative; z-index: 1;
+  transition: transform var(--dur-mid) var(--ease-spring), box-shadow var(--dur-mid) ease;
+}
+.step-card:hover {
+  transform: translateY(-10px);
+  box-shadow: var(--sh-lg);
+}
+.step-num {
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(135deg,#0284c7,#0ea5e9);
+  color: #fff; font-size: 20px; font-weight: 900;
+  margin: 0 auto 20px;
+  box-shadow: 0 8px 24px rgba(2,132,199,.32);
+  transition: transform var(--dur-mid) var(--ease-spring);
+}
+.step-card:hover .step-num { transform: scale(1.15) rotate(-5deg); }
+.step-ico {
+  font-size: 40px; margin: 0 auto 18px; line-height: 1;
+}
+.step-card h3 { font-size: 18px; font-weight: 800; margin-bottom: 10px; }
+.step-card p  { font-size: 14px; color: var(--c-mid); line-height: 1.65; }
+
+/* ================================================================
+   WHY BABIFIX
+================================================================ */
+/* ── Notifications intelligentes ─────────────────── */
+.notif-section { padding: 100px 0; background: #fff; }
+.notif-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 64px;
+  align-items: center;
+}
+.notif-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 20px; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  transition: box-shadow var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+.notif-item:hover { box-shadow: 0 8px 24px rgba(0,0,0,.08); transform: translateY(-2px); }
+.notif-icon-wrap {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.notif-item strong { display: block; font-size: 14px; font-weight: 700; color: var(--c-text); margin-bottom: 3px; }
+.notif-item p { font-size: 13.5px; color: var(--c-mid); margin: 0; line-height: 1.5; }
+
+/* Phone mockup for notifications */
+.notif-phone-mockup {
+  background: #0f172a;
+  border-radius: 32px;
+  padding: 24px 16px;
+  box-shadow: 0 32px 80px rgba(0,0,0,.22), 0 0 0 8px rgba(255,255,255,.06);
+  max-width: 320px;
+  margin: 0 auto;
+}
+.nmp-notif-stack { display: flex; flex-direction: column; gap: 10px; }
+.nmp-notif {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px;
+  padding: 12px 14px;
+  animation: nmp-slide-in .6s var(--ease-spring) both;
+}
+.nmp-notif-1 { animation-delay: .1s; }
+.nmp-notif-2 { animation-delay: .25s; }
+.nmp-notif-3 { animation-delay: .4s; }
+.nmp-notif-4 { animation-delay: .55s; }
+@keyframes nmp-slide-in {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: none; }
+}
+.nmp-notif-ico { font-size: 22px; flex-shrink: 0; line-height: 1; margin-top: 2px; }
+.nmp-notif-body strong { display: block; font-size: 12.5px; font-weight: 700; color: #f1f5f9; margin-bottom: 2px; }
+.nmp-notif-body p { font-size: 11.5px; color: #94a3b8; margin: 0 0 4px; line-height: 1.4; }
+.nmp-notif-time { font-size: 10.5px; color: #475569; }
+
+@media (max-width: 900px) {
+  .notif-grid { grid-template-columns: 1fr; gap: 40px; }
+  .notif-phone { order: -1; }
+  .notif-phone-mockup { max-width: 280px; }
+}
+
+/* ── Why ─────────────────────────────────────────── */
+.why-section {
+  padding: 100px 0;
+  background: linear-gradient(150deg,#f0f9ff 0%,var(--c-surface) 100%);
+}
+.why-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+  margin-bottom: 72px;
+}
+.why-text .section-title { text-align: left; }
+.why-text .section-sub   { text-align: left; margin: 0 0 28px; }
+.diff-list { display: flex; flex-direction: column; gap: 14px; }
+.diff-card {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 20px 22px; background: #fff;
+  border-radius: var(--r-md); border: 1.5px solid #f1f5f9;
+  box-shadow: var(--sh-xs);
+  transition: transform var(--dur-mid) ease, box-shadow var(--dur-mid) ease, border-color var(--dur-mid) ease;
+}
+.diff-card:hover { transform: translateX(8px); box-shadow: var(--sh-sm); border-color: rgba(2,132,199,.18); }
+.diff-card.featured {
+  background: linear-gradient(135deg,#0284c7,#0ea5e9);
+  border-color: transparent; color: #fff;
+}
+.diff-card.featured p, .diff-card.featured .diff-lbl { color: rgba(255,255,255,.85); }
+.diff-ico {
+  width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(2,132,199,.10); font-size: 22px;
+}
+.diff-card.featured .diff-ico { background: rgba(255,255,255,.18); }
+.diff-lbl { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--c-blue); margin-bottom: 4px; }
+.diff-card.featured .diff-lbl { color: rgba(255,255,255,.7); }
+.diff-card h4 { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+.diff-card.featured h4 { color: #fff; }
+.diff-card p  { font-size: 13px; color: var(--c-mid); line-height: 1.6; }
+.feats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
+.feat-card {
+  background: #fff; border-radius: var(--r-md);
+  padding: 28px 22px; border: 1.5px solid #f1f5f9;
+  box-shadow: var(--sh-xs);
+  transition: transform var(--dur-mid) var(--ease-spring), box-shadow var(--dur-mid) ease;
+}
+.feat-card:hover { transform: translateY(-6px); box-shadow: var(--sh-md); }
+.feat-ico { font-size: 30px; margin-bottom: 12px; }
+.feat-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.feat-card p  { font-size: 13px; color: var(--c-mid); line-height: 1.6; }
+
+/* ================================================================
+   TESTIMONIALS — Auto-scroll slider
+================================================================ */
+.test-section { padding: 100px 0; background: #fff; overflow: hidden; }
+.test-track-wrap {
+  overflow: hidden; position: relative; margin: 0 -6vw;
+  padding: 8px 0;
+}
+.test-track-wrap::before, .test-track-wrap::after {
+  content: ''; position: absolute; top: 0; bottom: 0; z-index: 2; width: 120px;
+  pointer-events: none;
+}
+.test-track-wrap::before { left: 0; background: linear-gradient(90deg,#fff,transparent); }
+.test-track-wrap::after  { right: 0; background: linear-gradient(-90deg,#fff,transparent); }
+.test-track {
+  display: flex; gap: 24px;
+  animation: test-scroll 36s linear infinite;
+  width: max-content; padding: 0 6vw;
+}
+.test-track:hover { animation-play-state: paused; }
+@keyframes test-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.test-card {
+  width: 340px; flex-shrink: 0;
+  background: var(--c-surface); border-radius: var(--r-lg);
+  padding: 32px 26px; border: 1.5px solid #f1f5f9;
+  position: relative; overflow: hidden;
+  transition: transform var(--dur-mid) var(--ease-spring), box-shadow var(--dur-mid) ease;
+}
+.test-card:hover { transform: translateY(-6px) scale(1.01); box-shadow: var(--sh-md); }
+.test-card::before {
+  content: '"'; position: absolute; top: -12px; right: 20px;
+  font-size: 130px; font-weight: 900; color: rgba(2,132,199,.06);
+  line-height: 1; font-family: Georgia, serif;
+}
+.test-stars { display: flex; gap: 3px; margin-bottom: 12px; }
+.test-text { font-size: 15px; color: var(--c-text); line-height: 1.7; font-style: italic; margin-bottom: 22px; position: relative; z-index: 1; }
+.test-author { display: flex; align-items: center; gap: 12px; }
+.test-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(135deg,#0284c7,#0ea5e9);
+  color: #fff; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.test-name { font-size: 15px; font-weight: 700; }
+.test-role { font-size: 12px; color: var(--c-muted); margin-top: 2px; }
+.test-city { font-size: 11px; color: var(--c-muted); margin-top: 2px; }
+.test-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; color: var(--c-green); margin-top: 4px;
+}
+.test-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg,#0284c7,#0ea5e9,#38bdf8);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+
+/* ================================================================
+   BECOME A PROVIDER
+================================================================ */
+.prov-section {
+  padding: 100px 0;
+  background: linear-gradient(150deg,#0f172a 0%,#0c2340 55%,#1a3060 100%);
+  position: relative; overflow: hidden;
+}
+.prov-section::before {
+  content: ''; position: absolute;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle,rgba(14,165,233,.12),transparent 70%);
+  top: -150px; right: -100px; pointer-events: none;
+}
+.prov-section::after {
+  content: ''; position: absolute;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle,rgba(249,115,22,.08),transparent 70%);
+  bottom: -100px; left: -80px; pointer-events: none;
+}
+.prov-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+  position: relative; z-index: 1;
+}
+.prov-title { font-size: clamp(28px,4vw,44px); font-weight: 900; color: #fff; margin-bottom: 16px; line-height: 1.1; }
+.prov-sub { font-size: 17px; color: #94a3b8; line-height: 1.7; margin-bottom: 32px; }
+.prov-perks { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 36px; }
+.perk {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px; background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.09); border-radius: var(--r-sm);
+  transition: background var(--dur-mid) ease, border-color var(--dur-mid) ease;
+}
+.perk:hover { background: rgba(255,255,255,.10); border-color: rgba(14,165,233,.28); }
+.perk-ico { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+.perk h4 { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+.perk p  { font-size: 11px; color: #94a3b8; line-height: 1.5; }
+.prov-cards { display: flex; flex-direction: column; gap: 14px; }
+.prov-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.10); border-radius: var(--r-md);
+  transition: background var(--dur-mid) ease, border-color var(--dur-mid) ease, transform var(--dur-mid) var(--ease-spring);
+}
+.prov-card:hover { background: rgba(255,255,255,.12); border-color: rgba(14,165,233,.30); transform: translateX(8px); }
+.prov-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(135deg,#0ea5e9,#0284c7);
+  color: #fff; font-weight: 700; font-size: 16px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.prov-name { font-size: 14px; font-weight: 700; color: #fff; }
+.prov-job  { font-size: 12px; color: #94a3b8; }
+.prov-earn { margin-left: auto; text-align: right; font-size: 16px; font-weight: 900; color: var(--c-sky); }
+.prov-earn small { font-size: 11px; font-weight: 500; }
+.prov-earn span  { display: block; font-size: 10px; color: #94a3b8; font-weight: 400; }
+.prov-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; color: var(--c-green);
+  background: rgba(16,185,129,.16); padding: 2px 8px; border-radius: 99px; margin-top: 2px;
+}
+
+/* ================================================================
+   FAQ — Spring accordion
+================================================================ */
+.faq-section { padding: 100px 0; background: var(--c-surface); }
+.faq-inner { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.faq-item {
+  background: #fff; border: 1.5px solid #f1f5f9;
+  border-radius: var(--r-md); overflow: hidden;
+  transition: border-color var(--dur-mid) ease, box-shadow var(--dur-mid) ease;
+}
+.faq-item:hover { border-color: rgba(2,132,199,.20); }
+.faq-item.open { border-color: rgba(2,132,199,.28); box-shadow: var(--sh-sm); }
+.faq-trigger {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px; cursor: pointer; user-select: none; gap: 12px;
+  font-size: 16px; font-weight: 700; color: var(--c-text);
+  list-style: none; background: none; border: none; width: 100%; text-align: left;
+}
+.faq-chevron {
+  width: 22px; height: 22px; flex-shrink: 0;
+  background: rgba(2,132,199,.10); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 260ms var(--ease-out), background 200ms ease;
+}
+.faq-item.open .faq-chevron { transform: rotate(180deg); background: rgba(2,132,199,.20); }
+.faq-chevron svg { width: 14px; height: 14px; stroke: var(--c-blue); stroke-width: 2.5; }
+.faq-body {
+  overflow: hidden; max-height: 0;
+  transition: max-height 360ms var(--ease-out);
+}
+.faq-body p {
+  padding: 0 24px 22px;
+  font-size: 15px; color: var(--c-mid); line-height: 1.75; margin: 0;
+}
+
+/* ================================================================
+   CONTACT
+================================================================ */
+.contact-section { padding: 100px 0; background: #fff; }
+.contact-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 48px; }
+.contact-info {
+  background: var(--c-surface); border-radius: var(--r-lg);
+  padding: 36px; border: 1.5px solid #f1f5f9;
+}
+.contact-info h3 { font-size: 18px; font-weight: 800; margin-bottom: 24px; }
+.c-list { list-style: none; display: flex; flex-direction: column; gap: 16px; margin-bottom: 28px; }
+.c-list li { display: flex; flex-direction: column; gap: 2px; }
+.c-lbl { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--c-muted); }
+.c-list a { font-size: 15px; color: var(--c-blue); font-weight: 600; }
+.c-list span + * { font-size: 15px; font-weight: 500; color: var(--c-text); }
+.c-map { border-radius: var(--r-md); overflow: hidden; height: 200px; }
+.c-map iframe { width: 100%; height: 100%; border: none; }
+.contact-form-card { background: #fff; }
+.contact-form-card h3 { font-size: 18px; font-weight: 800; margin-bottom: 24px; }
+.c-form { display: flex; flex-direction: column; gap: 16px; }
+.c-field { display: flex; flex-direction: column; gap: 6px; }
+.c-field label { font-size: 13px; font-weight: 600; color: var(--c-mid); }
+.c-field input, .c-field select, .c-field textarea {
+  font-family: inherit; font-size: 15px;
+  border: 1.5px solid #e2e8f0; border-radius: var(--r-sm);
+  padding: 12px 14px; color: var(--c-text); background: #fff; outline: none;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+.c-field input:focus, .c-field select:focus, .c-field textarea:focus {
+  border-color: var(--c-blue); box-shadow: 0 0 0 3px rgba(2,132,199,.10);
+}
+.c-submit { width: 100%; justify-content: center; font-size: 15px; }
+.c-flash { margin-top: 12px; padding: 12px 16px; border-radius: var(--r-sm); font-size: 14px; font-weight: 600; }
+.c-flash.ok  { background: rgba(16,185,129,.08); color: #065f46; border: 1px solid rgba(16,185,129,.20); }
+.c-flash.err { background: rgba(239,68,68,.08); color: #7f1d1d; border: 1px solid rgba(239,68,68,.20); }
+
+/* ================================================================
+   CTA FINAL
+================================================================ */
+.cta-section {
+  padding: 90px 0;
+  background: linear-gradient(135deg,#0284c7 0%,#0369a1 40%,#1e40af 100%);
+  position: relative; overflow: hidden; text-align: center;
+}
+.cta-section::before {
+  content: ''; position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle,rgba(255,255,255,.07),transparent 70%);
+  top: -250px; right: -120px;
+}
+.cta-inner { position: relative; z-index: 1; }
+.cta-title { font-size: clamp(28px,4vw,48px); font-weight: 900; color: #fff; margin-bottom: 14px; line-height: 1.12; }
+.cta-sub { font-size: 17px; color: rgba(255,255,255,.82); margin: 0 auto 40px; max-width: 560px; line-height: 1.7; }
+.cta-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 52px; }
+.cta-btn {
+  display: inline-flex; flex-direction: column; align-items: center;
+  padding: 18px 32px; border-radius: var(--r-md);
+  font-size: 14px; font-weight: 600; color: var(--c-blue);
+  background: #fff; box-shadow: 0 14px 32px rgba(0,0,0,.22);
+  min-width: 188px;
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast) ease;
+}
+.cta-btn:hover { transform: translateY(-4px); box-shadow: 0 20px 44px rgba(0,0,0,.28); }
+.cta-btn b { font-size: 17px; font-weight: 900; color: var(--c-text); }
+.cta-btn.ghost {
+  background: transparent; color: #fff;
+  border: 2px solid rgba(255,255,255,.40);
+}
+.cta-btn.ghost:hover { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.70); }
+.cta-btn.ghost b { color: #fff; }
+.newsletter-box {
+  max-width: 480px; margin: 0 auto;
+  padding: 32px; background: rgba(255,255,255,.10);
+  backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.20);
+  border-radius: var(--r-lg);
+}
+.newsletter-box p { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 16px; }
+.newsletter-row { display: flex; gap: 8px; }
+.newsletter-row input {
+  flex: 1; font-family: inherit; font-size: 14px;
+  border: 1.5px solid rgba(255,255,255,.30);
+  border-radius: var(--r-pill); padding: 12px 18px;
+  color: #fff; background: rgba(255,255,255,.12); outline: none;
+}
+.newsletter-row input::placeholder { color: rgba(255,255,255,.60); }
+.newsletter-row input:focus { border-color: rgba(255,255,255,.70); }
+.newsletter-row button {
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  border: none; border-radius: var(--r-pill);
+  background: #fff; color: var(--c-blue);
+  padding: 12px 22px; cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.newsletter-row button:hover { transform: translateY(-2px); }
+
+/* ================================================================
+   FOOTER
+================================================================ */
+.footer { background: var(--c-dark); color: #94a3b8; }
+.footer-top {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px;
+  padding: 64px min(6vw,60px) 48px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.footer-brand-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.footer-brand-name {
+  font-size: 22px; font-weight: 900;
+  background: linear-gradient(90deg,#38bdf8,#7dd3fc);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.footer-desc { font-size: 14px; line-height: 1.7; margin-bottom: 20px; }
+.footer-contacts { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #64748b; }
+.footer-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+.footer-payment-logo { height: 28px; width: auto; object-fit: contain; }
+.fbadge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; padding: 4px 10px;
+  border-radius: 99px; border: 1px solid rgba(255,255,255,.12); color: #64748b;
+}
+.footer-social { display: flex; gap: 10px; margin-top: 20px; }
+.soc {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09);
+  display: flex; align-items: center; justify-content: center;
+  color: #94a3b8; font-size: 14px; font-weight: 700;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease, transform var(--dur-fast) var(--ease-spring);
+}
+.soc:hover { background: rgba(2,132,199,.22); color: #38bdf8; transform: translateY(-3px); }
+.foot-col h3 { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #e2e8f0; margin-bottom: 18px; }
+.foot-col a { display: block; font-size: 14px; color: #64748b; margin-bottom: 10px; transition: color var(--dur-fast) ease, transform var(--dur-fast) ease; }
+.foot-col a:hover { color: #7dd3fc; transform: translateX(4px); }
+.footer-bottom {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 22px min(6vw,60px); flex-wrap: wrap; gap: 12px;
+}
+.footer-copy { font-size: 13px; color: #475569; }
+.footer-extra { display: flex; gap: 20px; }
+.footer-extra a { font-size: 13px; color: #475569; transition: color var(--dur-fast) ease; }
+.footer-extra a:hover { color: #7dd3fc; }
+
+/* ================================================================
+   FLOATING WHATSAPP BUTTON
+================================================================ */
+.wa-float {
+  position: fixed; bottom: 28px; right: 36px; z-index: 300;
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(135deg,#25D366,#20b858);
+  color: #fff; font-weight: 700; font-size: 14px;
+  padding: 14px 22px 14px 16px;
+  border-radius: var(--r-pill);
+  box-shadow: 0 8px 32px rgba(37,211,102,.40);
+  cursor: pointer; text-decoration: none;
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast) ease;
+  animation: wa-enter 0.8s 1.5s var(--ease-spring) both;
+}
+@keyframes wa-enter {
+  from { opacity: 0; transform: translateY(24px) scale(.8); }
+  to   { opacity: 1; transform: none; }
+}
+.wa-float:hover {
+  transform: translateY(-4px) scale(1.04);
+  box-shadow: 0 14px 40px rgba(37,211,102,.52);
+}
+.wa-icon-wrap {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: rgba(255,255,255,.22);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; flex-shrink: 0;
+}
+.wa-icon-wrap::before {
+  content: '';
+  position: absolute; inset: -4px; border-radius: 50%;
+  border: 2px solid rgba(37,211,102,.40);
+  animation: wa-pulse 2.4s ease infinite;
+}
+@keyframes wa-pulse {
+  0%,100% { transform: scale(1); opacity: .8; }
+  50%      { transform: scale(1.3); opacity: 0; }
+}
+.wa-icon { width: 22px; height: 22px; fill: #fff; }
+.wa-text-wrap { display: flex; flex-direction: column; }
+.wa-label { font-size: 10px; opacity: .82; line-height: 1; }
+.wa-number { font-size: 13px; font-weight: 800; line-height: 1.3; }
+
+/* ================================================================
+   REVEAL ANIMATIONS
+================================================================ */
+body.js-ready .reveal,
+body.js-ready .reveal-left,
+body.js-ready .reveal-right {
+  opacity: 0; transform: translateY(32px);
+  transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+}
+body.js-ready .reveal-left  { transform: translateX(-32px); }
+body.js-ready .reveal-right { transform: translateX(32px); }
+body.js-ready .visible { opacity: 1 !important; transform: none !important; }
+
+/* Stagger children */
+body.js-ready .stagger > * {
+  opacity: 0; transform: translateY(28px);
+  transition: opacity .55s var(--ease-out), transform .55s var(--ease-out);
+}
+body.js-ready .stagger.visible > *:nth-child(1)  { opacity:1;transform:none;transition-delay:.00s; }
+body.js-ready .stagger.visible > *:nth-child(2)  { opacity:1;transform:none;transition-delay:.06s; }
+body.js-ready .stagger.visible > *:nth-child(3)  { opacity:1;transform:none;transition-delay:.12s; }
+body.js-ready .stagger.visible > *:nth-child(4)  { opacity:1;transform:none;transition-delay:.18s; }
+body.js-ready .stagger.visible > *:nth-child(5)  { opacity:1;transform:none;transition-delay:.24s; }
+body.js-ready .stagger.visible > *:nth-child(6)  { opacity:1;transform:none;transition-delay:.30s; }
+body.js-ready .stagger.visible > *:nth-child(7)  { opacity:1;transform:none;transition-delay:.36s; }
+body.js-ready .stagger.visible > *:nth-child(8)  { opacity:1;transform:none;transition-delay:.42s; }
+body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;transition-delay:.48s; }
+
+/* ================================================================
+   RESPONSIVE
+================================================================ */
+@media (max-width:1024px) {
+  .hero-grid, .why-grid, .prov-grid { grid-template-columns: 1fr; gap: 48px; }
+  .hero-right { display: none; }
+  .why-text .section-title, .why-text .section-sub { text-align: center; }
+  .diff-list { max-width: 560px; margin: 0 auto; }
+  .feats-grid { grid-template-columns: 1fr 1fr; }
+  .steps-connector { display: none; }
+}
+@media (max-width:900px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .steps-wrap { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
+  .footer-top { grid-template-columns: 1fr 1fr; }
+  .contact-grid { grid-template-columns: 1fr; }
+  .prov-perks { grid-template-columns: 1fr; }
+}
+@media (max-width:640px) {
+  .nav-links, .nav-cta { display: none; }
+  .burger { display: flex; }
+  .stats-grid, .feats-grid { grid-template-columns: 1fr; }
+  .cats-grid { grid-template-columns: repeat(2,1fr); }
+  .footer-top { grid-template-columns: 1fr; }
+  /* Trust strip : 2 colonnes sur mobile */
+  .trust { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; max-width: 100%; }
+  .trust-rating { grid-column: 1 / -1; border-right: none; border-bottom: 1px solid #e8f0f8; flex-direction: row; align-items: center; gap: 12px; padding: 14px 16px; }
+  .trust-kpi { padding: 14px 12px; min-width: unset; }
+  .trust-kpi:first-of-type { border-right: 1px solid #e8f0f8; }
+  .trust-kpi-val { font-size: 18px; }
+  .newsletter-row { flex-direction: column; }
+  .cta-btns { flex-direction: column; align-items: center; }
+  .hero { padding: 110px 0 80px; }
+  .wa-float { bottom: 20px; right: 20px; padding: 12px 18px 12px 12px; }
+  .wa-text-wrap { display: none; }
+  .wa-icon-wrap { width: 46px; height: 46px; }
+  .wa-icon { width: 26px; height: 26px; }
+}
+@media (max-width:480px) {
+  .cats-grid { grid-template-columns: repeat(3,1fr); gap: 10px; }
+  .cat-card { padding: 20px 10px 16px; }
+  .cat-ico-wrap { width: 56px; height: 56px; border-radius: 16px; }
+  .cat-emoji { font-size: 26px; }
+  .cat-name { font-size: 11px; }
+  .cat-desc { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Progress bar -->
+<div id="progress-bar" role="progressbar" aria-label="Progression de la page"></div>
+
+<!-- ============================== NAV ============================== -->
+<header class="nav" id="accueil">
+  <div class="nav-inner">
+    <a class="brand" href="#accueil" aria-label="Accueil BABIFIX">
+      <img class="brand-logo" src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX">
+      <span class="brand-name">BABIFIX</span>
+    </a>
+
+    <nav class="nav-links" aria-label="Navigation principale">
+      <a href="#accueil" class="active">Accueil</a>
+      <a href="#categories">Catégories</a>
+      <a href="#comment-ca-marche">Comment ça marche</a>
+      <a href="#pour-les-prestataires">Prestataires</a>
+      <a href="#a-propos">Pourquoi nous</a>
+      <a href="#faq">FAQ</a>
+      <a href="#contact">Contact</a>
+    </nav>
+
+    <a class="nav-cta" href="{% if store_android_client %}{{ store_android_client }}{% elif store_ios_client %}{{ store_ios_client }}{% else %}/telecharger-app-client{% endif %}">
+      Télécharger l'app
+    </a>
+    <button class="burger" aria-label="Ouvrir le menu" aria-expanded="false" id="burger-btn">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile overlay + drawer -->
+<div class="nav-overlay" id="nav-overlay" aria-hidden="true"></div>
+<nav class="nav-drawer" id="nav-drawer" aria-label="Menu mobile">
+  <button class="drawer-close" id="drawer-close" aria-label="Fermer le menu">✕</button>
+  <a class="drawer-link" href="#accueil">Accueil</a>
+  <a class="drawer-link" href="#categories">Catégories</a>
+  <a class="drawer-link" href="#comment-ca-marche">Comment ça marche</a>
+  <a class="drawer-link" href="#pour-les-prestataires">Prestataires</a>
+  <a class="drawer-link" href="#a-propos">Pourquoi nous</a>
+  <a class="drawer-link" href="#faq">FAQ</a>
+  <a class="drawer-link" href="#contact">Contact</a>
+  <a class="drawer-cta" href="{% if store_android_client %}{{ store_android_client }}{% elif store_ios_client %}{{ store_ios_client }}{% else %}/telecharger-app-client{% endif %}">
+    Télécharger l'app Client
+  </a>
+</nav>
+
+<main>
+
+<!-- ============================== HERO ============================== -->
+<section class="hero" aria-label="Présentation BABIFIX">
+  <div class="hero-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+  <div class="hero-wrap">
+    <div class="container">
+      <div class="hero-grid">
+        <!-- Copy -->
+        <div class="hero-left">
+          <div class="hero-badge">
+            <span class="live-dot" aria-hidden="true"></span>
+            Plateforme N°1 en Côte d'Ivoire
+          </div>
+
+          <h1 class="hero-title" id="hero-title">
+            {% if hero_title %}{{ hero_title }}{% else %}
+            Des prestataires<br>
+            <span class="hero-word-rotator" id="heroRotator" aria-live="polite">
+              <span class="rw-word rw-active">vérifiés</span>
+              <span class="rw-word">qualifiés</span>
+              <span class="rw-word">de confiance</span>
+              <span class="rw-word">disponibles</span>
+              <span class="rw-word">près de vous</span>
+            </span>,<br>
+            chez vous, en quelques clics
+            {% endif %}
+          </h1>
+
+          <p class="hero-sub">{% if hero_subtitle %}{{ hero_subtitle }}{% else %}Plomberie, électricité, ménage, jardinage… Réservez un professionnel de confiance à Abidjan et dans toutes les grandes villes. Payez en <strong>Orange Money, MTN&nbsp;MoMo ou Wave</strong>.{% endif %}</p>
+
+          <div class="hero-actions">
+            {% if store_android_client %}
+            <a class="btn btn-primary" href="{{ store_android_client }}" rel="noopener">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              Google Play
+            </a>
+            {% endif %}
+            {% if store_ios_client %}
+            <a class="btn btn-ghost" href="{{ store_ios_client }}" rel="noopener">App Store (iOS)</a>
+            {% endif %}
+            {% if not store_android_client and not store_ios_client %}
+            <a class="btn btn-primary" href="/telecharger-app-client">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Télécharger l'app
+            </a>
+            {% endif %}
+            <a class="btn btn-ghost" href="{% if store_android_prestataire %}{{ store_android_prestataire }}{% elif store_ios_prestataire %}{{ store_ios_prestataire }}{% else %}/devenir-prestataire{% endif %}">
+              Devenir prestataire →
+            </a>
+          </div>
+
+          <div class="trust" role="list" aria-label="Chiffres clés BABIFIX">
+            <!-- Avis étoiles -->
+            <div class="trust-rating" role="listitem">
+              <div class="stars" aria-label="Note 5 étoiles sur 5">
+                {% for i in "12345" %}<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>{% endfor %}
+              </div>
+              <p class="trust-txt">+2&nbsp;500 avis<br>5 étoiles</p>
+            </div>
+            <!-- KPI 1 -->
+            <div class="trust-kpi" role="listitem">
+              <p class="trust-kpi-val" aria-label="10 000 prestataires vérifiés">10K+</p>
+              <p class="trust-kpi-lbl">Prestataires<br>vérifiés</p>
+            </div>
+            <!-- KPI 2 -->
+            <div class="trust-kpi" role="listitem">
+              <p class="trust-kpi-val" aria-label="50 000 services réalisés">50K+</p>
+              <p class="trust-kpi-lbl">Services<br>réalisés</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phone mockup -->
+        <div class="hero-right" aria-hidden="true">
+          <div class="phone-wrap">
+            <div class="phone">
+              <div class="phone-status">
+                <span>9:41</span>
+                <div class="phone-notch"></div>
+                <div class="signal">
+                  <div class="sig-dot"></div>
+                  <div class="sig-dot"></div>
+                  <div class="sig-dot"></div>
+                </div>
+              </div>
+              <div class="phone-body">
+                <div class="phone-topbar">
+                  <img class="phone-logo" src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX">
+                  <div>
+                    <div class="phone-h">Bienvenue sur BABIFIX</div>
+                    <div class="phone-p">Trouvez votre prestataire</div>
+                  </div>
+                </div>
+                <div class="phone-search">
+                  <span style="font-size:11px;color:var(--c-muted);">🔍</span>
+                  <span style="font-size:10px;color:var(--c-muted);">Rechercher un service...</span>
+                </div>
+                <div class="phone-grid">
+                  {% if categories %}
+                    {% for c in categories %}{% if forloop.counter <= 4 %}
+                    <div class="phone-card">
+                      <div class="phone-emoji">{{ c.icon_emoji|default:"🔧" }}</div>
+                      <div class="phone-card-label">{{ c.nom|default:c.name }}</div>
+                    </div>
+                    {% endif %}{% endfor %}
+                  {% else %}
+                    <div class="phone-card"><div class="phone-emoji">🔧</div><div class="phone-card-label">Plomberie</div></div>
+                    <div class="phone-card"><div class="phone-emoji">⚡</div><div class="phone-card-label">Électricité</div></div>
+                    <div class="phone-card"><div class="phone-emoji">🧹</div><div class="phone-card-label">Ménage</div></div>
+                    <div class="phone-card"><div class="phone-emoji">🌿</div><div class="phone-card-label">Jardinage</div></div>
+                  {% endif %}
+                </div>
+                <div class="phone-section-title">Prestataire recommandé</div>
+                <div class="phone-provider">
+                  <div class="phone-provider-avatar">👨‍🔧</div>
+                  <div class="phone-provider-info">
+                    <div class="phone-provider-name">Mamadou K.</div>
+                    <div class="phone-provider-rating">⭐ 4.9 · Plomberie</div>
+                  </div>
+                  <div class="phone-provider-badge">Vérifié ✓</div>
+                </div>
+              </div>
+              <div class="phone-home"></div>
+            </div>
+
+            <div class="float-badge fb-top">
+              <div class="fb-icon fb-green">🛡️</div>
+              <div>
+                <div class="fb-title">Profil validé admin</div>
+                <div class="fb-sub">Plombier certifié CNI ✓</div>
+              </div>
+            </div>
+            <div class="float-badge fb-bot">
+              <div class="fb-icon fb-blue">💬</div>
+              <div>
+                <div class="fb-title">Chat en direct</div>
+                <div class="fb-sub">Réservation #1042</div>
+              </div>
+            </div>
+          </div>
+          <div class="scroll-cue"></div>
+        </div>
+      </div><!-- /hero-grid -->
+    </div>
+  </div>
+</section>
+
+<!-- ============================== MOBILE MONEY BAR ============================== -->
+<div class="mm-bar" aria-label="Modes de paiement acceptés">
+  <div class="mm-track">
+    <!-- Duplicate for infinite marquee -->
+    {% for _ in "12" %}
+    <div class="mm-item"><img src="{% static 'vitrine/payment-logos/orange-money.png' %}" alt="Orange Money" class="mm-logo"><div><div class="mm-name">Orange Money</div><div class="mm-sub">Paiement sécurisé</div></div></div>
+    <div class="mm-item"><img src="{% static 'vitrine/payment-logos/mtn-momo.png' %}" alt="MTN MoMo" class="mm-logo mtn-logo"><div><div class="mm-name">MTN MoMo</div><div class="mm-sub">Paiement sécurisé</div></div></div>
+    <div class="mm-item"><img src="{% static 'vitrine/payment-logos/wave.png' %}" alt="Wave" class="mm-logo"><div><div class="mm-name">Wave</div><div class="mm-sub">Paiement sécurisé</div></div></div>
+    <div class="mm-item"><img src="{% static 'vitrine/payment-logos/moov-money.png' %}" alt="Moov Africa" class="mm-logo"><div><div class="mm-name">Moov Africa</div><div class="mm-sub">Paiement sécurisé</div></div></div>
+    <div class="mm-item"><div class="mm-chip cash">💵</div><div><div class="mm-name">Espèces</div><div class="mm-sub">Paiement direct</div></div></div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ============================== STATS ============================== -->
+<section class="stats-section reveal" id="services" aria-label="Chiffres clés BABIFIX">
+  <div class="container">
+    <div class="section-head" style="margin-bottom:44px;">
+      <span class="eyebrow" style="background:rgba(125,211,252,.12);color:#7dd3fc;">Nos chiffres</span>
+      <h2 class="section-title" style="color:#fff;">BABIFIX en quelques chiffres</h2>
+      <p class="section-sub" style="color:#94a3b8;">La plateforme qui fait confiance à des milliers d'Ivoiriens chaque jour</p>
+    </div>
+    <div class="stats-grid stagger">
+      <div class="kpi-card">
+        <div class="kpi-ico">👥</div>
+        <div class="kpi-val" data-count="10000" data-suffix="+">10 000+</div>
+        <div class="kpi-lbl">Prestataires vérifiés</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-ico">✅</div>
+        <div class="kpi-val" data-count="50000" data-suffix="+">50 000+</div>
+        <div class="kpi-lbl">Services réalisés</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-ico">⭐</div>
+        <div class="kpi-val" data-count-text="4,9 / 5">4,9 / 5</div>
+        <div class="kpi-lbl">Note moyenne client</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-ico">🏆</div>
+        <div class="kpi-val" data-count="95" data-suffix=" %">95 %</div>
+        <div class="kpi-lbl">Clients satisfaits</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CATEGORIES ============================== -->
+<section class="cats-section reveal" id="categories" aria-label="Catégories de services">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Catalogue</span>
+      <h2 class="section-title">Tous les services à votre portée</h2>
+      <p class="section-sub">Des professionnels qualifiés pour chaque besoin — plomberie, électricité, ménage, jardinage et bien plus encore</p>
+    </div>
+
+    <div class="cats-grid stagger">
+      {% if categories %}
+        {% for c in categories %}
+        <article class="cat-card" id="cat-{{ c.id }}"
+          style="--cat-color:{{ c.color|default:'#0284c7' }}22; --cat-bg:{{ c.color|default:'#0284c7' }}18;">
+          <div class="cat-ico-wrap" style="background:{{ c.color|default:'#0284c7' }}18;">
+            <span class="cat-emoji" role="img" aria-label="{{ c.nom|default:c.name }}">{{ c.icon_emoji|default:"🔧" }}</span>
+          </div>
+          <h3 class="cat-name">{{ c.nom|default:c.name }}</h3>
+          {% if c.description %}<p class="cat-desc">{{ c.description }}</p>{% endif %}
+        </article>
+        {% endfor %}
+      {% else %}
+        <!-- Fallback 15 catégories statiques avec icônes professionnelles -->
+        <article class="cat-card" style="--cat-color:#3B82F618;--cat-bg:#3B82F618;">
+          <div class="cat-ico-wrap" style="background:#3B82F618;"><span class="cat-emoji" role="img" aria-label="Plomberie">🔧</span></div>
+          <h3 class="cat-name">Plomberie</h3><p class="cat-desc">Fuites, installations, réparations</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#F59E0B18;--cat-bg:#F59E0B18;">
+          <div class="cat-ico-wrap" style="background:#F59E0B18;"><span class="cat-emoji" role="img" aria-label="Électricité">⚡</span></div>
+          <h3 class="cat-name">Électricité</h3><p class="cat-desc">Câblage, pannes, installations</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#22C55E18;--cat-bg:#22C55E18;">
+          <div class="cat-ico-wrap" style="background:#22C55E18;"><span class="cat-emoji" role="img" aria-label="Jardinage">🌿</span></div>
+          <h3 class="cat-name">Jardinage</h3><p class="cat-desc">Taille, entretien, plantation</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#8B5CF618;--cat-bg:#8B5CF618;">
+          <div class="cat-ico-wrap" style="background:#8B5CF618;"><span class="cat-emoji" role="img" aria-label="Peinture">🖌️</span></div>
+          <h3 class="cat-name">Peinture</h3><p class="cat-desc">Intérieur, extérieur, ravalement</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#06B6D418;--cat-bg:#06B6D418;">
+          <div class="cat-ico-wrap" style="background:#06B6D418;"><span class="cat-emoji" role="img" aria-label="Ménage">🧹</span></div>
+          <h3 class="cat-name">Ménage</h3><p class="cat-desc">Nettoyage, entretien, désinfection</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#0EA5E918;--cat-bg:#0EA5E918;">
+          <div class="cat-ico-wrap" style="background:#0EA5E918;"><span class="cat-emoji" role="img" aria-label="Climatisation">❄️</span></div>
+          <h3 class="cat-name">Clim & Chauffage</h3><p class="cat-desc">Pose, entretien, réparation</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#64748B18;--cat-bg:#64748B18;">
+          <div class="cat-ico-wrap" style="background:#64748B18;"><span class="cat-emoji" role="img" aria-label="Serrurerie">🔐</span></div>
+          <h3 class="cat-name">Serrurerie</h3><p class="cat-desc">Ouverture, remplacement, sécurité</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#D9770618;--cat-bg:#D9770618;">
+          <div class="cat-ico-wrap" style="background:#D9770618;"><span class="cat-emoji" role="img" aria-label="Menuiserie">🪚</span></div>
+          <h3 class="cat-name">Menuiserie</h3><p class="cat-desc">Portes, fenêtres, meubles</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#EC489918;--cat-bg:#EC489918;">
+          <div class="cat-ico-wrap" style="background:#EC489918;"><span class="cat-emoji" role="img" aria-label="Coiffure">✂️</span></div>
+          <h3 class="cat-name">Coiffure</h3><p class="cat-desc">Coupe, tresses, soins capillaires</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#7C3AED18;--cat-bg:#7C3AED18;">
+          <div class="cat-ico-wrap" style="background:#7C3AED18;"><span class="cat-emoji" role="img" aria-label="Massage">💆</span></div>
+          <h3 class="cat-name">Massage</h3><p class="cat-desc">Relaxant, sportif, thérapeutique</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#1D4ED818;--cat-bg:#1D4ED818;">
+          <div class="cat-ico-wrap" style="background:#1D4ED818;"><span class="cat-emoji" role="img" aria-label="Informatique">💻</span></div>
+          <h3 class="cat-name">Informatique</h3><p class="cat-desc">Dépannage, réseaux, formation</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#F9731618;--cat-bg:#F9731618;">
+          <div class="cat-ico-wrap" style="background:#F9731618;"><span class="cat-emoji" role="img" aria-label="Baby-sitting">👶</span></div>
+          <h3 class="cat-name">Baby-sitting</h3><p class="cat-desc">Garde d'enfants, aide aux devoirs</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#F59E0B18;--cat-bg:#F59E0B18;">
+          <div class="cat-ico-wrap" style="background:#F59E0B18;"><span class="cat-emoji" role="img" aria-label="Chef">👨‍🍳</span></div>
+          <h3 class="cat-name">Chef à domicile</h3><p class="cat-desc">Dîner, événement, cuisine du monde</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#EC489918;--cat-bg:#EC489918;">
+          <div class="cat-ico-wrap" style="background:#EC489918;"><span class="cat-emoji" role="img" aria-label="Esthétique">💅</span></div>
+          <h3 class="cat-name">Esthétique</h3><p class="cat-desc">Manucure, maquillage, soins</p>
+        </article>
+        <article class="cat-card" style="--cat-color:#0284c718;--cat-bg:#0284c718;">
+          <div class="cat-ico-wrap" style="background:#0284c718;"><span class="cat-emoji" role="img" aria-label="Et plus">➕</span></div>
+          <h3 class="cat-name">Et plus encore…</h3><p class="cat-desc">40+ catégories dans l'app</p>
+        </article>
+      {% endif %}
+    </div>
+
+    <div class="cats-more">
+      <a class="btn btn-primary" href="{% if store_android_client %}{{ store_android_client }}{% elif store_ios_client %}{{ store_ios_client }}{% else %}/telecharger-app-client{% endif %}">
+        Voir tous les services dans l'app
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== HOW IT WORKS ============================== -->
+<section class="how-section reveal" id="comment-ca-marche" aria-label="Comment ça marche">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Simple &amp; rapide</span>
+      <h2 class="section-title">Comment ça marche ?</h2>
+      <p class="section-sub">En 3 étapes, trouvez, réservez et faites intervenir un professionnel vérifié — depuis votre téléphone</p>
+    </div>
+
+    <div style="position:relative;">
+      <div class="steps-connector" id="steps-connector">
+        <div class="steps-connector-fill"></div>
+      </div>
+      <div class="steps-wrap stagger">
+        <div class="step-card">
+          <div class="step-num">1</div>
+          <div class="step-ico">🔍</div>
+          <h3>Cherchez un service</h3>
+          <p>Parcourez notre catalogue : plomberie, électricité, ménage, jardinage… Filtrez par ville, tarif et disponibilité.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">2</div>
+          <div class="step-ico">📅</div>
+          <h3>Réservez et payez</h3>
+          <p>Choisissez votre créneau, échangez via le chat, puis payez en toute sécurité avec <strong>Orange Money, MTN ou Wave</strong>.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">3</div>
+          <div class="step-ico">✅</div>
+          <h3>Service réalisé &amp; validé</h3>
+          <p>Le prestataire intervient chez vous. Votre paiement n'est libéré qu'après validation. Notez et laissez un avis.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SMART NOTIFICATIONS ============================== -->
+<section class="notif-section reveal" id="notifications" aria-label="Notifications intelligentes BABIFIX">
+  <div class="container">
+    <div class="notif-grid">
+      <div class="notif-content">
+        <span class="eyebrow">Notifications intelligentes</span>
+        <h2 class="section-title">Restez informé,<br><span class="grad-text-orange">à chaque instant</span></h2>
+        <p class="section-sub" style="text-align:left;margin:0 0 28px;">BABIFIX vous alerte en temps réel à chaque étape de votre prestation — confirmation, arrivée du prestataire, et bien plus encore.</p>
+        <ul class="notif-list">
+          <li class="notif-item stagger">
+            <span class="notif-icon-wrap" style="background:#EFF6FF">🔔</span>
+            <div>
+              <strong>Confirmation instantanée</strong>
+              <p>Recevez une notification dès que votre réservation est acceptée par le prestataire.</p>
+            </div>
+          </li>
+          <li class="notif-item stagger">
+            <span class="notif-icon-wrap" style="background:#FFF7ED">📍</span>
+            <div>
+              <strong>Suivi en temps réel</strong>
+              <p>Sachez exactement quand le prestataire est en route et quand il arrive chez vous.</p>
+            </div>
+          </li>
+          <li class="notif-item stagger">
+            <span class="notif-icon-wrap" style="background:#F0FDF4">💬</span>
+            <div>
+              <strong>Messages prioritaires</strong>
+              <p>Badge de messages non lus, notifications push et alertes en app pour ne rien manquer.</p>
+            </div>
+          </li>
+          <li class="notif-item stagger">
+            <span class="notif-icon-wrap" style="background:#FDF4FF">⭐</span>
+            <div>
+              <strong>Rappel de notation</strong>
+              <p>Un rappel discret après la prestation pour noter et aider la communauté.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="notif-phone reveal-right">
+        <div class="notif-phone-mockup">
+          <div class="nmp-notif-stack">
+            <div class="nmp-notif nmp-notif-1">
+              <span class="nmp-notif-ico">🔔</span>
+              <div class="nmp-notif-body">
+                <strong>Réservation confirmée</strong>
+                <p>Jean-Baptiste arrive demain à 9h00 pour votre plomberie.</p>
+                <span class="nmp-notif-time">À l'instant</span>
+              </div>
+            </div>
+            <div class="nmp-notif nmp-notif-2">
+              <span class="nmp-notif-ico">📍</span>
+              <div class="nmp-notif-body">
+                <strong>Prestataire en route</strong>
+                <p>Kouassi est à 5 min de chez vous.</p>
+                <span class="nmp-notif-time">Il y a 2 min</span>
+              </div>
+            </div>
+            <div class="nmp-notif nmp-notif-3">
+              <span class="nmp-notif-ico">💬</span>
+              <div class="nmp-notif-body">
+                <strong>Nouveau message</strong>
+                <p>Konan Aya : « Je serai là dans 10 minutes »</p>
+                <span class="nmp-notif-time">Il y a 5 min</span>
+              </div>
+            </div>
+            <div class="nmp-notif nmp-notif-4">
+              <span class="nmp-notif-ico">✅</span>
+              <div class="nmp-notif-body">
+                <strong>Prestation terminée</strong>
+                <p>Comment s'est passée votre séance de ménage ?</p>
+                <span class="nmp-notif-time">Hier, 17:30</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== WHY BABIFIX ============================== -->
+<section class="why-section reveal" id="a-propos" aria-label="Pourquoi BABIFIX">
+  <div class="container">
+    <div class="why-grid">
+      <div class="why-text reveal-left">
+        <span class="eyebrow">Nos avantages clés</span>
+        <h2 class="section-title">Pourquoi choisir <span class="grad-text">BABIFIX</span> ?</h2>
+        <p class="section-sub">La seule plateforme ivoirienne qui combine validation admin, chat en temps réel et paiement Mobile Money natif.</p>
+        <div class="diff-list" style="margin-top:28px;">
+          <div class="diff-card featured">
+            <div class="diff-ico">🛡️</div>
+            <div>
+              <div class="diff-lbl">Différenciateur #1</div>
+              <h4>Validation admin obligatoire</h4>
+              <p>Chaque prestataire est vérifié manuellement (CNI, compétences, antécédents) avant d'apparaître sur la plateforme.</p>
+            </div>
+          </div>
+          <div class="diff-card">
+            <div class="diff-ico">💬</div>
+            <div>
+              <div class="diff-lbl">Différenciateur #2</div>
+              <h4>Chat en temps réel lié à chaque réservation</h4>
+              <p>Communiquez directement avec votre prestataire depuis le fil de votre réservation. Historique conservé.</p>
+            </div>
+          </div>
+          <div class="diff-card">
+            <div class="diff-ico">📱</div>
+            <div>
+              <div class="diff-lbl">Différenciateur #3</div>
+              <h4>Mobile Money natif (FCFA)</h4>
+              <p>Orange Money, MTN MoMo et Wave intégrés nativement. Paiement en escrow : libéré après validation.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal-right">
+        <div class="feats-grid stagger">
+          <div class="feat-card"><div class="feat-ico">🔒</div><h3>100 % sécurisé</h3><p>Vérification identité + background check sur chaque profil</p></div>
+          <div class="feat-card"><div class="feat-ico">📍</div><h3>Artisans locaux</h3><p>Des professionnels près de chez vous, disponibles rapidement</p></div>
+          <div class="feat-card"><div class="feat-ico">⚡</div><h3>Intervention rapide</h3><p>Réponse &lt;30 min, intervention sous 24 à 48 h</p></div>
+          <div class="feat-card"><div class="feat-ico">💰</div><h3>Paiement en escrow</h3><p>Votre argent est bloqué jusqu'à validation — aucun risque</p></div>
+          <div class="feat-card"><div class="feat-ico">⭐</div><h3>Avis vérifiés</h3><p>Seuls les clients ayant utilisé le service peuvent noter</p></div>
+          <div class="feat-card"><div class="feat-ico">🏅</div><h3>Qualité garantie</h3><p>Prestataires &lt;4/5 font l'objet d'une revue qualité</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== TESTIMONIALS ============================== -->
+<section class="test-section reveal" aria-label="Témoignages clients">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Ils témoignent</span>
+      <h2 class="section-title">Des clients et prestataires satisfaits</h2>
+      <p class="section-sub">Plus de 2 500 avis vérifiés. Voici ce que disent ceux qui ont essayé BABIFIX.</p>
+    </div>
+  </div>
+  <div class="test-track-wrap">
+    <div class="test-track">
+      <!-- duplicate for infinite scroll -->
+      {% for loop in "12" %}
+        {% for t in temoignages %}
+        <article class="test-card">
+          <div class="test-stars" aria-label="5 étoiles">
+            {% for i in "12345" %}<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>{% endfor %}
+          </div>
+          <p class="test-text">"{{ t.texte }}"</p>
+          <div class="test-author">
+            <div class="test-avatar" aria-hidden="true">{{ t.nom|slice:":2" }}</div>
+            <div>
+              <div class="test-name">{{ t.nom }}</div>
+              <div class="test-role">{{ t.role }}</div>
+              {% if t.ville %}<div class="test-city">📍 {{ t.ville }}</div>{% endif %}
+              <div class="test-badge">✓ Avis vérifié BABIFIX</div>
+            </div>
+          </div>
+          <div class="test-bar"></div>
+        </article>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ============================== BECOME A PROVIDER ============================== -->
+<section class="prov-section reveal" id="pour-les-prestataires" aria-label="Devenez prestataire">
+  <div class="container">
+    <div class="prov-grid">
+      <div class="reveal-left">
+        <span class="eyebrow orange">Pour les professionnels</span>
+        <h2 class="prov-title">Développez votre activité avec <span class="grad-text-orange">BABIFIX</span></h2>
+        <p class="prov-sub">Rejoignez des milliers d'artisans et de techniciens qui ont boosté leur chiffre d'affaires. Zéro démarche commerciale — les clients viennent à vous.</p>
+        <div class="prov-perks">
+          <div class="perk"><div class="perk-ico">📈</div><div><h4>Plus de clients</h4><p>Accédez à des milliers de particuliers en recherche active</p></div></div>
+          <div class="perk"><div class="perk-ico">📅</div><div><h4>Agenda flexible</h4><p>Gérez vos disponibilités à votre rythme</p></div></div>
+          <div class="perk"><div class="perk-ico">💳</div><div><h4>Paiement garanti</h4><p>Le montant est sécurisé à la réservation</p></div></div>
+          <div class="perk"><div class="perk-ico">🏅</div><div><h4>Badge vérifié</h4><p>Obtenez le badge de confiance BABIFIX</p></div></div>
+        </div>
+        <a class="btn btn-orange" href="{% if store_android_prestataire %}{{ store_android_prestataire }}{% elif store_ios_prestataire %}{{ store_ios_prestataire }}{% else %}/devenir-prestataire{% endif %}">
+          👤 Rejoindre BABIFIX Prestataires
+        </a>
+      </div>
+      <div class="prov-cards reveal-right">
+        <div style="color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;">Exemples de revenus mensuels</div>
+        <div class="prov-card">
+          <div class="prov-avatar">KD</div>
+          <div><div class="prov-name">Koffi Danho</div><div class="prov-job">Plombier certifié · Abidjan Cocody</div><div class="prov-badge">✓ Vérifié BABIFIX</div></div>
+          <div class="prov-earn">320 000<small> FCFA</small><span>ce mois</span></div>
+        </div>
+        <div class="prov-card">
+          <div class="prov-avatar" style="background:linear-gradient(135deg,#f97316,#fb923c);">AS</div>
+          <div><div class="prov-name">Awa Sanogo</div><div class="prov-job">Ménage · Abidjan Plateau</div><div class="prov-badge">✓ Vérifié BABIFIX</div></div>
+          <div class="prov-earn">185 000<small> FCFA</small><span>ce mois</span></div>
+        </div>
+        <div class="prov-card">
+          <div class="prov-avatar" style="background:linear-gradient(135deg,#10b981,#059669);">CT</div>
+          <div><div class="prov-name">Cissé Tiémoko</div><div class="prov-job">Électricien · Bouaké</div><div class="prov-badge">✓ Vérifié BABIFIX</div></div>
+          <div class="prov-earn">240 000<small> FCFA</small><span>ce mois</span></div>
+        </div>
+        <div style="text-align:center;margin-top:12px;">
+          <a class="btn btn-white" style="font-size:13px;padding:11px 22px;" href="/devenir-prestataire">
+            Créer mon profil gratuitement →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CONTACT ============================== -->
+<section class="contact-section reveal" id="contact" aria-label="Contactez-nous">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Équipe BABIFIX</span>
+      <h2 class="section-title">Contactez-nous</h2>
+      <p class="section-sub">Une question sur une réservation, un partenariat ou le recrutement de prestataires ? Nous vous répondons sous 48 h.</p>
+    </div>
+    <div class="contact-grid">
+      <div class="contact-info reveal-left">
+        <h3>Coordonnées</h3>
+        <ul class="c-list">
+          <li><span class="c-lbl">Email</span><a href="mailto:contact@babifix.ci">contact@babifix.ci</a></li>
+          <li><span class="c-lbl">Téléphone / WhatsApp</span><a href="tel:+2250700000000">+225 07 00 00 00 00</a></li>
+          <li><span class="c-lbl">Adresse</span><span>Abidjan, Côte d'Ivoire</span></li>
+          <li><span class="c-lbl">Horaires</span><span>Lun – Sam : 8 h – 18 h (GMT)</span></li>
+        </ul>
+        <div class="c-map" aria-label="Carte Abidjan">
+          <iframe title="Abidjan, Côte d'Ivoire" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+            src="https://www.openstreetmap.org/export/embed.html?bbox=-4.15%2C5.25%2C-3.85%2C5.45&layer=mapnik"></iframe>
+        </div>
+      </div>
+      <div class="contact-form-card reveal-right">
+        <h3>Envoyer un message</h3>
+        <form method="post" class="c-form">
+          {% csrf_token %}
+          <input type="hidden" name="contact_form" value="1">
+          <label style="display:none" aria-hidden="true"><input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+          <div class="c-field"><label>Nom complet</label><input type="text" name="contact_name" required maxlength="120" autocomplete="name" placeholder="Ex. Aminata Koné"></div>
+          <div class="c-field"><label>Email</label><input type="email" name="contact_email" required autocomplete="email" placeholder="vous@exemple.ci"></div>
+          <div class="c-field"><label>Sujet</label>
+            <select name="contact_subject" required>
+              <option value="">Choisir…</option>
+              <option>Support client</option>
+              <option>Prestataire / inscription</option>
+              <option>Partenariat</option>
+              <option>Presse / médias</option>
+              <option>Autre</option>
+            </select>
+          </div>
+          <div class="c-field"><label>Message</label><textarea name="contact_message" required rows="5" maxlength="4000" placeholder="Décrivez votre demande…"></textarea></div>
+          <button type="submit" class="btn btn-primary c-submit">✉️ Envoyer le message</button>
+        </form>
+        {% if contact_message %}
+          <p class="c-flash {% if 'Merci' in contact_message %}ok{% else %}err{% endif %}">{{ contact_message }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FAQ ============================== -->
+<section class="faq-section reveal" id="faq" aria-label="Questions fréquentes">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Centre d'aide</span>
+      <h2 class="section-title">Questions fréquentes</h2>
+      <p class="section-sub">Vous ne trouvez pas la réponse ? <a href="#contact" style="color:var(--c-blue);font-weight:600;">Contactez-nous</a> — réponse sous 48 h.</p>
+    </div>
+    <div class="faq-inner" id="faq-list">
+      {% if faq_items %}
+        {% for item in faq_items %}{% if item %}
+        <div class="faq-item">
+          <button class="faq-trigger" aria-expanded="false">
+            <span>{{ item.question|default:item.q|default:item.titre|default:"Question" }}</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>{{ item.answer|default:item.a|default:item.reponse|default:item.texte|default:"" }}</p></div>
+        </div>
+        {% endif %}{% endfor %}
+      {% else %}
+        {% for qa in faq_default %}
+        <div class="faq-item{% if forloop.first %} open{% endif %}">
+          <button class="faq-trigger" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">
+            <span>{{ qa.0 }}</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>{{ qa.1 }}</p></div>
+        </div>
+        {% empty %}
+        <!-- Static fallback FAQs -->
+        <div class="faq-item open">
+          <button class="faq-trigger" aria-expanded="true">
+            <span>Comment réserver un prestataire ?</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>Téléchargez l'application client BABIFIX, choisissez la catégorie de service, sélectionnez un prestataire disponible, choisissez un créneau et confirmez. Payez par Orange Money, MTN MoMo, Wave ou en espèces.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-trigger" aria-expanded="false">
+            <span>Les prestataires sont-ils vraiment vérifiés ?</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>Oui. Chaque prestataire passe par une validation manuelle de notre équipe : vérification CNI, compétences, antécédents. Un prestataire non validé ne peut pas accepter de missions.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-trigger" aria-expanded="false">
+            <span>Mon paiement est-il sécurisé ?</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>Oui. BABIFIX utilise un système d'<strong>escrow</strong> : votre argent est bloqué à la réservation mais n'est libéré au prestataire qu'après validation du service. En cas de litige, notre équipe intervient.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-trigger" aria-expanded="false">
+            <span>Comment devenir prestataire sur BABIFIX ?</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>Téléchargez l'application prestataire BABIFIX, créez votre profil, soumettez vos pièces (CNI, justificatifs). Notre équipe examine votre dossier sous 48–72 h. Validé, vous commencez à recevoir des demandes.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-trigger" aria-expanded="false">
+            <span>BABIFIX est-il disponible partout en Côte d'Ivoire ?</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>BABIFIX est actif à Abidjan (toutes communes), Bouaké, Yamoussoukro, San-Pédro et Korhogo. Nous étendons progressivement notre réseau. Inscrivez-vous sur liste d'attente pour votre ville via l'app.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-trigger" aria-expanded="false">
+            <span>Comment fonctionne le chat avec le prestataire ?</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>Chaque réservation ouvre automatiquement un fil de chat dédié entre vous et votre prestataire, directement dans l'application. Partagez vos besoins, des photos et suivez l'avancement — sans quitter l'app.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-trigger" aria-expanded="false">
+            <span>Que faire si le service ne me satisfait pas ?</span>
+            <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+          </button>
+          <div class="faq-body"><p>Avant de valider, vous pouvez signaler un problème. Notre support est joignable 7j/7 et peut déclencher une médiation ou un remboursement. Votre satisfaction est notre priorité.</p></div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CTA FINAL ============================== -->
+<section class="cta-section" aria-label="Télécharger l'application">
+  <div class="container">
+    <div class="cta-inner">
+      <h2 class="cta-title">Prêt à transformer<br>votre quotidien ?</h2>
+      <p class="cta-sub">Rejoignez des milliers d'Ivoiriens qui font confiance à BABIFIX pour tous leurs services à domicile. Simple, sécurisé, local.</p>
+      <div class="cta-btns">
+        <a class="cta-btn" href="{% if store_android_client %}{{ store_android_client }}{% elif store_ios_client %}{{ store_ios_client }}{% else %}/telecharger-app-client{% endif %}">
+          Télécharger pour<br><b>App Client</b>
+        </a>
+        <a class="cta-btn ghost" href="{% if store_android_prestataire %}{{ store_android_prestataire }}{% elif store_ios_prestataire %}{{ store_ios_prestataire }}{% else %}/devenir-prestataire{% endif %}">
+          Devenir<br><b>Prestataire</b>
+        </a>
+      </div>
+      <div class="newsletter-box">
+        <p>Restez informé de nos nouveautés</p>
+        <form method="post" class="newsletter-row">
+          {% csrf_token %}
+          <input type="email" name="email" placeholder="Votre adresse email" required>
+          <button type="submit">S'inscrire</button>
+        </form>
+        {% if message %}<p style="font-size:13px;color:rgba(255,255,255,.85);margin-top:10px;">{{ message }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================== FOOTER ============================== -->
+<footer class="footer">
+  <div class="footer-top">
+    <div>
+      <div class="footer-brand-logo">
+        <img class="brand-logo" src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX">
+        <span class="footer-brand-name">BABIFIX</span>
+      </div>
+      <p class="footer-desc">La première plateforme de services à domicile en Côte d'Ivoire. Prestataires vérifiés, paiement Mobile Money, chat en temps réel.</p>
+      <div class="footer-contacts">
+        <span>contact@babifix.ci</span>
+        <span>+225 07 00 00 00 00</span>
+        <span>Abidjan, Côte d'Ivoire 🇨🇮</span>
+      </div>
+      <div class="footer-badges">
+        <img src="{% static 'vitrine/payment-logos/orange-money.png' %}" alt="Orange Money" class="footer-payment-logo">
+        <img src="{% static 'vitrine/payment-logos/mtn-momo.png' %}" alt="MTN MoMo" class="footer-payment-logo">
+        <img src="{% static 'vitrine/payment-logos/wave.png' %}" alt="Wave" class="footer-payment-logo">
+        <img src="{% static 'vitrine/payment-logos/moov-money.png' %}" alt="Moov Africa" class="footer-payment-logo">
+      </div>
+      <div class="footer-social">
+        <a class="soc" href="#" aria-label="Facebook">f</a>
+        <a class="soc" href="#" aria-label="Instagram">ig</a>
+        <a class="soc" href="#" aria-label="Twitter/X">x</a>
+        <a class="soc" href="#" aria-label="LinkedIn">in</a>
+        <a class="soc" href="https://wa.me/2250700000000" aria-label="WhatsApp">wa</a>
+      </div>
+      <div style="margin-top:14px;font-size:11px;color:#334155;line-height:1.5;">Conforme à la Loi ivoirienne n°2013-450 (ARTCI).</div>
+    </div>
+
+    <div class="foot-col">
+      <h3>Services</h3>
+      {% if categories %}{% for c in categories %}{% if forloop.counter <= 6 %}
+      <a href="#cat-{{ c.id }}">{{ c.nom|default:c.name }}</a>
+      {% endif %}{% endfor %}{% else %}
+      <a href="#categories">Plomberie</a>
+      <a href="#categories">Électricité</a>
+      <a href="#categories">Ménage</a>
+      <a href="#categories">Jardinage</a>
+      <a href="#categories">Peinture</a>
+      <a href="#categories">Climatisation</a>
+      {% endif %}
+      <a href="#categories">Toutes les catégories →</a>
+    </div>
+
+    <div class="foot-col">
+      <h3>Entreprise</h3>
+      <a href="#a-propos">À propos de BABIFIX</a>
+      <a href="#pour-les-prestataires">Devenir prestataire</a>
+      <a href="#services">Nos engagements</a>
+      <a href="#comment-ca-marche">Comment ça marche</a>
+      <a href="mailto:contact@babifix.ci">Partenariats</a>
+      <a href="mailto:contact@babifix.ci">Presse / médias</a>
+    </div>
+
+    <div class="foot-col">
+      <h3>Support</h3>
+      <a href="#faq">FAQ / Centre d'aide</a>
+      <a href="#contact">Contactez-nous</a>
+      <a href="mailto:contact@babifix.ci">Support client</a>
+      <a href="#faq">Politique de remboursement</a>
+      <a href="#faq">Conditions d'utilisation</a>
+      <a href="#faq">Politique de confidentialité</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">© 2026 BABIFIX. Tous droits réservés. — Abidjan, Côte d'Ivoire 🇨🇮</div>
+    <div class="footer-extra">
+      <a href="#faq">CGU</a>
+      <a href="#faq">Confidentialité</a>
+      <a href="#faq">Aide</a>
+      <a href="mailto:contact@babifix.ci">contact@babifix.ci</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ============================== WHATSAPP FLOATING BUTTON ============================== -->
+<a class="wa-float" href="https://wa.me/2250700000000?text=Bonjour%20BABIFIX%2C%20j%27ai%20une%20question%20%F0%9F%98%8A" target="_blank" rel="noopener" aria-label="Nous contacter sur WhatsApp">
+  <div class="wa-icon-wrap">
+    <svg class="wa-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+      <path d="M11.998 2C6.477 2 2.002 6.477 2.002 12c0 1.938.524 3.75 1.437 5.306L2 22l4.799-1.416A9.94 9.94 0 0 0 11.998 22c5.522 0 9.997-4.477 9.997-10S17.52 2 11.998 2zm0 18.257a8.234 8.234 0 0 1-4.176-1.136l-.3-.177-3.105.916.882-3.218-.196-.31A8.241 8.241 0 0 1 3.757 12c0-4.548 3.699-8.243 8.241-8.243S20.24 7.452 20.24 12c0 4.547-3.7 8.257-8.242 8.257z"/>
+    </svg>
+  </div>
+  <div class="wa-text-wrap">
+    <span class="wa-label">Contactez-nous</span>
+    <span class="wa-number">WhatsApp</span>
+  </div>
+</a>
+
+<!-- ============================== SCRIPTS ============================== -->
+<script>
+(function () {
+  'use strict';
+
+  /* --- Progress bar --- */
+  var bar = document.getElementById('progress-bar');
+  function updateBar() {
+    var st = window.scrollY;
+    var sh = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (sh > 0 ? (st / sh * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', updateBar, { passive: true });
+
+  /* --- Nav scroll shrink + active links --- */
+  var nav = document.querySelector('.nav');
+  var sections = Array.from(document.querySelectorAll('section[id], header[id]'));
+  var navLinks = Array.from(document.querySelectorAll('.nav-links a[href^="#"]'));
+
+  function onScroll() {
+    updateBar();
+    nav.classList.toggle('scrolled', window.scrollY > 50);
+    // active link
+    var scrollMid = window.scrollY + window.innerHeight * 0.4;
+    var active = sections.reduce(function(acc, s) {
+      return s.offsetTop <= scrollMid ? s : acc;
+    }, sections[0]);
+    if (active) {
+      navLinks.forEach(function(a) {
+        var isActive = a.getAttribute('href') === '#' + active.id;
+        a.classList.toggle('active', isActive);
+      });
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  /* --- Mobile drawer --- */
+  var burgerBtn = document.getElementById('burger-btn');
+  var overlay   = document.getElementById('nav-overlay');
+  var drawer    = document.getElementById('nav-drawer');
+  var drawerClose = document.getElementById('drawer-close');
+
+  function openDrawer() {
+    burgerBtn.classList.add('open');
+    overlay.classList.add('open');
+    drawer.classList.add('open');
+    burgerBtn.setAttribute('aria-expanded', 'true');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDrawer() {
+    burgerBtn.classList.remove('open');
+    overlay.classList.remove('open');
+    drawer.classList.remove('open');
+    burgerBtn.setAttribute('aria-expanded', 'false');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  burgerBtn.addEventListener('click', openDrawer);
+  overlay.addEventListener('click', closeDrawer);
+  drawerClose.addEventListener('click', closeDrawer);
+  drawer.querySelectorAll('a').forEach(function(a) { a.addEventListener('click', closeDrawer); });
+
+  /* --- Hero word rotator --- */
+  (function() {
+    var rotator = document.getElementById('heroRotator');
+    if (!rotator) return;
+    var words = rotator.querySelectorAll('.rw-word');
+    if (words.length < 2) return;
+    var current = 0;
+    function next() {
+      var prev = current;
+      current = (current + 1) % words.length;
+      words[prev].classList.add('rw-exit');
+      setTimeout(function() {
+        words[prev].classList.remove('rw-active', 'rw-exit');
+      }, 350);
+      words[current].classList.add('rw-active');
+    }
+    setInterval(next, 2800);
+  })();
+
+  /* --- Reveal on scroll (IntersectionObserver) --- */
+  document.body.classList.add('js-ready');
+  var revealEls = document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .stagger');
+  var revealObs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        revealObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  revealEls.forEach(function(el) { revealObs.observe(el); });
+
+  /* --- Steps connector draw --- */
+  var connector = document.getElementById('steps-connector');
+  if (connector) {
+    var connObs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) {
+        if (e.isIntersecting) { e.target.classList.add('visible'); connObs.unobserve(e.target); }
+      });
+    }, { threshold: 0.3 });
+    connObs.observe(connector);
+  }
+
+  /* --- KPI counter animation --- */
+  function animCounter(el) {
+    if (el.dataset.countText) { el.textContent = el.dataset.countText; return; }
+    var target = parseInt(el.dataset.count || '0', 10);
+    var suffix = el.dataset.suffix || '';
+    if (!target) return;
+    var dur = 1800, start = null;
+    function ease(t) { return 1 - Math.pow(1 - t, 4); }
+    function step(ts) {
+      if (!start) start = ts;
+      var p = Math.min((ts - start) / dur, 1);
+      var cur = Math.round(ease(p) * target);
+      el.textContent = cur.toLocaleString('fr-FR') + suffix;
+      if (p < 1) requestAnimationFrame(step);
+      else el.textContent = target.toLocaleString('fr-FR') + suffix;
+    }
+    requestAnimationFrame(step);
+  }
+  var statsObs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.kpi-val[data-count]').forEach(animCounter);
+        statsObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+  var statsSection = document.querySelector('.stats-section');
+  if (statsSection) statsObs.observe(statsSection);
+
+  /* --- FAQ spring accordion --- */
+  document.querySelectorAll('.faq-item').forEach(function(item) {
+    var trigger = item.querySelector('.faq-trigger');
+    var body    = item.querySelector('.faq-body');
+    if (!trigger || !body) return;
+
+    // Init open items
+    if (item.classList.contains('open')) {
+      body.style.maxHeight = body.scrollHeight + 'px';
+    }
+
+    trigger.addEventListener('click', function() {
+      var isOpen = item.classList.contains('open');
+      // Close all
+      document.querySelectorAll('.faq-item.open').forEach(function(other) {
+        other.classList.remove('open');
+        other.querySelector('.faq-trigger').setAttribute('aria-expanded', 'false');
+        other.querySelector('.faq-body').style.maxHeight = '0';
+      });
+      // Open clicked if it was closed
+      if (!isOpen) {
+        item.classList.add('open');
+        trigger.setAttribute('aria-expanded', 'true');
+        body.style.maxHeight = body.scrollHeight + 'px';
+      }
+    });
+  });
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     COOKIE CONSENT BANNER (RGPD / Loi ivoirienne n°2013-450)
+════════════════════════════════════════════════════════════════ -->
+<style>
+/* Cookie Banner */
+.cookie-banner {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 9000;
+  background: rgba(15,23,42,.96);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255,255,255,.08);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  transform: translateY(110%);
+  transition: transform .45s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 -8px 40px rgba(0,0,0,.35);
+}
+.cookie-banner.visible { transform: translateY(0); }
+.cookie-text {
+  flex: 1;
+  min-width: 260px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+.cookie-text strong { color: #e2e8f0; }
+.cookie-text a { color: var(--c-sky); text-decoration: underline; }
+.cookie-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.cookie-btn {
+  padding: 9px 20px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: opacity .18s ease, transform .18s ease;
+  white-space: nowrap;
+}
+.cookie-btn:hover { opacity: .85; transform: translateY(-1px); }
+.cookie-btn.accept {
+  background: linear-gradient(135deg, var(--c-blue), var(--c-sky));
+  color: #fff;
+}
+.cookie-btn.decline {
+  background: rgba(255,255,255,.08);
+  color: #94a3b8;
+  border: 1px solid rgba(255,255,255,.12);
+}
+.cookie-btn.customize {
+  background: transparent;
+  color: var(--c-sky);
+  border: 1px solid rgba(14,165,233,.4);
+}
+@media (max-width: 560px) {
+  .cookie-banner { flex-direction: column; align-items: flex-start; padding: 16px; }
+  .cookie-actions { width: 100%; }
+  .cookie-btn { flex: 1; text-align: center; }
+}
+
+/* Cookie modal */
+.cookie-modal-overlay {
+  position: fixed; inset: 0;
+  z-index: 9100;
+  background: rgba(0,0,0,.65);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s ease;
+}
+.cookie-modal-overlay.open { opacity: 1; pointer-events: auto; }
+.cookie-modal {
+  background: #1e293b;
+  border-radius: 20px 20px 0 0;
+  padding: 28px 24px 36px;
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid rgba(255,255,255,.08);
+  transform: translateY(40px);
+  transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+}
+.cookie-modal-overlay.open .cookie-modal { transform: translateY(0); }
+.cookie-modal h3 { color: #f1f5f9; font-size: 18px; margin: 0 0 8px; }
+.cookie-modal p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 20px; }
+.cookie-category {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.cookie-category:last-of-type { border-bottom: none; }
+.cookie-cat-info h4 { color: #e2e8f0; font-size: 14px; margin: 0 0 2px; }
+.cookie-cat-info p { color: #64748b; font-size: 12.5px; margin: 0; }
+.cookie-toggle {
+  position: relative; width: 42px; height: 24px; flex-shrink: 0;
+}
+.cookie-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.cookie-toggle-track {
+  position: absolute; inset: 0;
+  background: #334155;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.cookie-toggle input:checked + .cookie-toggle-track { background: var(--c-sky); }
+.cookie-toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 18px; height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform .2s;
+  pointer-events: none;
+}
+.cookie-toggle input:checked ~ .cookie-toggle-thumb { transform: translateX(18px); }
+.cookie-toggle input:disabled + .cookie-toggle-track { background: var(--c-sky); opacity: .6; cursor: default; }
+.cookie-modal-footer { margin-top: 20px; display: flex; gap: 10px; }
+.cookie-modal-footer .cookie-btn { flex: 1; text-align: center; }
+</style>
+
+<!-- Banner HTML -->
+<div class="cookie-banner" id="cookieBanner" role="dialog" aria-live="polite" aria-label="Consentement aux cookies">
+  <div class="cookie-text">
+    <strong>Votre vie privée compte.</strong><br>
+    Nous utilisons des cookies essentiels au fonctionnement du site et, avec votre accord, des cookies analytiques pour améliorer votre expérience. Conformément à la <a href="#" aria-label="Politique de confidentialité BABIFIX">Loi ivoirienne n°2013-450</a> sur la protection des données personnelles.
+  </div>
+  <div class="cookie-actions">
+    <button class="cookie-btn customize" id="cookieCustomize" aria-haspopup="dialog">Personnaliser</button>
+    <button class="cookie-btn decline" id="cookieDecline">Refuser</button>
+    <button class="cookie-btn accept" id="cookieAccept">Tout accepter</button>
+  </div>
+</div>
+
+<!-- Preferences modal -->
+<div class="cookie-modal-overlay" id="cookieModal" role="dialog" aria-modal="true" aria-label="Préférences cookies">
+  <div class="cookie-modal">
+    <h3>Préférences de confidentialité</h3>
+    <p>Choisissez les catégories de cookies que vous souhaitez autoriser. Les cookies essentiels sont toujours actifs.</p>
+
+    <div class="cookie-category">
+      <div class="cookie-cat-info">
+        <h4>Essentiels</h4>
+        <p>Indispensables au fonctionnement du site (session, sécurité).</p>
+      </div>
+      <label class="cookie-toggle">
+        <input type="checkbox" checked disabled>
+        <span class="cookie-toggle-track"></span>
+        <span class="cookie-toggle-thumb"></span>
+      </label>
+    </div>
+
+    <div class="cookie-category">
+      <div class="cookie-cat-info">
+        <h4>Analytiques</h4>
+        <p>Mesure d'audience anonymisée pour améliorer le service.</p>
+      </div>
+      <label class="cookie-toggle">
+        <input type="checkbox" id="toggleAnalytics">
+        <span class="cookie-toggle-track"></span>
+        <span class="cookie-toggle-thumb"></span>
+      </label>
+    </div>
+
+    <div class="cookie-category">
+      <div class="cookie-cat-info">
+        <h4>Marketing</h4>
+        <p>Publicités pertinentes et suivi des conversions.</p>
+      </div>
+      <label class="cookie-toggle">
+        <input type="checkbox" id="toggleMarketing">
+        <span class="cookie-toggle-track"></span>
+        <span class="cookie-toggle-thumb"></span>
+      </label>
+    </div>
+
+    <div class="cookie-modal-footer">
+      <button class="cookie-btn decline" id="cookieModalClose">Fermer</button>
+      <button class="cookie-btn accept" id="cookieSavePrefs">Enregistrer mes choix</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var COOKIE_KEY = 'babifix_cookie_consent';
+  var banner = document.getElementById('cookieBanner');
+  var modal  = document.getElementById('cookieModal');
+
+  function getConsent() {
+    try { return JSON.parse(localStorage.getItem(COOKIE_KEY)); } catch(e) { return null; }
+  }
+  function setConsent(obj) {
+    localStorage.setItem(COOKIE_KEY, JSON.stringify(obj));
+  }
+  function hideBanner() {
+    banner.classList.remove('visible');
+    setTimeout(function() { banner.style.display = 'none'; }, 500);
+  }
+  function applyConsent(consent) {
+    // Analytics (e.g., GA4) — only load if accepted
+    if (consent && consent.analytics) {
+      // Insert analytics script here if needed
+    }
+  }
+
+  // Show banner if no consent stored yet
+  var stored = getConsent();
+  if (!stored) {
+    setTimeout(function() { banner.classList.add('visible'); }, 900);
+  } else {
+    applyConsent(stored);
+  }
+
+  // Accept all
+  document.getElementById('cookieAccept').addEventListener('click', function() {
+    var c = { essential: true, analytics: true, marketing: true, date: new Date().toISOString() };
+    setConsent(c);
+    applyConsent(c);
+    hideBanner();
+  });
+
+  // Decline non-essential
+  document.getElementById('cookieDecline').addEventListener('click', function() {
+    var c = { essential: true, analytics: false, marketing: false, date: new Date().toISOString() };
+    setConsent(c);
+    hideBanner();
+  });
+
+  // Open preferences modal
+  document.getElementById('cookieCustomize').addEventListener('click', function() {
+    var stored = getConsent() || {};
+    document.getElementById('toggleAnalytics').checked = !!stored.analytics;
+    document.getElementById('toggleMarketing').checked = !!stored.marketing;
+    modal.classList.add('open');
+  });
+
+  // Close modal without saving
+  document.getElementById('cookieModalClose').addEventListener('click', function() {
+    modal.classList.remove('open');
+  });
+
+  // Save custom preferences
+  document.getElementById('cookieSavePrefs').addEventListener('click', function() {
+    var c = {
+      essential: true,
+      analytics: document.getElementById('toggleAnalytics').checked,
+      marketing: document.getElementById('toggleMarketing').checked,
+      date: new Date().toISOString()
+    };
+    setConsent(c);
+    applyConsent(c);
+    modal.classList.remove('open');
+    hideBanner();
+  });
+
+  // Close modal on outside click
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) modal.classList.remove('open');
+  });
+
+  // Keyboard accessibility
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') modal.classList.remove('open');
+  });
+})();
+</script>
+
+</body>
+</html>

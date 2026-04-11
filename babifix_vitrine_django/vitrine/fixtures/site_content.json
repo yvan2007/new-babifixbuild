@@ -1,0 +1,51 @@
+[
+  {
+    "model": "vitrine.vitrinestats",
+    "pk": 1,
+    "fields": {
+      "label": "Prestataires vérifiés",
+      "valeur": "10,000+",
+      "ordre_affichage": 1,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.vitrinestats",
+    "pk": 2,
+    "fields": {
+      "label": "Services réalisés",
+      "valeur": "50,000+",
+      "ordre_affichage": 2,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.vitrinestats",
+    "pk": 3,
+    "fields": {
+      "label": "Note moyenne",
+      "valeur": "4.9/5",
+      "ordre_affichage": 3,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.vitrinestats",
+    "pk": 4,
+    "fields": {
+      "label": "Clients satisfaits",
+      "valeur": "95%",
+      "ordre_affichage": 4,
+      "actif": true
+    }
+  },
+  {
+    "model": "vitrine.herocontent",
+    "pk": 1,
+    "fields": {
+      "titre": "Trouvez le bon prestataire en quelques minutes",
+      "soustitre": "Plombiers, électriciens, femmes de ménage... Des professionnels vérifiés près de chez vous. Paiement sécurisé via Mobile Money.",
+      "actif": true
+    }
+  }
+]

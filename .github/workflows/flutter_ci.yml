@@ -1,0 +1,132 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Tests + analyse client ───────────────────────────────────────────────────
+  test_client:
+    name: Test & Build — Client App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: babifix_client_flutter
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.x"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run unit tests
+        run: flutter test
+
+      - name: Build APK (debug)
+        run: |
+          flutter build apk --debug \
+            --dart-define=BABIFIX_ENV=development \
+            --dart-define=BABIFIX_API_BASE=https://api.babifix.app
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-debug-apk
+          path: babifix_client_flutter/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
+  # ── Tests + analyse prestataire ─────────────────────────────────────────────
+  test_prestataire:
+    name: Test & Build — Prestataire App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: babifix_prestataire_flutter
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.x"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run unit tests
+        run: flutter test
+
+      - name: Build APK (debug)
+        run: |
+          flutter build apk --debug \
+            --dart-define=BABIFIX_ENV=development \
+            --dart-define=BABIFIX_API_BASE=https://api.babifix.app
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prestataire-debug-apk
+          path: babifix_prestataire_flutter/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
+  # ── Build release (sur tag v*.*.* uniquement) ───────────────────────────────
+  build_release:
+    name: Build Release APKs
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test_client, test_prestataire]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.x"
+          channel: stable
+          cache: true
+
+      - name: Build Client Release APK
+        working-directory: babifix_client_flutter
+        run: |
+          flutter pub get
+          flutter build apk --release \
+            --dart-define=BABIFIX_ENV=production \
+            --dart-define=BABIFIX_API_BASE=${{ secrets.BABIFIX_API_BASE }} \
+            --dart-define=BABIFIX_SENTRY_DSN=${{ secrets.BABIFIX_SENTRY_DSN }}
+
+      - name: Build Prestataire Release APK
+        working-directory: babifix_prestataire_flutter
+        run: |
+          flutter pub get
+          flutter build apk --release \
+            --dart-define=BABIFIX_ENV=production \
+            --dart-define=BABIFIX_API_BASE=${{ secrets.BABIFIX_API_BASE }} \
+            --dart-define=BABIFIX_SENTRY_DSN=${{ secrets.BABIFIX_SENTRY_DSN }}
+
+      - name: Upload release APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apks-${{ github.ref_name }}
+          path: |
+            babifix_client_flutter/build/app/outputs/flutter-apk/app-release.apk
+            babifix_prestataire_flutter/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30

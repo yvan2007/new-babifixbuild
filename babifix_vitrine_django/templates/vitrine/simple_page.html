@@ -1,0 +1,21 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} - BABIFIX</title>
+  <link rel="stylesheet" href="{% static 'vitrine/style.css' %}">
+</head>
+<body>
+  <section class="cta" style="margin-top:48px;">
+    <h2>{{ title }}</h2>
+    {% if body_safe %}
+      {{ body_safe|safe }}
+    {% else %}
+      <p>{{ body }}</p>
+    {% endif %}
+    <a class="btn primary" href="/">Retour a l accueil</a>
+  </section>
+</body>
+</html>

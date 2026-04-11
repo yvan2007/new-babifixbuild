@@ -1,0 +1,1264 @@
+﻿{% load static %}
+{% load babifix_tags %}
+<!DOCTYPE html>
+<html lang="fr" class="no-js" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_heading }} — BABIFIX Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'adminpanel/style.css' %}">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+  <script>
+    (function(){ try { var d = localStorage.getItem('babifix-theme'); if (d === 'dark') document.documentElement.setAttribute('data-theme','dark'); } catch(e){} })();
+  </script>
+</head>
+<body class="app-shell">
+  <aside class="sidebar" aria-label="Navigation principale">
+    <div class="brand">
+      <div class="brand-mark">
+        <img src="{% static 'adminpanel/logo_babifix.png' %}" alt="BABIFIX" class="brand-logo-img" width="52" height="52" loading="eager">
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">BABIFIX</span>
+        <span class="brand-tag">Admin</span>
+      </div>
+    </div>
+    <p class="subtitle">Côte d'Ivoire · <strong>FCFA</strong> — pilotage, validation, paiements (sans accès au chat client ↔ prestataire)</p>
+
+    <nav class="side-nav">
+      <a href="/?section=dashboard{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'dashboard' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 11.5L12 4l8 7.5V20a1 1 0 01-1 1h-5v-6H10v6H5a1 1 0 01-1-1v-8.5z"/></svg>
+        <span>Dashboard</span>
+      </a>
+      <a href="/?section=prestataires{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'prestataires' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+        <span>Prestataires</span>
+        {% with pending_count=providers|length %}{% if pending_count > 0 %}<span class="nav-badge" title="{{ pending_count }} en attente de validation">{{ pending_count }}</span>{% endif %}{% endwith %}
+      </a>
+      <a href="/?section=reservations{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'reservations' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+        <span>Réservations</span>
+      </a>
+      <a href="/?section=litiges{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'litiges' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 9v4M12 17h.01M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0z"/></svg>
+        <span>Litiges</span>
+        {% with litige_count=litiges|length %}{% if litige_count > 0 %}<span class="nav-badge nav-badge--urgent" title="{{ litige_count }} litige(s) ouvert(s)">{{ litige_count }}</span>{% endif %}{% endwith %}
+      </a>
+      <a href="/?section=clients{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'clients' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 11a3 3 0 10-6 0 3 3 0 006 0z"/><path d="M3 20a6 6 0 0112 0M21 20a4 4 0 00-4-4"/></svg>
+        <span>Clients</span>
+      </a>
+      <a href="/?section=paiements{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'paiements' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        <span>Paiements</span>
+      </a>
+      <a href="/?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'categories' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span>Catégories</span>
+      </a>
+      <a href="/?section=notifications{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'notifications' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span>Notifications</span>
+      </a>
+      <a href="/?section=actualites{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'actualites' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 4h16v12H5.17L4 17.17V4zm2 2v8h12V6H6zm2 2h8v2H8V8zm0 4h5v2H8v-2z"/></svg>
+        <span>Actualités</span>
+      </a>
+      <a href="/?section=parametres{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'parametres' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <span>Paramètres</span>
+      </a>
+    </nav>
+
+    <div class="crud-panel crud-panel-inline">
+      <p class="crud-panel-title">CRUD sur cette page</p>
+      <p class="crud-panel-desc">Ajouter, modifier, supprimer sans quitter le dashboard — connecté en tant que <strong>{{ request.user.username }}</strong>.</p>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sync-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        <span>API + WebSocket</span>
+      </div>
+      <p class="sync-hint">Les apps utilisent l'API REST ; ce dashboard écoute aussi le flux WebSocket <code>/ws/admin/events/</code> — une action API ou un autre onglet admin déclenche toast + actualisation.</p>
+      <p class="build-stamp" title="Si cette ligne est absente, vous n'êtes peut‑être pas sur le bon projet Django">Build panel · <strong>CI / FCFA</strong> · fév. 2026</p>
+    </div>
+  </aside>
+
+  <div class="main-wrap">
+    <header class="topbar">
+      <div class="topbar-titles">
+        <h2 class="page-title">{{ page_heading }}</h2>
+        <p class="topbar-sub">{{ page_subtitle }}</p>
+      </div>
+      <div class="topbar-tools">
+        <form method="get" class="search-wrap search-wrap-form" role="search" aria-label="Recherche dans la section">
+          <input type="hidden" name="section" value="{{ section }}">
+          <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="search" name="q" value="{{ search_q }}" placeholder="Filtrer cette section…" class="search-input" title="Filtre sur les colonnes principales" autocomplete="off">
+          <button type="submit" class="search-submit-btn">Filtrer</button>
+        </form>
+        <button type="button" class="icon-btn" aria-label="Notifications" title="Centre de notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"/></svg>
+          <span class="notif-dot"></span>
+        </button>
+        <span class="region-badge" title="Devise et zone métier">🇨🇮 FCFA</span>
+        <div id="htmx-stats-spinner" class="htmx-indicator htmx-spinner" title="Mise à jour KPI (HTMX)"></div>
+        <div id="live-feed-status" class="live-feed-status" title="WebSocket — mises à jour instantanées (API + ce dashboard)">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span class="live-feed-label">Temps réel</span>
+        </div>
+        <div class="user-chip" title="Compte connecté">
+          <span class="user-avatar">{{ request.user.username|slice:":1"|upper }}</span>
+          <span class="user-label">{{ request.user.username }}</span>
+        </div>
+        <button type="button" class="theme-toggle" id="theme-toggle" title="Thème clair / sombre">◐</button>
+        <form method="post" action="{% url 'logout' %}" class="logout-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn-logout">Déconnexion</button>
+        </form>
+      </div>
+    </header>
+
+    <div class="sync-banner">
+      <svg class="banner-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      <div>
+        <strong>Lien avec les applications</strong>
+        <p>Ce tableau de bord pilote la <em>même base</em> que les apps (via JWT / API). Les formulaires ci-dessous modifient directement les données utilisées par Flutter.</p>
+      </div>
+    </div>
+
+    <div class="role-banner" role="region" aria-label="Rôle administrateur">
+      <div class="role-banner-icon" aria-hidden="true">ⓘ</div>
+      <div>
+        <strong>Rôle administrateur (rappel)</strong>
+        <p>Vous <em>ne renseignez pas</em> les noms clients/prestataires comme sur un guichet : ils viennent des apps. Ici vous <strong>validez</strong> (prestataires, paiements, litiges), gérez <strong>catégories</strong> et <strong>paramètres</strong>, et voyez l'activité. Le contenu des <strong>messages privés</strong> client ↔ prestataire n'est pas affiché dans ce panel.</p>
+      </div>
+    </div>
+
+    {% if section == 'reservations' or section == 'paiements' or section == 'prestataires' or section == 'clients' or section == 'litiges' or section == 'categories' %}
+    <div class="export-toolbar card card-elevate" role="region" aria-label="Export CSV">
+      <strong>Export des données visibles</strong>
+      <span class="export-toolbar-hint">Respecte le filtre « Filtrer cette section » si renseigné.</span>
+      <div class="export-toolbar-links">
+        {% if section == 'reservations' %}<a class="export-csv-link" href="{% url 'admin-export-csv' 'reservations' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}">Télécharger réservations (.csv)</a>{% endif %}
+        {% if section == 'paiements' %}<a class="export-csv-link" href="{% url 'admin-export-csv' 'payments' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}">Télécharger paiements (.csv)</a>{% endif %}
+        {% if section == 'prestataires' %}<a class="export-csv-link" href="{% url 'admin-export-csv' 'providers' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}">Télécharger prestataires (.csv)</a>{% endif %}
+        {% if section == 'clients' %}<a class="export-csv-link" href="{% url 'admin-export-csv' 'clients' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}">Télécharger clients (.csv)</a>{% endif %}
+        {% if section == 'litiges' %}<a class="export-csv-link" href="{% url 'admin-export-csv' 'litiges' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}">Télécharger litiges (.csv)</a>{% endif %}
+        {% if section == 'categories' %}<a class="export-csv-link" href="{% url 'admin-export-csv' 'categories' %}{% if search_q %}?q={{ search_q|urlencode }}{% endif %}">Télécharger catégories (.csv)</a>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if messages %}
+    <div class="flash-messages">
+      {% for message in messages %}
+      <div class="flash flash-{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <main class="content">
+    {% if section == 'dashboard' %}
+      <div
+        id="dashboard-stats-fragment"
+        hx-get="{% url 'admin-dashboard' %}?section=dashboard&partial=stats"
+        hx-trigger="every 60s"
+        hx-swap="innerHTML"
+        hx-indicator="#htmx-stats-spinner"
+      >
+        {% include 'adminpanel/partials/dashboard_stats.html' %}
+      </div>
+      <section class="pay-ci-strip card card-elevate">
+        <h3>Moyens de paiement — Côte d'Ivoire</h3>
+        <p class="section-help">Logos Mobile Money (PNG) dans <code>static/payment-logos/</code> — alignés API <code>PAYMENT_METHOD_STATIC</code>.</p>
+        <div class="pay-ci-logos">
+          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/orange-money.png' %}" alt="Orange Money" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>Orange Money</figcaption></figure>
+          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/mtn-momo.png' %}" alt="MTN MoMo" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>MTN MoMo</figcaption></figure>
+          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/wave.png' %}" alt="Wave" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>Wave</figcaption></figure>
+          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/moov-money.png' %}" alt="Moov Money" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>Moov Money</figcaption></figure>
+          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/especes.svg' %}" alt="Espèces" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>Espèces</figcaption></figure>
+        </div>
+        <div class="pay-ci-badges pay-ci-badges-fallback">
+          <span class="pay-badge pay-orange">Orange Money</span>
+          <span class="pay-badge pay-mtn">MTN Mobile Money</span>
+          <span class="pay-badge pay-wave">Wave</span>
+          <span class="pay-badge pay-moov">Moov Money</span>
+          <span class="pay-badge pay-cash">Espèces</span>
+        </div>
+      </section>
+      <section class="split">
+        <article class="card card-elevate">
+          <h3>Vérification prestataires</h3>
+          <table>
+            <thead><tr><th>Nom</th><th>Spécialité</th><th>Statut</th></tr></thead>
+            <tbody>
+              {% for p in providers %}
+              <tr><td>{{ p.nom }}</td><td>{{ p.specialite }}</td><td><span class="pill">{{ p.statut }}</span></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </article>
+        <article class="card card-elevate">
+          <h3>Suivi paiements</h3>
+          <table>
+            <thead><tr><th>Référence</th><th>Montant</th><th>État</th></tr></thead>
+            <tbody>
+              {% for p in paiements %}
+              <tr><td>{{ p.reference }}</td><td>{{ p.montant|strip_fcfa_label|format_fcfa }}</td><td>{{ p.etat }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </article>
+      </section>
+    {% elif section == 'prestataires' %}
+      {% if edit_provider_id %}
+      <article class="card card-elevate crud-form-card">
+        <h3>Modifier un prestataire (support / correction)</h3>
+        <p class="section-help">Création des comptes prestataires : <strong>uniquement via l'app mobile</strong>. Ce formulaire sert aux ajustements exceptionnels.</p>
+        <form method="post" class="crud-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="provider_save">
+          <input type="hidden" name="pk" value="{{ edit_provider_id }}">
+          <div class="form-grid">{{ provider_form.as_p }}</div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enregistrer</button>
+            <a href="?section=prestataires" class="btn-link-cancel">Annuler la modification</a>
+          </div>
+        </form>
+      </article>
+      {% else %}
+      <article class="card card-elevate provider-info-banner">
+        <div class="provider-info-banner__inner">
+          <div class="provider-info-banner__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+          </div>
+          <div>
+            <strong>Workflow de validation prestataires</strong>
+            <p>Les prestataires s'inscrivent sur l'<strong>app mobile</strong>. Leur profil reste <em>invisible</em> côté client tant que le statut n'est pas <span class="status-badge status-badge--valid">Valide</span>. Un refus envoie automatiquement une notification à l'app avec le motif.</p>
+          </div>
+          <div class="provider-info-banner__flow" aria-label="Workflow statuts">
+            <span class="flow-step status-badge status-badge--pending">En attente</span>
+            <svg class="flow-arrow" width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 7h18M13 1l6 6-6 6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="flow-step status-badge status-badge--valid">Valide</span>
+            <svg class="flow-arrow" width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 7h18M13 1l6 6-6 6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="flow-step status-badge status-badge--refused">Refusé</span>
+            <svg class="flow-arrow" width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 7h18M13 1l6 6-6 6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="flow-step status-badge status-badge--suspended">Suspendu</span>
+          </div>
+        </div>
+      </article>
+      {% endif %}
+
+      <article class="card card-elevate">
+        <div class="providers-section-header">
+          <div>
+            <h3>Liste — vérification &amp; visibilité app</h3>
+            <p class="psh-sub">Tant que le statut n'est pas <strong>Valide</strong>, le profil n'apparaît pas côté client.</p>
+          </div>
+          {% with total=providers|length %}
+          <span class="providers-count-pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+            {{ total }} prestataire{{ total|pluralize }}
+          </span>
+          {% endwith %}
+        </div>
+
+        <div class="table-responsive providers-table-wrap">
+        <table class="providers-table">
+          <thead>
+            <tr>
+              <th>Prestataire</th>
+              <th>Documents CNI</th>
+              <th>Spécialité · Tarif</th>
+              <th>Ville</th>
+              <th>Statut · Dispo</th>
+              <th>Motif de refus</th>
+              <th style="min-width:220px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in providers %}
+            <tr class="provider-row provider-row--{% if p.statut == 'En attente' %}pending{% elif p.statut == 'Valide' %}valid{% elif p.statut == 'Refusé' or p.statut == 'Refuse' %}refused{% else %}suspended{% endif %}">
+              <td>
+                <div class="provider-identity">
+                  {% if p.photo_portrait_url %}
+                  <a href="{{ p.photo_portrait_url }}" target="_blank" rel="noopener" title="Voir la photo" class="doc-link">
+                    <img src="{{ p.photo_portrait_url }}" alt="{{ p.nom }}" class="provider-avatar" style="padding:0;font-size:0;">
+                  </a>
+                  {% else %}
+                  <div class="provider-avatar" aria-hidden="true">{{ p.nom|slice:":1"|upper }}</div>
+                  {% endif %}
+                  <div class="provider-info">
+                    <strong class="provider-name">{{ p.nom }}</strong>
+                    {% if p.user %}
+                    <div class="provider-username">@{{ p.user.username }}</div>
+                    {% if p.user.email %}
+                    <div class="provider-email-chip">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7"/></svg>
+                      {{ p.user.email }}
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                    {% if p.rating_count > 0 %}
+                    <div class="provider-rating-inline">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                      {{ p.average_rating|floatformat:1 }} ({{ p.rating_count }})
+                    </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td class="td-thumb">
+                <div class="provider-docs">
+                  {% if p.photo_portrait_url %}
+                  <a href="{{ p.photo_portrait_url }}" target="_blank" rel="noopener" class="doc-link" title="Photo portrait">
+                    <img src="{{ p.photo_portrait_url }}" alt="Photo" class="thumb">
+                    <span class="doc-label">Photo</span>
+                  </a>
+                  {% endif %}
+                  {% if p.cni_recto_url %}
+                  <a href="{{ p.cni_recto_url }}" target="_blank" rel="noopener" class="doc-link doc-link--cni" title="CNI Recto">
+                    <img src="{{ p.cni_recto_url }}" alt="CNI Recto" class="thumb">
+                    <span class="doc-label">CNI ↑</span>
+                  </a>
+                  {% elif p.cni_url %}
+                  <a href="{{ p.cni_url }}" target="_blank" rel="noopener" class="doc-link doc-link--cni" title="Voir la CNI">
+                    <img src="{{ p.cni_url }}" alt="CNI" class="thumb">
+                    <span class="doc-label">CNI</span>
+                  </a>
+                  {% endif %}
+                  {% if p.cni_verso_url %}
+                  <a href="{{ p.cni_verso_url }}" target="_blank" rel="noopener" class="doc-link doc-link--cni" title="CNI Verso">
+                    <img src="{{ p.cni_verso_url }}" alt="CNI Verso" class="thumb">
+                    <span class="doc-label">CNI ↓</span>
+                  </a>
+                  {% endif %}
+                  {% if not p.photo_portrait_url and not p.cni_url and not p.cni_recto_url %}
+                  <span class="doc-missing">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                    Aucun doc.
+                  </span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start;">
+                  <span class="provider-specialty">{{ p.specialite|default:"—" }}</span>
+                  {% if p.tarif_horaire %}
+                  <span class="tarif-badge">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                    {{ p.tarif_horaire|floatformat:0 }} FCFA/h
+                  </span>
+                  {% else %}
+                  <span style="font-size:11px;color:#94a3b8;font-style:italic;">Non défini</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <span class="city-tag">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  {{ p.ville|default:"—" }}
+                </span>
+              </td>
+              <td>
+                <div class="status-dispo-col">
+                {% if p.statut == 'En attente' %}
+                <span class="status-badge status-badge--pending">
+                  <span class="status-dot"></span>En attente
+                </span>
+                {% elif p.statut == 'Valide' %}
+                <span class="status-badge status-badge--valid">
+                  <span class="status-dot"></span>Valide
+                </span>
+                {% elif p.statut == 'Refusé' or p.statut == 'Refuse' %}
+                <span class="status-badge status-badge--refused">
+                  <span class="status-dot"></span>Refusé
+                </span>
+                {% elif p.statut == 'Suspendu' %}
+                <span class="status-badge status-badge--suspended">
+                  <span class="status-dot"></span>Suspendu
+                </span>
+                {% else %}
+                <span class="status-badge status-badge--pending">
+                  <span class="status-dot"></span>{{ p.statut }}
+                </span>
+                {% endif %}
+                {% if p.disponible %}
+                <span class="dispo-pill dispo-pill--on">
+                  <span class="dispo-dot"></span>Disponible
+                </span>
+                {% else %}
+                <span class="dispo-pill dispo-pill--off">
+                  <span class="dispo-dot"></span>Indisponible
+                </span>
+                {% endif %}
+                </div>
+              </td>
+              <td style="max-width:14rem;">
+                {% if p.refusal_reason %}
+                <div class="refusal-block">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0zM12 9v4M12 17h.01"/></svg>
+                  <span>{{ p.refusal_reason|truncatechars:180 }}</span>
+                </div>
+                {% else %}
+                <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td class="td-actions td-actions--column">
+                <div class="action-row">
+                  <a href="?section=prestataires&amp;edit_provider={{ p.id }}" class="link-edit">Modifier</a>
+                  <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ce prestataire ?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="provider_delete">
+                    <input type="hidden" name="pk" value="{{ p.id }}">
+                    <button type="submit" class="table-btn danger">Supprimer</button>
+                  </form>
+                  <button type="button" class="table-btn table-btn--dossier"
+                          onclick="toggleDossier({{ p.id }})" id="btn-dossier-{{ p.id }}">
+                    📋 Voir dossier
+                  </button>
+                  <form method="post" style="display:inline-block;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="provider_status">
+                    <input type="hidden" name="provider_id" value="{{ p.id }}">
+                    <input type="hidden" name="next_status" value="{% if p.statut == 'En attente' %}Valide{% elif p.statut == 'Valide' %}Suspendu{% else %}Valide{% endif %}">
+                    <button type="submit" class="table-btn table-btn--{% if p.statut == 'En attente' %}approve{% elif p.statut == 'Valide' %}suspend{% else %}reactivate{% endif %}">
+                      {% if p.statut == 'En attente' %}
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                      Valider
+                      {% elif p.statut == 'Valide' %}
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+                      Suspendre
+                      {% else %}
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                      Réactiver
+                      {% endif %}
+                    </button>
+                  </form>
+                </div>
+                {% if p.statut == 'En attente' or p.statut == 'Valide' %}
+                <details class="refuse-details" x-data="{ open: false }">
+                  <summary class="refuse-summary">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                    Refuser…
+                  </summary>
+                  <form method="post" class="refuse-form-expanded">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="provider_refuse">
+                    <input type="hidden" name="provider_id" value="{{ p.id }}">
+                    <label class="refuse-label">Motif de refus</label>
+                    <select class="refuse-preset input-reason" name="reason" required>
+                      <option value="">— Choisir un motif —</option>
+                      <optgroup label="Motifs fréquents">
+                        <option value="Documents d'identité (CNI) illisibles ou expirés">CNI illisible ou expirée</option>
+                        <option value="Photo de profil non conforme (floue, non visible)">Photo de profil non conforme</option>
+                        <option value="Informations professionnelles incomplètes">Infos professionnelles incomplètes</option>
+                        <option value="Spécialité non couverte par la plateforme BABIFIX">Spécialité non couverte</option>
+                        <option value="Doublon de compte détecté">Doublon de compte</option>
+                        <option value="Coordonnées de contact invalides">Coordonnées invalides</option>
+                      </optgroup>
+                      <option value="custom">Autre motif (préciser ci-dessous)…</option>
+                    </select>
+                    <input type="text" name="reason_custom" placeholder="Motif personnalisé si « Autre »…" class="input-reason" style="margin-top:6px; display:none;" id="reason-custom-{{ p.id }}">
+                    <button type="submit" class="table-btn danger refuse-confirm-btn">Confirmer le refus</button>
+                  </form>
+                </details>
+                {% endif %}
+              </td>
+            </tr>
+            <tr class="provider-dossier-row" id="dossier-{{ p.id }}" hidden>
+              <td colspan="7" style="padding:0;">
+                <div class="dossier-premium">
+
+                  <!-- ══ EN-TÊTE DOSSIER ══ -->
+                  <div class="dossier-header">
+                    <div class="dossier-avatar-wrap">
+                      {% if p.photo_portrait_url %}
+                      <a href="{{ p.photo_portrait_url }}" target="_blank" rel="noopener" title="Agrandir la photo">
+                        <img src="{{ p.photo_portrait_url }}" alt="Photo de {{ p.nom }}" class="dossier-avatar-img">
+                      </a>
+                      {% else %}
+                      <div class="dossier-avatar-placeholder">{{ p.nom|slice:":1"|upper }}</div>
+                      {% endif %}
+                      <span class="dossier-status-pill dossier-status-pill--{% if p.statut == 'Valide' %}valid{% elif p.statut == 'En attente' %}pending{% else %}refused{% endif %}">
+                        {% if p.statut == 'Valide' %}✓ Approuvé{% elif p.statut == 'En attente' %}⏳ En attente{% elif p.statut == 'Suspendu' %}⛔ Suspendu{% else %}✗ Refusé{% endif %}
+                      </span>
+                    </div>
+                    <div class="dossier-header-info">
+                      <h3 class="dossier-nom">{{ p.nom }}</h3>
+                      <p class="dossier-specialite">{{ p.specialite }}</p>
+                      <div class="dossier-meta-badges">
+                        {% if p.category %}
+                        <span class="dossier-meta-badge dossier-meta-badge--cat">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                          {{ p.category.nom }}
+                        </span>
+                        {% endif %}
+                        <span class="dossier-meta-badge">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                          {{ p.ville }}
+                        </span>
+                        <span class="dossier-meta-badge">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          {{ p.years_experience }} an{{ p.years_experience|pluralize }} d'exp.
+                        </span>
+                        <span class="dossier-meta-badge dossier-meta-badge--rate">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                          {{ p.average_rating|floatformat:1 }} ({{ p.rating_count }} avis)
+                        </span>
+                        {% if p.tarif_horaire %}
+                        <span class="dossier-meta-badge dossier-meta-badge--tarif">
+                          {{ p.tarif_horaire|floatformat:0 }} FCFA/h
+                        </span>
+                        {% endif %}
+                        <span class="dossier-meta-badge dossier-meta-badge--dispo {% if p.disponible %}dispo-on{% else %}dispo-off{% endif %}">
+                          {% if p.disponible %}● Disponible{% else %}● Indisponible{% endif %}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ══ SECTION DOCUMENTS ══ -->
+                  <div class="dossier-section">
+                    <h4 class="dossier-section-title">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="14 2 14 9 21 9"/></svg>
+                      Documents d'identité
+                    </h4>
+                    <div class="dossier-docs-grid">
+                      {% if p.photo_portrait_url %}
+                      <a href="{{ p.photo_portrait_url }}" target="_blank" rel="noopener" class="dossier-doc-card">
+                        <img src="{{ p.photo_portrait_url }}" alt="Photo portrait" class="dossier-doc-img">
+                        <div class="dossier-doc-label">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                          Photo portrait
+                          <span class="dossier-doc-open">↗</span>
+                        </div>
+                      </a>
+                      {% endif %}
+                      {% if p.cni_recto_url %}
+                      <a href="{{ p.cni_recto_url }}" target="_blank" rel="noopener" class="dossier-doc-card dossier-doc-card--id">
+                        <img src="{{ p.cni_recto_url }}" alt="CNI Recto" class="dossier-doc-img">
+                        <div class="dossier-doc-label">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                          CNI Recto (face avant)
+                          <span class="dossier-doc-open">↗</span>
+                        </div>
+                      </a>
+                      {% elif p.cni_url %}
+                      <a href="{{ p.cni_url }}" target="_blank" rel="noopener" class="dossier-doc-card dossier-doc-card--id">
+                        <img src="{{ p.cni_url }}" alt="Pièce d'identité" class="dossier-doc-img">
+                        <div class="dossier-doc-label">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                          CNI / Pièce d'identité
+                          <span class="dossier-doc-open">↗</span>
+                        </div>
+                      </a>
+                      {% endif %}
+                      {% if p.cni_verso_url %}
+                      <a href="{{ p.cni_verso_url }}" target="_blank" rel="noopener" class="dossier-doc-card dossier-doc-card--id">
+                        <img src="{{ p.cni_verso_url }}" alt="CNI Verso" class="dossier-doc-img">
+                        <div class="dossier-doc-label">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                          CNI Verso (face arrière)
+                          <span class="dossier-doc-open">↗</span>
+                        </div>
+                      </a>
+                      {% endif %}
+                      {% if not p.photo_portrait_url and not p.cni_url and not p.cni_recto_url %}
+                      <div class="dossier-no-docs">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="14 2 14 9 21 9"/></svg>
+                        <p>Aucun document uploadé</p>
+                        <small>Le prestataire n'a pas encore envoyé ses documents</small>
+                      </div>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <!-- ══ SECTION INFOS ══ -->
+                  <div class="dossier-section">
+                    <h4 class="dossier-section-title">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      Informations du dossier
+                    </h4>
+                    <div class="dossier-info-grid">
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Nom complet</span>
+                        <span class="dossier-info-value"><strong>{{ p.nom }}</strong></span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Email</span>
+                        <span class="dossier-info-value">
+                          <a href="mailto:{{ p.user.email|default:'' }}" style="color:inherit;">{{ p.user.email|default:"—" }}</a>
+                        </span>
+                      </div>
+                      {% if p.user.profile.phone_e164|default:'' or p.phone_e164|default:'' %}
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Téléphone</span>
+                        <span class="dossier-info-value">{{ p.phone_e164|default:p.user.profile.phone_e164|default:"—" }}</span>
+                      </div>
+                      {% endif %}
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Spécialité</span>
+                        <span class="dossier-info-value">{{ p.specialite }}</span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Catégorie</span>
+                        <span class="dossier-info-value">
+                          {% if p.category %}<strong>{{ p.category.nom }}</strong>{% else %}<em style="opacity:.5">Non renseignée</em>{% endif %}
+                        </span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Ville d'intervention</span>
+                        <span class="dossier-info-value">{{ p.ville }}</span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Expérience</span>
+                        <span class="dossier-info-value">{{ p.years_experience }} an{{ p.years_experience|pluralize }}</span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Tarif horaire</span>
+                        <span class="dossier-info-value">
+                          {% if p.tarif_horaire %}<strong>{{ p.tarif_horaire|floatformat:0 }} FCFA / heure</strong>{% else %}<em style="opacity:.5">Non renseigné</em>{% endif %}
+                        </span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Disponibilité</span>
+                        <span class="dossier-info-value {% if p.disponible %}text-success{% else %}text-danger{% endif %}">
+                          {% if p.disponible %}✓ Disponible{% else %}✗ Indisponible{% endif %}
+                        </span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Note moyenne</span>
+                        <span class="dossier-info-value">
+                          {% if p.average_rating > 0 %}
+                          <span style="color:#f59e0b;font-weight:700;">★ {{ p.average_rating|floatformat:1 }}</span>
+                          <span style="opacity:.6;font-size:12px;">({{ p.rating_count }} avis)</span>
+                          {% else %}<em style="opacity:.5">Aucun avis</em>{% endif %}
+                        </span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Date d'inscription</span>
+                        <span class="dossier-info-value">{{ p.user.date_joined|date:"d/m/Y à H:i" }}</span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Statut dossier</span>
+                        <span class="dossier-info-value">
+                          <span class="status-badge status-badge--{% if p.statut == 'Valide' %}valid{% elif p.statut == 'En attente' %}pending{% else %}refused{% endif %}">
+                            <span class="status-dot"></span>{{ p.statut }}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ══ BIO ══ -->
+                  {% if p.bio %}
+                  <div class="dossier-section">
+                    <h4 class="dossier-section-title">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                      Présentation / Bio
+                    </h4>
+                    <p class="dossier-bio-text">{{ p.bio }}</p>
+                  </div>
+                  {% endif %}
+
+                  <!-- ══ PORTFOLIO ══ -->
+                  {% if p.portfolio_photos %}
+                  <div class="dossier-section">
+                    <h4 class="dossier-section-title">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      Portfolio ({{ p.portfolio_photos|length }} photo{{ p.portfolio_photos|length|pluralize }})
+                    </h4>
+                    <div class="dossier-portfolio-grid">
+                      {% for photo in p.portfolio_photos %}
+                      <a href="{{ photo.photo }}" target="_blank" rel="noopener" class="dossier-portfolio-item" title="{{ photo.caption|default:'Réalisation' }}">
+                        <img src="{{ photo.photo }}" alt="{{ photo.caption|default:'Photo portfolio' }}" class="dossier-portfolio-img">
+                        {% if photo.caption %}<span class="dossier-portfolio-caption">{{ photo.caption }}</span>{% endif %}
+                      </a>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  {% endif %}
+
+                  <!-- ══ ACTIONS ══ -->
+                  {% if p.statut == 'En attente' or p.statut == 'Suspendu' %}
+                  <div class="dossier-section dossier-actions-section">
+                    <h4 class="dossier-section-title">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                      Actions de validation
+                    </h4>
+                    <div class="dossier-action-btns">
+                      <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="approve">
+                        <input type="hidden" name="provider_id" value="{{ p.id }}">
+                        <button type="submit" class="dossier-btn dossier-btn--approve"
+                                onclick="return confirm('Approuver le dossier de {{ p.nom }} ?')">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                          Approuver le dossier
+                        </button>
+                      </form>
+                      <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="reject">
+                        <input type="hidden" name="provider_id" value="{{ p.id }}">
+                        <input type="text" name="refusal_reason" placeholder="Motif de refus obligatoire…"
+                               class="dossier-refusal-input" required
+                               style="display:inline-block;width:260px;margin-right:8px;">
+                        <button type="submit" class="dossier-btn dossier-btn--reject"
+                                onclick="return confirm('Refuser le dossier de {{ p.nom }} ?')">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                          Refuser
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                  {% endif %}
+
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="7">
+                <div class="empty-state">
+                  <div class="empty-state__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+                  </div>
+                  <p class="empty-state__title">Aucun prestataire enregistré</p>
+                  <p class="empty-state__hint">Les prestataires apparaîtront ici après leur inscription sur l'application mobile.</p>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </article>
+    {% elif section == 'reservations' %}
+      {% if reservation_form %}
+      <article class="card card-elevate crud-form-card">
+        <h3>Modifier une réservation (support)</h3>
+        <p class="section-help">Les réservations sont créées par les apps clients. Vous ne les ajoutez pas manuellement.</p>
+        <form method="post" class="crud-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reservation_save">
+          {% if edit_reservation_id %}<input type="hidden" name="pk" value="{{ edit_reservation_id }}">{% endif %}
+          <div class="form-grid">{{ reservation_form.as_p }}</div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enregistrer</button>
+            {% if edit_reservation_id %}<a href="?section=reservations" class="btn-link-cancel">Annuler</a>{% endif %}
+          </div>
+        </form>
+      </article>
+      {% else %}
+      <div class="role-banner role-banner-soft">
+        <div class="role-banner-icon" aria-hidden="true">📋</div>
+        <div>
+          <strong>Réservations 100 % dynamiques</strong>
+          <p>Création côté app client uniquement. Ici : suivi, modification de support si besoin (bouton Modifier sur une ligne).</p>
+        </div>
+      </div>
+      {% endif %}
+      <article class="card card-elevate">
+        <h3>Liste des réservations</h3>
+        <p class="section-help">Colonnes <strong>Paiement</strong> et <strong>Opérateur</strong> : données issues des apps (Mobile Money Orange, MTN, Wave, Moov).</p>
+        <table class="data-table">
+          <thead><tr><th>Réf.</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Paiement</th><th>Opérateur MM</th><th>Flux espèces</th><th>Statut</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for r in reservations %}
+            <tr>
+              <td>{{ r.reference }}</td><td>{{ r.client }}</td><td>{{ r.prestataire }}</td><td>{{ r.montant }}</td>
+              <td>{{ r.get_payment_type_display }}</td>
+              <td>{% if r.payment_type == 'MOBILE_MONEY' %}{% if r.mobile_money_operator %}{{ r.get_mobile_money_operator_display }}{% else %}<span class="muted">Non précisé</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td>
+                {% if r.payment_type == 'ESPECES' %}
+                  {% if r.cash_flow_status == 'pending_prestataire' %}
+                    <span class="status-badge status-badge--pending" style="font-size:11px;"><span class="status-dot"></span>Att. prestataire</span>
+                  {% elif r.cash_flow_status == 'pending_admin' %}
+                    <span class="status-badge status-badge--pending" style="font-size:11px;background:rgba(249,115,22,0.1);color:#c2410c;border-color:rgba(249,115,22,0.25);"><span class="status-dot" style="background:#f97316;"></span>Att. admin</span>
+                  {% elif r.cash_flow_status == 'validated' %}
+                    <span class="status-badge status-badge--valid" style="font-size:11px;"><span class="status-dot"></span>Validé</span>
+                  {% elif r.cash_flow_status == 'refused' %}
+                    <span class="status-badge status-badge--refused" style="font-size:11px;"><span class="status-dot"></span>Refusé</span>
+                  {% else %}
+                    {{ r.get_cash_flow_status_display|default:"—" }}
+                  {% endif %}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ r.statut }}</td>
+              <td class="td-actions">
+                <a href="?section=reservations&amp;edit_reservation={{ r.id }}" class="link-edit">Modifier</a>
+                <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="reservation_delete">
+                  <input type="hidden" name="pk" value="{{ r.id }}">
+                  <button type="submit" class="table-btn danger">Supprimer</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    {% elif section == 'litiges' %}
+      {% if edit_litige_id %}
+      <article class="card card-elevate crud-form-card">
+        <h3>Modifier un litige</h3>
+        <form method="post" class="crud-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="litige_save">
+          <input type="hidden" name="pk" value="{{ edit_litige_id }}">
+          <div class="form-grid">{{ litige_form.as_p }}</div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enregistrer</button>
+            <a href="?section=litiges" class="btn-link-cancel">Annuler</a>
+          </div>
+        </form>
+      </article>
+      {% else %}
+      <div style="margin:0 0 14px;">
+        <a href="?section=litiges&amp;edit_litige=new"
+           style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#f97316,#ea580c);
+                  color:#fff;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;text-decoration:none;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          Ajouter un litige manuellement
+        </a>
+      </div>
+      {% endif %}
+      <article class="card card-elevate">
+        <div class="section-header">
+          <div>
+            <h3 style="margin:0 0 4px;">Liste des litiges ouverts</h3>
+            <p class="section-help" style="margin:0;">Arbitrez chaque litige : rembourser le client, libérer le paiement au prestataire, ou partage partiel.</p>
+          </div>
+          {% with litige_count=litiges|length %}
+          {% if litige_count > 0 %}
+          <span class="status-badge status-badge--refused" style="font-size:13px;padding:4px 12px;">
+            <span class="status-dot"></span>{{ litige_count }} litige{{ litige_count|pluralize }} ouvert{{ litige_count|pluralize }}
+          </span>
+          {% endif %}
+          {% endwith %}
+        </div>
+        <div class="table-responsive">
+        <table class="data-table">
+          <thead><tr><th>Réf.</th><th>Motif</th><th>Client</th><th>Prestataire</th><th>Priorité</th><th>Décision actuelle</th><th>Arbitrer</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for l in litiges %}
+            <tr>
+              <td><code style="font-size:12px;">{{ l.reference }}</code></td>
+              <td style="max-width:14rem;">{{ l.motif|truncatechars:80 }}</td>
+              <td>{{ l.client }}</td>
+              <td>{{ l.prestataire }}</td>
+              <td>
+                {% if l.priorite == 'HIGH' or l.priorite == 'Haute' %}
+                  <span class="status-badge status-badge--refused"><span class="status-dot"></span>Haute</span>
+                {% elif l.priorite == 'MEDIUM' or l.priorite == 'Moyenne' %}
+                  <span class="status-badge status-badge--pending"><span class="status-dot"></span>Moyenne</span>
+                {% else %}
+                  <span class="status-badge status-badge--suspended"><span class="status-dot"></span>Basse</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if l.decision == 'OPEN' or l.decision == 'En cours' %}
+                  <span class="status-badge status-badge--pending"><span class="status-dot"></span>En cours</span>
+                {% elif l.decision == 'REFUND' or l.decision == 'Rembourser client' %}
+                  <span class="status-badge status-badge--refused"><span class="status-dot"></span>Remboursement client</span>
+                {% elif l.decision == 'RELEASE' or l.decision == 'Libérer paiement' %}
+                  <span class="status-badge status-badge--valid"><span class="status-dot"></span>Paiement libéré</span>
+                {% elif l.decision == 'SPLIT' or l.decision == 'Partage partiel' %}
+                  <span class="status-badge status-badge--suspended"><span class="status-dot"></span>Partage partiel</span>
+                {% else %}
+                  <span class="muted">{{ l.decision|default:"—" }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <form method="post" style="display:flex;gap:6px;align-items:center;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="litige_decision">
+                  <input type="hidden" name="litige_id" value="{{ l.reference }}">
+                  <select name="decision" style="font-size:12px;padding:4px 8px;border-radius:8px;border:1.5px solid #e2e8f0;">
+                    <option value="OPEN">En cours</option>
+                    <option value="REFUND">Rembourser client</option>
+                    <option value="RELEASE">Libérer paiement</option>
+                    <option value="SPLIT">Partage partiel</option>
+                  </select>
+                  <button type="submit" class="table-btn table-btn--approve">Appliquer</button>
+                </form>
+              </td>
+              <td class="td-actions">
+                <a href="?section=litiges&amp;edit_litige={{ l.id }}" class="link-edit">Modifier</a>
+                <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ce litige ?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="litige_delete">
+                  <input type="hidden" name="pk" value="{{ l.id }}">
+                  <button type="submit" class="table-btn danger">Supprimer</button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8">
+                <div class="empty-state">
+                  <div class="empty-state__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  </div>
+                  <p class="empty-state__title">Aucun litige ouvert</p>
+                  <p class="empty-state__hint">Tous les services se sont bien passés. Les litiges signalés via les apps apparaîtront ici.</p>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </article>
+    {% elif section == 'clients' %}
+      <div class="role-banner role-banner-soft">
+        <div class="role-banner-icon" aria-hidden="true">👤</div>
+        <div>
+          <strong>Fiches « clients » en base</strong>
+          <p>Les comptes clients se créent sur l'<strong>app mobile</strong>. Vous ne les ajoutez pas manuellement comme sur un guichet ; le tableau ci-dessous est pour suivi ou correction.</p>
+        </div>
+      </div>
+      {% if edit_client_id %}
+      <article class="card card-elevate crud-form-card">
+        <h3>Modifier une fiche client (support)</h3>
+        <form method="post" class="crud-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="client_save">
+          <input type="hidden" name="pk" value="{{ edit_client_id }}">
+          <div class="form-grid">{{ client_form.as_p }}</div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enregistrer</button>
+            <a href="?section=clients" class="btn-link-cancel">Annuler</a>
+          </div>
+        </form>
+      </article>
+      {% endif %}
+      <article class="card card-elevate">
+        <h3>Liste des clients</h3>
+        <table>
+          <thead><tr><th>Nom</th><th>Email</th><th>Ville</th><th>Réservations</th><th>Dépense</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for c in clients %}
+            <tr>
+              <td>{{ c.nom }}</td>
+              <td title="Identifiant masqué (stats)">{% if c.email %}{% with e=c.email %}{{ e|slice:":2" }}•••@•••{% endwith %}{% else %}—{% endif %}</td>
+              <td>{{ c.ville }}</td><td>{{ c.reservations }}</td><td>{{ c.depense }}</td>
+              <td class="td-actions">
+                <a href="?section=clients&amp;edit_client={{ c.id }}" class="link-edit">Modifier</a>
+                <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="client_delete">
+                  <input type="hidden" name="pk" value="{{ c.id }}">
+                  <button type="submit" class="table-btn danger">Supprimer</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    {% elif section == 'paiements' %}
+      <article class="card card-elevate crud-form-card">
+        <h3>{% if edit_paiement_id %}Modifier{% else %}Ajouter{% endif %} un paiement</h3>
+        <form method="post" class="crud-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="paiement_save">
+          {% if edit_paiement_id %}<input type="hidden" name="pk" value="{{ edit_paiement_id }}">{% endif %}
+          <div class="form-grid">{{ paiement_form.as_p }}</div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enregistrer</button>
+            {% if edit_paiement_id %}<a href="?section=paiements" class="btn-link-cancel">Annuler</a>{% endif %}
+          </div>
+        </form>
+      </article>
+      <article class="card card-elevate">
+        <h3>Liste des paiements</h3>
+        <table>
+          <thead><tr><th>Référence</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Commission</th><th>Statut</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for p in paiements %}
+            <tr>
+              <td>{{ p.reference }}</td><td>{{ p.client }}</td><td>{{ p.prestataire }}</td><td>{{ p.montant }}</td><td>{{ p.commission }}</td><td>{{ p.etat }}</td>
+              <td class="td-actions">
+                <a href="?section=paiements&amp;edit_paiement={{ p.id }}" class="link-edit">Modifier</a>
+                <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="paiement_delete">
+                  <input type="hidden" name="pk" value="{{ p.id }}">
+                  <button type="submit" class="table-btn danger">Supprimer</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    {% elif section == 'categories' %}
+      {% include 'adminpanel/partials/categories_section.html' %}
+    {% elif section == 'notifications' %}
+      <article class="card card-elevate crud-form-card">
+        <h3>{% if edit_notification_id %}Modifier{% else %}Ajouter{% endif %} une notification</h3>
+        <form method="post" class="crud-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="notification_save">
+          {% if edit_notification_id %}<input type="hidden" name="pk" value="{{ edit_notification_id }}">{% endif %}
+          <div class="form-grid">{{ notification_form.as_p }}</div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enregistrer</button>
+            {% if edit_notification_id %}<a href="?section=notifications" class="btn-link-cancel">Annuler</a>{% endif %}
+          </div>
+        </form>
+      </article>
+      <article class="card card-elevate">
+        <h3>Liste</h3>
+        <ul class="notes">
+          {% for n in notifications %}
+          <li>
+            <span>{{ n.title }}</span><time>{{ n.time }}</time>
+            <span class="note-actions">
+              <a href="?section=notifications&amp;edit_notification={{ n.id }}" class="link-edit">Modifier</a>
+              <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="notification_delete">
+                <input type="hidden" name="pk" value="{{ n.id }}">
+                <button type="submit" class="table-btn danger">Supprimer</button>
+              </form>
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+      </article>
+    {% elif section == 'actualites' %}
+      <article class="card card-elevate crud-form-card">
+        <h3>{% if edit_actualite_id %}Modifier{% else %}Créer{% endif %} une actualité</h3>
+        <p class="section-help">Brouillon : décochez « Publie ». À la publication, diffusion temps réel (WebSocket + FCM) vers les apps.</p>
+        <form method="post" class="crud-form" enctype="multipart/form-data">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="actualite_save">
+          {% if edit_actualite_id %}<input type="hidden" name="pk" value="{{ edit_actualite_id }}">{% endif %}
+          <div class="form-grid">{{ actualite_form.as_p }}</div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enregistrer</button>
+            {% if edit_actualite_id %}<a href="?section=actualites" class="btn-link-cancel">Annuler</a>{% endif %}
+          </div>
+        </form>
+      </article>
+      <article class="card card-elevate">
+        <h3>Liste des actualités</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Titre</th><th>Tag</th><th>Statut</th><th>Date</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for a in actualites %}
+            <tr>
+              <td>{{ a.titre }}</td>
+              <td>{{ a.get_categorie_tag_display }}</td>
+              <td>{% if a.publie %}<span class="pill pill-ok">Publié</span>{% else %}<span class="pill">Brouillon</span>{% endif %}</td>
+              <td>{{ a.date_publication|date:"d/m/Y H:i" }}</td>
+              <td class="cell-actions">
+                <a href="?section=actualites&amp;edit_actualite={{ a.id }}" class="link-edit">Modifier</a>
+                <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer cette actualité ?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="actualite_delete">
+                  <input type="hidden" name="pk" value="{{ a.id }}">
+                  <button type="submit" class="table-btn danger">Supprimer</button>
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5">Aucune actualité — la liste commence vide.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    {% elif section == 'parametres' %}
+      <article class="card card-elevate card-params">
+        <h3>Paramètres plateforme</h3>
+        <p class="section-help">Ces réglages sont stockés en base ; l'app mobile peut les lire si vous exposez un endpoint dédié (commission, maintenance).</p>
+        <form method="post" class="params-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="params_update">
+          <label>Taux de commission (%)</label>
+          <input type="number" name="commission" value="{{ params.commission }}" min="1" max="30">
+          <label>Moyens de paiement acceptés (texte de référence CI)</label>
+          <textarea name="mode_paiement" rows="3" class="params-textarea" placeholder="Ex. Espèces, Orange Money, MTN MoMo, Wave, Moov…">{{ params.mode_paiement }}</textarea>
+          <label class="chk"><input type="checkbox" name="auto_validation" {% if params.auto_validation %}checked{% endif %}> Validation automatique</label>
+          <label class="chk"><input type="checkbox" name="maintenance" {% if params.maintenance %}checked{% endif %}> Mode maintenance</label>
+          <button type="submit" class="btn-primary">Mettre à jour</button>
+        </form>
+      </article>
+    {% endif %}
+    </main>
+  </div>
+  <script>
+  (function () {
+    var statusEl = document.getElementById('live-feed-status');
+    var dot = statusEl && statusEl.querySelector('.live-dot');
+    var label = statusEl && statusEl.querySelector('.live-feed-label');
+    var reloadTimer;
+    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl = proto + '//' + location.host + '/ws/admin/events/';
+
+    function setStatus(text, ok) {
+      if (!label) return;
+      label.textContent = text;
+      if (dot) dot.style.background = ok ? '#22c55e' : '#94a3b8';
+    }
+
+    function showToast(msg) {
+      var t = document.getElementById('live-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'live-toast';
+        t.className = 'live-toast';
+        t.setAttribute('role', 'status');
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.classList.add('live-toast-visible');
+      clearTimeout(showToast._h);
+      showToast._h = setTimeout(function () { t.classList.remove('live-toast-visible'); }, 4500);
+    }
+
+    function mapType(t) {
+      var m = {
+        'system.connected': 'Connecté au flux temps réel',
+        'reservation.created': 'Nouvelle réservation',
+        'reservation.updated': 'Réservation mise à jour',
+        'reservation.deleted': 'Réservation supprimée',
+        'provider.created': 'Nouveau prestataire',
+        'provider.updated': 'Prestataire mis à jour',
+        'provider.deleted': 'Prestataire supprimé',
+        'payment.created': 'Nouveau paiement',
+        'payment.updated': 'Paiement mis à jour',
+        'dispute.created': 'Nouveau litige',
+        'dispute.updated': 'Litige mis à jour',
+        'category.created': 'Catégorie créée',
+        'category.updated': 'Catégorie mise à jour',
+        'notification.created': 'Nouvelle alerte',
+        'notification.updated': 'Notification mise à jour',
+        'client.created': 'Fiche client créée',
+        'client.updated': 'Fiche client mise à jour',
+        'rating.created': 'Nouvel avis client',
+        'settings.updated': 'Paramètres plateforme modifiés',
+        'sitecontent.updated': 'Contenu vitrine mis à jour'
+      };
+      return m[t] || t.replace(/\./g, ' ');
+    }
+
+    function scheduleReload() {
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(function () { location.reload(); }, 650);
+    }
+
+    function connect() {
+      setStatus('Connexion…', false);
+      var ws = new WebSocket(wsUrl);
+      ws.onopen = function () { setStatus('Temps réel', true); };
+      ws.onmessage = function (ev) {
+        try {
+          var data = JSON.parse(ev.data);
+          if (data.type === 'system.connected') {
+            showToast((data.payload && data.payload.message) ? data.payload.message : 'Flux actif');
+            return;
+          }
+          showToast(mapType(data.type));
+          scheduleReload();
+        } catch (e) {}
+      };
+      ws.onclose = function () {
+        setStatus('Hors ligne…', false);
+        setTimeout(connect, 2500);
+      };
+      ws.onerror = function () { try { ws.close(); } catch (e) {} };
+    }
+    connect();
+  })();
+  </script>
+  <script>
+  (function () {
+    window._babifixKpiChart = null;
+    window.initBabifixKpiChart = function () {
+      var el = document.getElementById('kpi-data');
+      var canvas = document.getElementById('kpiChart');
+      if (!el || !canvas || !window.Chart) return;
+      try {
+        if (window._babifixKpiChart) {
+          window._babifixKpiChart.destroy();
+          window._babifixKpiChart = null;
+        }
+        var kpi = JSON.parse(el.textContent);
+        var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        var grid = dark ? 'rgba(148,163,184,0.35)' : '#e2e8f0';
+        var text = dark ? '#e2e8f0' : '#0f172a';
+        window._babifixKpiChart = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: kpi.labels,
+            datasets: [{
+              label: 'Valeur',
+              data: kpi.data,
+              backgroundColor: ['#ea580c', '#16a34a', '#ca8a04', '#2563eb'],
+              borderRadius: 8
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, grid: { color: grid }, ticks: { color: text, precision: 0 } },
+              x: { grid: { display: false }, ticks: { color: text } }
+            }
+          }
+        });
+      } catch (e) {}
+    };
+    window.initBabifixKpiChart();
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
+      if (evt.detail && evt.detail.target && evt.detail.target.id === 'dashboard-stats-fragment') {
+        window.initBabifixKpiChart();
+      }
+    });
+  })();
+  </script>
+  <script>
+  (function () {
+    var btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var h = document.documentElement;
+      var next = h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      h.setAttribute('data-theme', next);
+      try { localStorage.setItem('babifix-theme', next === 'dark' ? 'dark' : 'light'); } catch (e) {}
+      location.reload();
+    });
+  })();
+  </script>
+  <script>
+  function toggleDossier(id) {
+    var row = document.getElementById('dossier-' + id);
+    var btn = document.getElementById('btn-dossier-' + id);
+    if (!row) return;
+    var isHidden = row.hidden;
+    row.hidden = !isHidden;
+    if (btn) btn.textContent = isHidden ? '✕ Fermer dossier' : '📋 Voir dossier';
+  }
+  </script>
+</body>
+</html>

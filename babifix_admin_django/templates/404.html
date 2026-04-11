@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page introuvable — BABIFIX</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0B1B34 0%, #0B3E72 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .card {
+      text-align: center;
+      padding: 48px 40px;
+      max-width: 460px;
+      width: 90%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 28px;
+      backdrop-filter: blur(12px);
+    }
+    .code {
+      font-size: 96px;
+      font-weight: 900;
+      color: #4CC9F0;
+      line-height: 1;
+      letter-spacing: -4px;
+    }
+    .logo { font-size: 22px; font-weight: 800; color: #4CC9F0; margin: 16px 0 8px; }
+    h1 { font-size: 22px; font-weight: 700; margin: 8px 0 12px; color: #fff; }
+    p { font-size: 14px; color: rgba(255,255,255,0.65); line-height: 1.6; margin-bottom: 32px; }
+    a.btn {
+      display: inline-block;
+      background: #4CC9F0;
+      color: #0B1B34;
+      font-weight: 800;
+      font-size: 15px;
+      padding: 13px 28px;
+      border-radius: 14px;
+      text-decoration: none;
+      transition: opacity .2s;
+    }
+    a.btn:hover { opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="code">404</div>
+    <div class="logo">● BABIFIX</div>
+    <h1>Page introuvable</h1>
+    <p>La page que vous cherchez n'existe pas ou a été déplacée.<br>
+       Revenez à l'accueil ou contactez l'équipe.</p>
+    <a href="/" class="btn">← Retour à l'accueil</a>
+  </div>
+</body>
+</html>

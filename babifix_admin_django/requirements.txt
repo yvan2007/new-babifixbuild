@@ -1,0 +1,12 @@
+Django==5.2.10
+Pillow>=10.0.0
+channels>=4.2.0
+channels-redis>=4.2.0
+daphne>=4.1.0
+firebase-admin>=6.5.0
+psycopg[binary]>=3.1.0
+# MySQL (WAMP / XAMPP) — utilisé comme driver MySQLdb sous Windows
+PyMySQL>=1.1.0
+# CORS
+django-cors-headers>=4.3.0
+djangorestframework>=3.14.0
