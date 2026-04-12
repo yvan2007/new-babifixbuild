@@ -187,15 +187,15 @@ class _PaymentScreenState extends State<PaymentScreen>
       if (token == null) throw Exception('Non connecté');
 
       final res = await http.post(
-        Uri.parse('${babifixApiBaseUrl()}/api/paiements/cinetpay/initiate/'),
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/bookings/${widget.reservationId}/pay/',
+        ),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'reservation': widget.reservationId,
           'mode_paiement': 'MOBILE_MONEY',
-          'montant': _amount,
           'operator': _operator,
           'phone': phone,
         }),
@@ -205,26 +205,28 @@ class _PaymentScreenState extends State<PaymentScreen>
 
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final txId = (data['transaction_id'] as String? ?? '').trim();
-        if (txId.isEmpty) {
+        final txId = (data['transaction_id'] as String?)?.trim() ?? '';
+        if (txId.isNotEmpty) {
           setState(() {
             _loading = false;
-            _error = 'Erreur CinetPay : identifiant transaction manquant.';
+            _polling = true;
+            _transactionId = txId;
+            _pollCount = 0;
           });
-          return;
+          _startPolling(txId, token);
+        } else {
+          // Paiement initié — le serveur va traiter la transaction
+          setState(() {
+            _loading = false;
+            _done = true;
+          });
         }
-        setState(() {
-          _loading = false;
-          _polling = true;
-          _transactionId = txId;
-          _pollCount = 0;
-        });
-        _startPolling(txId, token);
       } else {
         String msg = 'Erreur de paiement.';
         try {
           final d = jsonDecode(res.body) as Map<String, dynamic>;
-          msg = (d['detail'] ?? d['error'] ?? d['message'] ?? msg) as String;
+          final raw = d['detail'] ?? d['error'] ?? d['message'];
+          if (raw != null) msg = '$raw';
         } catch (_) {}
         setState(() {
           _loading = false;
@@ -263,7 +265,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       try {
         final res = await http.get(
           Uri.parse(
-            '${babifixApiBaseUrl()}/api/paiements/cinetpay/status/$txId/',
+            '${babifixApiBaseUrl()}/api/reservations/${widget.reservationId}/',
           ),
           headers: {'Authorization': 'Bearer $token'},
         );
@@ -273,28 +275,17 @@ class _PaymentScreenState extends State<PaymentScreen>
         }
         if (res.statusCode == 200) {
           final d = jsonDecode(res.body) as Map<String, dynamic>;
-          final status = '${d['status'] ?? ''}'.toUpperCase();
-          if (status == 'SUCCESS' ||
-              status == 'ACCEPTED' ||
-              status == 'COMPLETED') {
+          final bookingStatus = '${d['status'] ?? ''}'.toUpperCase();
+          if (bookingStatus == 'PAID' ||
+              bookingStatus == 'DONE' ||
+              bookingStatus == 'COMPLETED') {
             t.cancel();
             setState(() {
               _polling = false;
               _done = true;
             });
-          } else if (status == 'FAILED' ||
-              status == 'CANCELLED' ||
-              status == 'REFUSED' ||
-              status == 'REJECTED') {
-            t.cancel();
-            setState(() {
-              _polling = false;
-              _error =
-                  (d['message'] as String?) ??
-                  'Paiement refusé ou annulé. Veuillez réessayer.';
-            });
           }
-          // PENDING → continuer à poller
+          // Autres statuts → continuer à poller
         }
       } catch (_) {}
     });

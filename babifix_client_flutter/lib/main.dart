@@ -827,6 +827,58 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
   }
 
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _openBiometricSettings() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+        decoration: BoxDecoration(
+          color: _isLight ? Colors.white : const Color(0xFF0D1B2E),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4))),
+            const SizedBox(height: 20),
+            const Icon(Icons.fingerprint_rounded, size: 56, color: Color(0xFF4CC9F0)),
+            const SizedBox(height: 14),
+            Text('Connexion biométrique', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _textPrimary)),
+            const SizedBox(height: 8),
+            Text('Activez Face ID ou l\'empreinte digitale pour accéder à votre compte rapidement.',
+                style: TextStyle(color: _textSecondary, height: 1.45), textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            SizedBox(width: double.infinity, child: FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx),
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Configurer dans Paramètres'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF4CC9F0),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openForgotPassword() async {
+    if (!mounted) return;
+    final router = GoRouter.of(context);
+    router.push('/forgot-password');
+  }
+
   Future<void> _openEditProfile() async {
     if (!mounted) return;
     final logged = await BabifixUserStore.isLoggedIn();
@@ -3620,41 +3672,160 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   );
                 },
               ),
+              // ── Wallet séquestre premium ────────────────────────────
+              const SizedBox(height: 10),
+              if (sessionLoggedIn && totalEscrow > 0)
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: _isLight
+                          ? const [Color(0xFFEFFAFF), Color(0xFFE0F7FE)]
+                          : const [Color(0xFF071523), Color(0xFF0B2035)],
+                    ),
+                    border: Border.all(
+                      color: _isLight ? const Color(0xFF7DD3FC) : const Color(0x334CC9F0),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48, height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
+                        ),
+                        child: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF4CC9F0), size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Wallet séquestre', style: TextStyle(fontWeight: FontWeight.w800, color: _textPrimary, fontSize: 14)),
+                            const SizedBox(height: 2),
+                            Text('${formatFcfa(totalEscrow)} en attente de libération',
+                                style: const TextStyle(color: Color(0xFF4CC9F0), fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CC9F0).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text('Sécurisé', style: TextStyle(color: Color(0xFF4CC9F0), fontSize: 11, fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // ── Sécurité & compte ───────────────────────────────────
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: _cardBg,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Wallet sequestre',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: _textPrimary,
-                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text('Sécurité & compte',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                              color: _textSecondary, letterSpacing: 0.8)),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${formatFcfa(totalEscrow)} en attente de liberation',
-                      style: const TextStyle(color: Color(0xFF7EC8E3)),
+                    _PremiumActionTile(
+                      icon: Icons.fingerprint_rounded,
+                      title: 'Connexion biométrique',
+                      subtitle: 'Face ID / Empreinte pour accéder rapidement',
+                      onTap: _openBiometricSettings,
+                    ),
+                    const SizedBox(height: 8),
+                    _PremiumActionTile(
+                      icon: Icons.lock_outline_rounded,
+                      title: 'Changer le mot de passe',
+                      subtitle: 'Modifier votre mot de passe de connexion',
+                      onTap: _openForgotPassword,
                     ),
                   ],
                 ),
               ),
+
+              // ── Légal & confidentialité ─────────────────────────────
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: _cardBg,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: _isLight,
+                        onTap: () => _launchUrl('https://babifix.ci/cgu')),
+                    _VerticalDivider(isLight: _isLight),
+                    _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: _isLight,
+                        onTap: () => _launchUrl('https://babifix.ci/privacy')),
+                    _VerticalDivider(isLight: _isLight),
+                    _LegalLink(label: 'Aide', icon: Icons.help_outline_rounded, isLight: _isLight,
+                        onTap: _showHelpSheet),
+                  ],
+                ),
+              ),
+
+              // ── Badge BABIFIX Protect ───────────────────────────────
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    colors: _isLight
+                        ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
+                        : const [Color(0xFF052010), Color(0xFF073318)],
+                  ),
+                  border: Border.all(color: _isLight ? const Color(0xFF86EFAC) : const Color(0x3322C55E)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.verified_user_rounded, color: Color(0xFF22C55E), size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('BABIFIX Protect', style: TextStyle(fontWeight: FontWeight.w800, color: _textPrimary, fontSize: 13)),
+                          Text('Paiement sécurisé · Prestataires vérifiés · Support 7j/7',
+                              style: TextStyle(color: _textSecondary, fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Déconnexion ─────────────────────────────────────────
               const SizedBox(height: 10),
               _PremiumActionTile(
-                icon: sessionLoggedIn
-                    ? Icons.logout_rounded
-                    : Icons.login_rounded,
-                title: sessionLoggedIn ? 'Deconnexion' : 'Connexion',
-                subtitle: sessionLoggedIn
-                    ? 'Quitter ce compte sur cet appareil'
-                    : 'Se connecter ou creer un compte',
+                icon: sessionLoggedIn ? Icons.logout_rounded : Icons.login_rounded,
+                title: sessionLoggedIn ? 'Déconnexion' : 'Connexion',
+                subtitle: sessionLoggedIn ? 'Quitter ce compte sur cet appareil' : 'Se connecter ou créer un compte',
                 onTap: sessionLoggedIn ? _logout : _openAuth,
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Text('BABIFIX v1.0.0 · Abidjan, Côte d\'Ivoire',
+                    style: TextStyle(fontSize: 11, color: _textSecondary.withValues(alpha: 0.5))),
               ),
             ],
           ),
@@ -5273,6 +5444,41 @@ class _MiniStatChip extends StatelessWidget {
   }
 }
 
+// ── Lien légal compact ────────────────────────────────────────────────────────
+class _LegalLink extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isLight;
+  final VoidCallback onTap;
+
+  const _LegalLink({required this.label, required this.icon, required this.isLight, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 18, color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+            color: isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8))),
+      ]),
+    );
+  }
+}
+
+class _VerticalDivider extends StatelessWidget {
+  final bool isLight;
+  const _VerticalDivider({required this.isLight});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, height: 32,
+        color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF));
+  }
+}
+
+// ── Tuile action premium ──────────────────────────────────────────────────────
 class _PremiumActionTile extends StatelessWidget {
   const _PremiumActionTile({
     required this.icon,

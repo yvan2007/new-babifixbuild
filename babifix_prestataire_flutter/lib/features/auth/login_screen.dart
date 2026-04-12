@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -7,7 +8,6 @@ import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
 import 'forgot_password_screen.dart';
 
-/// Connexion API — enregistre le JWT localement (aucun compte démo imposé).
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.onBack, required this.onSuccess});
 
@@ -18,25 +18,49 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _user = TextEditingController();
   final _pass = TextEditingController();
   bool _loading = false;
+  bool _obscure = true;
+  late final AnimationController _anim;
+  late final Animation<double> _fadeIn;
+
+  static const _navy = Color(0xFF0B1B34);
+  static const _navyDeep = Color(0xFF060E1C);
+  static const _cyan = Color(0xFF4CC9F0);
+  static const _blue = Color(0xFF2563EB);
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _fadeIn = CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic);
+    _anim.forward();
+  }
 
   @override
   void dispose() {
+    _anim.dispose();
     _user.dispose();
     _pass.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    final email = _user.text.trim();
+    final pass = _pass.text;
+    if (email.isEmpty || pass.isEmpty) {
+      _snack('Veuillez remplir tous les champs.');
+      return;
+    }
     setState(() => _loading = true);
     try {
       final res = await http.post(
-        Uri.parse('${babifixApiBaseUrl()}/api/auth/login'),
+        Uri.parse('${babifixApiBaseUrl()}/api/auth/login/'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': _user.text.trim(), 'password': _pass.text}),
+        body: jsonEncode({'username': email, 'password': pass}),
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -51,76 +75,380 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
       if (mounted) {
-        final String msg;
-        if (res.statusCode == 400 || res.statusCode == 401) {
-          msg = 'Identifiants incorrects. Vérifiez votre nom d\'utilisateur et mot de passe.';
-        } else if (res.statusCode == 403) {
-          msg = 'Compte suspendu ou non autorisé. Contactez l\'administrateur.';
-        } else {
-          msg = 'Connexion impossible (erreur ${res.statusCode}). Réessayez.';
-        }
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        final msg = res.statusCode == 400 || res.statusCode == 401
+            ? 'Identifiants incorrects. Vérifiez votre email et mot de passe.'
+            : res.statusCode == 403
+                ? 'Compte suspendu. Contactez l\'administrateur.'
+                : 'Erreur serveur (${res.statusCode}). Réessayez.';
+        _snack(msg);
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de contacter le serveur.')),
-        );
-      }
+    } catch (_) {
+      if (mounted) _snack('Impossible de contacter le serveur.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF1E3A5F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(onPressed: widget.onBack, icon: const Icon(Icons.arrow_back)),
-        title: const Text('Connexion'),
+    final size = MediaQuery.sizeOf(context);
+    return Theme(
+      data: ThemeData.dark().copyWith(
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF2563EB),
+          secondary: Color(0xFF4CC9F0),
+          surface: Color(0xFF0A1628),
+        ),
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: Color(0xFF4CC9F0),
+          selectionColor: Color(0x554CC9F0),
+          selectionHandleColor: Color(0xFF4CC9F0),
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          border: InputBorder.none,
+        ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
+      child: Scaffold(
+        backgroundColor: _navyDeep,
+      body: Stack(
         children: [
-          const Text(
-            'Utilisez un compte Django avec le rôle prestataire (créé par l\'administrateur ou via l\'inscription).',
-            style: TextStyle(color: Color(0xFF64748B), height: 1.4),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _user,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(labelText: 'Nom d\'utilisateur'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _pass,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: 'Mot de passe'),
-            onSubmitted: (_) => _submit(),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _loading ? null : _submit,
-            child: _loading
-                ? const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Se connecter'),
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.center,
-            child: TextButton(
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+          // ── Fond gradient + orbes ──────────────────────────────────────
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF060E1C), Color(0xFF0B1B34), Color(0xFF0A1628)],
+                ),
               ),
-              child: const Text('Mot de passe oublié ?'),
+            ),
+          ),
+          Positioned(
+            top: -80, right: -60,
+            child: Container(
+              width: 260, height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [_cyan.withValues(alpha: 0.18), Colors.transparent]),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -100, left: -80,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [_blue.withValues(alpha: 0.14), Colors.transparent]),
+              ),
+            ),
+          ),
+
+          // ── Contenu ────────────────────────────────────────────────────
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeIn,
+              child: Column(
+                children: [
+                  // Bouton retour
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: widget.onBack,
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70, size: 20),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    ),
+                  ),
+
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+                      children: [
+                        // ── Logo + titre ─────────────────────────────────
+                        Center(
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 80, height: 80,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(color: _cyan.withValues(alpha: 0.45), blurRadius: 28, offset: const Offset(0, 8)),
+                                  ],
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'B',
+                                    style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.white, height: 1),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'BABIFIX',
+                                style: TextStyle(
+                                  fontSize: 26, fontWeight: FontWeight.w900,
+                                  color: Colors.white, letterSpacing: 4,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Espace Prestataire',
+                                style: TextStyle(
+                                  fontSize: 13, color: _cyan.withValues(alpha: 0.85),
+                                  fontWeight: FontWeight.w600, letterSpacing: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 36),
+
+                        // ── Card glassmorphisme ───────────────────────────
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(28),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                            child: Container(
+                              padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(28),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1.5),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Connexion',
+                                    style: TextStyle(
+                                      fontSize: 24, fontWeight: FontWeight.w900,
+                                      color: Colors.white, letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Accédez à votre espace professionnel',
+                                    style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.5)),
+                                  ),
+                                  const SizedBox(height: 24),
+
+                                  // Champ email
+                                  _PremiumField(
+                                    controller: _user,
+                                    label: 'Email / Nom d\'utilisateur',
+                                    icon: Icons.person_outline_rounded,
+                                    inputType: TextInputType.emailAddress,
+                                    textInputAction: TextInputAction.next,
+                                  ),
+                                  const SizedBox(height: 14),
+
+                                  // Champ mot de passe
+                                  _PremiumField(
+                                    controller: _pass,
+                                    label: 'Mot de passe',
+                                    icon: Icons.lock_outline_rounded,
+                                    obscure: _obscure,
+                                    onToggleObscure: () => setState(() => _obscure = !_obscure),
+                                    textInputAction: TextInputAction.done,
+                                    onSubmitted: (_) => _submit(),
+                                  ),
+
+                                  // Mot de passe oublié
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () => Navigator.of(context).push(
+                                        MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: _cyan,
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                      ),
+                                      child: const Text('Mot de passe oublié ?', style: TextStyle(fontSize: 13)),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 8),
+
+                                  // Bouton connexion
+                                  _PremiumButton(
+                                    label: 'Se connecter',
+                                    loading: _loading,
+                                    onPressed: _submit,
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 28),
+
+                        // ── Lien inscription ─────────────────────────────
+                        Center(
+                          child: RichText(
+                            text: TextSpan(
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+                              children: [
+                                const TextSpan(text: 'Pas encore inscrit ? '),
+                                WidgetSpan(
+                                  child: GestureDetector(
+                                    onTap: widget.onBack,
+                                    child: const Text(
+                                      'Créer un compte',
+                                      style: TextStyle(
+                                        color: _cyan, fontWeight: FontWeight.w700,
+                                        fontSize: 14, decoration: TextDecoration.underline,
+                                        decorationColor: _cyan,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
+      ),
+    ),
+    );
+  }
+}
+
+// ─── Widgets réutilisables premium ────────────────────────────────────────────
+
+class _PremiumField extends StatelessWidget {
+  const _PremiumField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.obscure = false,
+    this.onToggleObscure,
+    this.inputType,
+    this.textInputAction,
+    this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final bool obscure;
+  final VoidCallback? onToggleObscure;
+  final TextInputType? inputType;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        keyboardType: inputType,
+        textInputAction: textInputAction,
+        onSubmitted: onSubmitted,
+        style: const TextStyle(color: Colors.white, fontSize: 15),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+          floatingLabelStyle: const TextStyle(color: Color(0xFF4CC9F0), fontSize: 12),
+          prefixIcon: Icon(icon, color: Colors.white.withValues(alpha: 0.4), size: 20),
+          suffixIcon: onToggleObscure != null
+              ? IconButton(
+                  onPressed: onToggleObscure,
+                  icon: Icon(
+                    obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                    color: Colors.white.withValues(alpha: 0.4),
+                    size: 20,
+                  ),
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumButton extends StatelessWidget {
+  const _PremiumButton({
+    required this.label,
+    required this.loading,
+    required this.onPressed,
+    required this.gradient,
+  });
+
+  final String label;
+  final bool loading;
+  final VoidCallback onPressed;
+  final Gradient gradient;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: loading ? null : onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 54,
+        decoration: BoxDecoration(
+          gradient: loading ? const LinearGradient(colors: [Color(0xFF475569), Color(0xFF334155)]) : gradient,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: loading
+              ? []
+              : [
+                  BoxShadow(
+                    color: const Color(0xFF4CC9F0).withValues(alpha: 0.4),
+                    blurRadius: 20, offset: const Offset(0, 8),
+                  ),
+                ],
+        ),
+        child: Center(
+          child: loading
+              ? const SizedBox(
+                  width: 22, height: 22,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                )
+              : Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white, fontSize: 16,
+                    fontWeight: FontWeight.w800, letterSpacing: 0.3,
+                  ),
+                ),
+        ),
       ),
     );
   }

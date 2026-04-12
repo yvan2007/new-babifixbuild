@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -380,6 +381,38 @@ class _PortfolioEditorState extends State<_PortfolioEditor> {
     }
   }
 
+  /// Affiche une photo portfolio quel que soit son format (base64, HTTP, fichier).
+  Widget _buildPortfolioPhoto(String src, double size) {
+    final ph = Container(
+      width: size, height: size,
+      color: Colors.grey.shade200,
+      child: const Icon(Icons.photo_outlined, color: Colors.grey),
+    );
+    if (src.isEmpty) return ph;
+
+    if (src.startsWith('data:image/')) {
+      try {
+        final bytes = base64Decode(src.split(',').last);
+        return Image.memory(bytes, width: size, height: size, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => ph);
+      } catch (_) { return ph; }
+    }
+
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      return Image.network(src, width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => ph);
+    }
+
+    try {
+      final f = File(src);
+      if (f.existsSync()) {
+        return Image.file(f, width: size, height: size, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => ph);
+      }
+    } catch (_) {}
+    return ph;
+  }
+
   Future<void> _addPhoto() async {
     final picker = ImagePicker();
     final xfile = await picker.pickImage(
@@ -456,22 +489,7 @@ class _PortfolioEditorState extends State<_PortfolioEditor> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(BabifixDesign.radiusMD),
-                child: src.startsWith('data:image/')
-                    ? Image.memory(
-                        base64Decode(src.split(',').last),
-                        width: 90,
-                        height: 90,
-                        fit: BoxFit.cover,
-                      )
-                    : Container(
-                        width: 90,
-                        height: 90,
-                        color: Colors.grey.shade200,
-                        child: const Icon(
-                          Icons.image_not_supported_rounded,
-                          color: Colors.grey,
-                        ),
-                      ),
+                child: _buildPortfolioPhoto(src, 90),
               ),
               Positioned(
                 top: 4,

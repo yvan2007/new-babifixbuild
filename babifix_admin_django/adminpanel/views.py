@@ -8,7 +8,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -510,7 +510,7 @@ def _sync_missing_clients():
             nb_res = Reservation.objects.filter(client_user=user).count()
             total_fcfa = (
                 Reservation.objects.filter(client_user=user, statut=Reservation.Status.DONE)
-                .aggregate(t=models.Sum('montant'))['t'] or 0
+                .aggregate(t=Sum('montant'))['t'] or 0
             )
             to_create.append(Client(
                 nom=user.username,
