@@ -14,6 +14,6 @@ String _spacedThousands(int n) {
 }
 
 String formatFcfa(num? value) {
-  if (value == null) return '—';
+  if (value == null) return 'N/A';
   return '${_spacedThousands(value.round())} FCFA';
 }

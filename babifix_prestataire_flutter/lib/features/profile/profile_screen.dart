@@ -158,6 +158,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) _load();
   }
 
+  void _showBiometricSheet(bool isLight) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+        decoration: BoxDecoration(
+          color: isLight ? Colors.white : const Color(0xFF0D1B2E),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 40, height: 4, decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4))),
+          const SizedBox(height: 20),
+          const Icon(Icons.fingerprint_rounded, size: 56, color: Color(0xFF4CC9F0)),
+          const SizedBox(height: 14),
+          Text('Connexion biométrique',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800,
+                  color: isLight ? const Color(0xFF0F172A) : Colors.white)),
+          const SizedBox(height: 8),
+          Text('Activez Face ID ou l\'empreinte digitale pour accéder à votre espace prestataire rapidement.',
+              style: TextStyle(color: isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8), height: 1.45),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          SizedBox(width: double.infinity, child: FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx),
+            icon: const Icon(Icons.check_rounded),
+            label: const Text('Compris'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF4CC9F0),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          )),
+        ]),
+      ),
+    );
+  }
+
   void _showHelpSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -367,7 +406,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final tarif = _prov['tarif_horaire'];
     final tarifStr = tarif != null ? '${(tarif as num).toStringAsFixed(0)} FCFA/h' : '\u2014';
     final note = _prov['average_rating'];
-    final nnote = note != null ? (note as num).toStringAsFixed(1) : '\u2014';
+    final nnote = note != null ? (note as num).toStringAsFixed(1) : '--';
     final rc = jsonInt(_prov['rating_count']);
     final approved = '${_prov['statut'] ?? ''}' == 'Valide';
     final photo = '${_prov['photo_url'] ?? ''}'.trim();
@@ -406,107 +445,217 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           // ── Hero card premium ───────────────────────────
                           Container(
-                            padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(22),
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: isLight
-                                    ? const [Color(0xFFE0F2FE), Color(0xFFF0F9FF)]
-                                    : const [Color(0xFF0C1A2E), Color(0xFF1A2A42)],
-                              ),
-                              border: Border.all(
-                                color: isLight ? const Color(0xFF7DD3FC) : const Color(0x334CC9F0),
-                                width: 1.5,
-                              ),
+                              borderRadius: BorderRadius.circular(28),
+                              gradient: isLight
+                                  ? const LinearGradient(
+                                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                      colors: [Color(0xFF0B1B34), Color(0xFF1A3A6E)],
+                                    )
+                                  : const LinearGradient(
+                                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                      colors: [Color(0xFF060E1C), Color(0xFF0B1B34)],
+                                    ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF4CC9F0).withValues(alpha: isLight ? 0.12 : 0.08),
-                                  blurRadius: 20, offset: const Offset(0, 6),
+                                  color: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
+                                  blurRadius: 32, offset: const Offset(0, 12),
                                 ),
                               ],
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Stack(
                               children: [
-                                Row(
-                                  children: [
-                                    Stack(
-                                      children: [
-                                        Container(
-                                          width: 64, height: 64,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            gradient: const LinearGradient(colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)]),
-                                            boxShadow: [BoxShadow(color: const Color(0xFF4CC9F0).withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
-                                          ),
-                                          child: avatarProvider != null
-                                              ? ClipOval(child: Image(image: avatarProvider, fit: BoxFit.cover, width: 64, height: 64))
-                                              : Center(child: Text(nom.isNotEmpty ? nom[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900))),
-                                        ),
-                                        if (_prov['disponible'] == true)
-                                          Positioned(
-                                            bottom: 2, right: 2,
-                                            child: Container(
-                                              width: 14, height: 14,
-                                              decoration: BoxDecoration(color: const Color(0xFF10B981), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-                                            ),
-                                          ),
-                                      ],
+                                // Orbe décoratif
+                                Positioned(
+                                  top: -30, right: -30,
+                                  child: Container(
+                                    width: 140, height: 140,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: RadialGradient(colors: [
+                                        const Color(0xFF4CC9F0).withValues(alpha: 0.12),
+                                        Colors.transparent,
+                                      ]),
                                     ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(22),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(nom.isEmpty ? 'Prestataire' : nom,
-                                              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: textPrimary)),
-                                          const SizedBox(height: 3),
-                                          if (spec.isNotEmpty)
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                              decoration: BoxDecoration(color: const Color(0xFF4CC9F0).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
-                                              child: Text(spec, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0284C7))),
+                                          // Avatar grand format avec ring
+                                          Stack(
+                                            children: [
+                                              Container(
+                                                width: 84, height: 84,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  gradient: const LinearGradient(
+                                                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                                    colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)],
+                                                  ),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: const Color(0xFF4CC9F0).withValues(alpha: 0.45),
+                                                      blurRadius: 20, offset: const Offset(0, 6),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(3),
+                                                  child: ClipOval(
+                                                    child: avatarProvider != null
+                                                        ? Image(
+                                                            image: avatarProvider!,
+                                                            fit: BoxFit.cover,
+                                                            errorBuilder: (_, __, ___) => Container(
+                                                              color: const Color(0xFF0B2845),
+                                                              child: Center(
+                                                                child: Text(
+                                                                  nom.isNotEmpty ? nom[0].toUpperCase() : '?',
+                                                                  style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          )
+                                                        : Container(
+                                                            color: const Color(0xFF0B2845),
+                                                            child: Center(
+                                                              child: Text(
+                                                                nom.isNotEmpty ? nom[0].toUpperCase() : '?',
+                                                                style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                  ),
+                                                ),
+                                              ),
+                                              // Badge disponible
+                                              if (_prov['disponible'] == true)
+                                                Positioned(
+                                                  bottom: 4, right: 4,
+                                                  child: Container(
+                                                    width: 18, height: 18,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF10B981),
+                                                      shape: BoxShape.circle,
+                                                      border: Border.all(color: const Color(0xFF0B1B34), width: 2.5),
+                                                      boxShadow: [BoxShadow(color: const Color(0xFF10B981).withValues(alpha: 0.6), blurRadius: 8)],
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  nom.isEmpty ? 'Prestataire' : nom,
+                                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3),
+                                                ),
+                                                const SizedBox(height: 5),
+                                                if (spec.isNotEmpty || cat.isNotEmpty)
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
+                                                      borderRadius: BorderRadius.circular(20),
+                                                      border: Border.all(color: const Color(0xFF4CC9F0).withValues(alpha: 0.3)),
+                                                    ),
+                                                    child: Text(
+                                                      spec.isNotEmpty ? spec : cat,
+                                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF7DD3FC)),
+                                                    ),
+                                                  ),
+                                                const SizedBox(height: 6),
+                                                if (ville.isNotEmpty)
+                                                  Row(children: [
+                                                    Icon(Icons.location_on_rounded, size: 12, color: Colors.white.withValues(alpha: 0.45)),
+                                                    const SizedBox(width: 3),
+                                                    Text(ville, style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12)),
+                                                  ]),
+                                                if (tarif != null)
+                                                  Row(children: [
+                                                    Icon(Icons.payments_outlined, size: 12, color: const Color(0xFFF97316).withValues(alpha: 0.8)),
+                                                    const SizedBox(width: 3),
+                                                    Text(tarifStr, style: const TextStyle(color: Color(0xFFFB923C), fontSize: 12, fontWeight: FontWeight.w700)),
+                                                  ]),
+                                              ],
                                             ),
-                                          const SizedBox(height: 4),
-                                          if (email.isNotEmpty)
-                                            Text(email, style: TextStyle(color: textSecondary, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                          if (ville.isNotEmpty)
-                                            Row(children: [
-                                              Icon(Icons.location_on_rounded, size: 11, color: textSecondary),
-                                              const SizedBox(width: 2),
-                                              Text(ville, style: TextStyle(color: textSecondary, fontSize: 12)),
-                                            ]),
+                                          ),
+                                          // Bouton modifier
+                                          if (approved)
+                                            GestureDetector(
+                                              onTap: _openEditRegistration,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                                decoration: BoxDecoration(
+                                                  gradient: const LinearGradient(colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)]),
+                                                  borderRadius: BorderRadius.circular(20),
+                                                  boxShadow: [BoxShadow(color: const Color(0xFF4CC9F0).withValues(alpha: 0.4), blurRadius: 10, offset: const Offset(0, 4))],
+                                                ),
+                                                child: const Text('Modifier', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+                                              ),
+                                            ),
                                         ],
                                       ),
-                                    ),
-                                    if (approved)
-                                      GestureDetector(
-                                        onTap: _openEditRegistration,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+
+                                      // Badge vérifié
+                                      if (approved) ...[
+                                        const SizedBox(height: 16),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                                           decoration: BoxDecoration(
-                                            gradient: const LinearGradient(colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)]),
+                                            gradient: LinearGradient(colors: [
+                                              const Color(0xFF10B981).withValues(alpha: 0.2),
+                                              const Color(0xFF059669).withValues(alpha: 0.1),
+                                            ]),
                                             borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
                                           ),
-                                          child: const Text('Modifier', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 16),
+                                              SizedBox(width: 6),
+                                              Text('Prestataire Vérifié BABIFIX', style: TextStyle(color: Color(0xFF34D399), fontSize: 12, fontWeight: FontWeight.w700)),
+                                            ],
+                                          ),
                                         ),
+                                      ],
+
+                                      // Bio
+                                      if (bio.isNotEmpty) ...[
+                                        const SizedBox(height: 14),
+                                        Text(bio,
+                                          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13, height: 1.5),
+                                          maxLines: 3, overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+
+                                      const SizedBox(height: 18),
+
+                                      // ── Stats cards premium ─────────────────
+                                      Row(
+                                        children: [
+                                          _StatChip(label: 'Note', value: nnote, icon: Icons.star_rounded, color: const Color(0xFFF59E0B), isLight: isLight),
+                                          const SizedBox(width: 8),
+                                          _StatChip(label: 'Avis', value: '$rc', icon: Icons.chat_bubble_rounded, color: const Color(0xFF4CC9F0), isLight: isLight),
+                                          const SizedBox(width: 8),
+                                          _StatChip(label: 'Missions', value: '${jsonInt(_stats['reservations_total'])}', icon: Icons.task_alt_rounded, color: const Color(0xFF10B981), isLight: isLight),
+                                          const SizedBox(width: 8),
+                                          _StatChip(label: 'Taux', value: '${jsonInt(_stats['taux_completion'])}%', icon: Icons.trending_up_rounded, color: const Color(0xFFF97316), isLight: isLight),
+                                        ],
                                       ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                // ── Stat chips ──────────────────────────────
-                                Row(
-                                  children: [
-                                    _StatChip(label: 'Note', value: nnote, icon: Icons.star_rounded, color: const Color(0xFFF59E0B), isLight: isLight),
-                                    const SizedBox(width: 8),
-                                    _StatChip(label: 'Avis', value: '$rc', icon: Icons.chat_bubble_rounded, color: const Color(0xFF4CC9F0), isLight: isLight),
-                                    const SizedBox(width: 8),
-                                    _StatChip(label: 'Missions', value: '${jsonInt(_stats['reservations_total'])}', icon: Icons.task_alt_rounded, color: const Color(0xFF10B981), isLight: isLight),
-                                    const SizedBox(width: 8),
-                                    _StatChip(label: 'Tarif', value: tarifStr, icon: Icons.payments_rounded, color: const Color(0xFFF97316), isLight: isLight),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -737,13 +886,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(height: 10),
                           ],
+                          // ── Gains rapides ─────────────────────────
+                          const SizedBox(height: 10),
+                          GestureDetector(
+                            onTap: () => widget.onNavigate('earnings'),
+                            child: Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: isLight
+                                      ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
+                                      : const [Color(0xFF052010), Color(0xFF073318)],
+                                ),
+                                border: Border.all(
+                                  color: isLight ? const Color(0xFF86EFAC) : const Color(0x3322C55E),
+                                ),
+                              ),
+                              child: Row(children: [
+                                Container(
+                                  width: 48, height: 48,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF22C55E).withValues(alpha: 0.15),
+                                  ),
+                                  child: const Icon(Icons.trending_up_rounded, color: Color(0xFF22C55E), size: 24),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Text('Mes gains', style: TextStyle(fontWeight: FontWeight.w800,
+                                        color: isLight ? const Color(0xFF0F172A) : Colors.white, fontSize: 14)),
+                                    Text('${jsonInt(_stats['reservations_total'])} missions complétées',
+                                        style: const TextStyle(color: Color(0xFF22C55E), fontSize: 12)),
+                                  ]),
+                                ),
+                                const Icon(Icons.chevron_right_rounded, color: Color(0xFF22C55E)),
+                              ]),
+                            ),
+                          ),
+
+                          // ── Sécurité & compte ─────────────────────
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF121926),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
+                            ),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Text('Sécurité & compte',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                                        color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                        letterSpacing: 0.8)),
+                              ),
+                              _PrestProfileActionTile(
+                                icon: Icons.fingerprint_rounded,
+                                title: 'Connexion biométrique',
+                                subtitle: 'Face ID / Empreinte pour accéder rapidement',
+                                isLight: isLight,
+                                onTap: () => _showBiometricSheet(isLight),
+                              ),
+                              const SizedBox(height: 8),
+                              _PrestProfileActionTile(
+                                icon: Icons.lock_outline_rounded,
+                                title: 'Changer le mot de passe',
+                                subtitle: 'Modifier votre mot de passe de connexion',
+                                isLight: isLight,
+                                onTap: () {},
+                              ),
+                            ]),
+                          ),
+
+                          // ── Légal & confidentialité ───────────────
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF121926),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
+                            ),
+                            child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                              _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: isLight,
+                                  onTap: () {}),
+                              Container(width: 1, height: 32, color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF)),
+                              _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: isLight,
+                                  onTap: () {}),
+                              Container(width: 1, height: 32, color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF)),
+                              _LegalLink(label: 'Aide', icon: Icons.help_outline_rounded, isLight: isLight,
+                                  onTap: _showHelpSheet),
+                            ]),
+                          ),
+
+                          // ── Badge BABIFIX Protect ─────────────────
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: LinearGradient(
+                                colors: isLight
+                                    ? const [Color(0xFFFFF7ED), Color(0xFFFFEDD5)]
+                                    : const [Color(0xFF1A0C00), Color(0xFF251200)],
+                              ),
+                              border: Border.all(color: isLight ? const Color(0xFFFBBF24) : const Color(0x33F59E0B)),
+                            ),
+                            child: Row(children: [
+                              const Icon(Icons.verified_user_rounded, color: Color(0xFFF59E0B), size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text('BABIFIX Prestataire certifié',
+                                    style: TextStyle(fontWeight: FontWeight.w800,
+                                        color: isLight ? const Color(0xFF0F172A) : Colors.white, fontSize: 13)),
+                                Text('Paiements garantis · Clients vérifiés · Support 7j/7',
+                                    style: TextStyle(
+                                        color: isLight ? const Color(0xFF475569) : const Color(0xFF9CA3AF),
+                                        fontSize: 11)),
+                              ])),
+                            ]),
+                          ),
+
+                          // ── Déconnexion ───────────────────────────
+                          const SizedBox(height: 10),
                           _PrestProfileActionTile(
                             icon: Icons.logout_rounded,
-                            title: 'D\u00e9connexion',
+                            title: 'Déconnexion',
                             subtitle: 'Quitter ce compte sur cet appareil',
                             isLight: isLight,
                             onTap: widget.onLogout,
                           ),
+                          const SizedBox(height: 8),
+                          Center(child: Text('BABIFIX Prestataire v1.0.0',
+                              style: TextStyle(fontSize: 11,
+                                  color: isLight ? const Color(0xFF94A3B8) : const Color(0xFF475569)))),
                         ],
                       ),
                       ), // RefreshIndicator
@@ -831,6 +1112,29 @@ class _PrestProfileActionTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Lien légal compact ────────────────────────────────────────────────────────
+class _LegalLink extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isLight;
+  final VoidCallback onTap;
+
+  const _LegalLink({required this.label, required this.icon, required this.isLight, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 18, color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+            color: isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8))),
+      ]),
     );
   }
 }

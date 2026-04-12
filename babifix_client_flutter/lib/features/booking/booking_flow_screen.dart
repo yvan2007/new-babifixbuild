@@ -175,38 +175,53 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     }
   }
 
+  static const _kNavy = Color(0xFF050D1A);
+  static const _kBlue = Color(0xFF2563EB);
+  static const _kCyan = Color(0xFF4CC9F0);
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final text = cs.onSurface;
-    final sub = cs.onSurfaceVariant;
-
-    // Intercepte le bouton retour système : revenir à l'étape précédente
-    // au lieu de fermer le flow entier (sauf à l'étape 0 et à l'étape finale).
-    return PopScope(
-      canPop: _step == 0 || _step == 3,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _step > 0 && _step < 3) {
-          _goTo(_step - 1);
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Réserver'),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(48),
-            child: _StepIndicator(steps: _steps, current: _step),
-          ),
+    // Force dark theme for the entire booking flow so AppBar, system overlays
+    // and step indicators all stay consistent regardless of phone theme.
+    return Theme(
+      data: ThemeData.dark().copyWith(
+        colorScheme: const ColorScheme.dark(
+          primary: _kBlue,
+          secondary: _kCyan,
+          surface: Color(0xFF0A1628),
+          onSurface: Colors.white,
+          onSurfaceVariant: Color(0x80FFFFFF),
         ),
-        // Afficher uniquement l'étape courante (évite les erreurs de layout
-        // avec IndexedStack qui garde tous les enfants dans l'arbre).
-        body: SizedBox.expand(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            child: SizedBox.expand(
-              key: ValueKey(_step),
-              child: _buildCurrentStep(context, text, sub),
+        scaffoldBackgroundColor: _kNavy,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF060E1C),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          titleTextStyle: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+        ),
+      ),
+      child: PopScope(
+        canPop: _step == 0 || _step == 3,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && _step > 0 && _step < 3) {
+            _goTo(_step - 1);
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Réserver'),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(48),
+              child: _StepIndicator(steps: _steps, current: _step),
+            ),
+          ),
+          body: SizedBox.expand(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: SizedBox.expand(
+                key: ValueKey(_step),
+                child: _buildCurrentStep(context, Colors.white, const Color(0x80FFFFFF)),
+              ),
             ),
           ),
         ),
@@ -270,97 +285,202 @@ class _StepDate extends StatelessWidget {
   final ValueChanged<TimeOfDay> onTimeChanged;
   final VoidCallback onNext;
 
+  static const _kNavy = Color(0xFF050D1A);
+  static const _kBlue = Color(0xFF2563EB);
+  static const _kBlueDark = Color(0xFF1D4ED8);
+  static const _kCyan = Color(0xFF4CC9F0);
+
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Choisissez une date',
-            style: TextStyle(
-                fontSize: 24, fontWeight: FontWeight.w800, color: textColor),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Sélectionnez le jour et l\'heure qui vous conviennent.',
-            style: TextStyle(color: subColor, height: 1.4),
-          ),
-          const SizedBox(height: 24),
-          _DatePickerCard(
-            label: 'Date',
-            value: selectedDate != null
-                ? '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}'
-                : 'Choisir une date',
-            icon: Icons.calendar_today_rounded,
-            onTap: () async {
-              final d = await showDatePicker(
-                context: context,
-                initialDate: DateTime.now().add(const Duration(days: 1)),
-                firstDate: DateTime.now(),
-                lastDate: DateTime.now().add(const Duration(days: 90)),
-              );
-              if (d != null) onDateChanged(d);
-            },
-          ),
-          const SizedBox(height: 12),
-          _DatePickerCard(
-            label: 'Heure',
-            value: selectedTime?.format(context) ?? 'Choisir une heure',
-            icon: Icons.access_time_rounded,
-            onTap: () async {
-              final t = await showTimePicker(
-                context: context,
-                initialTime: TimeOfDay.now(),
-              );
-              if (t != null) onTimeChanged(t);
-            },
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onNext,
-              child: const Text('Continuer'),
+    final dateSet = selectedDate != null;
+    final timeSet = selectedTime != null;
+    return Container(
+      color: _kNavy,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Titre ───────────────────────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: LinearGradient(
+                      colors: [_kBlue.withValues(alpha: 0.25), _kBlue.withValues(alpha: 0.08)],
+                    ),
+                  ),
+                  child: const Icon(Icons.event_rounded, color: _kCyan, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Date & heure',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3),
+                    ),
+                    Text(
+                      'Quand souhaitez-vous l\'intervention ?',
+                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.45)),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 28),
+
+            // ── Carte Date ──────────────────────────────────────────────
+            _PremiumPickerCard(
+              label: 'Date d\'intervention',
+              value: dateSet ? _formatDate(selectedDate!) : 'Choisir une date',
+              icon: Icons.calendar_month_rounded,
+              isSet: dateSet,
+              onTap: () async {
+                final d = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now().add(const Duration(days: 1)),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 90)),
+                  builder: (ctx, child) => Theme(
+                    data: ThemeData.dark().copyWith(
+                      colorScheme: const ColorScheme.dark(primary: _kBlue, onPrimary: Colors.white, surface: Color(0xFF0A1628)),
+                    ),
+                    child: child!,
+                  ),
+                );
+                if (d != null) onDateChanged(d);
+              },
+            ),
+            const SizedBox(height: 14),
+
+            // ── Carte Heure ─────────────────────────────────────────────
+            _PremiumPickerCard(
+              label: 'Heure d\'intervention',
+              value: selectedTime?.format(context) ?? 'Choisir une heure',
+              icon: Icons.schedule_rounded,
+              isSet: timeSet,
+              onTap: () async {
+                final t = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.now(),
+                  builder: (ctx, child) => Theme(
+                    data: ThemeData.dark().copyWith(
+                      colorScheme: const ColorScheme.dark(primary: _kBlue, onPrimary: Colors.white, surface: Color(0xFF0A1628)),
+                    ),
+                    child: child!,
+                  ),
+                );
+                if (t != null) onTimeChanged(t);
+              },
+            ),
+
+            const SizedBox(height: 12),
+            // ── Info bulle ───────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: _kBlue.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kBlue.withValues(alpha: 0.20)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, color: _kCyan.withValues(alpha: 0.8), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Vous pouvez choisir jusqu\'à 3 mois à l\'avance. Le prestataire confirmera la disponibilité.',
+                      style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.55), height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const Spacer(),
+            // ── Bouton ───────────────────────────────────────────────────
+            GestureDetector(
+              onTap: onNext,
+              child: Container(
+                width: double.infinity,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [_kBlue, _kBlueDark]),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(color: _kBlue.withValues(alpha: 0.45), blurRadius: 20, offset: const Offset(0, 8)),
+                  ],
+                ),
+                child: const Center(
+                  child: Text(
+                    'Continuer',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 0.2),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _DatePickerCard extends StatelessWidget {
-  const _DatePickerCard({
+class _PremiumPickerCard extends StatelessWidget {
+  const _PremiumPickerCard({
     required this.label,
     required this.value,
     required this.icon,
+    required this.isSet,
     required this.onTap,
   });
 
   final String label;
   final String value;
   final IconData icon;
+  final bool isSet;
   final VoidCallback onTap;
+
+  static const _kBlue = Color(0xFF2563EB);
+  static const _kCyan = Color(0xFF4CC9F0);
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: cs.surface,
-          border: Border.all(color: theme.dividerColor),
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSet ? _kBlue.withValues(alpha: 0.55) : Colors.white.withValues(alpha: 0.10),
+            width: isSet ? 1.5 : 1,
+          ),
+          boxShadow: isSet
+              ? [BoxShadow(color: _kBlue.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4))]
+              : [],
         ),
         child: Row(
           children: [
-            Icon(icon, color: BabifixDesign.cyan),
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: isSet
+                      ? [_kBlue.withValues(alpha: 0.35), _kBlue.withValues(alpha: 0.12)]
+                      : [Colors.white.withValues(alpha: 0.08), Colors.white.withValues(alpha: 0.03)],
+                ),
+              ),
+              child: Icon(icon, color: isSet ? _kCyan : Colors.white.withValues(alpha: 0.35), size: 20),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -368,26 +488,41 @@ class _DatePickerCard extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
-                        fontSize: 12, color: cs.onSurfaceVariant),
+                    style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.40), fontWeight: FontWeight.w500),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     value,
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      color: cs.onSurface,
+                      fontSize: 15,
+                      color: isSet ? Colors.white : Colors.white.withValues(alpha: 0.35),
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: cs.onSurfaceVariant),
+            Icon(
+              isSet ? Icons.check_circle_rounded : Icons.arrow_forward_ios_rounded,
+              color: isSet ? _kCyan : Colors.white.withValues(alpha: 0.25),
+              size: isSet ? 20 : 16,
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+// Old _DatePickerCard kept as dead code to not break references — replaced by _PremiumPickerCard
+class _DatePickerCard extends StatelessWidget {
+  const _DatePickerCard({required this.label, required this.value, required this.icon, required this.onTap});
+  final String label;
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => _PremiumPickerCard(label: label, value: value, icon: icon, isSet: false, onTap: onTap);
 }
 
 // ── Step 1 : Adresse ──────────────────────────────────────────────────────────
@@ -417,177 +552,247 @@ class _StepAddress extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onBack;
 
+  static const _kNavy = Color(0xFF050D1A);
+  static const _kBlue = Color(0xFF2563EB);
+  static const _kBlueDark = Color(0xFF1D4ED8);
+  static const _kCyan = Color(0xFF4CC9F0);
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 16,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 28,
+    return Theme(
+      data: ThemeData.dark().copyWith(
+        colorScheme: const ColorScheme.dark(
+          primary: _kBlue,
+          secondary: _kCyan,
+          surface: Color(0xFF0A1628),
+        ),
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: _kCyan,
+          selectionColor: Color(0x554CC9F0),
+          selectionHandleColor: _kCyan,
+        ),
       ),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Où intervenir ?',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              color: textColor,
-              letterSpacing: -0.5,
-            ),
+      child: Container(
+        color: _kNavy,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 16,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 28,
           ),
-          const SizedBox(height: 8),
-          Text(
-            '1) Recherchez une adresse, ou 2) « Ma position », ou 3) touchez la carte. '
-            'Ensuite, message et photos restent optionnels.',
-            style: TextStyle(color: subColor, height: 1.4, fontSize: 14),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: cs.surface,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.45)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: theme.brightness == Brightness.light ? 0.06 : 0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Titre ────────────────────────────────────────────────
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: LinearGradient(
+                        colors: [_kBlue.withValues(alpha: 0.25), _kBlue.withValues(alpha: 0.08)],
+                      ),
+                    ),
+                    child: const Icon(Icons.location_on_rounded, color: _kCyan, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lieu d\'intervention',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3),
+                        ),
+                        Text(
+                          'Indiquez l\'adresse exacte',
+                          style: TextStyle(fontSize: 12, color: Color(0x72FFFFFF)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+
+              // ── Carte adresse ─────────────────────────────────────────
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 20, offset: const Offset(0, 8))],
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            BabifixDesign.cyan.withValues(alpha: 0.2),
-                            BabifixDesign.cyan.withValues(alpha: 0.06),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: _kBlue.withValues(alpha: 0.18),
+                          ),
+                          child: const Icon(Icons.edit_location_alt_rounded, color: _kCyan, size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Rechercher une adresse',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white),
+                            ),
+                            Text(
+                              'Ou touchez la carte ci-dessous',
+                              style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.40)),
+                            ),
                           ],
                         ),
-                      ),
-                      child: Icon(Icons.edit_location_alt_rounded,
-                          color: BabifixDesign.cyan, size: 22),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Adresse d'intervention",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Une seule zone de saisie — suggestions ci-dessous.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: subColor,
-                              height: 1.25,
-                            ),
-                          ),
-                        ],
-                      ),
+                    const SizedBox(height: 14),
+                    BabifixAddressSearchField(
+                      controller: addressCtrl,
+                      onPlaceSelected: (latLng, _) => onMapPinChanged(latLng),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                BabifixAddressSearchField(
-                  controller: addressCtrl,
-                  onPlaceSelected: (latLng, _) => onMapPinChanged(latLng),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          Text(
-            'Carte',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
-              color: textColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: theme.brightness == Brightness.light ? 0.08 : 0.25),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BabifixOsmLocationPicker(
-                marker: mapPin,
-                onMarkerMoved: onMapPinChanged,
-                height: 240,
               ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          MessageWithPhotosField(
-            controller: msgCtrl,
-            photos: photos,
-            onPhotosChanged: onPhotosChanged,
-            maxPhotos: 6,
-            hint: 'Précisions, accès, contraintes… (optionnel)',
-            messageHeading: 'Message pour le prestataire',
-            photosHeading: 'Photos (optionnel)',
-          ),
-          const SizedBox(height: 28),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onBack,
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 52),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+
+              const SizedBox(height: 18),
+
+              // ── Carte OSM ─────────────────────────────────────────────
+              Row(
+                children: [
+                  const Icon(Icons.map_rounded, color: _kCyan, size: 18),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Positionnez le marqueur',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white),
                   ),
-                  child: const Text('Retour'),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _kBlue.withValues(alpha: 0.30)),
+                  boxShadow: [BoxShadow(color: _kBlue.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6))],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: BabifixOsmLocationPicker(
+                    marker: mapPin,
+                    onMarkerMoved: onMapPinChanged,
+                    height: 230,
+                  ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: FilledButton(
-                  onPressed: onNext,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 52),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: const Text('Continuer'),
+
+              const SizedBox(height: 22),
+
+              // ── Message + Photos ──────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: _kBlue.withValues(alpha: 0.18),
+                          ),
+                          child: const Icon(Icons.chat_bubble_outline_rounded, color: _kCyan, size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Détails du problème',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white),
+                            ),
+                            Text(
+                              'Message + photos (optionnel)',
+                              style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.40)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    MessageWithPhotosField(
+                      controller: msgCtrl,
+                      photos: photos,
+                      onPhotosChanged: onPhotosChanged,
+                      maxPhotos: 6,
+                      hint: 'Précisions, accès, contraintes…',
+                      messageHeading: 'Message',
+                      photosHeading: 'Photos',
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Boutons ───────────────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: onBack,
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                        ),
+                        child: const Center(
+                          child: Text('Retour', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: GestureDetector(
+                      onTap: onNext,
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [_kBlue, _kBlueDark]),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [BoxShadow(color: _kBlue.withValues(alpha: 0.40), blurRadius: 16, offset: const Offset(0, 6))],
+                        ),
+                        child: const Center(
+                          child: Text('Continuer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

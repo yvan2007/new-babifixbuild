@@ -36,7 +36,7 @@ GoRouter createBabifixClientRouter({
   required Widget Function(BuildContext, String serviceId) bookingBuilder,
   required Widget Function(BuildContext, String serviceId) serviceDetailBuilder,
   required Widget Function(BuildContext, String providerId)
-      providerProfileBuilder,
+  providerProfileBuilder,
   required Widget Function(BuildContext) notificationsBuilder,
   required Widget Function(BuildContext, String reservationId) paymentBuilder,
   required Widget Function(BuildContext) messagesBuilder,
@@ -44,17 +44,16 @@ GoRouter createBabifixClientRouter({
   required Widget Function(BuildContext) editProfileBuilder,
 }) {
   return GoRouter(
-    initialLocation: hasSeenOnboarding ? BabifixRoutes.home : BabifixRoutes.onboarding,
+    initialLocation: hasSeenOnboarding
+        ? BabifixRoutes.home
+        : BabifixRoutes.onboarding,
     refreshListenable: refreshListenable,
     routes: [
       GoRoute(
         path: BabifixRoutes.onboarding,
         builder: (ctx, _) => onboardingBuilder(ctx),
       ),
-      GoRoute(
-        path: BabifixRoutes.home,
-        builder: (ctx, _) => homeBuilder(ctx),
-      ),
+      GoRoute(path: BabifixRoutes.home, builder: (ctx, _) => homeBuilder(ctx)),
       GoRoute(
         path: BabifixRoutes.serviceDetail,
         builder: (ctx, state) {
@@ -110,8 +109,9 @@ GoRouter createBabifixClientRouter({
       GoRoute(
         path: BabifixRoutes.rateProvider,
         builder: (ctx, state) {
-          final ref = state.pathParameters['ref'] ?? '';
-          return RateProviderScreen(reservationRef: ref);
+          final idParam = state.pathParameters['ref'] ?? '';
+          final id = int.tryParse(idParam) ?? 0;
+          return RateProviderScreen(bookingId: id);
         },
       ),
       GoRoute(
@@ -128,12 +128,13 @@ GoRouter createBabifixClientRouter({
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFF4CC9F0)),
-            const SizedBox(height: 12),
-            Text(
-              'Page introuvable',
-              style: Theme.of(ctx).textTheme.titleLarge,
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: Color(0xFF4CC9F0),
             ),
+            const SizedBox(height: 12),
+            Text('Page introuvable', style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => ctx.go(BabifixRoutes.home),

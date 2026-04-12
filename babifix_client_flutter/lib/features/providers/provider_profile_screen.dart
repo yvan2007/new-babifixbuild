@@ -589,16 +589,17 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                                   scrollDirection: Axis.horizontal,
                                   children: [
                                     for (final photoUrl in (r['photo_proof'] as List))
-                                      if ((photoUrl as String).startsWith('http'))
-                                        Container(
-                                          width: 70,
-                                          height: 70,
-                                          margin: const EdgeInsets.only(right: 6),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(10),
-                                            image: DecorationImage(
-                                              image: NetworkImage(photoUrl),
-                                              fit: BoxFit.cover,
+                                      if ((photoUrl as String).isNotEmpty)
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: Image.network(
+                                            photoUrl,
+                                            width: 70, height: 70,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Container(
+                                              width: 70, height: 70,
+                                              color: const Color(0xFFF1F5F9),
+                                              child: const Icon(Icons.photo_outlined, color: Color(0xFFCBD5E1)),
                                             ),
                                           ),
                                         ),

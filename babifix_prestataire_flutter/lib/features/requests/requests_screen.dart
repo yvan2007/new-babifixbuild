@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -161,6 +162,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   Widget _buildCardInner(_RequestItem it) {
     final tagText = _labelStatut(it.apiStatus);
+    final hasClientMsg = it.clientMessage.isNotEmpty;
+    final hasPhotos    = it.clientPhotos.isNotEmpty;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -172,6 +176,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── En-tête client + tag ──────────────────────────────────────
           Row(
             children: [
               Expanded(child: Text(it.client, style: const TextStyle(fontWeight: FontWeight.w700))),
@@ -181,24 +186,99 @@ class _RequestsScreenState extends State<RequestsScreen> {
           const SizedBox(height: 4),
           Text(it.service, style: const TextStyle(color: Color(0xFF4B5563))),
           const SizedBox(height: 6),
-          Text('${it.date} - ${it.hour}'),
+          Row(
+            children: [
+              const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 4),
+              Text('${it.date}  ${it.hour}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+            ],
+          ),
           const SizedBox(height: 4),
-          Text(it.address, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-          const SizedBox(height: 4),
-          Text(it.description, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 4),
+              Expanded(child: Text(it.address, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)))),
+            ],
+          ),
+
+          // ── Message du client ─────────────────────────────────────────
+          if (hasClientMsg) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(children: [
+                    Icon(Icons.chat_bubble_outline_rounded, size: 13, color: Color(0xFF2563EB)),
+                    SizedBox(width: 5),
+                    Text('Message du client', style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF2563EB),
+                    )),
+                  ]),
+                  const SizedBox(height: 5),
+                  Text(it.clientMessage, style: const TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.5)),
+                ],
+              ),
+            ),
+          ],
+
+          // ── Photos du client ──────────────────────────────────────────
+          if (hasPhotos) ...[
+            const SizedBox(height: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.photo_library_outlined, size: 13, color: Color(0xFF64748B)),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Photos du problème (${it.clientPhotos.length})',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                  ),
+                ]),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 80,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: it.clientPhotos.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (ctx, i) => ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: _SafeImage(src: it.clientPhotos[i], size: 80),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          // ── Description (si pas de message client dédié) ──────────────
+          if (!hasClientMsg && it.description.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(it.description, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+          ],
+
+          // ── Paiement ──────────────────────────────────────────────────
           if (it.paymentType.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: 6),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (it.paymentType == 'MOBILE_MONEY' && it.mobileMoneyOperator.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: BabifixPaymentMethodLogo(
-                        methodId: it.mobileMoneyOperator,
-                        height: 22,
-                      ),
+                      child: BabifixPaymentMethodLogo(methodId: it.mobileMoneyOperator, height: 22),
                     ),
                   Expanded(
                     child: Text(
@@ -209,27 +289,55 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 ],
               ),
             ),
-          const SizedBox(height: 6),
+
+          const SizedBox(height: 8),
           Row(
             children: [
               const Icon(Icons.star, size: 15, color: Color(0xFFF59E0B)),
-              Text('${it.rating}', style: const TextStyle(fontSize: 12)),
+              Text(' ${it.rating}', style: const TextStyle(fontSize: 12)),
               const Spacer(),
               Text(it.amount, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0284C7))),
             ],
           ),
+
+          // ── Actions ───────────────────────────────────────────────────
           if (it.status == 'pending') ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
+            // Bouton proposer un devis (prioritaire)
+            if (it.bookingId != null) ...[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _showDevisDialog(it),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.request_quote_rounded, size: 18),
+                  label: const Text('Proposer un devis', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             Row(
               children: [
-                OutlinedButton(
-                  onPressed: () => _decide(it, 'refuse'),
-                  child: const Text('Refuser'),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _decide(it, 'refuse'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFEF4444),
+                      side: const BorderSide(color: Color(0xFFFCA5A5)),
+                    ),
+                    child: const Text('Refuser'),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: () => _decide(it, 'accept'),
-                  child: const Text('Accepter'),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => _decide(it, 'accept'),
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF22C55E)),
+                    child: const Text('Accepter'),
+                  ),
                 ),
               ],
             ),
@@ -237,23 +345,32 @@ class _RequestsScreenState extends State<RequestsScreen> {
           if (it.status == 'active') ...[
             const SizedBox(height: 8),
             if (it.apiStatus == 'Confirmee')
-              FilledButton.icon(
-                onPressed: () => _postReservationStatus(it, 'En cours'),
-                icon: const Icon(Icons.play_arrow, size: 20),
-                label: const Text('D\u00e9marrer la prestation'),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _postReservationStatus(it, 'En cours'),
+                  icon: const Icon(Icons.play_arrow, size: 20),
+                  label: const Text('D\u00e9marrer la prestation'),
+                ),
               ),
             if (it.apiStatus == 'En cours')
-              FilledButton.icon(
-                onPressed: () => _postReservationStatus(it, 'Terminee'),
-                icon: const Icon(Icons.check_circle_outline, size: 20),
-                label: const Text('Terminer la prestation'),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _postReservationStatus(it, 'Terminee'),
+                  icon: const Icon(Icons.check_circle_outline, size: 20),
+                  label: const Text('Terminer la prestation'),
+                ),
               ),
           ],
           if (it.status == 'completed' && _canConfirmCash(it)) ...[
             const SizedBox(height: 8),
-            FilledButton.tonal(
-              onPressed: () => _confirmCashPayment(it),
-              child: const Text('Confirmer r\u00e9ception des esp\u00e8ces'),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonal(
+                onPressed: () => _confirmCashPayment(it),
+                child: const Text('Confirmer r\u00e9ception des esp\u00e8ces'),
+              ),
             ),
           ],
           if (it.status == 'completed') ...[
@@ -268,10 +385,126 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 ),
               ),
               icon: const Icon(Icons.star_border_rounded, size: 18),
-              label: const Text('Évaluer le client'),
+              label: const Text('\u00c9valuer le client'),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  // ── Dialogue de devis ─────────────────────────────────────────────────────
+  void _showDevisDialog(_RequestItem it) {
+    final priceCtrl   = TextEditingController();
+    final messageCtrl = TextEditingController();
+    bool sending = false;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Proposer un devis', style: TextStyle(fontWeight: FontWeight.w800)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Réservation : ${it.service}',
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Le client a déjà payé 1 500 FCFA de frais de visite.\nEntrez le prix total de la prestation.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.45),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Prix total (FCFA)',
+                    hintText: 'Ex. : 25 000',
+                    prefixIcon: const Icon(Icons.payments_rounded),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: messageCtrl,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Explication (optionnel)',
+                    hintText: 'Décrivez pourquoi ce prix...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: sending ? null : () => Navigator.pop(ctx),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: sending
+                  ? null
+                  : () async {
+                      final price = int.tryParse(priceCtrl.text.replaceAll(RegExp(r'\D'), ''));
+                      if (price == null || price < 2000) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Le montant minimum d\'un devis est 2 000 FCFA.')),
+                        );
+                        return;
+                      }
+                      setS(() => sending = true);
+                      try {
+                        final res = await http.post(
+                          Uri.parse('${babifixApiBaseUrl()}/api/bookings/${it.bookingId}/devis/'),
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer $authToken',
+                          },
+                          body: jsonEncode({
+                            'price_fcfa': price,
+                            'devis_message': messageCtrl.text.trim(),
+                          }),
+                        );
+                        if (!mounted) return;
+                        Navigator.pop(ctx);
+                        if (res.statusCode == 200 || res.statusCode == 201) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Devis envoyé ! Le client sera notifié.'),
+                              backgroundColor: Color(0xFF2563EB),
+                            ),
+                          );
+                          await _loadRequests();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Erreur ${res.statusCode}')),
+                          );
+                        }
+                      } catch (_) {
+                        if (mounted) Navigator.pop(ctx);
+                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Impossible de contacter le serveur.')),
+                        );
+                      } finally {
+                        setS(() => sending = false);
+                      }
+                    },
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+              child: sending
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Envoyer le devis'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -327,8 +560,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
           final pay = '${e['payment_type'] ?? ''}';
           final mmOp = '${e['mobile_money_operator'] ?? ''}';
           final cash = '${e['cash_flow_status'] ?? ''}';
+          final photos = (e['client_photos'] as List<dynamic>? ?? [])
+              .map((p) => '$p'.trim())
+              .where((p) => p.isNotEmpty)
+              .toList();
           return _RequestItem(
-            reference: '${e['reference']}',
+            reference: '${e['reference'] ?? e['id'] ?? ''}',
             client: '${e['client']}',
             service: '${e['service']}',
             date: '${e['date']}',
@@ -342,6 +579,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
             paymentType: pay,
             mobileMoneyOperator: mmOp,
             cashFlowStatus: cash,
+            clientMessage: '${e['client_message'] ?? ''}',
+            clientPhotos: photos,
+            bookingId: (e['id'] as num?)?.toInt(),
           );
         }).toList();
         setState(() => items = remote);
@@ -463,6 +703,9 @@ class _RequestItem {
     this.paymentType = '',
     this.mobileMoneyOperator = '',
     this.cashFlowStatus = '',
+    this.clientMessage = '',
+    this.clientPhotos = const [],
+    this.bookingId,
   });
 
   final String reference;
@@ -481,6 +724,80 @@ class _RequestItem {
   String paymentType;
   String mobileMoneyOperator;
   String cashFlowStatus;
+  /// Message du client décrivant le problème
+  final String clientMessage;
+  /// Photos envoyées par le client (base64 data URI ou URL HTTP)
+  final List<String> clientPhotos;
+  /// ID numérique pour les endpoints devis
+  final int? bookingId;
+}
+
+// ── Widget d'image sécurisé : gère base64, HTTP et fichier local ──────────────
+class _SafeImage extends StatelessWidget {
+  const _SafeImage({required this.src, this.size = 80});
+  final String src;
+  final double size;
+
+  static Widget _placeholder(double sz) => Container(
+    width: sz, height: sz,
+    decoration: BoxDecoration(
+      color: const Color(0xFFF1F5F9),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: const Icon(Icons.photo_outlined, color: Color(0xFFCBD5E1), size: 28),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    if (src.isEmpty) return _placeholder(size);
+
+    // Cas 1 : data URI base64
+    if (src.startsWith('data:image/')) {
+      try {
+        final bytes = base64Decode(src.split(',').last);
+        return Image.memory(
+          bytes,
+          width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _placeholder(size),
+        );
+      } catch (_) {
+        return _placeholder(size);
+      }
+    }
+
+    // Cas 2 : URL réseau
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      return Image.network(
+        src,
+        width: size, height: size, fit: BoxFit.cover,
+        loadingBuilder: (_, child, progress) => progress == null
+            ? child
+            : Container(
+                width: size, height: size,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+        errorBuilder: (_, __, ___) => _placeholder(size),
+      );
+    }
+
+    // Cas 3 : chemin fichier local
+    try {
+      final file = File(src);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _placeholder(size),
+        );
+      }
+    } catch (_) {}
+
+    return _placeholder(size);
+  }
 }
 
 class _Tag extends StatelessWidget {
