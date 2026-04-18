@@ -181,7 +181,7 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
                       style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     Text(
-                      '${montant.toStringAsFixed(0)} FCA',
+                      '${montant.toStringAsFixed(0)} francs CFA',
                       style: const TextStyle(
                         color: Color(0xFF4CC9F0),
                         fontSize: 20,

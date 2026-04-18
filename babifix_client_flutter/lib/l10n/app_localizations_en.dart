@@ -243,7 +243,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bookIn30Seconds => 'Book in 30 seconds';
 
   @override
-  String get paySimply => 'Pay in FCA, simply';
+  String get paySimply => 'Pay in CFA francs, simply';
 
   @override
   String get artisansVerified => 'Verified artisans near you';

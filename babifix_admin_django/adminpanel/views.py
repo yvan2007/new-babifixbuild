@@ -346,11 +346,13 @@ def _normalize_category_key(s: str) -> str:
 
 
 def _safe_photo_url(url: str) -> str:
-    """Retourne l'URL seulement si c'est une URL HTTP/HTTPS valide, sinon chaîne vide."""
+    """Retourne l'URL si c'est une URL HTTP/HTTPS ou une data URL base64 valide."""
     if not url:
         return ""
     s = url.strip()
     if s.startswith("http://") or s.startswith("https://"):
+        return s
+    if s.startswith("data:image"):
         return s
     return ""
 

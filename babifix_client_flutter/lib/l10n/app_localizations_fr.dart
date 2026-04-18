@@ -243,7 +243,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bookIn30Seconds => 'Réservez en 30 secondes';
 
   @override
-  String get paySimply => 'Payez en FCA, simplement';
+  String get paySimply => 'Payez en francs CFA, simplement';
 
   @override
   String get artisansVerified => 'Artisans vérifiés près de chez vous';
