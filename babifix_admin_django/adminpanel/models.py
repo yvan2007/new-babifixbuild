@@ -157,7 +157,7 @@ class Reservation(models.Model):
         help_text="Montant de la réservation en FCA",
     )
     statut = models.CharField(
-        max_length=30, choices=Status.choices, default=Status.PENDING
+        max_length=30, choices=Status.choices, default=Status.DEMANDE_ENVOYEE
     )
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)

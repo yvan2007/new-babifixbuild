@@ -16,6 +16,7 @@ from .views_extra import (
 )
 from .views_v2 import (
     api_admin_push_broadcast,
+    api_auth_delete_account,
     api_auth_forgot_password,
     api_auth_refresh_token,
     api_auth_reset_password,
@@ -266,6 +267,11 @@ urlpatterns = [
         name="api-auth-reset-password",
     ),
     path("api/auth/refresh", api_auth_refresh_token, name="api-auth-refresh"),
+    path(
+        "api/auth/delete-account",
+        api_auth_delete_account,
+        name="api-auth-delete-account",
+    ),
     path("api/health/", api_health_check, name="api-health-check"),
     path(
         "api/auth/verify-email/<str:token>",

@@ -3810,11 +3810,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ),
                             const SizedBox(width: 8),
                             _MiniStatChip(
-                              label: 'Séquestre',
+                              label: 'En cours',
                               value: totalEscrow > 0
                                   ? formatFcfa(totalEscrow)
                                   : '0 F',
-                              icon: Icons.account_balance_wallet_rounded,
+                              icon: Icons.pending_actions_rounded,
                               color: const Color(0xFF10B981),
                               isLight: _isLight,
                             ),
