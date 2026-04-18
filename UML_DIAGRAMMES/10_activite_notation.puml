@@ -1,0 +1,91 @@
+@startuml BABIFIX - Diagramme d'Activité - Notation Prestataire
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+
+skinparam activity {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+  FontSize 12
+}
+
+skinparam activityArrow {
+  Color #64B5F6
+}
+
+skinparam activityDiamond {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam partition {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam note {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+
+title **BABIFIX** - Diagramme d'Activité : Système de Notation / Avis Prestataire
+
+partition "Client" {
+  start
+  :Consulter ses réservations terminées;
+}
+
+partition "Système" {
+  :Charger liste des réservations avec statut = TERMINEE;
+  :Filtrer celles non encore notées par le client;
+}
+
+partition "Client" {
+  if (Il existe au moins une réservation à noter ?) then (oui)
+    :Sélectionner une réservation terminée;
+    :Accéder à l'écran de notation;
+    
+    :Sélectionner une note (1 à 5 étoiles);
+    :Saisir un commentaire (facultatif);
+    :Cliquer "Soumettre mon avis";
+  else (non)
+    :Afficher message "Aucune réservation en attente d'avis";
+    stop
+  endif
+}
+
+partition "Système" {
+  :Valider que la note est entre 1 et 5;
+  :Vérifier que la réservation appartient bien au client;
+  :Créer document dans collection "ratings";
+  
+  note right
+    - clientId
+    - prestataireId
+    - reservationId
+    - note (1-5)
+    - commentaire (optionnel)
+    - dateCreation = now()
+  end note
+  
+  :Recalculer la note moyenne du prestataire\n(moyenne pondérée des ratings);
+  :Mettre à jour document prestataire\n(noteMoyenne, nombreAvis);
+  :Envoyer notification push au prestataire\n"Nouvel avis reçu : [note] étoiles";
+}
+
+partition "Client" {
+  :Afficher confirmation "Merci pour votre avis !";
+  :Retour à la liste des réservations;
+}
+stop
+
+@enduml

@@ -1,0 +1,127 @@
+@startuml BABIFIX Pro - Diagramme d'Activite - Inscription et Validation Prestataire
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+
+skinparam activity {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+  FontSize 12
+}
+
+skinparam activityArrow {
+  Color #64B5F6
+}
+
+skinparam activityDiamond {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam partition {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam note {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+
+title **BABIFIX Pro** - Diagramme d'Activite : Inscription et Validation Prestataire
+
+partition "Candidat" {
+  start
+  :Ouvrir ou telecharger BABIFIX Pro;
+  :Cliquer "Devenir prestataire";
+}
+
+partition "Formulaire" {
+  :Remplir nom, prenom;
+  :Remplir email;
+  :Remplir numero de telephone;
+  :Selectionner specialite principale;
+  :Rediger description de ses services;
+  :Choisir categories de services concernees;
+}
+
+partition "Candidat" {
+  :Photographier ou uploader la CNI (recto-verso);
+  :Cocher "J'accepte les conditions generales";
+  :Valider le formulaire d'inscription;
+}
+
+partition "Systeme" {
+  :Creer le compte via API Django\n(POST /api/auth/register);
+  :Uploader la photo CNI vers MEDIA_ROOT;
+  :Creer entree dans provider table (role: prestation%)
+  
+  note right
+    user.role = "prestataire"
+    provider.statut = "EN_ATTENTE"
+    provider.date_inscription = now()
+  end note
+  
+  :Creer entree dans provider (statut: EN_ATTENTE);
+  :Notifier les administrateurs (WebSocket/HTMX dashboard);
+}
+
+partition "Candidat" {
+  :Afficher message "Inscription envoyee - En attente de validation";
+  :Peut consulter le statut de sa demande;
+}
+
+partition "Admin" {
+  :Recevoir notification (dashboard HTMX);
+  :Se connecter au Panel Admin (session Django);
+  :Acceder a la liste "Prestataires en attente (EN_ATTENTE)";
+}
+
+partition "Admin" {
+  :Ouvrir le dossier du candidat;
+  :Visualiser photo CNI + informations saisies;
+  :Verifier coherence et authenticite;
+}
+
+if (Decision de l'administrateur ?) then (Valider)
+  partition "Admin" {
+    :Cliquer "Valider";
+  }
+  partition "Systeme" {
+    :Mettre a jour provider SET is_approved=True, statut='VALIDE';
+    :Envoyer notification FCM au prestataire\n"Felicitations ! Votre compte est valide";
+  }
+  partition "Candidat" {
+    :Recevoir notification push;
+    :Se connecter a BABIFIX Pro;
+    :Acceder a l'ensemble des fonctionnalites prestataire;
+  }
+  stop
+
+else (Refuser)
+  partition "Admin" {
+    :Saisir motif de refus obligatoire;
+    :Cliquer "Refuser";
+  }
+  partition "Systeme" {
+    :Mettre a jour provider SET statut='REFUSE', refusal_reason=...
+    :Envoyer notification FCM au candidat\n"Demande refusee - Motif: [detail]";
+  }
+  partition "Candidat" {
+    :Recevoir notification push;
+    :Consulter le motif de refus dans l'application;
+    :Possibilite de corriger et soumettre a nouveau\n(nouvelle inscription ou mise a jour dossier);
+  }
+  stop
+endif
+
+@enduml

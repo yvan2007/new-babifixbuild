@@ -1,0 +1,124 @@
+@startuml BABIFIX - Sequence Chat Temps Reel
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam sequenceStyle uml2
+
+skinparam actor {
+  BackgroundColor #90CAF9
+  BorderColor #1976D2
+}
+
+skinparam entity {
+  BackgroundColor #C8E6C9
+  BorderColor #2E7D32
+}
+
+skinparam boundary {
+  BackgroundColor #FFE082
+  BorderColor #FF8F00
+}
+
+skinparam control {
+  BackgroundColor #E1BEE7
+  BorderColor #7B1FA2
+}
+
+skinparam arrow {
+  Color #64B5F6
+}
+
+title **BABIFIX** - Sequence Chat & Notifications Temps Reel\nArchitecure Hybride: REST + WebSocket + FCM
+
+actor "Client" as Client
+actor "Prestataire" as Prestataire
+participant "BABIFIX App\n(Flutter)" as AppClient
+participant "BABIFIX Pro\n(Flutter)" as AppPro
+participant "ClientEventsConsumer" as ClientWS
+participant "PrestataireEventsConsumer" as ProWS
+database "Redis\n(Channel Layer)" as Redis
+participant "Django API\n(REST)" as API
+participant "Firebase\n(FCM)" as FCM
+
+== Connexion WebSocket (Evenements globaux) ==
+
+Client -> AppClient : Ouverture application
+activate AppClient
+AppClient -> ClientWS : CONNECT\nwss://api.babifix.ci/ws/client-events/?token=JWT
+activate ClientWS
+ClientWS -> Redis : Join group\nbabifix_client_events
+Redis --> ClientWS : Channel joined
+ClientWS --> AppClient : WebSocket connected
+
+Prestataire -> AppPro : Ouverture application
+activate AppPro
+AppPro -> ProWS : CONNECT\nwss://api.babifix.ci/ws/prestataire-{user_id}/?token=JWT
+activate ProWS
+ProWS -> Redis : Join group\nbabifix_prestataire_{user_id}
+Redis --> ProWS : Channel joined
+ProWS --> AppPro : WebSocket connected
+
+deactivate ClientWS
+deactivate ProWS
+
+== Envoi de message (API REST) ==
+
+Client -> AppClient : Tape message\n"Bonjour, je suis disponible a 14h"
+AppClient -> AppClient : Input validation
+
+AppClient -> API : POST /api/messages\n{conversation_id, body: "..."}
+activate API
+API -> API : Save to PostgreSQL
+API --> AppClient : Message saved
+deactivate API
+
+' Broadcast via WebSocket pour les utilisateurs en ligne
+API -> Redis : PUBLISH babifix_client_events\n{type: chat.message, ...}
+API -> Redis : PUBLISH babifix_prestataire_{prestataire_id}\n{type: chat.message, ...}
+
+' Notification FCM pour les utilisateurs hors ligne
+API -> FCM : sendPushNotification(user_id, title: "Nouveau message", body: "...")
+activate FCM
+FCM --> AppPro : FCM Push (background/termine)
+deactivate FCM
+
+== Indicateur de frappe (WebSocket uniquement) ==
+
+Client -> AppClient : Commence a taper
+AppClient -> ClientWS : SEND\n{type: typing, conversation_id: ...}
+ClientWS -> Redis : PUBLISH babifix_prestataire_{prestataire_id}
+Redis -> ProWS : TYPING\n{is_typing: true}
+ProWS -> AppPro : Show "Client tape..."
+
+Client -> AppClient : Arrete de taper (3s timeout)
+AppClient -> ClientWS : SEND\n{type: typing, is_typing: false}
+ClientWS -> Redis : PUBLISH
+Redis -> ProWS : TYPING\n{is_typing: false}
+ProWS -> AppPro : Hide typing indicator
+
+deactivate AppClient
+deactivate AppPro
+
+note right of ClientWS
+  Django Channels
+  - Consumer: ClientEventsConsumer
+  - Group: babifix_client_events (global)
+  - Redis Channel Layer
+  Pas de Consumer par reservation
+end note
+
+note right of API
+ messages transitent par API REST
+  (POST /api/messages, GET /api/messages)
+  Pas de WebSocket pour les messages eux-memes
+end note
+
+note right of ProWS
+  Django Channels
+  - Consumer: PrestataireEventsConsumer
+  - Group: babifix_prestataire_{user_id} (par utilisateur)
+  - Redis Channel Layer
+  Notifications ciblees par utilisateur
+end note
+
+@enduml

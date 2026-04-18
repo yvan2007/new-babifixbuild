@@ -1,0 +1,388 @@
+@startuml BABIFIX - Diagramme de Classes Complet (Nouveau Flux Devis)
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam classAttributeIconSize 0
+skinparam classFontStyle bold
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 10
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+
+skinparam class {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam classAttribute {
+  FontColor #01579B
+}
+
+skinparam abstractClass {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+}
+
+skinparam enum {
+  BackgroundColor #90CAF9
+  BorderColor #1976D2
+}
+
+skinparam arrow {
+  Color #64B5F6
+}
+
+title **BABIFIX** - Diagramme de Classes - Modèle de Domaine (Nouveau Flux)
+
+' ==================== CLASSE UTILISATEUR (ABSTRACT) ====================
+abstract class Utilisateur {
+  - id: String
+  - email: String
+  - telephone: String
+  - nom: String
+  - prenom: String
+  - photoUrl: String
+  - dateCreation: DateTime
+  - dateModification: DateTime
+  - actif: Boolean
+  --
+  + getId(): String
+  + getEmail(): String
+  + setEmail(email: String): void
+  + getTelephone(): String
+  + setTelephone(tel: String): void
+  + getNomComplet(): String
+  + getPhotoUrl(): String
+  + setPhotoUrl(url: String): void
+  + isActif(): Boolean
+  + setActif(actif: Boolean): void
+}
+
+' ==================== CLASSE CLIENT ====================
+class Client {
+  - clientId: String
+  - adresse: String
+  - ville: String
+  - pointsFidelite: int
+  - parrainCode: String
+  - parrainPar: String
+  - depense: double
+  --
+  + getAdresse(): String
+  + setAdresse(adresse: String): void
+  + getPointsFidelite(): int
+  + ajouterPoints(points: int): void
+  + getParrainCode(): String
+  + reserver(prestataire: Prestataire, service: Service, date: DateTime): Reservation
+  + noter(prestataire: Prestataire, note: int, commentaire: String): Rating
+  + payer(reservation: Reservation, montant: double): Paiement
+}
+
+' ==================== CLASSE PRESTATAIRE ====================
+class Prestataire {
+  - prestataireId: String
+  - specialite: String
+  - description: String
+  - cniUrl: String
+  - statutValidation: StatutValidation
+  - dateValidation: DateTime
+  - tarifHoraire: double
+  - disponible: Boolean
+  - noteMoyenne: double
+  - nombreAvis: int
+  - category: Categorie
+  --
+  + getSpecialite(): String
+  + setSpecialite(spec: String): void
+  + getDescription(): String
+  + getCniUrl(): String
+  + getStatutValidation(): StatutValidation
+  + setStatutValidation(statut: StatutValidation): void
+  + getTarifHoraire(): double
+  + setTarifHoraire(tarif: double): void
+  + isDisponible(): Boolean
+  + getNoteMoyenne(): double
+  + creerDevis(reservation: Reservation): Devis
+  + accepterReservation(reservation: Reservation): void
+  + refuserReservation(reservation: Reservation): void
+  + confirmerPaiementEspeces(reservation: Reservation): void
+}
+
+' ==================== CLASSE ADMIN ====================
+class Admin {
+  - adminId: String
+  - niveauAcces: int
+  --
+  + validerPrestataire(prestataire: Prestataire): void
+  + refuserPrestataire(prestataire: Prestataire, motif: String): void
+  + creerCategorie(categorie: Categorie): void
+  + supprimerCategorie(categorie: Categorie): void
+  + envoyerNotification(destinataires: List, message: String): void
+  + validerPaiementEspeces(paiement: Paiement): void
+  + consulterStatistiques(): Statistiques
+}
+
+' ==================== ÉNUMÉRATIONS ====================
+enum StatutValidation {
+  PENDING
+  VALIDE
+  SUSPENDED
+  REFUSE
+}
+
+enum StatutReservation {
+  PENDING
+  CONFIRMEDE
+  IN_PROGRESS
+  WAITING_CLIENT
+  TERMINEE
+  ANNULEE
+  ' Nouveau flux - Devis
+  DEMANDE_ENVOYEE
+  DEVIS_EN_COURS
+  DEVIS_ENVOYE
+  DEVIS_ACCEPTE
+  INTERVENTION_EN_COURS
+}
+
+enum StatutPaiement {
+  PENDING
+  COMPLETE
+  DISPUTE
+  REFUND
+}
+
+enum TypePaiement {
+  MOBILE_MONEY
+  ESPECES
+  CARTE
+  AUTRE
+}
+
+enum StatutDevis {
+  BROUILLON
+  ENVOYE
+  ACCEPTE
+  REFUSE
+  EXPIRE
+}
+
+enum TypeLigneDevis {
+  FOURNITURE
+  MAIN_OEUVRE
+  DEPLACEMENT
+  AUTRE
+}
+
+' ==================== AUTRES CLASSES ====================
+class Categorie {
+  - id: String
+  - nom: String
+  - description: String
+  - iconeUrl: String
+  - iconeSlug: String
+  - ordreAffichage: int
+  - actif: Boolean
+  - commissionRate: int
+  --
+  + getNom(): String
+  + setNom(nom: String): void
+  + getDescription(): String
+  + getIconeUrl(): String
+  + getOrdreAffichage(): int
+  + isActif(): Boolean
+  + setActif(actif: Boolean): void
+}
+
+class Reservation {
+  - id: String
+  - reference: String
+  - clientId: String
+  - prestataireId: String
+  - serviceId: String
+  - descriptionProbleme: String
+  - photosProbleme: List<String>
+  - disponibilitesClient: String
+  - isUrgent: Boolean
+  - dateDebut: DateTime
+  - dateFin: DateTime
+  - adresse: String
+  - message: String
+  - statut: StatutReservation
+  - montant: double
+  - prixPropose: double
+  - commission: double
+  - dateCreation: DateTime
+  - motifRefusDemande: String
+  - is_urgent: Boolean
+  --
+  + getClientId(): String
+  + getPrestataireId(): String
+  + getDateDebut(): DateTime
+  + getDateFin(): DateTime
+  + getStatut(): StatutReservation
+  + setStatut(statut: StatutReservation): void
+  + getMontant(): double
+  + calculerCommission(): double
+  + annuler(): void
+  + getDevis(): Devis
+}
+
+class Devis {
+  - id: String
+  - reference: String
+  - reservation: Reservation
+  - prestataire: Prestataire
+  - diagnostic: String
+  - dateProposee: Date
+  - heureDebut: Time
+  - heureFin: Time
+  - sousTotal: double
+  - commissionRate: int
+  - commissionMontant: double
+  - totalTTC: double
+  - notePrestataire: String
+  - validiteJours: int
+  - statut: StatutDevis
+  - createdAt: DateTime
+  - updatedAt: DateTime
+  --
+  + getLignes(): List<LigneDevis>
+  + calculerTotal(): double
+  + accepter(): void
+  + refuser(): void
+}
+
+class LigneDevis {
+  - id: String
+  - devis: Devis
+  - typeLigne: TypeLigneDevis
+  - description: String
+  - quantite: int
+  - prixUnitaire: double
+  --
+  + getTotal(): double
+}
+
+class Paiement {
+  - id: String
+  - reservationId: String
+  - clientId: String
+  - prestataireId: String
+  - montant: double
+  - commission: double
+  - montantPrestataire: double
+  - type: TypePaiement
+  - statut: StatutPaiement
+  - referenceCinetPay: String
+  - datePaiement: DateTime
+  - valideParAdmin: Boolean
+  - mobileMoneyOperator: String
+  --
+  + getMontant(): double
+  + getCommission(): double
+  + getMontantPrestataire(): double
+  + getType(): TypePaiement
+  + getStatut(): StatutPaiement
+  + setStatut(statut: StatutPaiement): void
+  + valider(): void
+  + calculerCommission(): double
+}
+
+class Rating {
+  - id: String
+  - clientId: String
+  - prestataireId: String
+  - reservationId: String
+  - note: int
+  - commentaire: String
+  - photoAttachments: List<String>
+  - dateCreation: DateTime
+  --
+  + getNote(): int
+  + getCommentaire(): String
+  + getDateCreation(): DateTime
+  + validerNote(note: int): Boolean
+}
+
+class Message {
+  - id: String
+  - conversationId: String
+  - expediteurId: String
+  - destinataireId: String
+  - contenu: String
+  - imageUrl: String
+  - lu: Boolean
+  - dateEnvoi: DateTime
+  --
+  + getContenu(): String
+  + isLu(): Boolean
+  + marquerCommeLu(): void
+}
+
+class Notification {
+  - id: String
+  - userId: String
+  - titre: String
+  - contenu: String
+  - type: String
+  - reference: String
+  - lu: Boolean
+  - dateCreation: DateTime
+  - data: Map
+  --
+  + getTitre(): String
+  + getContenu(): String
+  + isLu(): Boolean
+  + marquerCommeLu(): void
+}
+
+' ==================== RELATIONS ====================
+Utilisateur <|-- Client
+Utilisateur <|-- Prestataire
+Utilisateur <|-- Admin
+
+Client "1" -- "*" Reservation : effectue
+Prestataire "1" -- "*" Reservation : reçoit
+Prestataire "1" -- "*" Devis : crée
+Reservation "1" -- "0..1" Devis : génère
+Devis "1" -- "*" LigneDevis : contient
+
+Prestataire ..> StatutValidation
+Prestataire "1" -- "*" Rating : reçoit
+Client "1" -- "*" Rating : donne
+
+Client "1" -- "*" Paiement : effectue
+Reservation "1" -- "0..1" Paiement : génère
+
+Reservation ..> StatutReservation
+Paiement ..> StatutPaiement
+Paiement ..> TypePaiement
+Devis ..> StatutDevis
+LigneDevis ..> TypeLigneDevis
+
+Prestataire "1" -- "0..1" Categorie : appartient
+
+Admin "1" ..> "*" Prestataire : valide
+Admin "1" ..> "*" Categorie : gère
+Admin "1" ..> "*" Paiement : valide (espèces)
+
+Client "1" -- "*" Message : envoie / reçoit
+Prestataire "1" -- "*" Message : envoie / reçoit
+
+Utilisateur "1" -- "*" Notification : reçoit
+
+@endumle "1" -- "*" Service : contient
+Service "*" -- "*" Reservation : concerne
+
+Admin "1" ..> "*" Prestataire : valide
+Admin "1" ..> "*" Categorie : gère
+Admin "1" ..> "*" Paiement : valide (espèces)
+
+Client "1" -- "*" Message : envoie / reçoit
+Prestataire "1" -- "*" Message : envoie / reçoit
+
+Utilisateur "1" -- "*" Notification : reçoit
+
+@enduml

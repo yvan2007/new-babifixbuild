@@ -1,0 +1,131 @@
+@startuml BABIFIX - Séquence Paiement Mobile Money (Apres Validation)
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam sequenceStyle uml2
+
+skinparam actor {
+  BackgroundColor #90CAF9
+  BorderColor #1976D2
+}
+
+skinparam entity {
+  BackgroundColor #C8E6C9
+  BorderColor #2E7D32
+}
+
+skinparam boundary {
+  BackgroundColor #FFE082
+  BorderColor #FF8F00
+}
+
+skinparam control {
+  BackgroundColor #E1BEE7
+  BorderColor #7B1FA2
+}
+
+skinparam arrow {
+  Color #64B5F6
+}
+
+title **BABIFIX** - Séquence Paiement Mobile Money\n(Apres validation de la prestation)
+
+actor "Client" as Client
+participant "BABIFIX Client\n(Flutter)" as App
+participant "Django API" as API
+participant "CinetPay API" as CinetPay
+database "PostgreSQL" as DB
+participant "Firebase\n(FCM)" as FCM
+participant "Prestataire" as Prestataire
+
+note top of Client
+  IMPORTANT: Le paiement s'effectue APRES
+  validation de la prestation par le client.
+  Pas de séquestre/escrow - paiement direct
+  apres service rendu.
+end note
+
+== 1. Demande et Devis (Avant paiement) ==
+
+Client -> App : Cree une demande\n(description + photos)
+App -> API : POST /api/client/reservations\n{provider_id, description, ...}
+API -> DB : Reservation creee\n(statut: DEMANDE_ENVOYEE)
+API -> FCM : Notification au prestataire
+App --> Client : Demande envoyee
+
+Prestataire -> App : Prepare le devis
+App -> API : POST /api/prestataire/requests/{ref}/devis\n{diagnostic, lignes, montant}
+API -> DB : Devis cree\n(statut: DEVIS_ENVOYE)
+API -> FCM : Notification au client
+
+Client -> App : Consulte et accepte le devis
+App -> API : POST /api/client/reservations/{ref}/devis/accept
+API -> DB : Reservation mise a jour\n(statut: DEVIS_ACCEPTE)
+
+== 2. Intervention ==
+
+Prestataire -> App : Demarre intervention
+App -> API : POST /api/prestataire/reservations/{ref}/start
+API -> DB : Update statut INTERVENTION_EN_COURS
+API -> FCM : "Intervention demarree"
+
+Prestataire -> App : Termine intervention
+App -> API : POST /api/prestataire/reservations/{ref}/complete
+API -> DB : Update statut EN_ATTENTE_CLIENT
+API -> FCM : "Prestation terminee - Merci de valider"
+
+== 3. Validation Client et Paiement ==
+
+Client -> App : Valide la reception du travail
+App -> API : POST /api/client/reservations/{ref}/confirm
+API -> DB : Update statut TERMINEE
+API -> FCM : "Mission terminee"
+
+== 4. Paiement Apres Validation ==
+
+Client -> App : Selectionne mode de paiement\n(Mobile Money ou Especes)
+
+alt Mobile Money
+  Client -> App : Choisit operateur (MTN/Orange/Wave/Moov)
+  Client -> App : Saisit numero telephone
+  
+  App -> API : POST /api/payments/initiate/\n{reservation_id, amount, operator, phone}
+  activate API
+  API -> DB : Fetch reservation details
+  API -> CinetPay : POST /api/v1/payment\n{amount, currency: XOF, operator, phone}
+  activate CinetPay
+  
+  CinetPay --> API : {transaction_id: "TXN123456", status: "PENDING"}
+  deactivate CinetPay
+  
+  API -> DB : Create Payment record\n(status: PENDING)
+  API --> App : {transaction_id, redirect_url}
+  deactivate API
+  
+  App -> Client : "Suivez les instructions\nsur votre telephone"
+  
+  == Webhook CinetPay ==
+  
+  CinetPay -> API : POST /api/payments/webhook/cinetpay/\n{cpm_result: "00", cpm_trans_id, signature}
+  activate API
+  
+  API -> API : Verify HMAC signature
+  alt Signature valide
+    API -> DB : Update Payment\n(status: COMPLETE)
+    API -> FCM : "Paiement recu" -> Prestataire
+    API --> CinetPay : 200 OK
+  else Signature invalide
+    API --> CinetPay : 403 Forbidden
+  end
+  deactivate API
+  
+else Especes
+  Client -> App : Choisit paiement en especes
+  API -> DB : Enregistrer paiement(type: ESPECES, statut: COMPLETE)
+  API -> FCM : "Paiement en especes declare" -> Prestataire
+end
+
+API -> FCM : "Paiement confirme" -> Prestataire
+App --> Client : Confirmation + notez le prestataire
+
+@enduml

@@ -1,0 +1,123 @@
+@startuml BABIFIX - Diagramme de Sequence - Paiement en Especes
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam sequenceMessageAlign center
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 10
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+
+skinparam participant {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam actor {
+  BackgroundColor #90CAF9
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam sequenceArrow {
+  Color #64B5F6
+}
+
+skinparam sequenceLifeLine {
+  BorderColor #42A5F5
+  BackgroundColor #E3F2FD
+}
+
+skinparam sequenceGroup {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+  HeaderBackgroundColor #BBDEFB
+  HeaderFontColor #01579B
+}
+
+skinparam note {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+title **BABIFIX** - Sequence : Paiement en Especes (Validation triple)
+
+actor "Client" as Client
+participant "App BABIFIX\n(Client)" as AppClient
+participant "App BABIFIX Pro" as AppPro
+actor "Prestataire" as Prestataire
+participant "Django API\n(REST)" as API
+database "PostgreSQL" as DB
+participant "Panel Admin\n(Django + HTMX)" as Panel
+actor "Admin" as Admin
+
+== Reservation avec option Especes ==
+
+Client -> AppClient : Choisir prestation et reserver
+AppClient --> Client : Afficher options de paiement
+Client -> AppClient : Selectionner "Payer en especes sur place"
+AppClient -> API : POST /api/client/reservations\n{..., payment_type: ESPECES, statut: EN_ATTENTE}
+API -> DB : INSERT INTO reservation (statut='EN_ATTENTE', cash_flow_status='NON_PAYE')
+DB --> API : reservation reference
+API --> AppClient : Reservation creee
+AppClient --> Client : "Reservation confirmee - Paiement prevu en especes a la fin de la prestation"
+
+== Prestation effectuer ==
+
+note over Client, Prestataire : Le prestataire se rend chez le client et realise la prestation
+
+Prestataire -> AppPro : Marquer l'intervention comme terminee
+AppPro -> API : POST /api/prestataire/requests/{ref}/complete\n{statut: TERMINE}
+API -> DB : UPDATE reservation SET statut='TERMINE'
+DB --> API : OK
+AppPro --> Prestataire : "Prestation terminee"
+
+== Declaration de paiement par le Client ==
+
+Client -> AppClient : Ouvrir la reservation terminee
+Client -> AppClient : Cliquer "J'ai paye en especes"
+AppClient -> API : POST /api/client/reservations/{ref}/cash-declare\n{client_paie: True}
+API -> DB : UPDATE reservation SET cash_flow_status='PENDING_PRESTATAIRE'
+API -> FCM : PushNotification to prestataire "Le client a declare avoir paye en especes"
+AppClient --> Client : "Paiement declare - En attente de confirmation par le prestataire"
+
+== Confirmation de reception par le Prestataire ==
+
+Prestataire -> AppPro : Recevoir notification push
+Prestataire -> AppPro : Consulter la reservation concernee
+Prestataire -> AppPro : Cliquer "Confirmer reception du paiement en especes"
+AppPro -> API : POST /api/prestataire/requests/{ref}/cash-confirm\n{prestataire_confirme: True}
+API -> DB : UPDATE reservation SET cash_flow_status='PENDING_ADMIN'
+API -> Panel : [WebSocket/HTMX] Notification "Paiement especes a valider"
+AppPro --> Prestataire : "Paiement en attente de validation par l'administrateur"
+
+== Validation finale par l'Admin (securite / litige) ==
+
+Admin -> Panel : Se connecter au panel admin (session Django)
+Admin -> Panel : Aller dans "Paiements especes en attente"
+Panel -> API : GET /api/admin/cash-payments?status=PENDING_ADMIN
+API -> DB : SELECT * FROM reservation WHERE cash_flow_status='PENDING_ADMIN'
+DB --> API : Liste des reservations concernees
+API --> Panel : HTML table avec details
+Panel --> Admin : Afficher details (montant, commission, client, prestataire, date)
+
+Admin -> Panel : Selectionner une reservation + Verifier (eventuels signalements / litiges)
+Admin -> Panel : Cliquer "Valider le paiement"
+
+alt Paiement valide
+    Panel -> API : POST /api/admin/reservations/{ref}/cash-validate\n{status: VALIDATED}
+    API -> DB : UPDATE reservation SET cash_flow_status='VALIDATED'
+    API -> DB : INSERT INTO payment (montant: ..., commission: ..., type: ESPECES)
+    API -> FCM : Push "Paiement en especes valide - Vos gains sont disponibles"
+    Panel --> Admin : "Paiement valide avec succes"
+else Litige ou refus (rare)
+    Panel -> API : POST /api/admin/reservations/{ref}/cash-validate\n{status: REFUSED, motif: ...}
+    API -> DB : UPDATE reservation SET cash_flow_status='REFUSED'
+    API -> FCM : Push "Probleme signale avec le paiement especes"
+    Panel --> Admin : "Paiement refuse"
+end
+
+@enduml

@@ -1,0 +1,154 @@
+@startuml BABIFIX - Diagramme de Séquence - Client : Réservation et Devis
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam sequenceMessageAlign center
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 10
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+
+skinparam participant {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam actor {
+  BackgroundColor #90CAF9
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam sequenceArrow {
+  Color #64B5F6
+}
+
+skinparam sequenceLifeLine {
+  BorderColor #42A5F5
+}
+
+skinparam sequenceGroup {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+  HeaderBackgroundColor #BBDEFB
+  HeaderFontColor #01579B
+}
+
+title **BABIFIX** - Séquence Client : Nouveau Flux Demande et Devis
+
+actor "Client" as Client
+participant "App BABIFIX\n(Client)" as App
+participant "Django API\n(REST + JWT)" as API
+database "PostgreSQL" as DB
+participant "Firebase\n(FCM)" as FCM
+participant "Prestataire" as Prestataire
+
+== Connexion ==
+
+Client -> App : Ouvrir application
+App --> Client : Afficher ecran d'accueil
+Client -> App : Cliquer "Reserver"
+
+alt Non connecte
+    App --> Client : Redirection inscription/connexion
+    Client -> App : Saisir email/telephone + mot de passe
+    App -> API : POST /api/auth/login/\n{email, password}
+    API --> App : {access: JWT..., refresh: JWT...}
+    API -> DB : Verifier role = "client"
+    DB --> App : Donnees utilisateur
+end
+
+App --> Client : Acces autorise
+
+== Selection Service et Prestataire ==
+
+Client -> App : Consulter categories
+App -> API : GET /api/public/categories/
+API -> DB : SELECT * FROM category
+DB --> API : {categories: [...]}
+API --> App : List<Categorie>
+App --> Client : Afficher categories
+
+Client -> App : Selectionner categorie (ex: Plomberie)
+App -> API : GET /api/client/prestataires?category=plomberie
+API -> DB : SELECT * FROM provider WHERE category='plomberie' AND disponible=true
+DB --> API : List<Prestataire>
+API --> App : List<Prestataire> (notes, tarifs, disponibilites)
+App --> Client : Afficher prestataires
+
+Client -> App : Choisir prestataire
+App --> Client : Afficher profil detaille
+Client -> App : Cliquer "Reserver"
+
+== Creation Demande (Nouveau Flux) ==
+
+Client -> App : Decrire le probleme (texte + photos)
+Client -> App : Selectionner date, heure, adresse
+App -> App : Valider formulaire
+App -> API : POST /api/client/reservations\n{description, photos, date, time, address, provider_id}
+API -> DB : INSERT INTO reservation ...
+DB --> API : reservation reference generee
+API -> DB : updateReservation(statut = DEMANDE_ENVOYEE)
+API -> FCM : Send push to prestataire\n(type: demande.created)
+App --> Client : Confirmation : Demande envoyee (en attente devis)
+
+== Preparation Devis (Prestataire) ==
+
+Prestataire -> App : Consulter les demandes recues
+Prestataire -> App : Analyser le probleme
+Prestataire -> App : Preparer le devis (lignes, montant, date proposee)
+App -> API : POST /api/prestataire/requests/{ref}/devis\n{diagnostic, lignes, date_proposee}
+API -> DB : INSERT INTO devis + lignes
+API -> DB : updateReservation(statut = DEVIS_ENVOYE)
+API -> FCM : Send push to client\n(type: devis.received)
+App --> Prestataire : Devis envoye
+
+== Consultation et Acceptation Devis (Client) ==
+
+Client -> App : Voir nouveau devis disponible
+App -> API : GET /api/client/reservations/{ref}/devis
+API --> App : {devis: {diagnostic, lignes, total, ...}}
+App --> Client : Afficher ecran detail du devis
+
+Client -> App : Consulter le devis detaille
+
+alt Accepter le devis
+    Client -> App : Accepter le devis
+    App -> API : POST /api/client/reservations/{ref}/devis/accept
+    API -> DB : updateReservation(statut = DEVIS_ACCEPTE)
+    API -> FCM : Push prestataire "Devis accepte - Intervention confirmee"
+    App --> Client : Confirmation - Intervention prevue
+else Refuser le devis
+    Client -> App : Refuser le devis
+    App -> API : POST /api/client/reservations/{ref}/devis/refuse
+    API -> DB : updateReservation(statut = DEMANDE_ENVOYEE)
+    API -> FCM : Push prestataire "Devis refuse"
+    App --> Client : Demande rebasculee en attente
+end
+
+== Intervention et Validation ==
+
+Prestataire -> App : Demarrer intervention
+App -> API : POST /api/prestataire/reservations/{ref}/start
+API -> DB : updateReservation(statut = INTERVENTION_EN_COURS)
+API -> FCM : Push client "Intervention demarree"
+App --> Prestataire : Intervention en cours
+
+Prestataire -> App : Terminer intervention
+App -> API : POST /api/prestataire/reservations/{ref}/complete
+API -> DB : updateReservation(statut = EN_ATTENTE_CLIENT)
+API -> FCM : Push client "Prestation terminee - Merci de valider"
+
+Client -> App : Confirmer la reception / valider le travail
+App -> API : POST /api/client/reservations/{ref}/confirm
+API -> DB : updateReservation(statut = TERMINEE)
+API -> DB : Enregistrer paiement (especes ou mobile money)
+API -> FCM : Push prestataire "Paiement recu - Mission terminee"
+
+partition "Client" {
+  :Noter le prestataire;
+}
+
+@enduml

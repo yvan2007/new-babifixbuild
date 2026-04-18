@@ -1,0 +1,189 @@
+@startuml BABIFIX - Séquence Gestion des Litiges
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam sequenceStyle uml2
+
+skinparam actor {
+  BackgroundColor #90CAF9
+  BorderColor #1976C2
+}
+
+skinparam entity {
+  BackgroundColor #C8E6C9
+  BorderColor #2E7D32
+}
+
+skinparam boundary {
+  BackgroundColor #FFE082
+  BorderColor #FF8F00
+}
+
+skinparam control {
+  BackgroundColor #E1BEE7
+  BorderColor #7B1FA2
+}
+
+skinparam arrow {
+  Color #64B5F6
+}
+
+title **BABIFIX** - Séquence Litiges & Résolution\nDispute Management Flow
+
+actor "Client" as Client
+actor "Prestataire" as Prestataire
+actor "Administrateur" as Admin
+participant "BABIFIX Client\n(Flutter)" as AppClient
+participant "BABIFIX Pro\n(Flutter)" as AppPro
+participant "BABIFIX Admin\n(Web)" as AdminPanel
+participant "Django API" as API
+database "PostgreSQL" as DB
+participant "Firebase\n(FCM)" as FCM
+participant "Email\n(SMTP)" as Email
+
+== Ouverture d'un litige ==
+
+Client -> AppClient : Signale un problème
+AppClient -> AppClient : Sélectionne motif\n(multiples choix)
+
+alt Motifs disponibles
+  note right of AppClient
+    - Prestation non réalisée
+    - Qualité insuffisante
+    - Comportement inapproprié
+    - Montant incorrect
+    - Autre
+  end note
+end
+
+AppClient -> AppClient : Ajoute description\n(max 1000 caractères)
+AppClient -> AppClient : Upload preuves\n(photos, max 5)
+
+AppClient -> API : POST /api/disputes/\n{booking_id, motif, description, photos}
+activate API
+API -> API : Validate booking ownership
+API -> API : Check booking status\n(must be IN_PROGRESS/WAITING)
+API -> DB : Create Dispute record\n(status: OPEN)
+DB --> API : Dispute #D-2024-001
+API -> DB : Update Reservation\n(dispute_ouverte: true)
+API -> DB : Lock payment\n(cash_flow_status: frozen)
+API --> AppClient : 201 Created\n{dispute_id, status}
+deactivate API
+
+API -> FCM : Send push to Admin\n(type: dispute, booking_id)
+activate FCM
+FCM -> AdminPanel : Notification badge\n(+1 litige en attente)
+deactivate FCM
+
+API -> Email : Send to Admin\n(subject: "Nouveau litige #D-2024-001")
+activate Email
+Email --> API : Email sent
+deactivate Email
+
+== Consultation par le prestataire ==
+
+Prestataire -> AppPro : Voit notification litige
+AppPro -> API : GET /api/disputes/{id}/
+activate API
+API -> DB : Fetch dispute details
+API --> AppPro : Dispute details\n+ photos preuves client
+deactivate API
+
+AppPro -> AppPro : Consulte les détails
+Prestataire -> AppPro : Ajoute sa réponse\n+ preuves contraires
+
+AppPro -> API : PUT /api/disputes/{id}/\n{response, photos_defense}
+activate API
+API -> DB : Update Dispute\n(response, defense_photos)
+API --> AppPro : Dispute updated
+deactivate API
+
+API -> FCM : Notify Client\n(type: dispute_response)
+activate FCM
+FCM -> AppClient : "Le prestataire\na répondu"
+deactivate FCM
+
+== Décision administrative ==
+
+Admin -> AdminPanel : Ouvre liste litiges
+AdminPanel -> API : GET /api/admin/disputes/\n?status=OPEN
+activate API
+API -> DB : Fetch open disputes\n(with related booking)
+API --> AdminPanel : Liste litiges\n(priorité, ancienneté)
+deactivate API
+
+Admin -> AdminPanel : Sélectionne litige
+AdminPanel -> API : GET /api/admin/disputes/{id}/
+API --> AdminPanel : Détails complets\n(versions client + prestataire)
+
+Admin -> AdminPanel : Analyse les preuves\n(photos côté client)\n(photos côté prestataire)
+
+alt Option 1: Rembourser le client
+  Admin -> AdminPanel : Clique "Rembourser client"
+  AdminPanel -> AdminPanel : Confirme action
+  AdminPanel -> API : PUT /api/admin/disputes/{id}/\n{decision: REFUND}
+  activate API
+  API -> DB : Update Dispute\n(decision: REFUND, resolved_at)
+  API -> DB : Update Payment\n(state: REFUNDED, refund_client: true)
+  API -> DB : Update Reservation\n(dispute_ouverte: false)
+  API --> AdminPanel : Litige résolu
+  deactivate API
+  
+  API -> FCM : Notify Client\n(type: refund_done)
+  FCM -> AppClient : "Remboursement effectué"
+  
+else Option 2: Payer le prestataire
+  Admin -> AdminPanel : Clique "Libérer paiement"
+  AdminPanel -> API : PUT /api/admin/disputes/{id}/\n{decision: RELEASE}
+  activate API
+  API -> DB : Update Dispute\n(decision: RELEASE, resolved_at)
+  API -> DB : Update Payment\n(state: COMPLETE, release_provider: true)
+  API -> DB : Update Reservation\n(dispute_ouverte: false)
+  deactivate API
+  
+  API -> FCM : Notify Prestataire\n(type: payment_released)
+  FCM -> AppPro : "Paiement libéré"
+  
+else Option 3: Partage 50/50
+  Admin -> AdminPanel : Clique "Partage 50/50"
+  AdminPanel -> API : PUT /api/admin/disputes/{id}/\n{decision: SPLIT}
+  activate API
+  API -> DB : Update Dispute\n(decision: SPLIT, resolved_at)
+  API -> DB : Calculate split amounts
+  API -> DB : Update Payment\n(half to client, half to provider)
+  API -> DB : Update Reservation\n(dispute_ouverte: false)
+  deactivate API
+  
+  API -> FCM : Notify both\n(type: payment_split)
+  FCM -> AppClient : "Remboursement partiel"
+  FCM -> AppPro : "Paiement partiel"
+  
+end
+
+== Logging & Audit ==
+
+API -> DB : Create AdminAuditLog\n(action: LITIGE_RESOLVED,\n target: dispute_{id})
+activate DB
+DB --> API : Audit logged
+deactivate DB
+
+API -> Email : Send resolution to both\n(subject: "Litige résolu")
+activate Email
+Email --> API : Emails sent
+deactivate Email
+
+== Délai automatique ==
+
+alt Litige non traité pendant 7 jours
+  note right of Admin
+    Système envoie
+    rappel automatique
+  end note
+  
+  API -> API : Scheduled task\n(every day at 9h)
+  API -> DB : Find disputes\n(status: OPEN, age > 7 days)
+  API -> FCM : Urgent notification\nto Admin
+  API -> Email : Escalation email\nto support@babifix.ci
+end
+
+@enduml

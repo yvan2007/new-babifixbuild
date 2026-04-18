@@ -1,0 +1,117 @@
+@startuml BABIFIX Pro - Séquence Prestataire : Inscription et Validation Admin
+!theme plain
+
+' Parametres globaux
+skinparam backgroundColor #E3F2FD
+skinparam sequenceMessageAlign center
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 10
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+
+' Participants et acteurs
+skinparam participant {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam actor {
+  BackgroundColor #90CAF9
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam sequenceArrow {
+  Color #64B5F6
+}
+
+skinparam sequenceLifeLine {
+  BorderColor #42A5F5
+  BackgroundColor #E3F2FD
+}
+
+skinparam sequenceGroup {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+  HeaderBackgroundColor #BBDEFB
+  HeaderFontColor #01579B
+}
+
+title **BABIFIX Pro** - Séquence Prestataire : Inscription et Validation Admin
+
+actor "Prestataire" as Prestataire
+participant "App BABIFIX Pro" as App
+participant "Django API\n(REST + JWT)" as API
+database "PostgreSQL" as DB
+participant "Admin" as Admin
+participant "Panel Admin\n(Django + HTMX)" as AdminPanel
+
+== Inscription Prestataire ==
+
+Prestataire -> App : Ouvrir BABIFIX Pro
+App --> Prestataire : Afficher ecran inscription
+
+Prestataire -> App : Remplir formulaire\n(nom, email, telephone, specialite, description)
+Prestataire -> App : Upload photo CNI (piece d'identite)
+
+' Creation du compte Django
+App -> API : POST /api/auth/register\n{email, password, role: prestaire%}
+API -> DB : CREATE USER + USERPROFILE
+API --> App : {access: JWT..., refresh: JWT...}
+
+' Upload CNI en multipart avec le meme POST
+App -> DB : Store uploaded files in MEDIA_ROOT\n(cni_recto, cni_verso, photo)
+
+App -> API : POST /api/prestataire/register\n(nom, specialite, ville, tarif)
+API -> DB : INSERT INTO provider (statut: EN_ATTENTE)
+DB --> App : OK
+
+App --> Prestataire : "Inscription envoyee - En attente de validation"
+
+== Notification Admin ==
+
+' Notification via WebSocket ou polling
+AdminPanel -> DB : [Listener] Nouveau prestataire en attente
+AdminPanel --> Admin : Notification "Prestataire a valider"
+
+== Validation par Admin ==
+
+Admin -> AdminPanel : Se connecter (session Django)
+AdminPanel -> Admin : Login form
+Admin -> AdminPanel : POST /login/ + CSRF token
+AdminPanel --> AdminPanel : Session auth
+
+Admin -> AdminPanel : Consulter liste prestataires PENDING
+AdminPanel -> API : GET /?section=prestataires\n(filter: statut=EN_ATTENTE)
+API -> DB : SELECT * FROM provider WHERE statut='EN_ATTENTE'
+DB --> API : List<Prestataire>
+API --> AdminPanel : List<Prestataire>
+AdminPanel --> Admin : Afficher liste avec CNI, infos
+
+alt Admin valide
+    Admin -> AdminPanel : Cliquer "Valider" + Verifier CNI
+    AdminPanel -> API : POST /admin/validate_provider\n{provider_id, action: accept}
+    API -> DB : UPDATE provider SET statut=VALIDE
+    API -> DB : UPDATE provider SET is_approved=True
+    API -> FCM : Push "Felicitations ! Vous etes valide. Connectez-vous."
+    AdminPanel --> Admin : "Prestataire valide"
+    
+    Prestataire -> App : Se connecter
+    App -> API : POST /api/auth/login/\n{email, password}
+    API --> App : {access: JWT...}
+    API -> DB : SELECT * FROM provider WHERE user=...
+    DB --> API : role: prestaire%
+    API --> App : Acces complet BABIFIX Pro
+
+else Admin refuse
+    Admin -> AdminPanel : Cliquer "Refuser" + motif
+    AdminPanel -> API : POST /admin/validate_provider\n{provider_id, action: refuse, motif: ...}
+    API -> DB : UPDATE provider SET statut=REFUSE, refusal_reason=...
+    API -> FCM : "Dossier refuse - Motif: ..."
+    AdminPanel --> Admin : "Prestataire refuse"
+    App --> Prestataire : Acces refuse (ecran motif)
+end
+
+@enduml

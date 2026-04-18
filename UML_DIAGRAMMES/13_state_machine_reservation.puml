@@ -1,0 +1,79 @@
+@startuml BABIFIX - State Machine Reservation
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam state {
+  BackgroundColor #C8E6C9
+  BorderColor #2E7D32
+  FontColor #1B5E20
+  EndStateBackgroundColor #FFCCBC
+  EndStateBorderColor #BF360C
+  StartStateBackgroundColor #90CAF9
+  StartStateBorderColor #1565C0
+}
+
+skinparam arrow {
+  Color #64B5F6
+  FontColor #01579B
+}
+
+title **BABIFIX** - Diagramme d'Etat\nCycle de Vie d'une Reservation (Nouveau Flux Devis)
+
+[*] --> DEMANDE_ENVOYEE : Client cree\nla demande
+
+DEMANDE_ENVOYEE --> DEVIS_EN_COURS : Prestataire\nprepare devis
+DEMANDE_ENVOYEE --> ANNULEE : Client annule\nou timeout
+
+DEVIS_EN_COURS --> DEVIS_ENVOYE : Prestataire\nevoie le devis
+
+DEVIS_ENVOYE --> DEVIS_ACCEPTE : Client accepte\nle devis
+DEVIS_ENVOYE --> DEMANDE_ENVOYEE : Client refuse\nle devis
+
+DEVIS_ACCEPTE --> INTERVENTION_EN_COURS : Prestataire\ndemarre intervention
+
+INTERVENTION_EN_COURS --> EN_ATTENTE_CLIENT : Prestataire declare\nprestation terminee
+INTERVENTION_EN_COURS --> ANNULEE : Annulation\navant finalisation
+
+EN_ATTENTE_CLIENT --> TERMINEE : Client confirme\nreception
+EN_ATTENTE_CLIENT --> TERMINEE : Auto-confirmation\n(delai 48h)
+
+TERMINEE --> [*]
+ANNULEE --> [*]
+
+note right of DEMANDE_ENVOYEE
+  Demande envoyee au prestataire
+  En attente de devis
+end note
+
+note right of DEVIS_EN_COURS
+  Prestataire prepare le devis
+  Analyse du probleme
+end note
+
+note right of DEVIS_ENVOYE
+  Devis recu par le client
+  Montant, date proposee, lignes
+end note
+
+note right of DEVIS_ACCEPTE
+  Devis accepte par le client
+  Reservation confirmee
+end note
+
+note right of INTERVENTION_EN_COURS
+  Intervention en cours
+  Prestataire sur site
+end note
+
+note right of EN_ATTENTE_CLIENT
+  Pre-attente client
+  Validation reception en attente
+end note
+
+note right of TERMINEE
+  Reservation terminee
+  Paiement effectif
+  Note/avis possible
+end note
+
+@enduml
