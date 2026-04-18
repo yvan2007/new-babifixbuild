@@ -688,10 +688,12 @@ Le parcours complet du client sur BABIFIX se décompose en sept étapes :
 1. **Inscription** : le client télécharge l'application Flutter, renseigne ses coordonnées et crée son compte. L'authentification est gérée par JWT.
 2. **Connexion** : le client se connecte avec son email et son mot de passe. Un token JWT est généré et stocké localement pour les requêtes ultérieures.
 3. **Recherche de service** : le client navigue dans les catégories (ménage, plomberie, électricité, jardinage, etc.) via l'interface `CategoryTab`. Il peut consulter les fiches prestataires via `ServiceCard`, affichant la photo, le nom, la spécialité, la note moyenne et le tarif indicatif.
-4. **Sélection et réservation** : le client sélectionne un prestataire, choisit une date et un créneau, précise ses besoins et valide la demande. Une réservation est créée en base de données avec le statut *en attente*.
-5. **Paiement** : le client procède au paiement via Mobile Money (Orange Money, MTN Moov, Wave) ou en espèces. Un webhook confirme la transaction pour les paiements Mobile Money.
-6. **Communication et suivi** : le client peut envoyer des messages au prestataire via le chat intégré. Un badge sur l'icône Message signale les messages non lus. Des notifications push FCM informent le client des mises à jour de sa réservation.
-7. **Évaluation** : après la prestation, le client note le prestataire et laisse un avis qui alimente la note moyenne affichée sur le profil public.
+4. **Demande de devis** : le client décrit son problème (texte + photos), sélectionne une date et une heure, saisit l'adresse d'intervention et envoie la demande. Une réservation est créée en base avec le statut *DEMANDE_ENVOYEE*.
+5. **Réception du devis** : le prestataire analyse la demande et envoie un devis détaillé (diagnostic, lignes de prestations, montant). Le client reçoit une notification et peut consulter le devis via l'écran `DevisDetailScreen`.
+6. **Acceptation du devis** : le client accepte ou refuse le devis. En cas d'acceptation, le statut passe à *DEVIS_ACCEPTE*, puis *INTERVENTION_EN_COURS* lors du démarrage de l'intervention.
+7. **Paiement** : le client procède au paiement via Mobile Money (Orange Money, MTN Moov, Wave) ou en espèces **après validation de la prestation**. Le paiement s'effectue après validation, pas en avance (pas de séquestre/escrow).
+8. **Communication et suivi** : le client peut envoyer des messages au prestataire via le chat intégré. Un badge sur l'icône Message signale les messages non lus. Des notifications push FCM informent le client des mises à jour de sa réservation.
+9. **Évaluation** : après la prestation, le client note le prestataire et laisse un avis qui alimente la note moyenne affichée sur le profil public.
 
 ### 3.2.2. Parcours du prestataire
 
@@ -765,7 +767,7 @@ Le suivi des paiements est centralisé dans le panneau d'administration. Pour ch
 
 L'authentification dans BABIFIX repose sur deux mécanismes distincts selon le type d'interface :
 
-- **Applications Flutter (client et prestataire)** : authentification par **JSON Web Tokens (JWT)** via la bibliothèque `djangorestframework-simplejwt`. À la connexion, l'API retourne un *access token* (durée de vie courte, typiquement 5 à 30 minutes) et un *refresh token* (durée de vie longue). L'application Flutter stocke ces tokens de manière sécurisée et les inclut dans l'en-tête `Authorization: Bearer <token>` de chaque requête.
+- **Applications Flutter (client et prestataire)** : authentification par **JSON Web Tokens (JWT)** via un système custom (auth.py). À la connexion, l'API retourne un *access token* (durée de vie courte, typiquement 5 à 30 minutes) et un *refresh token* (durée de vie longue). L'application Flutter stocke ces tokens de manière sécurisée et les inclut dans l'en-tête `Authorization: Bearer <token>` de chaque requête.
 - **Interfaces web Django (panneau admin et vitrine)** : authentification par **sessions Django** avec protection CSRF native. L'accès au panneau d'administration est restreint aux utilisateurs ayant le flag `is_staff=True` ou un groupe de permissions administrateur défini.
 
 L'autorisation est gérée au niveau de chaque endpoint API par des classes de permission Django REST Framework :
@@ -1060,7 +1062,7 @@ BABIFIX adopte une architecture en couches (**layered architecture**) qui sépar
 - **Site Vitrine Django** : interface web publique exposant les informations générales de la plateforme, rendue côté serveur par les templates Django de l'application `vitrine`.
 - **Panneau Admin Django** : interface web privée pour l'administration, construite avec l'application `adminpanel` Django et le système d'administration natif de Django.
 
-**La couche API / métier** centralise toute la logique applicative dans le projet Django (`babifix_api`) :
+**La couche API / métier** centralise toute la logique applicative dans le projet Django (`config`) :
 - **Django REST Framework (DRF)** gère les endpoints REST (serializers, viewsets, permissions, pagination).
 - **Django Channels** gère les connexions WebSocket via un protocole ASGI, organisant les connexions en groupes (un groupe par conversation de réservation).
 - Les **signaux Django** (`post_save`, `pre_delete`) déclenchent des actions automatiques — comme l'envoi d'une notification FCM lors d'un changement de statut de prestataire — sans polluer les vues.
@@ -1074,7 +1076,7 @@ Le système de messagerie en temps réel de BABIFIX est implémenté avec **Djan
 Le fonctionnement est le suivant :
 1. Lors de l'ouverture du chat d'une réservation, l'application Flutter établit une connexion WebSocket avec le serveur Django Channels (`wss://api.babifix.ci/ws/chat/<reservation_id>/`).
 2. Django Channels assigne cette connexion à un **groupe de canal** nommé `chat_<reservation_id>`, stocké dans Redis.
-3. Lorsqu'un message est envoyé par un participant, le `ChatConsumer` persiste le message en base (modèle `Message`) et diffuse (`broadcast`) le message JSON à tous les membres du groupe WebSocket correspondant.
+3. Lorsqu'un message est envoyé par un participant, le `ClientEventsConsumer` (pour les clients) ou le `PrestataireEventsConsumer` (pour les prestataires) persiste le message en base (modèle `Message`) et diffuse (`broadcast`) le message JSON à tous les membres du groupe WebSocket correspondant.
 4. L'autre participant reçoit le message en temps réel dans son application Flutter sans avoir à interroger l'API REST.
 5. Le compteur de messages non lus (`totalNonLus` sur la `Conversation`) est mis à jour en base, et l'API `/api/conversations/unread-count/` permet à l'application de rafraîchir le badge.
 
@@ -1099,13 +1101,13 @@ Le modèle de données de BABIFIX s'articule autour de la table centrale `Reserv
 
 | Composant | Technologie retenue | Alternatives considérées | Justification |
 |---|---|---|---|
-| Backend API + Temps réel | **Django 4.x + DRF + Django Channels** | Node.js/Express, FastAPI | Productivité (ORM, migrations, admin), écosystème Python mature, Channels natif pour WebSocket |
-| Site vitrine web | **Django + templates HTML/CSS** | React, Vue.js | Rendu côté serveur (SEO), rapidité de livraison, cohérence stack |
-| Panneau admin web | **App adminpanel Django + style.css** | React Admin, Django Admin natif seul | Personnalisation UI tout en réutilisant la logique Django |
+| Backend API + Temps réel | **Django 5.2 + DRF + Django Channels** | Node.js/Express, FastAPI | Productivité (ORM, migrations, admin), écosystème Python mature, Channels natif pour WebSocket |
+| Site vitrine web | **Django + templates HTML/CSS + HTMX** | React, Vue.js | Rendu côté serveur (SEO), rapidité de livraison, cohérence stack |
+| Panneau admin web | **App adminpanel Django + style.css + HTMX** | React Admin, Django Admin natif seul | Personnalisation UI tout en réutilisant la logique Django |
 | App client mobile | **Flutter (Dart) + Material 3** | React Native, Kotlin/Swift natif | Cross-platform iOS/Android avec un seul codebase, performance 60 FPS, composants Material 3 |
 | App prestataire mobile | **Flutter (Dart) + Material 3** | — | Partage du codebase et du design system avec l'app client |
 | Notifications push | **Firebase Cloud Messaging (FCM)** | OneSignal, APNs/FCM directement | Standard industrie, gratuit jusqu'à un volume élevé, multi-plateforme, intégration Flutter native |
-| Auth mobile | **JWT (djangorestframework-simplejwt)** | Google Sign-In, Apple Sign-In | Stateless, scalable, pas de dépendance Firebase côté backend |
+| Auth mobile | **JWT custom (auth.py)** | Google Sign-In, Apple Sign-In | Stateless, scalable, système JWT personnalisé sans dépendance externe |
 | Auth web | **Sessions Django + CSRF** | JWT pour web | Mécanisme natif Django, sécurisé pour les interfaces web |
 | Base de données | **SQLite (dev) / PostgreSQL (prod)** | MySQL | SQLite pour la simplicité dev, PostgreSQL pour la robustesse prod |
 | Broker WebSocket | **Redis** | Memcached, In-memory | Requis par Django Channels pour les groupes multi-instances |
@@ -1220,13 +1222,13 @@ L'intégration d'algorithmes de filtrage collaboratif ou de Machine Learning pou
 
 ## 7.2. Implémentation du module de sécurité
 
-### 7.2.1. Système d'authentification JWT
+### 7.2.1. Système d'authentification JWT custom
 
-L'authentification JWT est mise en œuvre via la bibliothèque `djangorestframework-simplejwt`. Le flux d'authentification complet est le suivant :
+L'authentification JWT est mise en œuvre via un système custom (fichier `auth.py`). Le flux d'authentification complet est le suivant :
 
-1. **Connexion** : l'application Flutter envoie `POST /api/token/` avec `{"email": "...", "password": "..."}`. L'API retourne `{"access": "<token>", "refresh": "<refresh_token>"}`.
-2. **Utilisation** : chaque requête authentifiée inclut l'en-tête `Authorization: Bearer <access_token>`.
-3. **Rafraîchissement** : quand l'access token expire, l'app envoie `POST /api/token/refresh/` avec le refresh token pour obtenir un nouveau access token sans redemander les credentials.
+1. **Connexion** : l'application Flutter envoie `POST /api/auth/login/` avec `{"username": "...", "password": "..."}`. L'API retourne `{"token": "<jwt_token>", "role": "...", "username": "..."}`.
+2. **Utilisation** : chaque requête authentifiée inclut l'en-tête `Authorization: Bearer <token>`.
+3. **Rafraîchissement** : quand le token expire, l'app envoie `POST /api/auth/refresh/` avec le token pour obtenir un nouveau token sans redemander les credentials.
 4. **Déconnexion** : la déconnexion côté client consiste à supprimer les tokens du stockage local Flutter.
 
 La durée de vie des tokens est configurée dans `settings.py` :
@@ -1352,7 +1354,7 @@ Page premium informant le prestataire que son dossier est en cours d'examen. Aff
 Si le dossier est refusé, le prestataire voit s'afficher clairement le motif de refus saisi par l'administrateur, accompagné d'un bouton « Modifier ma demande » qui rouvre le formulaire d'inscription pré-rempli pour correction. Ce flux garantit que le prestataire comprend exactement pourquoi son dossier a été refusé et comment le corriger.
 
 **RequestsScreen — Tableau de bord des missions** :
-Liste des demandes de réservation reçues, avec statut (en attente, confirmée, en cours, terminée). Le prestataire peut accepter ou décliner chaque demande.
+Liste des demandes de réservation reçues, avec les statuts du nouveau parcours : DEMANDE_ENVOYEE (demande envoyée), DEVIS_EN_COURS (devis en cours), DEVIS_ENVOYE (devis envoyé), DEVIS_ACCEPTE (devis accepté), INTERVENTION_EN_COURS (intervention en cours), TERMINEE. Le prestataire peut créer un devis pour chaque demande via l'écran `CreateDevisScreen`.
 
 **MessagesScreen — Chat** :
 Interface de messagerie identique à l'app client, avec le badge de messages non lus visible sur la BottomNav.
@@ -1782,10 +1784,10 @@ BABIFIX_BUILD/
 │   │   ├── asgi.py                 # Point d'entrée ASGI (Django Channels)
 │   │   └── settings.py            # Pagination (PAGE_SIZE=20), security headers
 │   ├── adminpanel/                 # Application unique contenant tout
-│   │   ├── models.py               # User, Client, Prestataire, Service, Reservation, Paiement, etc.
+│   │   ├── models.py               # User, Client, Prestataire, Service, Reservation, Devis, LigneDevis, Paiement, etc.
 │   │   ├── views.py                # API REST (ViewSets DRF)
 │   │   ├── serializers.py          # Sérialisation DRF
-│   │   ├── consumers.py            # WebSocket : ChatConsumer, ClientEventsConsumer, PrestataireEventsConsumer
+│   │   ├── consumers.py            # WebSocket : ClientEventsConsumer, PrestataireEventsConsumer
 │   │   ├── routing.py              # WebSocket URL routing
 │   │   ├── admin.py                # Admin Django intégré
 │   │   ├── migrations/            # Migrations Django (SQLite dev / PostgreSQL prod)
@@ -1795,7 +1797,7 @@ BABIFIX_BUILD/
 │   │           ├── prestataires_liste.html
 │   │           └── validation_form.html
 │   ├── manage.py
-│   └── requirements.txt            # Django 5.2, DRF, djangorestframework-simplejwt, channels, firebase-admin, cryptography
+│   └── requirements.txt            # Django 5.2, DRF, channels, firebase-admin, cryptography, pyjwt
 │
 ├── babifix_vitrine_django/         # Site web vitrine public
 │   ├── config/

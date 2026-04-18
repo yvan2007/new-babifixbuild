@@ -36,7 +36,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     ),
     (
       'assets/animations/payment.json',
-      'Payez en FCA,\nsimplement',
+      'Payez en francs CFA,\nsimplement',
       'Orange Money, MTN, Wave ou espèces — payez comme vous voulez, en toute sécurité.',
     ),
   ];
