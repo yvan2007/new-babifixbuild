@@ -47,4 +47,19 @@ abstract final class BabifixDesign {
       offset: const Offset(0, 12),
     ),
   ];
+
+  static const LinearGradient accentGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [cyan, Color(0xFF2563EB), navy],
+    stops: [0.0, 0.5, 1.0],
+  );
+
+  static List<BoxShadow> cyanGlowShadow({double opacity = 0.35}) => [
+    BoxShadow(
+      color: cyan.withValues(alpha: opacity),
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
+  ];
 }

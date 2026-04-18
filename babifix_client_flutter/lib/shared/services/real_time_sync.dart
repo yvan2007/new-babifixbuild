@@ -57,21 +57,32 @@ class RealTimeSyncService {
     try {
       final base = babifixApiBaseUrl();
       final url = '$base/api/public/categories/';
+      debugPrint('BABIFIX: Fetching categories from: $url');
       final res = await http.get(Uri.parse(url));
 
-      if (res.statusCode != 200) return;
+      debugPrint('BABIFIX: Categories response status: ${res.statusCode}');
+      if (res.statusCode != 200) {
+        debugPrint(
+          'BABIFIX: Error loading categories: status ${res.statusCode}',
+        );
+        return;
+      }
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final categories = (data['categories'] as List<dynamic>? ?? [])
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
 
+      debugPrint('BABIFIX: Got ${categories.length} categories');
+
       if (_categoriesChanged(categories)) {
         debugPrint('RealTimeSync: Nouvelles catégories!');
         _lastCategories = categories;
         _categoryController.add(categories);
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('BABIFIX: Error loading categories: $e');
+    }
   }
 
   Future<void> _checkProvidersUpdate() async {

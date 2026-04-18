@@ -1,77 +1,86 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MaxLengthValidator
 
 
 class Provider(models.Model):
     """Aligné diagramme UML : Prestataire (validation, tarif, notes)."""
 
     class Status(models.TextChoices):
-        PENDING = 'En attente', 'En attente'
-        VALID = 'Valide', 'Valide'
-        SUSPENDED = 'Suspendu', 'Suspendu'
-        REFUSED = 'Refuse', 'Refuse'
+        PENDING = "En attente", "En attente"
+        VALID = "Valide", "Valide"
+        SUSPENDED = "Suspendu", "Suspendu"
+        REFUSED = "Refuse", "Refuse"
 
     user = models.OneToOneField(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='provider_profile',
+        related_name="provider_profile",
     )
     nom = models.CharField(max_length=120)
     specialite = models.CharField(max_length=80)
     ville = models.CharField(max_length=80)
-    statut = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    statut = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
     years_experience = models.PositiveSmallIntegerField(default=0)
-    bio = models.TextField(blank=True, default='')
+    bio = models.TextField(blank=True, default="")
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     # UML : tarifHoraire, noteMoyenne, nombreAvis, cniUrl, disponible
-    tarif_horaire = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    tarif_horaire = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
     average_rating = models.FloatField(default=0.0)
     rating_count = models.PositiveIntegerField(default=0)
     disponible = models.BooleanField(default=True)
-    cni_url = models.CharField(max_length=500, blank=True, default='')
-    cni_recto_url = models.CharField(max_length=500, blank=True, default='', help_text='CNI face avant')
-    cni_verso_url = models.CharField(max_length=500, blank=True, default='', help_text='CNI face arrière')
+    cni_url = models.CharField(max_length=500, blank=True, default="")
+    cni_recto_url = models.CharField(
+        max_length=500, blank=True, default="", help_text="CNI face avant"
+    )
+    cni_verso_url = models.CharField(
+        max_length=500, blank=True, default="", help_text="CNI face arrière"
+    )
     photo_portrait_url = models.CharField(
         max_length=500,
         blank=True,
-        default='',
-        help_text='Photo de profil (URL) — visible apres validation admin',
+        default="",
+        help_text="Photo de profil (URL) — visible apres validation admin",
     )
     refusal_reason = models.TextField(
         blank=True,
-        default='',
-        help_text='Motif affiche au prestataire si dossier refuse',
+        default="",
+        help_text="Motif affiche au prestataire si dossier refuse",
     )
     category = models.ForeignKey(
-        'Category',
+        "Category",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='providers',
-        help_text='Catégorie métier (icône / filtre client)',
+        related_name="providers",
+        help_text="Catégorie métier (icône / filtre client)",
     )
     is_approved = models.BooleanField(
         default=False,
         db_index=True,
-        help_text='Aligné sur statut Valide — visible apps client',
+        help_text="Aligné sur statut Valide — visible apps client",
     )
     # v2 — Galerie réalisations (max 12 photos, data URL base64)
     portfolio_photos = models.JSONField(
         default=list,
         blank=True,
-        help_text='Liste de {photo, caption, added_at} — max 12 entrées',
+        help_text="Liste de {photo, caption, added_at} — max 12 entrées",
     )
 
     def save(self, *args, **kwargs):
         self.is_approved = self.statut == self.Status.VALID
-        update_fields = kwargs.get('update_fields')
+        update_fields = kwargs.get("update_fields")
         if update_fields is not None:
             s = set(update_fields)
-            s.add('is_approved')
-            kwargs['update_fields'] = list(s)
+            s.add("is_approved")
+            kwargs["update_fields"] = list(s)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -83,7 +92,15 @@ class Client(models.Model):
     email = models.EmailField()
     ville = models.CharField(max_length=80)
     reservations = models.PositiveIntegerField(default=0)
-    depense = models.CharField(max_length=40, default='0 FCFA')
+    depense = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Dépense totale en FCFA",
+    )
+
+    def depense_display(self):
+        return f"{self.depense} FCA"
 
     def __str__(self):
         return self.nom
@@ -93,43 +110,50 @@ class Reservation(models.Model):
     """UML : Reservation + flux paiement espèces (déclaration client → confirmation prestataire → admin)."""
 
     class Status(models.TextChoices):
-        PENDING = 'En attente', 'En attente'
-        CONFIRMED = 'Confirmee', 'Confirmee'
-        IN_PROGRESS = 'En cours', 'En cours'
-        WAITING_CLIENT = 'En attente client', 'En attente client'
-        DONE = 'Terminee', 'Terminee'
-        CANCELLED = 'Annulee', 'Annulee'
+        PENDING = "En attente", "En attente"
+        CONFIRMED = "Confirmee", "Confirmee"
+        IN_PROGRESS = "En cours", "En cours"
+        WAITING_CLIENT = "En attente client", "En attente client"
+        DONE = "Terminee", "Terminee"
+        CANCELLED = "Annulee", "Annulee"
 
     class PaymentType(models.TextChoices):
-        ESPECES = 'ESPECES', 'Especes'
-        MOBILE_MONEY = 'MOBILE_MONEY', 'Mobile Money'
-        CARTE = 'CARTE', 'Carte'
-        AUTRE = 'AUTRE', 'Autre'
+        ESPECES = "ESPECES", "Especes"
+        MOBILE_MONEY = "MOBILE_MONEY", "Mobile Money"
+        CARTE = "CARTE", "Carte"
+        AUTRE = "AUTRE", "Autre"
 
     class MobileMoneyOperator(models.TextChoices):
         """Operateurs courants en Cote d'Ivoire (Mobile Money)."""
-        UNSPECIFIED = '', 'Non precise'
-        ORANGE_MONEY = 'ORANGE_MONEY', 'Orange Money'
-        MTN_MOMO = 'MTN_MOMO', 'MTN Mobile Money'
-        WAVE = 'WAVE', 'Wave'
-        MOOV = 'MOOV', 'Moov Money'
+
+        UNSPECIFIED = "", "Non precise"
+        ORANGE_MONEY = "ORANGE_MONEY", "Orange Money"
+        MTN_MOMO = "MTN_MOMO", "MTN Mobile Money"
+        WAVE = "WAVE", "Wave"
+        MOOV = "MOOV", "Moov Money"
 
     class CashFlowStatus(models.TextChoices):
-        NA = '', 'N/A'
-        PENDING_PRESTATAIRE = 'pending_prestataire', 'En attente prestataire'
-        PENDING_ADMIN = 'pending_admin', 'En attente validation admin'
-        VALIDATED = 'validated', 'Valide'
-        REFUSED = 'refused', 'Refuse'
+        NA = "", "N/A"
+        PENDING_PRESTATAIRE = "pending_prestataire", "En attente prestataire"
+        PENDING_ADMIN = "pending_admin", "En attente validation admin"
+        VALIDATED = "validated", "Valide"
+        REFUSED = "refused", "Refuse"
 
     reference = models.CharField(max_length=40, unique=True)
-    title = models.CharField(max_length=200, blank=True, default='')
+    title = models.CharField(max_length=200, blank=True, default="")
     client = models.CharField(max_length=120)
     prestataire = models.CharField(max_length=120)
-    montant = models.CharField(max_length=40)
-    statut = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    montant = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Montant de la réservation en FCA",
+    )
+    statut = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
-    address_label = models.CharField(max_length=500, blank=True, default='')
+    address_label = models.CharField(max_length=500, blank=True, default="")
     location_captured_at = models.DateTimeField(null=True, blank=True)
     payment_type = models.CharField(
         max_length=24,
@@ -143,10 +167,15 @@ class Reservation(models.Model):
         blank=True,
         help_text="Si paiement Mobile Money : Orange, MTN, Wave, Moov (Cote d'Ivoire).",
     )
-    client_message = models.TextField(blank=True, default='', help_text='Message client lors de la réservation (UML)')
+    client_message = models.TextField(
+        blank=True, default="", help_text="Message client lors de la réservation (UML)"
+    )
     prix_propose = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True,
-        help_text='Prix proposé par le client (optionnel — si différent du tarif catalogue)',
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Prix proposé par le client (optionnel — si différent du tarif catalogue)",
     )
     cash_client_declared_at = models.DateTimeField(null=True, blank=True)
     cash_prestataire_confirmed_at = models.DateTimeField(null=True, blank=True)
@@ -157,34 +186,38 @@ class Reservation(models.Model):
         default=CashFlowStatus.NA,
         blank=True,
     )
-    cash_refusal_motif = models.CharField(max_length=500, blank=True, default='')
+    cash_refusal_motif = models.CharField(max_length=500, blank=True, default="")
     client_user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='babifix_reservations_as_client',
+        related_name="babifix_reservations_as_client",
     )
     prestataire_user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='babifix_reservations_as_prestataire',
+        related_name="babifix_reservations_as_prestataire",
     )
     assigned_provider = models.ForeignKey(
-        'Provider',
+        "Provider",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='reservations',
+        related_name="reservations",
     )
     # Flux paiement après prestation (UML + plan BABIFIX)
     prestation_terminee_at = models.DateTimeField(null=True, blank=True)
     client_confirme_prestation_at = models.DateTimeField(null=True, blank=True)
     preuve_photos = models.JSONField(default=list, blank=True)
     dispute_ouverte = models.BooleanField(default=False, db_index=True)
-    payment_client_note = models.TextField(blank=True, default='', help_text='Message optionnel du client au moment du paiement')
+    payment_client_note = models.TextField(
+        blank=True,
+        default="",
+        help_text="Message optionnel du client au moment du paiement",
+    )
 
     def __str__(self):
         return self.reference
@@ -192,29 +225,33 @@ class Reservation(models.Model):
 
 class Dispute(models.Model):
     class Priority(models.TextChoices):
-        HIGH = 'Haute', 'Haute'
-        MEDIUM = 'Moyenne', 'Moyenne'
-        LOW = 'Basse', 'Basse'
+        HIGH = "Haute", "Haute"
+        MEDIUM = "Moyenne", "Moyenne"
+        LOW = "Basse", "Basse"
 
     class Decision(models.TextChoices):
-        OPEN = 'En cours', 'En cours'
-        REFUND = 'Rembourser client', 'Rembourser client'
-        RELEASE = 'Liberer paiement', 'Liberer paiement'
-        SPLIT = 'Partage partiel', 'Partage partiel'
+        OPEN = "En cours", "En cours"
+        REFUND = "Rembourser client", "Rembourser client"
+        RELEASE = "Liberer paiement", "Liberer paiement"
+        SPLIT = "Partage partiel", "Partage partiel"
 
     reference = models.CharField(max_length=40, unique=True)
     motif = models.CharField(max_length=200)
     client = models.CharField(max_length=120)
     prestataire = models.CharField(max_length=120)
-    priorite = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM)
-    decision = models.CharField(max_length=30, choices=Decision.choices, default=Decision.OPEN)
+    priorite = models.CharField(
+        max_length=10, choices=Priority.choices, default=Priority.MEDIUM
+    )
+    decision = models.CharField(
+        max_length=30, choices=Decision.choices, default=Decision.OPEN
+    )
     # v2 — lien vers la réservation concernée
     reservation = models.ForeignKey(
-        'Reservation',
+        "Reservation",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='disputes',
+        related_name="disputes",
     )
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
@@ -224,27 +261,35 @@ class Dispute(models.Model):
 
 class Payment(models.Model):
     class State(models.TextChoices):
-        COMPLETE = 'Complete', 'Complete'
-        PENDING = 'Pending', 'Pending'
-        DISPUTE = 'Litige', 'Litige'
+        COMPLETE = "Complete", "Complete"
+        PENDING = "Pending", "Pending"
+        DISPUTE = "Litige", "Litige"
 
     class TypePaiement(models.TextChoices):
-        MOBILE_MONEY = 'MOBILE_MONEY', 'Mobile Money'
-        ESPECES = 'ESPECES', 'Especes'
-        CARTE = 'CARTE', 'Carte'
+        MOBILE_MONEY = "MOBILE_MONEY", "Mobile Money"
+        ESPECES = "ESPECES", "Especes"
+        CARTE = "CARTE", "Carte"
 
     reference = models.CharField(max_length=40, unique=True)
     client = models.CharField(max_length=120)
     prestataire = models.CharField(max_length=120)
-    montant = models.CharField(max_length=40)
-    commission = models.CharField(max_length=40)
+    montant = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Montant en FCA",
+    )
+    commission = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Commission en FCA",
+    )
     etat = models.CharField(max_length=20, choices=State.choices, default=State.PENDING)
     reservation = models.ForeignKey(
-        'Reservation',
+        "Reservation",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='payments',
+        related_name="payments",
     )
     type_paiement = models.CharField(
         max_length=24,
@@ -252,7 +297,9 @@ class Payment(models.Model):
         default=TypePaiement.ESPECES,
     )
     valide_par_admin = models.BooleanField(default=False)
-    reference_externe = models.CharField(max_length=120, blank=True, default='', help_text='CinetPay / autre')
+    reference_externe = models.CharField(
+        max_length=120, blank=True, default="", help_text="CinetPay / autre"
+    )
 
     def __str__(self):
         return self.reference
@@ -260,14 +307,14 @@ class Payment(models.Model):
 
 class Category(models.Model):
     nom = models.CharField(max_length=80, unique=True)
-    description = models.TextField(blank=True, default='')
-    icone_url = models.CharField(max_length=500, blank=True, default='')
+    description = models.TextField(blank=True, default="")
+    icone_url = models.CharField(max_length=500, blank=True, default="")
     icone_slug = models.CharField(
         max_length=64,
         blank=True,
-        default='',
+        default="",
         db_index=True,
-        help_text='Slug → static/category-icons/{slug}.svg (SVG multicolore ; remplaçable par export IconScout sous licence, même nom de fichier).',
+        help_text="Slug → static/category-icons/{slug}.svg (SVG multicolore ; remplaçable par export IconScout sous licence, même nom de fichier).",
     )
     ordre_affichage = models.PositiveSmallIntegerField(default=0)
     services = models.PositiveIntegerField(default=0)
@@ -275,7 +322,7 @@ class Category(models.Model):
     actif = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ['ordre_affichage', 'nom']
+        ordering = ["ordre_affichage", "nom"]
 
     def __str__(self):
         return self.nom
@@ -287,57 +334,61 @@ class CategoryCommission(models.Model):
     category = models.OneToOneField(
         Category,
         on_delete=models.CASCADE,
-        related_name='commission',
+        related_name="commission",
     )
     commission_rate = models.PositiveSmallIntegerField(
         default=10,
-        help_text='Taux de commission en pourcentage (ex: 10 = 10%)',
+        help_text="Taux de commission en pourcentage (ex: 10 = 10%)",
     )
     actif = models.BooleanField(default=True)
 
     class Meta:
-        verbose_name = 'Commission catégorie'
-        verbose_name_plural = 'Commissions catégories'
+        verbose_name = "Commission catégorie"
+        verbose_name_plural = "Commissions catégories"
 
     def __str__(self):
-        return f'{self.category.nom} — {self.commission_rate}%'
+        return f"{self.category.nom} — {self.commission_rate}%"
 
 
 class Notification(models.Model):
     """Notification persistante par utilisateur (centre de notifications in-app)."""
 
     class NotifType(models.TextChoices):
-        RESERVATION = 'reservation', 'Réservation'
-        MESSAGE = 'message', 'Message'
-        VALIDATION = 'validation', 'Validation compte'
-        BROADCAST = 'broadcast', 'Annonce'
-        PAYMENT = 'payment', 'Paiement'
-        DISPUTE = 'dispute', 'Litige'
-        GENERAL = 'general', 'Général'
+        RESERVATION = "reservation", "Réservation"
+        MESSAGE = "message", "Message"
+        VALIDATION = "validation", "Validation compte"
+        BROADCAST = "broadcast", "Annonce"
+        PAYMENT = "payment", "Paiement"
+        DISPUTE = "dispute", "Litige"
+        GENERAL = "general", "Général"
 
     title = models.CharField(max_length=200)
-    body = models.TextField(blank=True, default='')
-    time = models.CharField(max_length=80, default='A l instant')
+    body = models.TextField(blank=True, default="")
+    time = models.CharField(max_length=80, default="A l instant")
     notif_type = models.CharField(
         max_length=20,
         choices=NotifType.choices,
         default=NotifType.GENERAL,
     )
-    reference = models.CharField(max_length=60, blank=True, default='',
-                                  help_text='Référence liée (réservation, litige…)')
+    reference = models.CharField(
+        max_length=60,
+        blank=True,
+        default="",
+        help_text="Référence liée (réservation, litige…)",
+    )
     lu = models.BooleanField(default=False, db_index=True)
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name='babifix_notifications',
-        help_text='None = notification admin globale',
+        related_name="babifix_notifications",
+        help_text="None = notification admin globale",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
 
     def __str__(self):
         return self.title
@@ -347,21 +398,25 @@ class DeviceToken(models.Model):
     """Jeton FCM (Firebase Cloud Messaging) par appareil — Phase 2 push mobile."""
 
     class Platform(models.TextChoices):
-        ANDROID = 'android', 'Android'
-        IOS = 'ios', 'iOS'
-        WEB = 'web', 'Web'
+        ANDROID = "android", "Android"
+        IOS = "ios", "iOS"
+        WEB = "web", "Web"
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fcm_device_tokens')
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="fcm_device_tokens"
+    )
     # 191 = limite index UNIQUE MySQL utf8mb4 (InnoDB ~1000 octets) ; jeton FCM < ~200 car.
     token = models.CharField(max_length=191, unique=True, db_index=True)
-    platform = models.CharField(max_length=16, choices=Platform.choices, default=Platform.ANDROID)
+    platform = models.CharField(
+        max_length=16, choices=Platform.choices, default=Platform.ANDROID
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-updated_at']
+        ordering = ["-updated_at"]
 
     def __str__(self):
-        return f'{self.user_id}:{self.token[:20]}…'
+        return f"{self.user_id}:{self.token[:20]}…"
 
 
 class SystemSetting(models.Model):
@@ -370,39 +425,42 @@ class SystemSetting(models.Model):
     maintenance = models.BooleanField(default=False)
     mode_paiement = models.CharField(
         max_length=120,
-        default='Especes + Orange Money, MTN MoMo, Wave, Moov (CI)',
+        default="Especes + Orange Money, MTN MoMo, Wave, Moov (CI)",
     )
 
     def __str__(self):
-        return 'BABIFIX Settings'
+        return "BABIFIX Settings"
 
 
 class UserProfile(models.Model):
     class Role(models.TextChoices):
-        CLIENT = 'client', 'Client'
-        PRESTATAIRE = 'prestataire', 'Prestataire'
-        ADMIN = 'admin', 'Admin'
+        CLIENT = "client", "Client"
+        PRESTATAIRE = "prestataire", "Prestataire"
+        ADMIN = "admin", "Admin"
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     role = models.CharField(max_length=20, choices=Role.choices)
     active = models.BooleanField(default=True)
-    phone_e164 = models.CharField(max_length=24, blank=True, default='')
-    country_code = models.CharField(max_length=5, blank=True, default='CI')
+    phone_e164 = models.CharField(max_length=24, blank=True, default="")
+    country_code = models.CharField(max_length=5, blank=True, default="CI")
     # v2 — Réinitialisation mot de passe
-    reset_token = models.CharField(max_length=80, blank=True, default='', db_index=True)
+    reset_token = models.CharField(max_length=80, blank=True, default="", db_index=True)
     reset_token_created_at = models.DateTimeField(null=True, blank=True)
     # v2 — Vérification email
     email_verified = models.BooleanField(default=False)
-    email_verify_token = models.CharField(max_length=80, blank=True, default='', db_index=True)
+    email_verify_token = models.CharField(
+        max_length=80, blank=True, default="", db_index=True
+    )
 
     def __str__(self):
-        return f'{self.user.username} ({self.role})'
+        return f"{self.user.username} ({self.role})"
 
 
 class SiteContent(models.Model):
     """Contenu éditable (vitrine, liens stores, textes)."""
+
     key = models.SlugField(max_length=80, unique=True)
-    value = models.TextField(blank=True, default='')
+    value = models.TextField(blank=True, default="")
     json_value = models.JSONField(null=True, blank=True)
 
     def __str__(self):
@@ -413,60 +471,67 @@ class Conversation(models.Model):
     client = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='babifix_conversations_as_client',
+        related_name="babifix_conversations_as_client",
     )
     prestataire = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='babifix_conversations_as_prestataire',
+        related_name="babifix_conversations_as_prestataire",
     )
     reservation = models.OneToOneField(
-        'Reservation',
+        "Reservation",
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name='chat_conversation',
+        related_name="chat_conversation",
     )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [
-            models.Index(fields=['client', 'prestataire']),
+            models.Index(fields=["client", "prestataire"]),
         ]
 
     def __str__(self):
-        return f'{self.client_id}-{self.prestataire_id}'
+        return f"{self.client_id}-{self.prestataire_id}"
 
 
 class Message(models.Model):
     conversation = models.ForeignKey(
         Conversation,
         on_delete=models.CASCADE,
-        related_name='messages',
+        related_name="messages",
     )
-    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='babifix_messages_sent')
-    body = models.TextField(blank=True, default='')
-    image = models.ImageField(upload_to='babifix_chat/', blank=True)
+    sender = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="babifix_messages_sent"
+    )
+    body = models.TextField(
+        blank=True,
+        default="",
+        validators=[MaxLengthValidator(5000)],
+        help_text="Maximum 5000 caractères",
+    )
+    image = models.ImageField(upload_to="babifix_chat/", blank=True)
     reply_to = models.ForeignKey(
-        'self',
+        "self",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='replies',
+        related_name="replies",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     lu = models.BooleanField(
         default=False,
         db_index=True,
-        help_text='Lu par le destinataire (pas l’expéditeur)',
+        help_text="Lu par le destinataire (pas l’expéditeur)",
     )
     deleted = models.BooleanField(default=False, db_index=True)
 
     class Meta:
-        ordering = ['created_at']
+        ordering = ["created_at"]
 
     def __str__(self):
-        return f'Msg {self.pk}'
+        return f"Msg {self.pk}"
 
 
 class Rating(models.Model):
@@ -475,44 +540,44 @@ class Rating(models.Model):
     reservation = models.OneToOneField(
         Reservation,
         on_delete=models.CASCADE,
-        related_name='rating',
+        related_name="rating",
     )
     client = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='babifix_ratings_given',
+        related_name="babifix_ratings_given",
     )
     provider = models.ForeignKey(
         Provider,
         on_delete=models.CASCADE,
-        related_name='ratings',
+        related_name="ratings",
     )
     note = models.PositiveSmallIntegerField()  # 1–5
-    commentaire = models.TextField(blank=True, default='')
+    commentaire = models.TextField(blank=True, default="")
     # Photos jointes à l’avis (data URLs base64 image/*, liste courte — MVP)
     photo_attachments = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
 
     def __str__(self):
-        return f'Rating {self.note} — {self.reservation_id}'
+        return f"Rating {self.note} — {self.reservation_id}"
 
 
 class Actualite(models.Model):
     """Actualités / annonces pour apps client & prestataire (hors blog complet)."""
 
     class CategorieTag(models.TextChoices):
-        NOUVEAU_PRESTATAIRE = 'nouveau_prestataire', 'Nouveau prestataire'
-        PAIEMENT = 'paiement', 'Paiement / Mobile Money'
-        PROMO = 'promo', 'Promotion'
-        MAINTENANCE = 'maintenance', 'Maintenance'
-        GENERAL = 'general', 'Général'
+        NOUVEAU_PRESTATAIRE = "nouveau_prestataire", "Nouveau prestataire"
+        PAIEMENT = "paiement", "Paiement / Mobile Money"
+        PROMO = "promo", "Promotion"
+        MAINTENANCE = "maintenance", "Maintenance"
+        GENERAL = "general", "Général"
 
     titre = models.CharField(max_length=150)
     description = models.TextField()
-    image = models.ImageField(upload_to='actualites/', blank=True)
+    image = models.ImageField(upload_to="actualites/", blank=True)
     date_publication = models.DateTimeField(auto_now_add=True)
     publie = models.BooleanField(default=False, db_index=True)
     categorie_tag = models.CharField(
@@ -523,21 +588,21 @@ class Actualite(models.Model):
     icone_key = models.CharField(
         max_length=40,
         blank=True,
-        default='',
-        help_text='Clé simple (ex. megaphone) pour UI',
+        default="",
+        help_text="Clé simple (ex. megaphone) pour UI",
     )
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='actualites_crees',
+        related_name="actualites_crees",
     )
 
     class Meta:
-        ordering = ['-date_publication']
-        verbose_name = 'Actualité'
-        verbose_name_plural = 'Actualités'
+        ordering = ["-date_publication"]
+        verbose_name = "Actualité"
+        verbose_name_plural = "Actualités"
 
     def __str__(self):
         return self.titre
@@ -547,45 +612,49 @@ class AdminAuditLog(models.Model):
     """Trace chaque action admin : validation prestataire, décision litige, action bulk."""
 
     class ActionType(models.TextChoices):
-        PROVIDER_ACCEPTED = 'provider_accepted', 'Prestataire accepté'
-        PROVIDER_REFUSED = 'provider_refused', 'Prestataire refusé'
-        PROVIDER_SUSPENDED = 'provider_suspended', 'Prestataire suspendu'
-        LITIGE_RESOLVED = 'litige_resolved', 'Litige résolu'
-        BULK_ACCEPT = 'bulk_accept', 'Validation en masse'
-        BULK_REFUSE = 'bulk_refuse', 'Refus en masse'
-        PAYMENT_VALIDATED = 'payment_validated', 'Paiement validé'
-        OTHER = 'other', 'Autre'
+        PROVIDER_ACCEPTED = "provider_accepted", "Prestataire accepté"
+        PROVIDER_REFUSED = "provider_refused", "Prestataire refusé"
+        PROVIDER_SUSPENDED = "provider_suspended", "Prestataire suspendu"
+        LITIGE_RESOLVED = "litige_resolved", "Litige résolu"
+        BULK_ACCEPT = "bulk_accept", "Validation en masse"
+        BULK_REFUSE = "bulk_refuse", "Refus en masse"
+        PAYMENT_VALIDATED = "payment_validated", "Paiement validé"
+        OTHER = "other", "Autre"
 
     admin_user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='audit_logs',
+        related_name="audit_logs",
     )
-    action = models.CharField(max_length=40, choices=ActionType.choices, default=ActionType.OTHER)
-    target_type = models.CharField(max_length=40, blank=True, default='')
+    action = models.CharField(
+        max_length=40, choices=ActionType.choices, default=ActionType.OTHER
+    )
+    target_type = models.CharField(max_length=40, blank=True, default="")
     target_id = models.IntegerField(null=True, blank=True)
-    target_label = models.CharField(max_length=200, blank=True, default='')
+    target_label = models.CharField(max_length=200, blank=True, default="")
     details = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']
-        verbose_name = 'Journal admin'
+        ordering = ["-created_at"]
+        verbose_name = "Journal admin"
 
     def __str__(self):
-        user = self.admin_user.username if self.admin_user else 'système'
-        return f'[{self.action}] {user} — {self.target_label}'
+        user = self.admin_user.username if self.admin_user else "système"
+        return f"[{self.action}] {user} — {self.target_label}"
 
 
 def recalc_provider_rating_stats(provider: Provider) -> None:
     from django.db.models import Avg, Count
 
-    agg = Rating.objects.filter(provider=provider).aggregate(avg=Avg('note'), cnt=Count('id'))
-    provider.average_rating = float(agg['avg'] or 0)
-    provider.rating_count = agg['cnt'] or 0
-    provider.save(update_fields=['average_rating', 'rating_count'])
+    agg = Rating.objects.filter(provider=provider).aggregate(
+        avg=Avg("note"), cnt=Count("id")
+    )
+    provider.average_rating = float(agg["avg"] or 0)
+    provider.rating_count = agg["cnt"] or 0
+    provider.save(update_fields=["average_rating", "rating_count"])
 
 
 class PrestataireAvailabilitySlot(models.Model):
@@ -594,21 +663,21 @@ class PrestataireAvailabilitySlot(models.Model):
     provider = models.ForeignKey(
         Provider,
         on_delete=models.CASCADE,
-        related_name='availability_slots',
+        related_name="availability_slots",
     )
     jour_semaine = models.PositiveSmallIntegerField(
-        help_text='0 = lundi, 6 = dimanche',
+        help_text="0 = lundi, 6 = dimanche",
     )
     heure_debut = models.TimeField()
     heure_fin = models.TimeField()
     actif = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ['jour_semaine', 'heure_debut']
-        unique_together = ['provider', 'jour_semaine', 'heure_debut']
+        ordering = ["jour_semaine", "heure_debut"]
+        unique_together = ["provider", "jour_semaine", "heure_debut"]
 
     def __str__(self):
-        return f'{self.provider.nom} — Jour {self.jour_semaine} {self.heure_debut}-{self.heure_fin}'
+        return f"{self.provider.nom} — Jour {self.jour_semaine} {self.heure_debut}-{self.heure_fin}"
 
 
 class PrestataireUnavailability(models.Model):
@@ -617,18 +686,18 @@ class PrestataireUnavailability(models.Model):
     provider = models.ForeignKey(
         Provider,
         on_delete=models.CASCADE,
-        related_name='unavailabilities',
+        related_name="unavailabilities",
     )
     date_debut = models.DateField()
     date_fin = models.DateField()
-    motif = models.CharField(max_length=200, blank=True, default='')
+    motif = models.CharField(max_length=200, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-date_debut']
+        ordering = ["-date_debut"]
 
     def __str__(self):
-        return f'{self.provider.nom} — {self.date_debut} à {self.date_fin}'
+        return f"{self.provider.nom} — {self.date_debut} à {self.date_fin}"
 
 
 # Import des modèles v2 (ClientRating) — doit rester en bas pour éviter les imports circulaires
@@ -641,18 +710,18 @@ class ClientFavorite(models.Model):
     client = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='favoris',
+        related_name="favoris",
     )
     provider = models.ForeignKey(
         Provider,
         on_delete=models.CASCADE,
-        related_name='favoris_par',
+        related_name="favoris_par",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ['client', 'provider']
-        ordering = ['-created_at']
+        unique_together = ["client", "provider"]
+        ordering = ["-created_at"]
 
     def __str__(self):
-        return f'{self.client.username} ♥ {self.provider.nom}'
+        return f"{self.client.username} ♥ {self.provider.nom}"

@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show kIsWeb, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -23,13 +25,13 @@ import '../../shared/widgets/address_search_field.dart';
 // =============================================================================
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const _kNavyDeep  = Color(0xFF050D1A);
-const _kNavy      = Color(0xFF0A1628);
-const _kCyan      = Color(0xFF4CC9F0);
-const _kBlue      = Color(0xFF2563EB);
-const _kBlueDark  = Color(0xFF1D4ED8);
-const _kGreen     = Color(0xFF10B981);
-const _kBlueDeep  = Color(0xFF1E40AF);
+const _kNavyDeep = Color(0xFF050D1A);
+const _kNavy = Color(0xFF0A1628);
+const _kCyan = Color(0xFF4CC9F0);
+const _kBlue = Color(0xFF2563EB);
+const _kBlueDark = Color(0xFF1D4ED8);
+const _kGreen = Color(0xFF10B981);
+const _kBlueDeep = Color(0xFF1E40AF);
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({
@@ -74,24 +76,24 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
   // ── Controllers étape 0 ───────────────────────────────────────────────────
   final _prenomCtrl = TextEditingController();
-  final _nomCtrl    = TextEditingController();
-  final _emailCtrl  = TextEditingController();
-  final _passCtrl   = TextEditingController();
-  final _pass2Ctrl  = TextEditingController();
-  bool _passVisible  = false;
+  final _nomCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _pass2Ctrl = TextEditingController();
+  bool _passVisible = false;
   bool _pass2Visible = false;
-  String _phoneE164  = '';
+  String _phoneE164 = '';
 
   // ── Controllers étape 1 ───────────────────────────────────────────────────
   final _villeCtrl = TextEditingController();
-  final _bioCtrl   = TextEditingController();
+  final _bioCtrl = TextEditingController();
   String? _specialite;
-  int?    _categoryId;
+  int? _categoryId;
   List<Map<String, dynamic>> _publicCategories = [];
-  bool   _loadingCategories = true;
-  double _yearsExperience   = 3;
+  bool _loadingCategories = true;
+  double _yearsExperience = 3;
   LatLng? _villePin;
-  String  _villeAddressLabel = '';
+  String _villeAddressLabel = '';
 
   // ── Documents étape 2 ────────────────────────────────────────────────────
   String? _profilePhotoPath;
@@ -126,16 +128,16 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   void _hydrateInitialProvider() {
     final p = widget.initialProvider;
     if (p == null) return;
-    final nom   = '${p['nom'] ?? ''}'.trim();
+    final nom = '${p['nom'] ?? ''}'.trim();
     final parts = nom.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
     if (parts.isNotEmpty) {
       _prenomCtrl.text = parts.first;
       if (parts.length > 1) _nomCtrl.text = parts.sublist(1).join(' ');
     }
-    _villeCtrl.text  = '${p['ville'] ?? ''}'.trim();
-    _bioCtrl.text    = '${p['bio'] ?? ''}'.trim();
-    _specialite      = '${p['specialite'] ?? ''}'.trim();
-    _categoryId      = jsonInt(p['category_id']);
+    _villeCtrl.text = '${p['ville'] ?? ''}'.trim();
+    _bioCtrl.text = '${p['bio'] ?? ''}'.trim();
+    _specialite = '${p['specialite'] ?? ''}'.trim();
+    _categoryId = jsonInt(p['category_id']);
     final exp = jsonDouble(p['years_experience']);
     if (exp > 0) _yearsExperience = exp.clamp(0, 40);
     final photo = '${p['photo_url'] ?? ''}'.trim();
@@ -158,8 +160,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             .toList();
         if (!mounted) return;
         setState(() {
-          _publicCategories    = rows;
-          _loadingCategories   = false;
+          _publicCategories = rows;
+          _loadingCategories = false;
         });
         return;
       }
@@ -171,13 +173,21 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     required ImageSource source,
     required void Function(String path) onPicked,
   }) async {
-    final x = await _picker.pickImage(
-      source: source,
-      imageQuality: 88,
-      maxWidth: 1600,
-    );
-    if (x == null || !mounted) return;
-    setState(() => onPicked(x.path));
+    if (source == ImageSource.camera && kIsWeb) {
+      debugPrint('Camera not supported on web');
+      return;
+    }
+    try {
+      final x = await _picker.pickImage(
+        source: source,
+        imageQuality: 88,
+        maxWidth: 1600,
+      );
+      if (x == null || !mounted) return;
+      setState(() => onPicked(x.path));
+    } catch (e) {
+      debugPrint('Image picker error: $e');
+    }
   }
 
   void _showImageSourceSheet(void Function(String path) onPicked) {
@@ -194,7 +204,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                   color: Colors.white24,
                   borderRadius: BorderRadius.circular(4),
@@ -203,22 +214,28 @@ class _RegistrationScreenState extends State<RegistrationScreen>
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.photo_library_rounded, color: _kCyan),
-                title: const Text('Choisir depuis la galerie',
-                    style: TextStyle(color: Colors.white)),
+                title: const Text(
+                  'Choisir depuis la galerie',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickImage(source: ImageSource.gallery, onPicked: onPicked);
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt_rounded, color: _kCyan),
-                title: const Text('Prendre une photo',
-                    style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickImage(source: ImageSource.camera, onPicked: onPicked);
-                },
-              ),
+              if (defaultTargetPlatform == TargetPlatform.android ||
+                  defaultTargetPlatform == TargetPlatform.iOS)
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_rounded, color: _kCyan),
+                  title: const Text(
+                    'Prendre une photo',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(source: ImageSource.camera, onPicked: onPicked);
+                  },
+                ),
             ],
           ),
         ),
@@ -243,7 +260,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   void _nextStep() {
     if (_step == 0) {
       if (!widget.credentialLock &&
-          !(_formStep0.currentState?.validate() ?? false)) return;
+          !(_formStep0.currentState?.validate() ?? false))
+        return;
     } else if (_step == 1) {
       if (!(_formStep1.currentState?.validate() ?? false)) return;
       if (_villeCtrl.text.trim().length < 3) {
@@ -319,18 +337,24 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF060E1C), Color(0xFF0B1B34), Color(0xFF0A1628)],
+                  colors: [
+                    Color(0xFF060E1C),
+                    Color(0xFF0B1B34),
+                    Color(0xFF0A1628),
+                  ],
                 ),
               ),
             ),
           ),
           // Orbes décoratifs
           Positioned(
-            top: -60, right: -50,
+            top: -60,
+            right: -50,
             child: _Orbe(color: _kCyan, size: 220, alpha: 0.13),
           ),
           Positioned(
-            bottom: -80, left: -60,
+            bottom: -80,
+            left: -60,
             child: _Orbe(color: _kBlue, size: 260, alpha: 0.09),
           ),
 
@@ -351,13 +375,16 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                     builder: (_, child) => FadeTransition(
                       opacity: _stepAnim,
                       child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0.04, 0),
-                          end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                          parent: _stepAnim,
-                          curve: Curves.easeOutCubic,
-                        )),
+                        position:
+                            Tween<Offset>(
+                              begin: const Offset(0.04, 0),
+                              end: Offset.zero,
+                            ).animate(
+                              CurvedAnimation(
+                                parent: _stepAnim,
+                                curve: Curves.easeOutCubic,
+                              ),
+                            ),
                         child: child,
                       ),
                     ),
@@ -385,7 +412,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           IconButton(
             onPressed: _prevStep,
             icon: Icon(
-              _step == 0 ? Icons.close_rounded : Icons.arrow_back_ios_new_rounded,
+              _step == 0
+                  ? Icons.close_rounded
+                  : Icons.arrow_back_ios_new_rounded,
               color: Colors.white70,
               size: 20,
             ),
@@ -394,14 +423,20 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           const Text(
             'BABIFIX',
             style: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w900,
-              color: _kCyan, letterSpacing: 3,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: _kCyan,
+              letterSpacing: 3,
             ),
           ),
           const SizedBox(width: 8),
           const Text(
             '· Inscription Prestataire',
-            style: TextStyle(fontSize: 13, color: Colors.white38, letterSpacing: 0.2),
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white38,
+              letterSpacing: 0.2,
+            ),
           ),
         ],
       ),
@@ -420,22 +455,24 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           borderRadius: BorderRadius.circular(4),
           child: SizedBox(
             height: 4,
-            child: Stack(children: [
-              Positioned.fill(
-                child: Container(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              FractionallySizedBox(
-                widthFactor: v,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [_kCyan, Color(0xFF0284C7)],
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Container(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                FractionallySizedBox(
+                  widthFactor: v,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [_kCyan, Color(0xFF0284C7)],
+                      ),
+                      borderRadius: BorderRadius.all(Radius.circular(4)),
                     ),
-                    borderRadius: BorderRadius.all(Radius.circular(4)),
                   ),
                 ),
-              ),
-            ]),
+              ],
+            ),
           ),
         ),
       ),
@@ -456,25 +493,30 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                 height: 1,
                 decoration: BoxDecoration(
                   gradient: filled
-                      ? const LinearGradient(colors: [_kCyan, Color(0xFF0284C7)])
+                      ? const LinearGradient(
+                          colors: [_kCyan, Color(0xFF0284C7)],
+                        )
                       : null,
                   color: filled ? null : Colors.white.withValues(alpha: 0.1),
                 ),
               ),
             );
           }
-          final idx    = i ~/ 2;
-          final done   = idx < _step;
+          final idx = i ~/ 2;
+          final done = idx < _step;
           final active = idx == _step;
           return Column(
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 280),
-                width: 32, height: 32,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: active
-                      ? const LinearGradient(colors: [_kCyan, Color(0xFF0284C7)])
+                      ? const LinearGradient(
+                          colors: [_kCyan, Color(0xFF0284C7)],
+                        )
                       : null,
                   color: done
                       ? _kGreen
@@ -484,18 +526,34 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                   border: active
                       ? null
                       : Border.all(
-                          color: done ? _kGreen : Colors.white.withValues(alpha: 0.15),
+                          color: done
+                              ? _kGreen
+                              : Colors.white.withValues(alpha: 0.15),
                           width: 1.5,
                         ),
                   boxShadow: active
-                      ? [BoxShadow(color: _kCyan.withValues(alpha: 0.45), blurRadius: 12)]
+                      ? [
+                          BoxShadow(
+                            color: _kCyan.withValues(alpha: 0.45),
+                            blurRadius: 12,
+                          ),
+                        ]
                       : done
-                      ? [BoxShadow(color: _kGreen.withValues(alpha: 0.35), blurRadius: 8)]
+                      ? [
+                          BoxShadow(
+                            color: _kGreen.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                          ),
+                        ]
                       : null,
                 ),
                 child: Center(
                   child: done
-                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        )
                       : Text(
                           '${idx + 1}',
                           style: TextStyle(
@@ -578,21 +636,34 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                 inputDecorationTheme: InputDecorationTheme(
                   filled: true,
                   fillColor: Colors.white.withValues(alpha: 0.07),
-                  labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
-                  floatingLabelStyle: const TextStyle(color: _kCyan, fontSize: 12),
+                  labelStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 14,
+                  ),
+                  floatingLabelStyle: const TextStyle(
+                    color: _kCyan,
+                    fontSize: 12,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.10),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.10),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: const BorderSide(color: _kCyan, width: 1.5),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                 ),
               ),
               child: Padding(
@@ -613,7 +684,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
               _DarkSectionHeader(
                 icon: Icons.lock_outline_rounded,
                 title: 'Sécurité du compte',
-                subtitle: 'Choisissez un mot de passe robuste (min. 8 caractères).',
+                subtitle:
+                    'Choisissez un mot de passe robuste (min. 8 caractères).',
                 iconColor: _kBlueDeep,
               ),
               const SizedBox(height: 12),
@@ -635,8 +707,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                 controller: _passCtrl,
                 visible: _passVisible,
                 onToggle: () => setState(() => _passVisible = !_passVisible),
-                validator: (v) =>
-                    (v == null || v.length < 8) ? 'Au moins 8 caractères' : null,
+                validator: (v) => (v == null || v.length < 8)
+                    ? 'Au moins 8 caractères'
+                    : null,
               ),
               const SizedBox(height: 12),
               _DarkFormFieldPassword(
@@ -652,7 +725,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
               _DarkInfoBox(
                 icon: Icons.info_outline_rounded,
                 color: _kCyan,
-                text: 'Votre e-mail et mot de passe sont conservés. '
+                text:
+                    'Votre e-mail et mot de passe sont conservés. '
                     'Modifiez uniquement les informations demandées lors du refus.',
               ),
             ],
@@ -719,16 +793,27 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                           color: _kBlue.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.timeline_rounded, color: _kBlue, size: 18),
+                        child: const Icon(
+                          Icons.timeline_rounded,
+                          color: _kBlue,
+                          size: 18,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       const Text(
                         'Années d\'expérience',
-                        style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 14),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
                       ),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [_kBlue, _kBlueDark],
@@ -755,7 +840,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                     ),
                     child: Slider(
                       value: _yearsExperience,
-                      min: 0, max: 40, divisions: 40,
+                      min: 0,
+                      max: 40,
+                      divisions: 40,
                       label: '${_yearsExperience.round()} ans',
                       onChanged: (v) => setState(() => _yearsExperience = v),
                     ),
@@ -771,7 +858,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
               controller: _bioCtrl,
               icon: Icons.description_outlined,
               maxLines: 4,
-              hint: 'Ex. : Plombier depuis 8 ans, spécialisé en rénovation et dépannage rapide...',
+              hint:
+                  'Ex. : Plombier depuis 8 ans, spécialisé en rénovation et dépannage rapide...',
             ),
             const SizedBox(height: 16),
 
@@ -788,7 +876,11 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                           color: _kCyan.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.location_city_rounded, color: _kCyan, size: 18),
+                        child: const Icon(
+                          Icons.location_city_rounded,
+                          color: _kCyan,
+                          size: 18,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -797,11 +889,18 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                           children: [
                             const Text(
                               'Ville & zone d\'intervention',
-                              style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 14),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
                             ),
                             Text(
                               'Entrez votre commune (Abidjan, Bouaké…)',
-                              style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4)),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.4),
+                              ),
                             ),
                           ],
                         ),
@@ -811,44 +910,62 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                   const SizedBox(height: 12),
                   Theme(
                     data: ThemeData.dark().copyWith(
-                      colorScheme: ThemeData.dark().colorScheme.copyWith(primary: _kCyan),
+                      colorScheme: ThemeData.dark().colorScheme.copyWith(
+                        primary: _kCyan,
+                      ),
                       inputDecorationTheme: InputDecorationTheme(
                         filled: true,
                         fillColor: Colors.white.withValues(alpha: 0.06),
-                        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                        labelStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
                         floatingLabelStyle: const TextStyle(color: _kCyan),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.10),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.10),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _kCyan, width: 1.5),
+                          borderSide: const BorderSide(
+                            color: _kCyan,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
                     child: BabifixAddressSearchField(
                       controller: _villeCtrl,
-                      onPlaceSelected: (LatLng ll, String label) => setState(() {
-                        _villePin = ll;
-                        _villeAddressLabel = label;
-                      }),
+                      onPlaceSelected: (LatLng ll, String label) =>
+                          setState(() {
+                            _villePin = ll;
+                            _villeAddressLabel = label;
+                          }),
                     ),
                   ),
                   if (_villePin != null) ...[
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 14, color: _kGreen),
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          size: 14,
+                          color: _kGreen,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Position enregistrée',
                           style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600, color: _kGreen,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _kGreen,
                           ),
                         ),
                       ],
@@ -894,15 +1011,23 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                 child: Row(
                   children: [
                     SizedBox(
-                      width: 28, height: 28,
+                      width: 28,
+                      height: 28,
                       child: ('${c['icone_url'] ?? ''}'.isNotEmpty)
                           ? SvgPicture.network(
                               '${c['icone_url']}',
                               fit: BoxFit.contain,
                               placeholderBuilder: (_) => const Icon(
-                                Icons.category_outlined, size: 20, color: Colors.white54),
+                                Icons.category_outlined,
+                                size: 20,
+                                color: Colors.white54,
+                              ),
                             )
-                          : const Icon(Icons.category_outlined, size: 20, color: Colors.white54),
+                          : const Icon(
+                              Icons.category_outlined,
+                              size: 20,
+                              color: Colors.white54,
+                            ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -933,11 +1058,21 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           iconEnabledColor: Colors.white38,
           decoration: InputDecoration(
             labelText: 'Spécialité (catégorie BABIFIX)',
-            labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+            labelStyle: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 14,
+            ),
             floatingLabelStyle: const TextStyle(color: _kCyan, fontSize: 12),
-            prefixIcon: const Icon(Icons.category_rounded, color: Colors.white38, size: 20),
+            prefixIcon: const Icon(
+              Icons.category_rounded,
+              color: Colors.white38,
+              size: 20,
+            ),
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
           ),
         ),
       ),
@@ -956,7 +1091,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           _DarkSectionHeader(
             icon: Icons.verified_user_outlined,
             title: 'Vérification d\'identité',
-            subtitle: 'Requis pour le badge Vérifié BABIFIX. Documents transmis à l\'admin de manière confidentielle.',
+            subtitle:
+                'Requis pour le badge Vérifié BABIFIX. Documents transmis à l\'admin de manière confidentielle.',
             iconColor: _kBlueDeep,
           ),
           const SizedBox(height: 20),
@@ -970,7 +1106,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             locked: widget.documentsLocked,
             onPick: widget.documentsLocked
                 ? null
-                : () => _showImageSourceSheet((p) => setState(() => _profilePhotoPath = p)),
+                : () => _showImageSourceSheet(
+                    (p) => setState(() => _profilePhotoPath = p),
+                  ),
           ),
           const SizedBox(height: 14),
 
@@ -984,7 +1122,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             lockMessage: 'CNI vérifiée et verrouillée',
             onPick: widget.documentsLocked
                 ? null
-                : () => _showImageSourceSheet((p) => setState(() => _cniRectoPath = p)),
+                : () => _showImageSourceSheet(
+                    (p) => setState(() => _cniRectoPath = p),
+                  ),
           ),
           const SizedBox(height: 14),
 
@@ -998,7 +1138,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             lockMessage: 'CNI vérifiée et verrouillée',
             onPick: widget.documentsLocked
                 ? null
-                : () => _showImageSourceSheet((p) => setState(() => _cniVersoPath = p)),
+                : () => _showImageSourceSheet(
+                    (p) => setState(() => _cniVersoPath = p),
+                  ),
           ),
 
           const SizedBox(height: 20),
@@ -1007,7 +1149,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           _DarkInfoBox(
             icon: Icons.shield_outlined,
             color: Colors.white38,
-            text: 'Vos données sont protégées conformément à la loi ivoirienne n°2013-450 '
+            text:
+                'Vos données sont protégées conformément à la loi ivoirienne n°2013-450 '
                 '(ARTCI). Aucun document n\'est partagé avec un tiers sans votre consentement.',
           ),
 
@@ -1021,30 +1164,45 @@ class _RegistrationScreenState extends State<RegistrationScreen>
               height: 58,
               decoration: BoxDecoration(
                 gradient: _submitting
-                    ? const LinearGradient(colors: [Color(0xFF475569), Color(0xFF334155)])
+                    ? const LinearGradient(
+                        colors: [Color(0xFF475569), Color(0xFF334155)],
+                      )
                     : const LinearGradient(colors: [_kCyan, Color(0xFF0284C7)]),
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: _submitting
                     ? []
-                    : [BoxShadow(color: _kCyan.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 8))],
+                    : [
+                        BoxShadow(
+                          color: _kCyan.withValues(alpha: 0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
               ),
               child: Center(
                 child: _submitting
                     ? const SizedBox(
-                        width: 24, height: 24,
+                        width: 24,
+                        height: 24,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2.5, color: Colors.white,
+                          strokeWidth: 2.5,
+                          color: Colors.white,
                         ),
                       )
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                          Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                           SizedBox(width: 10),
                           Text(
                             'Soumettre ma demande',
                             style: TextStyle(
-                              color: Colors.white, fontSize: 17,
+                              color: Colors.white,
+                              fontSize: 17,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -1059,7 +1217,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
               'Votre dossier sera examiné par l\'équipe BABIFIX (48–72 h)',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 11.5, color: Colors.white.withValues(alpha: 0.35), height: 1.4,
+                fontSize: 11.5,
+                color: Colors.white.withValues(alpha: 0.35),
+                height: 1.4,
               ),
             ),
           ),
@@ -1072,16 +1232,16 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   // API — soumission
   // =========================================================================
   Future<_SubmitResult> _submitRegistration() async {
-    final base     = babifixApiBaseUrl();
-    final email    = _emailCtrl.text.trim();
+    final base = babifixApiBaseUrl();
+    final email = _emailCtrl.text.trim();
     final username = email.isNotEmpty
         ? email
         : 'prest_${DateTime.now().millisecondsSinceEpoch}';
-    final password   = _passCtrl.text;
-    final phone      = _phoneE164.trim();
-    final villeText  = _villeCtrl.text.trim();
+    final password = _passCtrl.text;
+    final phone = _phoneE164.trim();
+    final villeText = _villeCtrl.text.trim();
     final compactCity = _compactCity(villeText);
-    final addrLabel  = _villeAddressLabel.isNotEmpty
+    final addrLabel = _villeAddressLabel.isNotEmpty
         ? _villeAddressLabel.trim()
         : villeText;
 
@@ -1163,7 +1323,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         },
         body: body,
       );
-      final ok = response.statusCode >= 200 &&
+      final ok =
+          response.statusCode >= 200 &&
           response.statusCode < 300 &&
           response.body.isNotEmpty;
       if (!ok) {
@@ -1171,10 +1332,14 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           try {
             final err = jsonDecode(response.body) as Map<String, dynamic>;
             final code = '${err['error'] ?? ''}'.trim();
-            if (code.isNotEmpty) return _SubmitResult(false, _mapApiError(code));
+            if (code.isNotEmpty)
+              return _SubmitResult(false, _mapApiError(code));
           } catch (_) {}
         }
-        return _SubmitResult(false, 'Dossier : erreur serveur (${response.statusCode}).');
+        return _SubmitResult(
+          false,
+          'Dossier : erreur serveur (${response.statusCode}).',
+        );
       }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (data['ok'] != true) {
@@ -1188,10 +1353,10 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   }
 
   String _compactCity(String raw) {
-    final t     = raw.trim();
+    final t = raw.trim();
     if (t.isEmpty) return t;
     final first = t.split(',').first.trim();
-    final out   = first.isNotEmpty ? first : t;
+    final out = first.isNotEmpty ? first : t;
     return out.length > 80 ? out.substring(0, 80) : out;
   }
 }
@@ -1229,11 +1394,15 @@ class _Orbe extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
-          colors: [color.withValues(alpha: alpha), Colors.transparent],
+          colors: [
+            color.withValues(alpha: alpha),
+            Colors.transparent,
+          ],
         ),
       ),
     );
@@ -1297,14 +1466,18 @@ class _DarkSectionHeader extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
                 style: TextStyle(
-                  fontSize: 12.5, color: Colors.white.withValues(alpha: 0.45), height: 1.4,
+                  fontSize: 12.5,
+                  color: Colors.white.withValues(alpha: 0.45),
+                  height: 1.4,
                 ),
               ),
             ],
@@ -1343,13 +1516,20 @@ class _DarkFormField extends StatelessWidget {
       keyboardType: keyboardType,
       textInputAction: textInputAction,
       style: const TextStyle(color: Colors.white, fontSize: 15),
-      validator: validator ??
+      validator:
+          validator ??
           (v) => (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
-        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+        hintStyle: TextStyle(
+          color: Colors.white.withValues(alpha: 0.3),
+          fontSize: 13,
+        ),
+        labelStyle: TextStyle(
+          color: Colors.white.withValues(alpha: 0.5),
+          fontSize: 14,
+        ),
         floatingLabelStyle: const TextStyle(color: _kCyan, fontSize: 12),
         prefixIcon: icon != null
             ? Icon(icon, color: Colors.white.withValues(alpha: 0.4), size: 20)
@@ -1377,7 +1557,10 @@ class _DarkFormField extends StatelessWidget {
           borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
         ),
         errorStyle: const TextStyle(color: Color(0xFFFC8181)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -1406,10 +1589,16 @@ class _DarkFormFieldPassword extends StatelessWidget {
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+        labelStyle: TextStyle(
+          color: Colors.white.withValues(alpha: 0.5),
+          fontSize: 14,
+        ),
         floatingLabelStyle: const TextStyle(color: _kCyan, fontSize: 12),
-        prefixIcon: Icon(Icons.lock_outline_rounded,
-            color: Colors.white.withValues(alpha: 0.4), size: 20),
+        prefixIcon: Icon(
+          Icons.lock_outline_rounded,
+          color: Colors.white.withValues(alpha: 0.4),
+          size: 20,
+        ),
         suffixIcon: IconButton(
           onPressed: onToggle,
           icon: Icon(
@@ -1441,7 +1630,10 @@ class _DarkFormFieldPassword extends StatelessWidget {
           borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
         ),
         errorStyle: const TextStyle(color: Color(0xFFFC8181)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -1509,7 +1701,8 @@ class _DarkGradientButton extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: _kCyan.withValues(alpha: 0.4),
-              blurRadius: 18, offset: const Offset(0, 7),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
             ),
           ],
         ),
@@ -1519,8 +1712,10 @@ class _DarkGradientButton extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                color: Colors.white, fontSize: 15,
-                fontWeight: FontWeight.w800, letterSpacing: 0.2,
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
               ),
             ),
             const SizedBox(width: 8),
@@ -1586,7 +1781,12 @@ class _DarkDocPickerCard extends StatelessWidget {
             width: hasImage && !locked ? 1.5 : 1,
           ),
           boxShadow: hasImage && !locked
-              ? [BoxShadow(color: accentColor.withValues(alpha: 0.15), blurRadius: 12)]
+              ? [
+                  BoxShadow(
+                    color: accentColor.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                  ),
+                ]
               : null,
         ),
         child: Row(
@@ -1597,16 +1797,19 @@ class _DarkDocPickerCard extends StatelessWidget {
               child: hasImage && preview != null
                   ? Image(
                       image: preview,
-                      width: 72, height: 72,
+                      width: 72,
+                      height: 72,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
-                        width: 72, height: 72,
+                        width: 72,
+                        height: 72,
                         color: accentColor.withValues(alpha: 0.10),
                         child: Icon(icon, color: accentColor, size: 30),
                       ),
                     )
                   : Container(
-                      width: 72, height: 72,
+                      width: 72,
+                      height: 72,
                       decoration: BoxDecoration(
                         color: accentColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
@@ -1622,56 +1825,86 @@ class _DarkDocPickerCard extends StatelessWidget {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: 12, color: Colors.white.withValues(alpha: 0.45), height: 1.35,
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.45),
+                      height: 1.35,
                     ),
                   ),
                   const SizedBox(height: 8),
                   if (locked)
-                    Row(children: [
-                      Icon(Icons.lock_rounded, size: 12, color: Colors.white38),
-                      const SizedBox(width: 5),
-                      Text(
-                        lockMessage ?? 'Verrouillé',
-                        style: const TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white38,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.lock_rounded,
+                          size: 12,
+                          color: Colors.white38,
                         ),
-                      ),
-                    ])
+                        const SizedBox(width: 5),
+                        Text(
+                          lockMessage ?? 'Verrouillé',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white38,
+                          ),
+                        ),
+                      ],
+                    )
                   else if (hasImage)
-                    Row(children: [
-                      Icon(Icons.check_circle_rounded, size: 13, color: accentColor),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Ajouté · Appuyez pour modifier',
-                        style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w600, color: accentColor,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 13,
+                          color: accentColor,
                         ),
-                      ),
-                    ])
+                        const SizedBox(width: 5),
+                        Text(
+                          'Ajouté · Appuyez pour modifier',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: accentColor,
+                          ),
+                        ),
+                      ],
+                    )
                   else
-                    Row(children: [
-                      Icon(Icons.upload_file_rounded, size: 13, color: accentColor),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Appuyez pour importer',
-                        style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w700, color: accentColor,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.upload_file_rounded,
+                          size: 13,
+                          color: accentColor,
                         ),
-                      ),
-                    ]),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Appuyez pour importer',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: accentColor,
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
             if (!locked)
-              Icon(Icons.chevron_right_rounded,
-                  color: Colors.white.withValues(alpha: 0.25)),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white.withValues(alpha: 0.25),
+              ),
           ],
         ),
       ),

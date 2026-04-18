@@ -21,7 +21,13 @@ const kBabifixSentryDsn = String.fromEnvironment(
 );
 
 /// Port du `python manage.py runserver` (aligné doc BABIFIX).
-const int kBabifixApiPort = 8000;
+const int kBabifixApiPort = 8003;
+
+/// IP locale de ton电脑 (remplace par ton IP réelle)
+const String kBabifixApiIp =
+    '10.0.2.2'; // <-- IP émulateur Android vers localhost
+const String kBabifixApiIpDesktop =
+    '127.0.0.1'; // <-- IP pour Windows/Mac/Linux/Web
 
 /// Base URL du backend.
 ///
@@ -32,12 +38,12 @@ String babifixApiBaseUrl() {
     return fromEnv.replaceAll(RegExp(r'/$'), '');
   }
   if (kIsWeb) {
-    return 'http://127.0.0.1:$kBabifixApiPort';
+    return 'http://$kBabifixApiIpDesktop:$kBabifixApiPort';
   }
   if (defaultTargetPlatform == TargetPlatform.android) {
-    return 'http://10.0.2.2:$kBabifixApiPort';
+    return 'http://$kBabifixApiIp:$kBabifixApiPort';
   }
-  return 'http://127.0.0.1:$kBabifixApiPort';
+  return 'http://$kBabifixApiIpDesktop:$kBabifixApiPort';
 }
 
 /// WebSocket Django Channels.

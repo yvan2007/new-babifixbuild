@@ -1421,7 +1421,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
                     {% for c in categories %}{% if forloop.counter <= 4 %}
                     <div class="phone-card">
                       <div class="phone-emoji">{{ c.icon_emoji|default:"🔧" }}</div>
-                      <div class="phone-card-label">{{ c.nom|default:c.name }}</div>
+                      <div class="phone-card-label">{{ c.nom }}</div>
                     </div>
                     {% endif %}{% endfor %}
                   {% else %}
@@ -1528,9 +1528,9 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
         <article class="cat-card" id="cat-{{ c.id }}"
           style="--cat-color:{{ c.color|default:'#0284c7' }}22; --cat-bg:{{ c.color|default:'#0284c7' }}18;">
           <div class="cat-ico-wrap" style="background:{{ c.color|default:'#0284c7' }}18;">
-            <span class="cat-emoji" role="img" aria-label="{{ c.nom|default:c.name }}">{{ c.icon_emoji|default:"🔧" }}</span>
+            <span class="cat-emoji" role="img" aria-label="{{ c.nom }}">{{ c.icon_emoji|default:"🔧" }}</span>
           </div>
-          <h3 class="cat-name">{{ c.nom|default:c.name }}</h3>
+          <h3 class="cat-name">{{ c.nom }}</h3>
           {% if c.description %}<p class="cat-desc">{{ c.description }}</p>{% endif %}
         </article>
         {% endfor %}
@@ -2053,7 +2053,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
     <div class="foot-col">
       <h3>Services</h3>
       {% if categories %}{% for c in categories %}{% if forloop.counter <= 6 %}
-      <a href="#cat-{{ c.id }}">{{ c.nom|default:c.name }}</a>
+      <a href="#cat-{{ c.id }}">{{ c.nom }}</a>
       {% endif %}{% endfor %}{% else %}
       <a href="#categories">Plomberie</a>
       <a href="#categories">Électricité</a>
