@@ -1,0 +1,220 @@
+@startuml BABIFIX - Diagramme de Cas d'Utilisation
+!theme plain
+skinparam backgroundColor #E3F2FD
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+
+skinparam rectangle {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam actor {
+  BackgroundColor #90CAF9
+  BorderColor #1976D2
+}
+
+skinparam arrow {
+  Color #64B5F6
+  FontColor #01579B
+}
+
+title **BABIFIX** - Diagramme de Cas d'Utilisation Complet\nPlateforme de Services à Domicile
+
+' ==================== ACTEURS ====================
+actor "Client" as Client
+actor "Prestataire" as Prestataire
+actor "Admin" as Admin
+
+' ==================== SYSTÈME BABIFIX ====================
+rectangle "BABIFIX - Application Client" as AppClient {
+  usecase "S'inscrire" as UC01
+  usecase "Se connecter" as UC02
+  usecase "Consulter les catégories" as UC03
+  usecase "Explorer sans connexion" as UC04
+  usecase "Choisir un prestataire" as UC05
+  usecase "Créer une demande" as UC06A
+  usecase "Recevoir un devis" as UC06B
+  usecase "Accepter/Refuser devis" as UC06C
+  usecase "Réserver une prestation" as UC06
+  usecase "Payer (Mobile Money)" as UC07
+  usecase "Valider la prestation" as UC07B
+  usecase "Noter et commenter" as UC08
+  usecase "Consulter historique" as UC09
+  usecase "Chatter avec prestataire" as UC10
+  usecase "Consulter profil prestataire" as UC11
+  usecase "Annuler réservation" as UC12
+  usecase "Signaler un problème" as UC13
+  usecase "Ajouter aux favoris" as UC14
+  usecase "Consulter notifications" as UC15
+  usecase "Activer biométrie" as UC16
+  usecase "Ouvrir un litige" as UC17
+  usecase "Voir sur la carte" as UC18
+}
+
+rectangle "BABIFIX Pro - Application Prestataire" as AppPro {
+  usecase "S'inscrire (formulaire CNI)" as UC20
+  usecase "Se connecter" as UC21
+  usecase "Gérer son profil" as UC22
+  usecase "Consulter demandes clients" as UC23A
+  usecase "Consulter rendez-vous" as UC23
+  usecase "Créer un devis" as UC23B
+  usecase "Confirmer paiement espèces" as UC24
+  usecase "Suivre ses gains" as UC25
+  usecase "Recevoir notifications" as UC26
+  usecase "Accepter/Refuser demande" as UC27
+  usecase "Démarrer intervention" as UC27B
+  usecase "Terminer intervention" as UC27C
+  usecase "Chatter avec client" as UC28
+  usecase "Consulter statistiques personnelles" as UC29
+  usecase "Mettre à jour disponibilités" as UC30
+  usecase "Déclarer indisponibilité" as UC31
+  usecase "Gérer son portfolio" as UC32
+  usecase "Noter le client" as UC33
+}
+
+rectangle "BABIFIX Admin - Panel Gestionnaire" as AppAdmin {
+  usecase "Valider prestataires" as UC40
+  usecase "Visualiser statistiques" as UC41
+  usecase "Gérer catégories" as UC42
+  usecase "Envoyer notifications" as UC43
+  usecase "Gérer paiements espèces" as UC44
+  usecase "Gérer utilisateurs" as UC45
+  usecase "Consulter revenus" as UC46
+  usecase "Mettre à jour contenu dynamique" as UC47
+  usecase "Gérer FAQ" as UC48
+  usecase "Voir toutes les données" as UC49
+  usecase "Exporter données CSV" as UC50
+  usecase "Actions bulk (valider/refuser)" as UC51
+  usecase "Consulter journal d'audit" as UC52
+  usecase "Gérer commissions par catégorie" as UC53
+}
+
+' ==================== RELATIONS ACTEURS - CAS D'UTILISATION ====================
+Client --> UC01
+Client --> UC02
+Client --> UC03
+Client --> UC04
+Client --> UC05
+Client --> UC06A
+Client --> UC06B
+Client --> UC06C
+Client --> UC06
+Client --> UC07
+Client --> UC07B
+Client --> UC08
+Client --> UC09
+Client --> UC10
+Client --> UC11
+Client --> UC12
+Client --> UC13
+Client --> UC14
+Client --> UC15
+Client --> UC16
+Client --> UC17
+Client --> UC18
+
+Prestataire --> UC20
+Prestataire --> UC21
+Prestataire --> UC22
+Prestataire --> UC23A
+Prestataire --> UC23
+Prestataire --> UC23B
+Prestataire --> UC24
+Prestataire --> UC25
+Prestataire --> UC26
+Prestataire --> UC27
+Prestataire --> UC27B
+Prestataire --> UC27C
+Prestataire --> UC28
+Prestataire --> UC29
+Prestataire --> UC30
+Prestataire --> UC31
+Prestataire --> UC32
+Prestataire --> UC33
+
+Admin --> UC40
+Admin --> UC41
+Admin --> UC42
+Admin --> UC43
+Admin --> UC44
+Admin --> UC45
+Admin --> UC46
+Admin --> UC47
+Admin --> UC48
+Admin --> UC49
+Admin --> UC50
+Admin --> UC51
+Admin --> UC52
+Admin --> UC53
+
+' ==================== INCLUDE ====================
+UC05 ..> UC02 : <<include>>
+UC06A ..> UC02 : <<include>>
+UC06A ..> UC05 : <<include>>
+UC06B ..> UC06A : <<include>>
+UC06C ..> UC06B : <<include>>
+UC06 ..> UC06C : <<include>>
+UC07 ..> UC06 : <<include>>
+UC07B ..> UC07 : <<include>>\n(paiement après validation)
+UC08 ..> UC06 : <<include>>
+UC09 ..> UC02 : <<include>>
+UC10 ..> UC06 : <<include>>
+UC11 ..> UC03 : <<include>>
+UC12 ..> UC06 : <<include>>
+UC13 ..> UC02 : <<include>>
+
+UC23A ..> UC21 : <<include>>
+UC23 ..> UC21 : <<include>>
+UC23B ..> UC23A : <<include>>
+UC24 ..> UC23 : <<include>>
+UC25 ..> UC21 : <<include>>
+UC26 ..> UC21 : <<include>>
+UC27 ..> UC23A : <<include>>
+UC27B ..> UC27 : <<include>>
+UC27C ..> UC27B : <<include>>
+UC28 ..> UC23 : <<include>>
+UC29 ..> UC21 : <<include>>
+UC30 ..> UC21 : <<include>>
+
+UC40 ..> UC49 : <<include>>
+UC41 ..> UC49 : <<include>>
+UC42 ..> UC49 : <<include>>
+UC43 ..> UC49 : <<include>>
+UC44 ..> UC49 : <<include>>
+UC45 ..> UC49 : <<include>>
+UC46 ..> UC41 : <<include>>
+UC47 ..> UC49 : <<include>>
+UC48 ..> UC42 : <<include>>
+
+' ==================== EXTEND ====================
+UC04 ..> UC03 : <<extend>>
+UC07 ..> UC06C : <<extend>>\n(paiement mobile)
+UC07B ..> UC06C : <<extend>>\n(payé après validation)
+UC24 ..> UC23 : <<extend>>\n(option espèces)
+
+note top of UC07
+  IMPORTANT: Paiement APRES validation
+  de la prestation (pas de séquestre)
+end note
+
+' ==================== ACTEUR EXTERNE ====================
+actor "API Paiement\n(Mobile Money)" as PaymentAPI
+actor "FCM\n(Notifications)" as FCM
+
+UC07 ..> PaymentAPI : utilise
+UC26 ..> FCM : utilise
+UC15 ..> FCM : utilise
+
+@enduml

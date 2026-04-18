@@ -1,0 +1,157 @@
+@startuml BABIFIX Admin - Diagramme d'Activité - Gestion du Système
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+
+skinparam activity {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+  FontSize 12
+}
+
+skinparam activityArrow {
+  Color #64B5F6
+}
+
+skinparam activityDiamond {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam partition {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam note {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+
+title **BABIFIX Admin** - Diagramme d'Activité : Gestion Complète du Système
+
+|Admin|
+start
+:Accéder au Panel Admin (Flutter Web);
+:Se connecter via Firebase Auth;
+
+|Système|
+:Vérifier que role = "admin";
+
+if (Accès autorisé ?) then (oui)
+  :Accès accordé au dashboard;
+else (non)
+  :Redirection vers page de login;
+  stop
+endif
+
+|Admin|
+:Afficher Dashboard principal;
+
+fork
+  partition "Validation Prestataires" {
+    :Menu "Prestataires en attente";
+    :Charger liste des prestataires avec statut PENDING;
+    :Sélectionner un dossier;
+    :Examiner photo CNI + informations saisies;
+    
+    if (Décision ?) then (Valider)
+      :Cliquer "Approuver";
+      |Système|
+      :Mettre à jour role = "prestataire";
+      :Mettre à jour statutValidation = "VALIDE";
+      :Migrer vers collection "prestataires";
+      :Envoyer notification FCM "Compte validé";
+    else (Refuser)
+      :Saisir motif de refus obligatoire;
+      :Cliquer "Refuser";
+      |Système|
+      :Mettre à jour statutValidation = "REFUSE";
+      :Enregistrer motifRefus;
+      :Envoyer notification FCM "Demande refusée : [motif]";
+    endif
+  }
+
+fork again
+  partition "Gestion Catégories" {
+    :Menu "Catégories";
+    
+    if (Action souhaitée ?) then (Créer nouvelle)
+      :Ouvrir formulaire création;
+      :Remplir nom, description, icône, ordre d'affichage;
+      |Système|
+      :Ajouter document dans "categories" (actif = true);
+    elseif (Modifier existante)
+      :Sélectionner catégorie;
+      :Modifier nom / description / icône / ordre;
+      |Système|
+      :Mettre à jour document Firestore;
+    else (Désactiver / Supprimer)
+      :Sélectionner catégorie;
+      :Cliquer "Désactiver";
+      |Système|
+      :Mettre à jour actif = false;
+      :Catégorie devient invisible pour les clients;
+    endif
+  }
+
+fork again
+  partition "Statistiques & Rapports" {
+    :Menu "Statistiques";
+    |Système|
+    :Récupérer et agréger données (réservations, paiements, utilisateurs);
+    :Calculer revenus totaux, commissions BABIFIX, CA;
+    :Calculer nombre de réservations (par statut, par période);
+    :Calculer utilisateurs actifs, prestataires validés;
+    :Générer graphiques et KPIs;
+    |Admin|
+    :Consulter / exporter rapports;
+  }
+
+fork again
+  partition "Validation Paiements Espèces" {
+    :Menu "Paiements en attente (espèces)";
+    :Charger liste des réservations TERMINEE avec paiement ESPECES non validé;
+    :Consulter détails réservation + déclarations client/prestataire;
+    
+    if (Valider paiement ?) then (oui)
+      :Cliquer "Valider";
+      |Système|
+      :Mettre à jour statutPaiement = PAYE;
+      :Enregistrer commission + montant prestataire;
+      :Créer document paiement validé;
+      :Notifier prestataire "Paiement validé - Gains disponibles";
+    else (non - litige)
+      :Saisir motif / ouvrir ticket support;
+      |Système|
+      :Mettre à jour statutPaiement = REFUSE ou EN_LITIGE;
+      :Notifier client et prestataire;
+    endif
+  }
+
+fork again
+  partition "Envoi Notifications Globales" {
+    :Menu "Notifications / Campagnes";
+    :Composer titre + corps du message;
+    :Sélectionner destinataires (tous clients, tous prestataires, segment spécifique, tous utilisateurs);
+    :Option : planifier envoi / envoyer immédiatement;
+    |Système|
+    :Envoyer via Firebase Cloud Messaging (FCM);
+    :Enregistrer trace d'envoi;
+  }
+end fork
+
+|Admin|
+:Déconnexion ou fin de session;
+stop
+
+@enduml

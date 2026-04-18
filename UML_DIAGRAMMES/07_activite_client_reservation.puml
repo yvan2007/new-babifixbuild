@@ -1,0 +1,159 @@
+@startuml BABIFIX - Diagramme d'Activite - Client : Reservation (Nouveau Flux Devis)
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+
+skinparam activity {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+  FontSize 12
+}
+
+skinparam activityArrow {
+  Color #64B5F6
+}
+
+skinparam activityDiamond {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam partition {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+}
+
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+
+title **BABIFIX** - Diagramme d'Activite : Flux Reservation Client (Nouveau Parcours Devis)
+
+partition "Client" {
+  start
+  :Ouvrir l'application BABIFIX;
+  :Consulter les categories de services;
+}
+
+partition "Systeme" {
+  if (Utilisateur deja connecte ?) then (oui)
+    :Continuer le flux;
+  else (non)
+    partition "Client" {
+      :S'inscrire ou se connecter;
+      :Authentification JWT Django\n(POST /api/auth/login/);
+    }
+    partition "Systeme" {
+      :Verifier que le role = "client";
+    }
+  endif
+}
+
+partition "Client" {
+  :Selectionner une categorie;
+}
+
+partition "Systeme" {
+  :Charger la liste des prestataires disponibles via API;
+  :Appliquer les filtres (note moyenne, tarif, disponibilite, ville...);
+}
+
+partition "Client" {
+  :Parcourir la liste des prestataires;
+  :Consulter le profil detaille + avis;
+  :Choisir un prestataire;
+}
+
+partition "Systeme" {
+  :Verifier la disponibilite du prestataire\n(API check-provider-availability);
+}
+
+partition "Client" {
+  :Decrire le probleme (description + photos);
+  :Selectionner date et heure;
+  :Saisir l'adresse d'intervention;
+  :Ajouter un message (facultatif);
+  :Visualiser le recapitulatif;
+  :Envoyer la demande;
+}
+
+partition "Systeme" {
+  :Creer la reservation via API REST\n(POST /api/client/reservations);
+  :Definir statut = DEMANDE_ENVOYEE;
+  :Envoyer notification push au prestataire (FCM);
+}
+
+partition "Prestataire" {
+  :Recevoir la demande;
+  :Analyser le probleme;
+  :Preparer le devis;
+}
+
+partition "Systeme" {
+  :Prestataire envoie le devis\n(POST /api/prestataire/requests/{ref}/devis);
+  :Mettre a jour reservation : DEVIS_ENVOYE;
+  :Notifier le client (FCM);
+}
+
+partition "Client" {
+  if (Devis recu ?) then (oui)
+    :Consulter le devis detaille;
+    if (Accepter le devis ?) then (oui)
+      :Accepter le devis;
+      partition "Systeme" {
+        :Mettre a jour reservation : DEVIS_ACCEPTE;
+        :Notifier le prestataire;
+      }
+      :Attendre intervention;
+    else (non)
+      :Refuser le devis;
+      partition "Systeme" {
+        :Mettre a jour reservation : DEMANDE_ENVOYEE;
+        :Notifier le prestataire;
+      }
+      stop
+    endif
+  else (non - timeout)
+    :Annuler la demande;
+    stop
+  endif
+}
+
+partition "Prestataire" {
+  :Intervention sur place;
+}
+
+partition "Systeme" {
+  :Mettre a jour reservation : INTERVENTION_EN_COURS;
+  :Notifier le client "Intervention demarree";
+}
+
+partition "Prestataire" {
+  :Terminer l'intervention;
+}
+
+partition "Systeme" {
+  :Mettre a jour reservation : EN_ATTENTE_CLIENT;
+  :Notifier le client "Prestation terminee - Merci de valider";
+}
+
+partition "Client" {
+  :Confirmer la reception / valider le travail;
+}
+
+partition "Systeme" {
+  :Mettre a jour reservation : TERMINEE;
+  :Paiement effectif (especes ou mobile money);
+  :Calculer et enregistrer la commission;
+}
+
+partition "Client" {
+  :Noter le prestataire;
+}
+stop
+
+@enduml

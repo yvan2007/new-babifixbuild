@@ -1,0 +1,72 @@
+@startuml BABIFIX - State Machine Prestataire
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam state {
+  BackgroundColor #C8E6C9
+  BorderColor #2E7D32
+  FontColor #1B5E20
+  EndStateBackgroundColor #FFCCBC
+  EndStateBorderColor #BF360C
+  StartStateBackgroundColor #90CAF9
+  StartStateBorderColor #1565C0
+}
+
+skinparam arrow {
+  Color #64B5F6
+  FontColor #01579B
+}
+
+title **BABIFIX** - Diagramme d'Etat\nCycle de Vie d'un Prestataire (ImplementationReelle)
+
+[*] --> EN_ATTENTE : Inscription\ndans l'app
+
+EN_ATTENTE : - Remplir formulaire
+EN_ATTENTE : - Upload CNI (recto/verso)
+EN_ATTENTE : - Photo de profil
+EN_ATTENTE : - Selection categories
+
+EN_ATTENTE --> VALIDE : Admin valide\nle dossier
+
+EN_ATTENTE --> REFUSE : Admin refuse\nle dossier
+
+VALIDE : - Notification admin
+VALIDE : - Badge rouge panel
+
+VALIDE --> SUSPENDU : Admin suspend\nle prestataire
+
+SUSPENDU --> VALIDE : Admin reactiva
+
+VALIDE --> [*] : Compte ferme
+REFUSE --> [*] : Abandon defini
+SUSPENDU --> [*] : Compte desactive
+
+note right of EN_ATTENTE
+  Dossier en attente
+  de validation admin
+  Badge rouge dans le panel
+end note
+
+note right of VALIDE
+  Prestataire operationnel
+  Peut recevoir des
+  reservations clients
+  Visible dans recherche
+end note
+
+note right of SUSPENDU
+  Pas visible client
+  Ne recoit pas de missions
+  Possible reactivat
+end note
+
+note bottom of VALIDE
+  STATES NON IMPLEMENTES:
+  - REGISTRATION (idempotent avec EN_ATTENTE)
+  - UNDER_REVIEW (idempotent avec EN_ATTENTE)
+  - APPROVED (VALIDE est le seul etat actif)
+  - ACTIVE (VALIDE = actif)
+  - REJECTED (REFUSE = refuse)
+end note
+
+@enduml

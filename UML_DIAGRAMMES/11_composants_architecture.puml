@@ -1,0 +1,150 @@
+@startuml BABIFIX - Diagramme de Composants
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+
+skinparam rectangle {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam component {
+  BackgroundColor #C8E6C9
+  BorderColor #2E7D32
+  FontColor #1B5E20
+}
+
+skinparam interface {
+  BackgroundColor #FFF9C4
+  BorderColor #F9A825
+  FontColor #F57F17
+}
+
+skinparam arrow {
+  Color #64B5F6
+}
+
+title **BABIFIX** - Diagramme de Composants\nArchitecture Monolithique en Couches
+
+package "Frontend Layer" {
+
+  [BABIFIX Client App\nFlutter iOS/Android] as ClientApp
+  [BABIFIX Pro App\nFlutter iOS/Android] as ProApp
+  [BABIFIX Admin Panel\nDjango Templates + HTMX] as AdminPanel
+  [BABIFIX Vitrine\nDjango Templates] as VitrineWeb
+
+  component "Firebase Cloud Messaging" as FCM
+
+  ClientApp -down-> FCM
+  ProApp -down-> FCM
+}
+
+package "API Gateway / Load Balancer" {
+  [Nginx\nReverse Proxy] as Nginx
+  [SSL/TLS Termination] as SSL
+}
+
+package "Backend (Monolithe Django)" {
+
+  package "BABIFIX Admin Django (API REST)" {
+    component "REST API\nDjango REST Framework" as RESTAPI
+    component "WebSocket\nDjango Channels (ASGI)" as WebSocket
+    component "JWT Auth\n(auth.py custom)" as JWTAuth
+    
+    component "Rate Limiter\n(throttling.py)" as RateLimiter
+    component "Security Middleware\n(CORS, CSRF)" as SecurityMW
+    
+    package "adminpanel/" {
+      component "Views (80+ endpoints)" as Views
+      component "Models" as Models
+      component "Serializers" as Serializers
+      component "Signals (push, ws)" as Signals
+      component "Consumers (WS)" as Consumers
+    }
+  }
+  
+  package "BABIFIX Vitrine Django" {
+    component "Views" as VitrineViews
+    component "Templates" as Templates
+  }
+}
+
+package "Data Layer" {
+  database "PostgreSQL 16" as Postgres
+  database "Redis 7\n(Cache + WebSocket)" as Redis
+  database "MEDIA_ROOT\n(Local File Storage)" as Media
+}
+
+package "External Services" {
+  component "CinetPay API\n(Mobile Money)" as CinetPay
+  component "Firebase\n(FCM only)" as Firebase
+  component "SMTP\n(Email)" as SMTP
+  component "Sentry\n(Error Tracking)" as Sentry
+}
+
+' Connections
+ClientApp -down-> Nginx : HTTPS
+ProApp -down-> Nginx
+AdminPanel -down-> Nginx
+VitrineWeb -down-> Nginx
+
+Nginx -down-> SSL
+
+' Backend principal
+SSL -down-> RESTAPI : /api/*
+
+' Vitrine separee
+SSL -down-> VitrineViews : /*
+
+' Security
+RESTAPI -down-> JWTAuth
+RESTAPI -down-> SecurityMW
+RESTAPI -down-> RateLimiter
+
+' Internals
+RESTAPI -down-> Views
+Views -left-> Models
+Views -left-> Serializers
+Views -down-> Signals
+Signals -down-> Consumers
+
+' Database
+Views -down-> Postgres
+Views -down-> Redis
+
+' WebSocket
+Consumers -down-> Redis : Channel Layer
+Redis <-up-> ChatService : WebSocket State
+Redis <-up-> RateLimiter : Cache
+
+' External services
+RESTAPI -down-> CinetPay : Payment API
+RESTAPI -down-> Firebase : FCM push
+RESTAPI -down-> SMTP : Email
+RESTAPI -down-> Sentry : Error Logs
+
+note bottom of Postgres
+  - Users, Providers, Reservations
+  - Payments, Ratings
+  - Categories, Messages
+  - Audit Logs
+end note
+
+note bottom of Redis
+  - Session cache
+  - Rate limit counters
+  - WebSocket channels
+  - Real-time presence
+end note
+
+note bottom of Media
+  - Provider photos (CNI)
+  - Chat attachments
+  - Rating photos
+  - Category icons
+end note
+
+@enduml

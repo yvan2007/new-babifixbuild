@@ -1,0 +1,162 @@
+@startuml BABIFIX - Diagramme de Déploiement
+!theme plain
+
+skinparam backgroundColor #E3F2FD
+skinparam nodeStyle rectangle
+
+skinparam rectangle {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam node {
+  BackgroundColor #C8E6C9
+  BorderColor #2E7D32
+  FontColor #1B5E20
+}
+
+skinparam artifact {
+  BackgroundColor #FFE082
+  BorderColor #FF8F00
+}
+
+skinparam arrow {
+  Color #64B5F6
+}
+
+title **BABIFIX** - Diagramme de Déploiement\nInfrastructure Production
+
+node "Client Devices" {
+  artifact "BABIFIX Client App\n(Flutter iOS)" as iOSClient
+  artifact "BABIFIX Client App\n(Flutter Android)" as AndroidClient
+  artifact "BABIFIX Pro App\n(Flutter iOS)" as iOSPro
+  artifact "BABIFIX Pro App\n(Flutter Android)" as AndroidPro
+  artifact "BABIFIX Admin Panel\n(Flutter Web)" as WebAdmin
+  artifact "Browser\n(Vitrine)" as Browser
+}
+
+node "CDN / Edge Network" {
+  node "Cloudflare" {
+    artifact "SSL Termination"
+    artifact "DDoS Protection"
+    artifact "Static Assets CDN"
+  }
+}
+
+node "Load Balancer" {
+  artifact "Nginx\n(sticky sessions)"
+  artifact "Health Checks"
+}
+
+node "Application Servers" {
+  node "Server 1 (App)" {
+    artifact "Gunicorn + Uvicorn"
+    artifact "Django API"
+    artifact "Channels (ASGI)"
+  }
+  
+  node "Server 2 (App)" {
+    artifact "Gunicorn + Uvicorn"
+    artifact "Django API"
+    artifact "Channels (ASGI)"
+  }
+}
+
+node "WebSocket Server" {
+  artifact "Daphne / Uvicorn"
+  artifact "Django Channels\n(Redis Layer)"
+}
+
+node "Database Cluster" {
+  node "Primary" {
+    artifact "PostgreSQL 15\n(Sync)" as PGPrimary
+  }
+  node "Replica 1" {
+    artifact "PostgreSQL 15\n(Async)" as PGReplica1
+  }
+  node "Replica 2" {
+    artifact "PostgreSQL 15\n(Async)" as PGReplica2
+  }
+}
+
+node "Cache / Message Queue" {
+  artifact "Redis Cluster\n(Cache + WS)" as Redis
+  artifact "Celery Workers" as Celery
+}
+
+node "Object Storage" {
+  artifact "S3 / R2\n(Multipart)" as S3
+}
+
+node "Monitoring" {
+  artifact "Sentry\n(Error Tracking)"
+  artifact "Grafana\n(Metrics)"
+  artifact "ELK Stack\n(Logs)"
+}
+
+node "External Services" {
+  artifact "Firebase\n(Auth + FCM)"
+  artifact "CinetPay API"
+  artifact "SMTP Relay"
+}
+
+' Connections
+iOSClient -down-> Cloudflare : HTTPS
+AndroidClient -down-> Cloudflare
+iOSPro -down-> Cloudflare
+AndroidPro -down-> Cloudflare
+WebAdmin -down-> Cloudflare
+Browser -down-> Cloudflare
+
+Cloudflare -down-> Nginx
+Nginx -down-> "Server 1 (App)" : HTTP/2
+Nginx -down-> "Server 2 (App)"
+
+"Server 1 (App)" -down-> PGPrimary
+"Server 2 (App)" -down-> PGPrimary
+"Server 1 (App)" -down-> PGReplica1
+"Server 2 (App)" -down-> PGReplica2
+
+"Server 1 (App)" -down-> Redis
+"Server 2 (App)" -down-> Redis
+"Server 1 (App)" -down-> Celery
+"Server 2 (App)" -down-> Celery
+"Server 1 (App)" -down-> S3
+"Server 2 (App)" -down-> S3
+
+"Server 1 (App)" -left-> "WebSocket Server"
+"Server 2 (App)" -left-> "WebSocket Server"
+"WebSocket Server" -down-> Redis
+
+Celery -down-> Redis : Queue
+Celery -down-> SMTP : Email
+
+"Server 1 (App)" -down-> Firebase
+"Server 2 (App)" -down-> Firebase
+"Server 1 (App)" -down-> CinetPay
+"Server 2 (App)" -down-> CinetPay
+
+"Server 1 (App)" -down-> Sentry
+"Server 2 (App)" -down-> Grafana
+"Server 1 (App)" -down-> ELK
+
+note bottom of PGPrimary
+  WAL Streaming Replication
+  Automated Backups (daily)
+  Point-in-time Recovery
+end note
+
+note bottom of Redis
+  Sentinel/Cluster Mode
+  99.99% SLA
+  3 replicas minimum
+end note
+
+note bottom of Cloudflare
+  Free Tier / Pro Plan
+  Global PoPs
+  WAF Rules
+end note
+
+@enduml

@@ -1,0 +1,136 @@
+@startuml BABIFIX Admin - Sequence Admin : Validation Prestataire et Gestion Categories
+!theme plain
+
+' Parametres globaux
+skinparam backgroundColor #E3F2FD
+skinparam sequenceMessageAlign center
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 10
+skinparam titleFontSize 14
+skinparam titleFontColor #01579B
+
+' Styles pour participants / acteurs
+skinparam participant {
+  BackgroundColor #BBDEFB
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+skinparam actor {
+  BackgroundColor #90CAF9
+  BorderColor #1976D2
+  FontColor #01579B
+}
+
+' Fleches et lignes de vie
+skinparam sequenceArrow {
+  Color #64B5F6
+}
+
+skinparam sequenceLifeLine {
+  BorderColor #42A5F5
+  BackgroundColor #E3F2FD
+}
+
+skinparam sequenceGroup {
+  BackgroundColor #E3F2FD
+  BorderColor #42A5F5
+  FontColor #01579B
+  HeaderBackgroundColor #BBDEFB
+  HeaderFontColor #01579B
+}
+
+title **BABIFIX Admin** - Sequence Admin : Validation Prestataire et Gestion Categories
+
+actor "Admin" as Admin
+participant "Panel Admin\n(Django + HTMX)" as Panel
+participant "Django API\n(REST + Sessions)" as API
+database "PostgreSQL" as DB
+participant "Firebase\n(FCM)" as FCM
+participant "Prestataire" as Prestataire
+
+== Connexion Admin ==
+
+Admin -> Panel : Acceder a l'URL admin
+Panel --> Admin : Afficher page de login (session Django)
+
+Admin -> Panel : Saisir identifiants admin
+Panel -> API : POST /login/ (CSRF token + credentials)
+API -> DB : SELECT * FROM auth_user WHERE email=...
+API --> API : Verify password hash
+API --> Panel : Set session cookie
+
+Panel -> API : GET /?section=prestataires (session auth)
+API --> Panel : Dashboard HTML + HTMX partials
+
+Panel --> Admin : Afficher Dashboard admin
+
+== Validation Prestataire ==
+
+Admin -> Panel : Menu "Prestataires en attente"
+Panel -> API : GET /api/admin/prestataires?statut=EN_ATTENTE
+API -> DB : SELECT * FROM provider WHERE statut='EN_ATTENTE'
+DB --> API : List<Prestataire>
+API --> Panel : HTML table (nom, specialite, CNI, date demande)
+Panel --> Admin : Afficher tableau (nom, specialite, CNI, date demande)
+
+Admin -> Panel : Cliquer sur un prestataire pour voir detalles
+Panel -> API : GET /api/admin/prestataire/{id}
+API -> DB : SELECT * FROM provider WHERE id=...
+API -> DB : SELECT * FROM user WHERE id=provider.user_id
+API --> Panel : Modal avec photo CNI + informations completes
+Panel --> Admin : Afficher modal avec photo CNI + informations completes
+
+Admin -> Panel : Decision : Valider / Refuser
+
+alt Valider
+    Admin -> Panel : Cliquer "Valider"
+    Panel -> API : POST /api/admin/validate_provider\n{provider_id, action: accept}
+    API -> DB : UPDATE provider SET statut='VALIDE', is_approved=True
+    API -> DB : UPDATE provider SET date_validation=now()
+    API -> FCM : sendPushNotification(prestataire_fcm_token, titre: "Validation reussie", body: "Vous etes maintenant valide !")
+    FCM --> Prestataire : Notification push
+    Panel --> Admin : Message "Prestataire valide avec succes"
+else Refuser
+    Admin -> Panel : Cliquer "Refuser" + saisir motif
+    Panel -> API : POST /api/admin/validate_provider\n{provider_id, action: refuse, motif: ...}
+    API -> DB : UPDATE provider SET statut='REFUSE', refusal_reason=...
+    API -> FCM : sendPushNotification(prestataire_fcm_token, titre: "Demande refusee", body: "Motif: " + motif)
+    FCM --> Prestataire : Notification push
+    Panel --> Admin : Message "Prestataire refuse"
+end
+
+== Gestion Categories ==
+
+Admin -> Panel : Menu "Categories"
+Panel -> API : GET /api/public/categories
+API -> DB : SELECT * FROM category WHERE actif=True
+DB --> API : List<Categorie>
+API --> Panel : HTML list
+Panel --> Admin : Afficher liste des categories actives
+
+Admin -> Panel : Cliquer "Ajouter une categorie"
+Panel --> Admin : Afficher formulaire (nom, description, icone, ordre)
+
+Admin -> Panel : Remplir formulaire + Valider
+Panel -> API : POST /api/admin/category\n{nom, description, icone_url, ordre_affichage}
+API -> DB : INSERT INTO category ...
+DB --> API : category_id
+Panel --> Admin : "Categorie creee avec succes"
+
+Admin -> Panel : Cliquer "Desactiver" sur une categorie existante
+Panel -> API : POST /api/admin/category/{id}/disable
+API -> DB : UPDATE category SET actif=False
+Panel --> Admin : "Categorie desactivee (invisible pour les clients)"
+
+== Statistiques ==
+
+Admin -> Panel : Menu "Statistiques"
+Panel -> API : GET /api/admin/stats
+API -> DB : SELECT SUM(montant), COUNT(*) FROM payment, reservation, user
+DB --> API : Donnees brutes / aggregations
+API -> Panel : Donnees aggregrees (revenus, reservations, utilisateurs)
+Panel --> Panel : Calcul KPI (revenus totaux, commissions, CA)
+Panel --> Admin : Afficher graphiques + KPIs (revenus, reservations, croissance)
+
+@enduml
