@@ -1,6 +1,6 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../babifix_api_config.dart';
 import '../babifix_fcm.dart';
@@ -8,34 +8,37 @@ import '../babifix_fcm.dart';
 const kBabifixApiToken = 'babifix_api_token';
 const _kRefreshToken = 'babifix_refresh_token';
 
+const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  iOptions: IOSOptions(
+    accessibility: KeychainAccessibility.first_unlock_this_device,
+  ),
+);
+
 Future<String?> readStoredApiToken() async {
-  final p = await SharedPreferences.getInstance();
-  return p.getString(kBabifixApiToken);
+  return _secureStorage.read(key: kBabifixApiToken);
 }
 
 Future<void> writeStoredApiToken(String? t) async {
-  final p = await SharedPreferences.getInstance();
   if (t == null || t.isEmpty) {
-    await p.remove(kBabifixApiToken);
+    await _secureStorage.delete(key: kBabifixApiToken);
   } else {
-    await p.setString(kBabifixApiToken, t);
+    await _secureStorage.write(key: kBabifixApiToken, value: t);
   }
 }
 
 Future<void> writeStoredRefreshToken(String? t) async {
-  final p = await SharedPreferences.getInstance();
   if (t == null || t.isEmpty) {
-    await p.remove(_kRefreshToken);
+    await _secureStorage.delete(key: _kRefreshToken);
   } else {
-    await p.setString(_kRefreshToken, t);
+    await _secureStorage.write(key: _kRefreshToken, value: t);
   }
 }
 
 /// Tries to obtain a fresh access token using the stored refresh token.
 /// Saves and returns the new token, or returns null on failure.
 Future<String?> babifixRefreshAccessToken() async {
-  final p = await SharedPreferences.getInstance();
-  final refresh = p.getString(_kRefreshToken);
+  final refresh = await _secureStorage.read(key: _kRefreshToken);
   if (refresh == null || refresh.isEmpty) return null;
   try {
     final res = await http.post(

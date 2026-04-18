@@ -761,7 +761,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
   }
 
-  // ── Note escrow ─────────────────────────────────────────────────────────
+  // ── Note sécurité paiement ─────────────────────────────────────────
   Widget _buildEscrowNote() {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -777,8 +777,8 @@ class _PaymentScreenState extends State<PaymentScreen>
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Votre paiement est sécurisé en séquestre (escrow). '
-              'Les fonds sont bloqués et versés au prestataire uniquement après validation de la mission.',
+              'Votre paiement est sécurisé via CinetPay. '
+              'Transférer directement au prestataire après validation de la prestation.',
               style: TextStyle(
                 color: BabifixDesign.ciBlue,
                 fontSize: 12.5,

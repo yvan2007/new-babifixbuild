@@ -3,23 +3,16 @@ import 'dart:convert';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../babifix_api_config.dart';
-
-const _kToken = 'babifix_api_token';
+import '../../shared/auth_utils.dart';
 
 Future<String?> _getToken() async {
-  final p = await SharedPreferences.getInstance();
-  return p.getString(_kToken);
+  return readStoredApiToken();
 }
 
 class EarningsScreen extends StatefulWidget {
-  const EarningsScreen({
-    super.key,
-    required this.paletteMode,
-    this.onBack,
-  });
+  const EarningsScreen({super.key, required this.paletteMode, this.onBack});
 
   final dynamic paletteMode;
   final VoidCallback? onBack;
@@ -72,14 +65,15 @@ class _EarningsScreenState extends State<EarningsScreen>
       final periodParam = _period == 'Jour'
           ? 'day'
           : _period == 'Semaine'
-              ? 'week'
-              : _period == 'Tout'
-                  ? 'all'
-                  : 'month';
+          ? 'week'
+          : _period == 'Tout'
+          ? 'all'
+          : 'month';
       if (_token != null) {
         final res = await http.get(
           Uri.parse(
-              '${babifixApiBaseUrl()}/api/prestataire/earnings?period=$periodParam'),
+            '${babifixApiBaseUrl()}/api/prestataire/earnings?period=$periodParam',
+          ),
           headers: {'Authorization': 'Bearer $_token'},
         );
         if (res.statusCode == 200) {
@@ -101,12 +95,14 @@ class _EarningsScreenState extends State<EarningsScreen>
           }
           return;
         }
-        if (mounted) setState(() => _loadError = 'Erreur serveur (${res.statusCode})');
+        if (mounted)
+          setState(() => _loadError = 'Erreur serveur (${res.statusCode})');
       } else {
         if (mounted) setState(() => _loadError = 'Connexion requise');
       }
     } catch (_) {
-      if (mounted) setState(() => _loadError = 'Impossible de charger les gains');
+      if (mounted)
+        setState(() => _loadError = 'Impossible de charger les gains');
     }
     if (mounted) {
       setState(() {
@@ -122,24 +118,28 @@ class _EarningsScreenState extends State<EarningsScreen>
   List<Map<String, String>> _parseTransactions(dynamic raw) {
     if (raw is! List) return [];
     return raw
-        .map((e) => {
-              'client': '${e['client']}',
-              'service': '${e['service']}',
-              'gross': '${e['gross']}',
-              'commission': '${e['commission']}',
-              'net': '${e['net']}',
-              'status': '${e['status']}',
-            })
+        .map(
+          (e) => {
+            'client': '${e['client']}',
+            'service': '${e['service']}',
+            'gross': '${e['gross']}',
+            'commission': '${e['commission']}',
+            'net': '${e['net']}',
+            'status': '${e['status']}',
+          },
+        )
         .toList();
   }
 
   List<_BarData> _parseChart(List raw) {
     if (raw.isEmpty) return [];
     return raw
-        .map((e) => _BarData(
-              label: e['label'] as String? ?? '',
-              value: (e['value'] as num?)?.toInt() ?? 0,
-            ))
+        .map(
+          (e) => _BarData(
+            label: e['label'] as String? ?? '',
+            value: (e['value'] as num?)?.toInt() ?? 0,
+          ),
+        )
         .toList();
   }
 
@@ -148,20 +148,20 @@ class _EarningsScreenState extends State<EarningsScreen>
     final periodParam = _period == 'Jour'
         ? 'day'
         : _period == 'Semaine'
-            ? 'week'
-            : _period == 'Tout'
-                ? 'all'
-                : 'month';
-    final url = '${babifixApiBaseUrl()}/api/admin/export/paiements/?period=$periodParam';
+        ? 'week'
+        : _period == 'Tout'
+        ? 'all'
+        : 'month';
+    final url =
+        '${babifixApiBaseUrl()}/api/admin/export/paiements/?period=$periodParam';
     // Show URL in snackbar — deep link to browser download
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Export CSV prêt — ouvrez l\'URL dans votre navigateur'),
-          action: SnackBarAction(
-            label: 'OK',
-            onPressed: () {},
+          content: const Text(
+            'Export CSV prêt — ouvrez l\'URL dans votre navigateur',
           ),
+          action: SnackBarAction(label: 'OK', onPressed: () {}),
         ),
       );
     }
@@ -194,19 +194,16 @@ class _EarningsScreenState extends State<EarningsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isLight =
-        widget.paletteMode.toString().contains('light');
+    final isLight = widget.paletteMode.toString().contains('light');
     final bg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0B1B34);
     final card = isLight ? Colors.white : const Color(0xFF152A45);
     final text = isLight ? const Color(0xFF0F172A) : Colors.white;
-    final sub =
-        isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
+    final sub = isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
     const cyan = Color(0xFF4CC9F0);
 
     final maxBar = _chartData.isEmpty
         ? 1.0
-        : _chartData.map((b) => b.value).reduce((a, b) => a > b ? a : b) *
-            1.2;
+        : _chartData.map((b) => b.value).reduce((a, b) => a > b ? a : b) * 1.2;
 
     return Scaffold(
       backgroundColor: bg,
@@ -220,8 +217,10 @@ class _EarningsScreenState extends State<EarningsScreen>
                 icon: const Icon(Icons.arrow_back_rounded),
               )
             : null,
-        title: Text('Mes gains',
-            style: TextStyle(fontWeight: FontWeight.w800, color: text)),
+        title: Text(
+          'Mes gains',
+          style: TextStyle(fontWeight: FontWeight.w800, color: text),
+        ),
         actions: [
           IconButton(
             tooltip: 'Exporter CSV',
@@ -240,24 +239,26 @@ class _EarningsScreenState extends State<EarningsScreen>
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: ['Jour', 'Semaine', 'Mois', 'Tout']
-                    .map((t) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(t),
-                            selected: _period == t,
-                            selectedColor: cyan,
-                            labelStyle: TextStyle(
-                              color: _period == t
-                                  ? const Color(0xFF0B1B34)
-                                  : text,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            onSelected: (_) {
-                              setState(() => _period = t);
-                              _load();
-                            },
+                    .map(
+                      (t) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(t),
+                          selected: _period == t,
+                          selectedColor: cyan,
+                          labelStyle: TextStyle(
+                            color: _period == t
+                                ? const Color(0xFF0B1B34)
+                                : text,
+                            fontWeight: FontWeight.w700,
                           ),
-                        ))
+                          onSelected: (_) {
+                            setState(() => _period = t);
+                            _load();
+                          },
+                        ),
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -270,7 +271,10 @@ class _EarningsScreenState extends State<EarningsScreen>
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(12),
@@ -278,12 +282,19 @@ class _EarningsScreenState extends State<EarningsScreen>
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 18),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Color(0xFFEF4444),
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _loadError!,
-                          style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13),
+                          style: const TextStyle(
+                            color: Color(0xFF991B1B),
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       TextButton(
@@ -315,7 +326,9 @@ class _EarningsScreenState extends State<EarningsScreen>
                 boxShadow: isLight
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF0B1B34).withValues(alpha: 0.07),
+                          color: const Color(
+                            0xFF0B1B34,
+                          ).withValues(alpha: 0.07),
                           blurRadius: 24,
                           offset: const Offset(0, 10),
                         ),
@@ -328,9 +341,13 @@ class _EarningsScreenState extends State<EarningsScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Total des gains',
-                            style: TextStyle(
-                                color: sub, fontWeight: FontWeight.w600)),
+                        Text(
+                          'Total des gains',
+                          style: TextStyle(
+                            color: sub,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 400),
@@ -345,8 +362,10 @@ class _EarningsScreenState extends State<EarningsScreen>
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text('$_missionCount prestation(s)',
-                            style: TextStyle(color: sub, fontSize: 13)),
+                        Text(
+                          '$_missionCount prestation(s)',
+                          style: TextStyle(color: sub, fontSize: 13),
+                        ),
                       ],
                     ),
                   ),
@@ -356,8 +375,11 @@ class _EarningsScreenState extends State<EarningsScreen>
                       shape: BoxShape.circle,
                       color: cyan.withValues(alpha: 0.15),
                     ),
-                    child: const Icon(Icons.payments_rounded,
-                        color: Color(0xFF4CC9F0), size: 28),
+                    child: const Icon(
+                      Icons.payments_rounded,
+                      color: Color(0xFF4CC9F0),
+                      size: 28,
+                    ),
                   ),
                 ],
               ),
@@ -366,9 +388,14 @@ class _EarningsScreenState extends State<EarningsScreen>
 
             // Graphique barres fl_chart
             if (_chartData.isNotEmpty) ...[
-              Text('Évolution des gains',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 16, color: text)),
+              Text(
+                'Évolution des gains',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: text,
+                ),
+              ),
               const SizedBox(height: 12),
               Container(
                 height: 200,
@@ -390,20 +417,23 @@ class _EarningsScreenState extends State<EarningsScreen>
                         touchTooltipData: BarTouchTooltipData(
                           getTooltipItem: (group, groupIndex, rod, rodIndex) =>
                               BarTooltipItem(
-                            _formatFcfa(rod.toY.round()),
-                            const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12),
-                          ),
+                                _formatFcfa(rod.toY.round()),
+                                const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
                         ),
                       ),
                       titlesData: FlTitlesData(
                         show: true,
                         rightTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false)),
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
                         topTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false)),
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
                         bottomTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
@@ -416,8 +446,7 @@ class _EarningsScreenState extends State<EarningsScreen>
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   _chartData[i].label,
-                                  style:
-                                      TextStyle(fontSize: 11, color: sub),
+                                  style: TextStyle(fontSize: 11, color: sub),
                                 ),
                               );
                             },
@@ -454,16 +483,15 @@ class _EarningsScreenState extends State<EarningsScreen>
                           x: i,
                           barRods: [
                             BarChartRodData(
-                              toY: _chartData[i].value.toDouble() *
+                              toY:
+                                  _chartData[i].value.toDouble() *
                                   _animCtrl.value,
                               width: 18,
                               borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(6)),
+                                top: Radius.circular(6),
+                              ),
                               gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF4CC9F0),
-                                  Color(0xFF2563EB),
-                                ],
+                                colors: [Color(0xFF4CC9F0), Color(0xFF2563EB)],
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                               ),
@@ -480,9 +508,14 @@ class _EarningsScreenState extends State<EarningsScreen>
 
             // Transactions
             if (_transactions.isNotEmpty) ...[
-              Text('Transactions',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 16, color: text)),
+              Text(
+                'Transactions',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: text,
+                ),
+              ),
               const SizedBox(height: 10),
               ..._transactions.map(
                 (t) => _TxnCard(
@@ -554,9 +587,7 @@ class _TxnCard extends StatelessWidget {
         color: isLight ? Colors.white : const Color(0xFF152A45),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isLight
-              ? const Color(0xFFE2E8F0)
-              : const Color(0x22FFFFFF),
+          color: isLight ? const Color(0xFFE2E8F0) : const Color(0x22FFFFFF),
         ),
       ),
       child: Column(
@@ -565,13 +596,19 @@ class _TxnCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(client,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700, color: textColor)),
+                child: Text(
+                  client,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: paid
                       ? const Color(0xFF059669).withValues(alpha: 0.12)
@@ -594,32 +631,47 @@ class _TxnCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(service, style: TextStyle(color: subColor, fontSize: 13)),
           const SizedBox(height: 10),
-          Row(children: [
-            Text('Brut', style: TextStyle(color: subColor, fontSize: 13)),
-            const Spacer(),
-            Text(gross, style: TextStyle(color: textColor, fontSize: 13)),
-          ]),
-          Row(children: [
-            Text('Commission',
-                style: TextStyle(color: subColor, fontSize: 13)),
-            const Spacer(),
-            Text(commission,
-                style:
-                    const TextStyle(color: Colors.red, fontSize: 13)),
-          ]),
-          Row(children: [
-            Text('Net',
+          Row(
+            children: [
+              Text('Brut', style: TextStyle(color: subColor, fontSize: 13)),
+              const Spacer(),
+              Text(gross, style: TextStyle(color: textColor, fontSize: 13)),
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                'Commission',
+                style: TextStyle(color: subColor, fontSize: 13),
+              ),
+              const Spacer(),
+              Text(
+                commission,
+                style: const TextStyle(color: Colors.red, fontSize: 13),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                'Net',
                 style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: textColor,
-                    fontSize: 13)),
-            const Spacer(),
-            Text(net,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                  fontSize: 13,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                net,
                 style: const TextStyle(
-                    color: Color(0xFF4CC9F0),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13)),
-          ]),
+                  color: Color(0xFF4CC9F0),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

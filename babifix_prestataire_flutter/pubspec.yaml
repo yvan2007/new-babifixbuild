@@ -45,7 +45,7 @@ dependencies:
   web_socket_channel: ^3.0.1
   fl_chart: ^0.70.2
   latlong2: ^0.9.1
-  sentry_flutter: ^8.9.0
+  sentry_flutter: ^9.16.0
   connectivity_plus: ^6.1.4
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.0

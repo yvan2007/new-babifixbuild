@@ -1,9 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:lottie/lottie.dart';
 
 import '../../babifix_design_system.dart';
+import '../../shared/services/haptics_service.dart';
 import 'biometric_login_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -24,19 +25,19 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   static const _slides = <(String, String, String)>[
     (
-      'assets/illustrations/onboarding_prestataires.svg',
-      'Artisans de confiance à domicile',
-      'Plomberie, électricité, rénovation, peinture — des prestataires vérifiés et notés, près de chez vous.',
+      'assets/animations/providers.json',
+      'Artisans vérifiés\nprès de chez vous',
+      'Plomberie, électricité, ménage, peinture — chaque prestataire est contrôlé par notre équipe avant d\'apparaître sur BABIFIX.',
     ),
     (
-      'assets/illustrations/onboarding_intervention.svg',
-      'Réservez et parlez au pro',
-      'Choisissez un créneau, échangez en direct via le chat de votre réservation avant l\'intervention.',
+      'assets/animations/booking.json',
+      'Réservez\nen 30 secondes',
+      'Choisissez votre créneau, échangez avec le pro via le chat intégré, et suivez votre réservation en temps réel.',
     ),
     (
-      'assets/illustrations/onboarding_suivi.svg',
-      'Paiement sécurisé en FCFA',
-      'Fonds en séquestre jusqu\'à validation du service. Payez avec Orange Money, MTN ou Wave.',
+      'assets/animations/payment.json',
+      'Payez en FCA,\nsimplement',
+      'Orange Money, MTN, Wave ou espèces — payez comme vous voulez, en toute sécurité.',
     ),
   ];
 
@@ -170,7 +171,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: widget.onDone,
+                      onPressed: () {
+                        HapticsService.light();
+                        widget.onDone();
+                      },
                       child: Text(
                         'Passer',
                         style: TextStyle(
@@ -295,9 +299,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                                           const EdgeInsets.all(
                                                             18,
                                                           ),
-                                                      child: SvgPicture.asset(
+                                                      child: Lottie.asset(
                                                         data.$1,
+                                                        width: 140,
+                                                        height: 140,
                                                         fit: BoxFit.contain,
+                                                        repeat: true,
                                                       ),
                                                     ),
                                                   ),
@@ -384,10 +391,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: () => _pageController.previousPage(
-                                duration: const Duration(milliseconds: 380),
-                                curve: Curves.easeOutCubic,
-                              ),
+                              onTap: () {
+                                HapticsService.light();
+                                _pageController.previousPage(
+                                  duration: const Duration(milliseconds: 380),
+                                  curve: Curves.easeOutCubic,
+                                );
+                              },
                               borderRadius: BorderRadius.circular(16),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -412,12 +422,17 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               ? 'Commencer'
                               : 'Suivant',
                           isLast: page == _slides.length - 1,
-                          onPressed: page == _slides.length - 1
-                              ? widget.onDone
-                              : () => _pageController.nextPage(
-                                  duration: const Duration(milliseconds: 420),
-                                  curve: Curves.easeOutCubic,
-                                ),
+                          onPressed: () {
+                            HapticsService.medium();
+                            if (page == _slides.length - 1) {
+                              widget.onDone();
+                            } else {
+                              _pageController.nextPage(
+                                duration: const Duration(milliseconds: 420),
+                                curve: Curves.easeOutCubic,
+                              );
+                            }
+                          },
                         ),
                       ),
                     ],

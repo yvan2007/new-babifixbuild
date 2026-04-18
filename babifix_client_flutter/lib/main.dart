@@ -31,6 +31,7 @@ import 'shared/widgets/category_strip.dart';
 import 'shared/services/real_time_sync.dart';
 import 'features/auth/onboarding_screen.dart';
 import 'features/auth/auth_screen.dart';
+import 'features/auth/forgot_password_screen.dart';
 import 'features/home/actualite_detail_screen.dart';
 import 'features/profile/edit_profile_screen.dart';
 import 'features/chat/messages_screen.dart';
@@ -726,7 +727,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
             if (pid != null && dispo != null && mounted) {
               setState(() {
                 services = services
-                    .map((s) => s.providerId == pid ? s.copyWith(disponible: dispo) : s)
+                    .map(
+                      (s) => s.providerId == pid
+                          ? s.copyWith(disponible: dispo)
+                          : s,
+                    )
                     .toList();
                 recentProviders = recentProviders
                     .map((p) => p.id == pid ? p.copyWith(disponible: dispo) : p)
@@ -848,25 +853,51 @@ class _ClientHomePageState extends State<ClientHomePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4))),
-            const SizedBox(height: 20),
-            const Icon(Icons.fingerprint_rounded, size: 56, color: Color(0xFF4CC9F0)),
-            const SizedBox(height: 14),
-            Text('Connexion biométrique', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _textPrimary)),
-            const SizedBox(height: 8),
-            Text('Activez Face ID ou l\'empreinte digitale pour accéder à votre compte rapidement.',
-                style: TextStyle(color: _textSecondary, height: 1.45), textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            SizedBox(width: double.infinity, child: FilledButton.icon(
-              onPressed: () => Navigator.pop(ctx),
-              icon: const Icon(Icons.check_rounded),
-              label: const Text('Configurer dans Paramètres'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF4CC9F0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(4),
               ),
-            )),
+            ),
+            const SizedBox(height: 20),
+            const Icon(
+              Icons.fingerprint_rounded,
+              size: 56,
+              color: Color(0xFF4CC9F0),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Connexion biométrique',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: _textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Activez Face ID ou l\'empreinte digitale pour accéder à votre compte rapidement.',
+              style: TextStyle(color: _textSecondary, height: 1.45),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('Configurer dans Paramètres'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CC9F0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -875,8 +906,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _openForgotPassword() async {
     if (!mounted) return;
-    final router = GoRouter.of(context);
-    router.push('/forgot-password');
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+    );
   }
 
   Future<void> _openEditProfile() async {
@@ -915,12 +947,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final activeKey = categoryTabs[categoryIndex].filterKey;
+    final activeKey = categoryTabs.isEmpty
+        ? 'TOUS'
+        : categoryTabs[categoryIndex.clamp(0, categoryTabs.length - 1)]
+              .filterKey;
     final visibleServices = activeKey == 'TOUS'
         ? services
         : services
-            .where((s) => babifixCategoryFilterKey(s.category) == activeKey)
-            .toList();
+              .where((s) => babifixCategoryFilterKey(s.category) == activeKey)
+              .toList();
     return Scaffold(
       extendBody: true,
       body: Container(
@@ -1580,10 +1615,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ],
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     child: Row(
                       children: [
-                        const Icon(Icons.home_repair_service, color: Colors.white, size: 24),
+                        const Icon(
+                          Icons.home_repair_service,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -1599,12 +1641,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               ),
                               Text(
                                 '${categoryTabs.length > 1 ? categoryTabs.length - 1 : ''} catégories disponibles',
-                                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
                       ],
                     ),
                   ),
@@ -2078,6 +2127,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildFeaturedNewsCard(int index) {
+    if (index >= services.length) return const SizedBox.shrink();
     final item = services[index];
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -2318,11 +2368,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ),
             // ── Filtres avancés ──────────────────────────────────────────
             _buildFilterChipsRow(filtered.length),
-            CategoryStrip(
-              categories: categoryTabs,
-              active: categoryIndex,
-              onTap: (index) => setState(() => categoryIndex = index),
-            ),
+            if (categoryTabs.isNotEmpty)
+              CategoryStrip(
+                categories: categoryTabs,
+                active: categoryIndex.clamp(0, categoryTabs.length - 1),
+                onTap: (index) => setState(() => categoryIndex = index),
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
               child: Align(
@@ -2368,7 +2419,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       3,
                       (i) => _buildCatalogSkeletonCard(i),
                     ),
-                  if (!loadingRemote && filtered.isEmpty && _showEmptyAfterDelay)
+                  if (!loadingRemote &&
+                      filtered.isEmpty &&
+                      _showEmptyAfterDelay)
                     _searchQuery.isNotEmpty
                         ? _buildSearchEmptyState()
                         : _buildCategoryEmptyState(),
@@ -2735,9 +2788,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildCategoryEmptyState() {
-    final tab = categoryTabs.isNotEmpty && categoryIndex < categoryTabs.length
-        ? categoryTabs[categoryIndex]
-        : null;
+    final idx = categoryTabs.isEmpty
+        ? 0
+        : categoryIndex.clamp(0, categoryTabs.length - 1);
+    final tab = categoryTabs.isNotEmpty ? categoryTabs[idx] : null;
     final catColor = tab?.color ?? BabifixDesign.cyan;
     final catIcon = tab?.icon ?? Icons.home_repair_service;
     final catLabel = tab?.label ?? '';
@@ -2760,7 +2814,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     catColor.withValues(alpha: 0.05),
                   ],
                 ),
-                border: Border.all(color: catColor.withValues(alpha: 0.3), width: 1.5),
+                border: Border.all(
+                  color: catColor.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
               ),
               child: Icon(catIcon, size: 44, color: catColor),
             ),
@@ -2781,7 +2838,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
             Text(
               'De nouveaux prestataires arrivent bientôt.\nExplore les autres catégories !',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: _textSecondary, height: 1.6),
+              style: TextStyle(
+                fontSize: 14,
+                color: _textSecondary,
+                height: 1.6,
+              ),
             ),
             const SizedBox(height: 24),
             if (!isAll)
@@ -2823,277 +2884,289 @@ class _ClientHomePageState extends State<ClientHomePage> {
     return Opacity(
       opacity: item.disponible ? 1.0 : 0.45,
       child: AnimatedContainer(
-      duration: Duration(milliseconds: 220 + (index * 40)),
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: item.disponible
-              ? (_isLight ? const Color(0x140F172A) : const Color(0x12FFFFFF))
-              : (_isLight ? const Color(0x30CC0000) : const Color(0x30FF4444)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _isLight ? const Color(0x0F0F172A) : const Color(0x24000000),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+        duration: Duration(milliseconds: 220 + (index * 40)),
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: item.disponible
+                ? (_isLight ? const Color(0x140F172A) : const Color(0x12FFFFFF))
+                : (_isLight
+                      ? const Color(0x30CC0000)
+                      : const Color(0x30FF4444)),
           ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Hero(
-            tag: 'babifix-service-${item.providerId}',
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                height: 160,
-                decoration: BoxDecoration(
-                  color: item.color,
-                  image: DecorationImage(
-                    image: _imageProvider(item.imageUrl),
-                    fit: BoxFit.cover,
-                    colorFilter: ColorFilter.mode(
-                      Colors.black.withValues(alpha: 0.22),
-                      BlendMode.darken,
+          boxShadow: [
+            BoxShadow(
+              color: _isLight
+                  ? const Color(0x0F0F172A)
+                  : const Color(0x24000000),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Hero(
+              tag: 'babifix-service-${item.providerId}',
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: item.color,
+                    image: DecorationImage(
+                      image: _imageProvider(item.imageUrl),
+                      fit: BoxFit.cover,
+                      colorFilter: ColorFilter.mode(
+                        Colors.black.withValues(alpha: 0.22),
+                        BlendMode.darken,
+                      ),
                     ),
                   ),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.94),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.12),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          item.category,
-                          style: TextStyle(
-                            color: BabifixDesign.navy,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 12,
-                      bottom: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.72),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.schedule_rounded,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              item.duration,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (!item.disponible)
-                      Positioned.fill(
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: 12,
+                        left: 12,
                         child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 6,
                           ),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'Indisponible',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                letterSpacing: 0.3,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.94),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
+                            ],
+                          ),
+                          child: Text(
+                            item.category,
+                            style: TextStyle(
+                              color: BabifixDesign.navy,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                              letterSpacing: 0.3,
                             ),
                           ),
                         ),
                       ),
-                  ],
+                      Positioned(
+                        right: 12,
+                        bottom: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.72),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.schedule_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                item.duration,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (!item.disponible)
+                        Positioned.fill(
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'Indisponible',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: _textPrimary,
-                    letterSpacing: -0.2,
-                    height: 1.25,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: _textPrimary,
+                      letterSpacing: -0.2,
+                      height: 1.25,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Text(
-                      formatFcfa(item.price),
-                      style: TextStyle(
-                        color: priceColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                        letterSpacing: -0.2,
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Text(
+                        formatFcfa(item.price),
+                        style: TextStyle(
+                          color: priceColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          letterSpacing: -0.2,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(
-                      Icons.star_rounded,
-                      size: 18,
-                      color: Colors.amber.shade600,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      '${item.rating}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _textPrimary,
+                      const SizedBox(width: 10),
+                      Icon(
+                        Icons.star_rounded,
+                        size: 18,
+                        color: Colors.amber.shade600,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${item.rating}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (item.verified) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _isLight
+                            ? const Color(0xFFDCFCE7)
+                            : const Color(0xFF14532D).withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'Prestataire vérifié',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _isLight
+                              ? const Color(0xFF166534)
+                              : const Color(0xFF86EFAC),
+                        ),
                       ),
                     ),
                   ],
-                ),
-                if (item.verified) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _isLight
-                          ? const Color(0xFFDCFCE7)
-                          : const Color(0xFF14532D).withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Prestataire vérifié',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: _isLight
-                            ? const Color(0xFF166534)
-                            : const Color(0xFF86EFAC),
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: outlineStyle,
-                        onPressed: () => Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => ServiceDetailScreen(
-                              service: item,
-                              isLight: _isLight,
-                              onReserve: () => Navigator.of(context).push<void>(
-                                MaterialPageRoute(
-                                  builder: (_) => BookingFlowScreen(
-                                    serviceTitle: item.title,
-                                    servicePrice: item.price,
-                                    onConfirm: (data) async {
-                                      final ok = await _createReservation(
-                                        item,
-                                        flowData: data,
-                                      );
-                                      if (ok && mounted)
-                                        setState(() => navIndex = 3);
-                                      return ok;
-                                    },
-                                  ),
-                                ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: outlineStyle,
+                          onPressed: () => Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => ServiceDetailScreen(
+                                service: item,
+                                isLight: _isLight,
+                                onReserve: () =>
+                                    Navigator.of(context).push<void>(
+                                      MaterialPageRoute(
+                                        builder: (_) => BookingFlowScreen(
+                                          serviceTitle: item.title,
+                                          servicePrice: item.price,
+                                          onConfirm: (data) async {
+                                            final ok = await _createReservation(
+                                              item,
+                                              flowData: data,
+                                            );
+                                            if (ok && mounted)
+                                              setState(() => navIndex = 3);
+                                            return ok;
+                                          },
+                                        ),
+                                      ),
+                                    ),
                               ),
                             ),
                           ),
+                          icon: const Icon(
+                            Icons.info_outline_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('Détails'),
                         ),
-                        icon: const Icon(Icons.info_outline_rounded, size: 18),
-                        label: const Text('Détails'),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        style: filledStyle,
-                        onPressed: item.disponible
-                            ? () => Navigator.of(context).push<void>(
-                                MaterialPageRoute(
-                                  builder: (_) => BookingFlowScreen(
-                                    serviceTitle: item.title,
-                                    servicePrice: item.price,
-                                    onConfirm: (data) async {
-                                      final ok = await _createReservation(
-                                        item,
-                                        flowData: data,
-                                      );
-                                      if (ok && mounted) setState(() => navIndex = 3);
-                                      return ok;
-                                    },
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          style: filledStyle,
+                          onPressed: item.disponible
+                              ? () => Navigator.of(context).push<void>(
+                                  MaterialPageRoute(
+                                    builder: (_) => BookingFlowScreen(
+                                      serviceTitle: item.title,
+                                      servicePrice: item.price,
+                                      onConfirm: (data) async {
+                                        final ok = await _createReservation(
+                                          item,
+                                          flowData: data,
+                                        );
+                                        if (ok && mounted)
+                                          setState(() => navIndex = 3);
+                                        return ok;
+                                      },
+                                    ),
                                   ),
-                                ),
-                              )
-                            : null,
-                        child: const Text('Réserver'),
+                                )
+                              : null,
+                          child: const Text('Réserver'),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-    ), // AnimatedContainer
+          ],
+        ),
+      ), // AnimatedContainer
     ); // Opacity
   }
 
@@ -3519,316 +3592,505 @@ class _ClientHomePageState extends State<ClientHomePage> {
             color: BabifixDesign.cyan,
             backgroundColor: _cardBg,
             child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: [
-              // ── Hero card client premium ────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _isLight
-                        ? const [Color(0xFFE0F2FE), Color(0xFFF0F9FF)]
-                        : const [Color(0xFF0C1729), Color(0xFF162032)],
-                  ),
-                  border: Border.all(
-                    color: _isLight ? const Color(0xFF7DD3FC) : const Color(0x334CC9F0),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: BabifixDesign.cyan.withValues(alpha: _isLight ? 0.1 : 0.07),
-                      blurRadius: 20, offset: const Offset(0, 6),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                // ── Hero card client premium ────────────────────────────
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: _isLight
+                          ? const [Color(0xFFE0F2FE), Color(0xFFF0F9FF)]
+                          : const [Color(0xFF0C1729), Color(0xFF162032)],
                     ),
-                  ],
+                    border: Border.all(
+                      color: _isLight
+                          ? const Color(0xFF7DD3FC)
+                          : const Color(0x334CC9F0),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: BabifixDesign.cyan.withValues(
+                          alpha: _isLight ? 0.1 : 0.07,
+                        ),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: BabifixDesign.cyan.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: profileAvatarBytes != null
+                                ? ClipOval(
+                                    child: Image.memory(
+                                      profileAvatarBytes!,
+                                      fit: BoxFit.cover,
+                                      width: 64,
+                                      height: 64,
+                                    ),
+                                  )
+                                : Center(
+                                    child: Text(
+                                      profileName.isNotEmpty
+                                          ? profileName[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  profileName.isEmpty
+                                      ? 'Mon compte'
+                                      : profileName,
+                                  style: TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w900,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  profileEmail.isEmpty
+                                      ? 'Connectez-vous ou créez un compte'
+                                      : profileEmail,
+                                  style: TextStyle(
+                                    color: _textSecondary,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (profilePhone.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.phone_rounded,
+                                        size: 11,
+                                        color: _textSecondary,
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        profilePhone,
+                                        style: TextStyle(
+                                          color: _textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: _openEditProfile,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF4CC9F0),
+                                    Color(0xFF0284C7),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'Modifier',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (sessionLoggedIn) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            _MiniStatChip(
+                              label: 'Réservations',
+                              value: '${reservations.length}',
+                              icon: Icons.calendar_today_rounded,
+                              color: BabifixDesign.cyan,
+                              isLight: _isLight,
+                            ),
+                            const SizedBox(width: 8),
+                            _MiniStatChip(
+                              label: 'En cours',
+                              value:
+                                  '${reservations.where((r) => r.status == 'En cours').length}',
+                              icon: Icons.pending_actions_rounded,
+                              color: const Color(0xFFF59E0B),
+                              isLight: _isLight,
+                            ),
+                            const SizedBox(width: 8),
+                            _MiniStatChip(
+                              label: 'Séquestre',
+                              value: totalEscrow > 0
+                                  ? formatFcfa(totalEscrow)
+                                  : '0 F',
+                              icon: Icons.account_balance_wallet_rounded,
+                              color: const Color(0xFF10B981),
+                              isLight: _isLight,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                const SizedBox(height: 12),
+                _PremiumActionTile(
+                  icon: Icons.person_outline_rounded,
+                  title: 'Modifier le profil',
+                  subtitle: 'Photo, nom, coordonnees',
+                  onTap: _openEditProfile,
+                ),
+                const SizedBox(height: 10),
+                _PremiumActionTile(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: 'Messages',
+                  subtitle: 'Echanger avec vos prestataires',
+                  onTap: _openMessages,
+                ),
+                const SizedBox(height: 10),
+                _PremiumActionTile(
+                  icon: Icons.support_agent_rounded,
+                  title: 'Contacter l’administrateur',
+                  subtitle: contactAdminEmail.isEmpty
+                      ? 'Email support (configure côté serveur)'
+                      : contactAdminEmail,
+                  onTap: _contactAdminMail,
+                ),
+                const SizedBox(height: 10),
+                _PremiumActionTile(
+                  icon: Icons.help_center_outlined,
+                  title: 'FAQ & aide',
+                  subtitle: 'Guide reservation, paiement, avis',
+                  onTap: _showHelpSheet,
+                ),
+                const SizedBox(height: 10),
+                _PremiumActionTile(
+                  icon: Icons.palette_outlined,
+                  title: 'Parametres',
+                  subtitle: 'Telephone, adresse exacte, theme',
+                  onTap: _openSettings,
+                ),
+                const SizedBox(height: 10),
+                _PremiumActionTile(
+                  icon: Icons.info_outline_rounded,
+                  title: 'A propos de BABIFIX',
+                  subtitle: 'Version, mentions et support',
+                  onTap: () {
+                    showAboutDialog(
+                      context: context,
+                      applicationName: 'BABIFIX',
+                      applicationVersion: '1.0.0',
+                      applicationIcon: const CircleAvatar(
+                        backgroundImage: AssetImage(_logoAsset),
+                      ),
+                      children: const [
+                        Text(
+                          'Plateforme premium de services a domicile avec reservation et paiement securise.',
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                // ── Wallet séquestre premium ────────────────────────────
+                const SizedBox(height: 10),
+                if (sessionLoggedIn && totalEscrow > 0)
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: _isLight
+                            ? const [Color(0xFFEFFAFF), Color(0xFFE0F7FE)]
+                            : const [Color(0xFF071523), Color(0xFF0B2035)],
+                      ),
+                      border: Border.all(
+                        color: _isLight
+                            ? const Color(0xFF7DD3FC)
+                            : const Color(0x334CC9F0),
+                      ),
+                    ),
+                    child: Row(
                       children: [
                         Container(
-                          width: 64, height: 64,
+                          width: 48,
+                          height: 48,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: const LinearGradient(colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)]),
-                            boxShadow: [BoxShadow(color: BabifixDesign.cyan.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 4))],
+                            color: const Color(
+                              0xFF4CC9F0,
+                            ).withValues(alpha: 0.15),
                           ),
-                          child: profileAvatarBytes != null
-                              ? ClipOval(child: Image.memory(profileAvatarBytes!, fit: BoxFit.cover, width: 64, height: 64))
-                              : Center(child: Text(
-                                  profileName.isNotEmpty ? profileName[0].toUpperCase() : '?',
-                                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
-                                )),
+                          child: const Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: Color(0xFF4CC9F0),
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(profileName.isEmpty ? 'Mon compte' : profileName,
-                                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: _textPrimary)),
-                              const SizedBox(height: 3),
                               Text(
-                                profileEmail.isEmpty ? 'Connectez-vous ou créez un compte' : profileEmail,
-                                style: TextStyle(color: _textSecondary, fontSize: 13),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                'Wallet séquestre',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: _textPrimary,
+                                  fontSize: 14,
+                                ),
                               ),
-                              if (profilePhone.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Row(children: [
-                                  Icon(Icons.phone_rounded, size: 11, color: _textSecondary),
-                                  const SizedBox(width: 3),
-                                  Text(profilePhone, style: TextStyle(color: _textSecondary, fontSize: 12)),
-                                ]),
-                              ],
+                              const SizedBox(height: 2),
+                              Text(
+                                '${formatFcfa(totalEscrow)} en attente de libération',
+                                style: const TextStyle(
+                                  color: Color(0xFF4CC9F0),
+                                  fontSize: 13,
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                        GestureDetector(
-                          onTap: _openEditProfile,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)]),
-                              borderRadius: BorderRadius.circular(20),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF4CC9F0,
+                            ).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Sécurisé',
+                            style: TextStyle(
+                              color: Color(0xFF4CC9F0),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
                             ),
-                            child: const Text('Modifier', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
                           ),
                         ),
                       ],
                     ),
-                    if (sessionLoggedIn) ...[
-                      const SizedBox(height: 16),
-                      Row(children: [
-                        _MiniStatChip(label: 'Réservations', value: '${reservations.length}', icon: Icons.calendar_today_rounded, color: BabifixDesign.cyan, isLight: _isLight),
-                        const SizedBox(width: 8),
-                        _MiniStatChip(label: 'En cours', value: '${reservations.where((r) => r.status == 'En cours').length}', icon: Icons.pending_actions_rounded, color: const Color(0xFFF59E0B), isLight: _isLight),
-                        const SizedBox(width: 8),
-                        _MiniStatChip(label: 'Séquestre', value: totalEscrow > 0 ? formatFcfa(totalEscrow) : '0 F', icon: Icons.account_balance_wallet_rounded, color: const Color(0xFF10B981), isLight: _isLight),
-                      ]),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _PremiumActionTile(
-                icon: Icons.person_outline_rounded,
-                title: 'Modifier le profil',
-                subtitle: 'Photo, nom, coordonnees',
-                onTap: _openEditProfile,
-              ),
-              const SizedBox(height: 10),
-              _PremiumActionTile(
-                icon: Icons.chat_bubble_outline_rounded,
-                title: 'Messages',
-                subtitle: 'Echanger avec vos prestataires',
-                onTap: _openMessages,
-              ),
-              const SizedBox(height: 10),
-              _PremiumActionTile(
-                icon: Icons.support_agent_rounded,
-                title: 'Contacter l’administrateur',
-                subtitle: contactAdminEmail.isEmpty
-                    ? 'Email support (configure côté serveur)'
-                    : contactAdminEmail,
-                onTap: _contactAdminMail,
-              ),
-              const SizedBox(height: 10),
-              _PremiumActionTile(
-                icon: Icons.help_center_outlined,
-                title: 'FAQ & aide',
-                subtitle: 'Guide reservation, paiement, avis',
-                onTap: _showHelpSheet,
-              ),
-              const SizedBox(height: 10),
-              _PremiumActionTile(
-                icon: Icons.palette_outlined,
-                title: 'Parametres',
-                subtitle: 'Telephone, adresse exacte, theme',
-                onTap: _openSettings,
-              ),
-              const SizedBox(height: 10),
-              _PremiumActionTile(
-                icon: Icons.info_outline_rounded,
-                title: 'A propos de BABIFIX',
-                subtitle: 'Version, mentions et support',
-                onTap: () {
-                  showAboutDialog(
-                    context: context,
-                    applicationName: 'BABIFIX',
-                    applicationVersion: '1.0.0',
-                    applicationIcon: const CircleAvatar(
-                      backgroundImage: AssetImage(_logoAsset),
+                  ),
+
+                // ── Sécurité & compte ───────────────────────────────────
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: _isLight
+                          ? const Color(0x10000000)
+                          : const Color(0x18FFFFFF),
                     ),
-                    children: const [
-                      Text(
-                        'Plateforme premium de services a domicile avec reservation et paiement securise.',
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Text(
+                          'Sécurité & compte',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _textSecondary,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      _PremiumActionTile(
+                        icon: Icons.fingerprint_rounded,
+                        title: 'Connexion biométrique',
+                        subtitle: 'Face ID / Empreinte pour accéder rapidement',
+                        onTap: _openBiometricSettings,
+                      ),
+                      const SizedBox(height: 8),
+                      _PremiumActionTile(
+                        icon: Icons.lock_outline_rounded,
+                        title: 'Changer le mot de passe',
+                        subtitle: 'Modifier votre mot de passe de connexion',
+                        onTap: _openForgotPassword,
                       ),
                     ],
-                  );
-                },
-              ),
-              // ── Wallet séquestre premium ────────────────────────────
-              const SizedBox(height: 10),
-              if (sessionLoggedIn && totalEscrow > 0)
+                  ),
+                ),
+
+                // ── Légal & confidentialité ─────────────────────────────
+                const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
+                    color: _cardBg,
                     borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: _isLight
+                          ? const Color(0x10000000)
+                          : const Color(0x18FFFFFF),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _LegalLink(
+                        label: 'CGU',
+                        icon: Icons.description_outlined,
+                        isLight: _isLight,
+                        onTap: () => _launchUrl('https://babifix.ci/cgu'),
+                      ),
+                      _VerticalDivider(isLight: _isLight),
+                      _LegalLink(
+                        label: 'Confidentialité',
+                        icon: Icons.privacy_tip_outlined,
+                        isLight: _isLight,
+                        onTap: () => _launchUrl('https://babifix.ci/privacy'),
+                      ),
+                      _VerticalDivider(isLight: _isLight),
+                      _LegalLink(
+                        label: 'Aide',
+                        icon: Icons.help_outline_rounded,
+                        isLight: _isLight,
+                        onTap: _showHelpSheet,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── Badge BABIFIX Protect ───────────────────────────────
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
                     gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
                       colors: _isLight
-                          ? const [Color(0xFFEFFAFF), Color(0xFFE0F7FE)]
-                          : const [Color(0xFF071523), Color(0xFF0B2035)],
+                          ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
+                          : const [Color(0xFF052010), Color(0xFF073318)],
                     ),
                     border: Border.all(
-                      color: _isLight ? const Color(0xFF7DD3FC) : const Color(0x334CC9F0),
+                      color: _isLight
+                          ? const Color(0xFF86EFAC)
+                          : const Color(0x3322C55E),
                     ),
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        width: 48, height: 48,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
-                        ),
-                        child: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF4CC9F0), size: 24),
+                      const Icon(
+                        Icons.verified_user_rounded,
+                        color: Color(0xFF22C55E),
+                        size: 22,
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Wallet séquestre', style: TextStyle(fontWeight: FontWeight.w800, color: _textPrimary, fontSize: 14)),
-                            const SizedBox(height: 2),
-                            Text('${formatFcfa(totalEscrow)} en attente de libération',
-                                style: const TextStyle(color: Color(0xFF4CC9F0), fontSize: 13)),
+                            Text(
+                              'BABIFIX Protect',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: _textPrimary,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              'Paiement sécurisé · Prestataires vérifiés · Support 7j/7',
+                              style: TextStyle(
+                                color: _textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4CC9F0).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text('Sécurisé', style: TextStyle(color: Color(0xFF4CC9F0), fontSize: 11, fontWeight: FontWeight.w700)),
                       ),
                     ],
                   ),
                 ),
 
-              // ── Sécurité & compte ───────────────────────────────────
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
+                // ── Déconnexion ─────────────────────────────────────────
+                const SizedBox(height: 10),
+                _PremiumActionTile(
+                  icon: sessionLoggedIn
+                      ? Icons.logout_rounded
+                      : Icons.login_rounded,
+                  title: sessionLoggedIn ? 'Déconnexion' : 'Connexion',
+                  subtitle: sessionLoggedIn
+                      ? 'Quitter ce compte sur cet appareil'
+                      : 'Se connecter ou créer un compte',
+                  onTap: sessionLoggedIn ? _logout : _openAuth,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text('Sécurité & compte',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                              color: _textSecondary, letterSpacing: 0.8)),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'BABIFIX v1.0.0 · Abidjan, Côte d\'Ivoire',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _textSecondary.withValues(alpha: 0.5),
                     ),
-                    _PremiumActionTile(
-                      icon: Icons.fingerprint_rounded,
-                      title: 'Connexion biométrique',
-                      subtitle: 'Face ID / Empreinte pour accéder rapidement',
-                      onTap: _openBiometricSettings,
-                    ),
-                    const SizedBox(height: 8),
-                    _PremiumActionTile(
-                      icon: Icons.lock_outline_rounded,
-                      title: 'Changer le mot de passe',
-                      subtitle: 'Modifier votre mot de passe de connexion',
-                      onTap: _openForgotPassword,
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Légal & confidentialité ─────────────────────────────
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: _isLight,
-                        onTap: () => _launchUrl('https://babifix.ci/cgu')),
-                    _VerticalDivider(isLight: _isLight),
-                    _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: _isLight,
-                        onTap: () => _launchUrl('https://babifix.ci/privacy')),
-                    _VerticalDivider(isLight: _isLight),
-                    _LegalLink(label: 'Aide', icon: Icons.help_outline_rounded, isLight: _isLight,
-                        onTap: _showHelpSheet),
-                  ],
-                ),
-              ),
-
-              // ── Badge BABIFIX Protect ───────────────────────────────
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    colors: _isLight
-                        ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
-                        : const [Color(0xFF052010), Color(0xFF073318)],
                   ),
-                  border: Border.all(color: _isLight ? const Color(0xFF86EFAC) : const Color(0x3322C55E)),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.verified_user_rounded, color: Color(0xFF22C55E), size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('BABIFIX Protect', style: TextStyle(fontWeight: FontWeight.w800, color: _textPrimary, fontSize: 13)),
-                          Text('Paiement sécurisé · Prestataires vérifiés · Support 7j/7',
-                              style: TextStyle(color: _textSecondary, fontSize: 11)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Déconnexion ─────────────────────────────────────────
-              const SizedBox(height: 10),
-              _PremiumActionTile(
-                icon: sessionLoggedIn ? Icons.logout_rounded : Icons.login_rounded,
-                title: sessionLoggedIn ? 'Déconnexion' : 'Connexion',
-                subtitle: sessionLoggedIn ? 'Quitter ce compte sur cet appareil' : 'Se connecter ou créer un compte',
-                onTap: sessionLoggedIn ? _logout : _openAuth,
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: Text('BABIFIX v1.0.0 · Abidjan, Côte d\'Ivoire',
-                    style: TextStyle(fontSize: 11, color: _textSecondary.withValues(alpha: 0.5))),
-              ),
-            ],
-          ),
+              ],
+            ),
           ), // RefreshIndicator
         ),
       ],
@@ -3934,7 +4196,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     try {
       final base = babifixApiBaseUrl();
       final url = '$base/api/public/categories/';
-      debugPrint('BABIFIX: Fetching categories from: $url');
+      debugPrint('BABIFIX: _loadPublicCategories START');
       final cres = await http.get(Uri.parse(url));
       debugPrint('BABIFIX: Categories response status: ${cres.statusCode}');
       if (cres.statusCode == 200) {
@@ -4024,7 +4286,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
         debugPrint('BABIFIX: Fetching categories from: $url');
         final cres = await http.get(Uri.parse(url));
         debugPrint('BABIFIX: Categories response status: ${cres.statusCode}');
-        debugPrint('BABIFIX: Categories response body: ${cres.body}');
         if (cres.statusCode == 200) {
           final cdata = jsonDecode(cres.body) as Map<String, dynamic>;
           final rows = (cdata['categories'] as List<dynamic>? ?? []);
@@ -4057,7 +4318,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
           .map(
             (item) => ClientService(
               title: '${item['title'] ?? ''}',
-              category: '${item['category_filter_key'] ?? babifixCategoryFilterKey('${item['category'] ?? ''}')}',
+              category:
+                  '${item['category_filter_key'] ?? babifixCategoryFilterKey('${item['category'] ?? ''}')}',
               duration: '${item['duration'] ?? ''}',
               price: jsonInt(item['price']),
               rating: jsonDouble(item['rating']),
@@ -4442,14 +4704,18 @@ class _ClientHomePageState extends State<ClientHomePage> {
               service.providerId > 0) {
             setState(() {
               services = services
-                  .map((s) => s.providerId == service.providerId
-                      ? s.copyWith(disponible: false)
-                      : s)
+                  .map(
+                    (s) => s.providerId == service.providerId
+                        ? s.copyWith(disponible: false)
+                        : s,
+                  )
                   .toList();
               recentProviders = recentProviders
-                  .map((p) => p.id == service.providerId
-                      ? p.copyWith(disponible: false)
-                      : p)
+                  .map(
+                    (p) => p.id == service.providerId
+                        ? p.copyWith(disponible: false)
+                        : p,
+                  )
                   .toList();
             });
           }
@@ -5418,7 +5684,13 @@ class _MiniStatChip extends StatelessWidget {
   final Color color;
   final bool isLight;
 
-  const _MiniStatChip({required this.label, required this.value, required this.icon, required this.color, required this.isLight});
+  const _MiniStatChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.isLight,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -5435,8 +5707,24 @@ class _MiniStatChip extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 16),
             const SizedBox(height: 3),
-            Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(label, style: TextStyle(color: color.withValues(alpha: 0.7), fontSize: 9, fontWeight: FontWeight.w600)),
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                color: color.withValues(alpha: 0.7),
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -5451,18 +5739,38 @@ class _LegalLink extends StatelessWidget {
   final bool isLight;
   final VoidCallback onTap;
 
-  const _LegalLink({required this.label, required this.icon, required this.isLight, required this.onTap});
+  const _LegalLink({
+    required this.label,
+    required this.icon,
+    required this.isLight,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 18, color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-            color: isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8))),
-      ]),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isLight
+                  ? const Color(0xFF475569)
+                  : const Color(0xFF94A3B8),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -5473,8 +5781,11 @@ class _VerticalDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 32,
-        color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF));
+    return Container(
+      width: 1,
+      height: 32,
+      color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF),
+    );
   }
 }
 

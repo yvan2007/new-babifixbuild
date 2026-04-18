@@ -1,13 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../theme/app_theme.dart';
-import '../features/reservations/reservations_history_screen.dart';
-import '../features/reservations/rate_provider_screen.dart';
 import '../features/auth/forgot_password_screen.dart';
 import '../features/map/providers_map_screen.dart';
+import '../features/reservations/rate_provider_screen.dart';
+import '../features/reservations/reservations_history_screen.dart';
+import '../theme/app_theme.dart';
 
-// ── Route names ──────────────────────────────────────────────────────────────
+Widget _fadeSlideTransition(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondaryAnimation,
+  Widget child,
+) {
+  return FadeTransition(
+    opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+    child: SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0, 0.05),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+      child: child,
+    ),
+  );
+}
+
 abstract final class BabifixRoutes {
   static const onboarding = '/onboarding';
   static const home = '/home';
@@ -21,7 +38,6 @@ abstract final class BabifixRoutes {
   static const chatRoom = '/chat/:prestataireId';
   static const editProfile = '/profile/edit';
   static const actualiteDetail = '/actualite/:id';
-  // v2 — Nouvelles routes
   static const reservationsHistory = '/reservations';
   static const rateProvider = '/reservations/:ref/rate';
   static const forgotPassword = '/auth/forgot-password';
@@ -43,37 +59,43 @@ GoRouter createBabifixClientRouter({
   required Widget Function(BuildContext, String prestataireId) chatRoomBuilder,
   required Widget Function(BuildContext) editProfileBuilder,
 }) {
+  // Pour simplifier, on commence toujours par /home
+  // L'app décidera si afficher onboarding ou non
   return GoRouter(
-    initialLocation: hasSeenOnboarding
-        ? BabifixRoutes.home
-        : BabifixRoutes.onboarding,
+    initialLocation: '/home',
     refreshListenable: refreshListenable,
     routes: [
+      GoRoute(path: '/home', builder: (ctx, _) => homeBuilder(ctx)),
+      GoRoute(path: '/onboarding', builder: (ctx, _) => onboardingBuilder(ctx)),
       GoRoute(
-        path: BabifixRoutes.onboarding,
-        builder: (ctx, _) => onboardingBuilder(ctx),
+        path: '/',
+        redirect: (_, __) => hasSeenOnboarding ? '/home' : '/onboarding',
       ),
-      GoRoute(path: BabifixRoutes.home, builder: (ctx, _) => homeBuilder(ctx)),
-      GoRoute(
-        path: BabifixRoutes.serviceDetail,
-        builder: (ctx, state) {
-          final id = state.pathParameters['id'] ?? '0';
-          return serviceDetailBuilder(ctx, id);
-        },
-      ),
+      GoRoute(path: '/home', builder: (ctx, _) => homeBuilder(ctx)),
+      GoRoute(path: '/onboarding', builder: (ctx, _) => onboardingBuilder(ctx)),
       GoRoute(
         path: BabifixRoutes.bookingFlow,
-        builder: (ctx, state) {
-          final sid = state.pathParameters['serviceId'] ?? '0';
-          return bookingBuilder(ctx, sid);
-        },
+        pageBuilder: (ctx, state) => CustomTransitionPage(
+          child: bookingBuilder(ctx, state.pathParameters['serviceId'] ?? '0'),
+          transitionsBuilder: _fadeSlideTransition,
+        ),
+      ),
+      GoRoute(
+        path: BabifixRoutes.payment,
+        pageBuilder: (ctx, state) => CustomTransitionPage(
+          child: paymentBuilder(
+            ctx,
+            state.pathParameters['reservationId'] ?? '0',
+          ),
+          transitionsBuilder: _fadeSlideTransition,
+        ),
       ),
       GoRoute(
         path: BabifixRoutes.providerProfile,
-        builder: (ctx, state) {
-          final id = state.pathParameters['id'] ?? '0';
-          return providerProfileBuilder(ctx, id);
-        },
+        pageBuilder: (ctx, state) => CustomTransitionPage(
+          child: providerProfileBuilder(ctx, state.pathParameters['id'] ?? '0'),
+          transitionsBuilder: _fadeSlideTransition,
+        ),
       ),
       GoRoute(
         path: BabifixRoutes.notifications,
@@ -81,10 +103,8 @@ GoRouter createBabifixClientRouter({
       ),
       GoRoute(
         path: BabifixRoutes.payment,
-        builder: (ctx, state) {
-          final rid = state.pathParameters['reservationId'] ?? '0';
-          return paymentBuilder(ctx, rid);
-        },
+        builder: (ctx, state) =>
+            paymentBuilder(ctx, state.pathParameters['reservationId'] ?? '0'),
       ),
       GoRoute(
         path: BabifixRoutes.chat,
@@ -92,16 +112,13 @@ GoRouter createBabifixClientRouter({
       ),
       GoRoute(
         path: BabifixRoutes.chatRoom,
-        builder: (ctx, state) {
-          final pid = state.pathParameters['prestataireId'] ?? '0';
-          return chatRoomBuilder(ctx, pid);
-        },
+        builder: (ctx, state) =>
+            chatRoomBuilder(ctx, state.pathParameters['prestataireId'] ?? '0'),
       ),
       GoRoute(
         path: BabifixRoutes.editProfile,
         builder: (ctx, _) => editProfileBuilder(ctx),
       ),
-      // ── v2 — Nouvelles routes ──────────────────────────────────────────────
       GoRoute(
         path: BabifixRoutes.reservationsHistory,
         builder: (ctx, _) => const ReservationsHistoryScreen(),
@@ -109,9 +126,8 @@ GoRouter createBabifixClientRouter({
       GoRoute(
         path: BabifixRoutes.rateProvider,
         builder: (ctx, state) {
-          final idParam = state.pathParameters['ref'] ?? '';
-          final id = int.tryParse(idParam) ?? 0;
-          return RateProviderScreen(bookingId: id);
+          final ref = state.pathParameters['ref'] ?? '';
+          return RateProviderScreen(bookingId: int.tryParse(ref) ?? 0);
         },
       ),
       GoRoute(
@@ -138,7 +154,7 @@ GoRouter createBabifixClientRouter({
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => ctx.go(BabifixRoutes.home),
-              child: const Text('Retour à l\'accueil'),
+              child: const Text("Retour à l'accueil"),
             ),
           ],
         ),
