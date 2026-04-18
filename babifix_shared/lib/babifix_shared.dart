@@ -60,7 +60,7 @@ class BabifixTheme {
 }
 
 String formatFcfa(double amount) {
-  return '${amount.toStringAsFixed(0)} FCA';
+  return '${amount.toStringAsFixed(0)} francs CFA';
 }
 
 String formatDate(DateTime date) {

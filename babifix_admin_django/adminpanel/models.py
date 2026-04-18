@@ -100,7 +100,7 @@ class Client(models.Model):
     )
 
     def depense_display(self):
-        return f"{self.depense} FCA"
+        return f"{self.depense} francs CFA"
 
     def __str__(self):
         return self.nom
@@ -154,7 +154,7 @@ class Reservation(models.Model):
     montant = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        help_text="Montant de la réservation en FCA",
+        help_text="Montant de la réservation en francs CFA",
     )
     statut = models.CharField(
         max_length=30, choices=Status.choices, default=Status.DEMANDE_ENVOYEE
@@ -306,12 +306,12 @@ class Payment(models.Model):
     montant = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        help_text="Montant en FCA",
+        help_text="Montant en francs CFA",
     )
     commission = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        help_text="Commission en FCA",
+        help_text="Commission en francs CFA",
     )
     etat = models.CharField(max_length=20, choices=State.choices, default=State.PENDING)
     reservation = models.ForeignKey(
@@ -833,4 +833,4 @@ class LigneDevis(models.Model):
         return self.quantite * self.prix_unitaire
 
     def __str__(self):
-        return f"{self.description} x{self.quantite} = {self.total} FCA"
+        return f"{self.description} x{self.quantite} = {self.total} francs CFA"

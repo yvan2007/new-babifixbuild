@@ -569,7 +569,7 @@ abstract class AppLocalizations {
   /// No description provided for @paySimply.
   ///
   /// In fr, this message translates to:
-  /// **'Payez en FCA, simplement'**
+  /// **'Payez en francs CFA, simplement'**
   String get paySimply;
 
   /// No description provided for @artisansVerified.

@@ -467,7 +467,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
               Expanded(
                 child: TextField(
                   decoration: const InputDecoration(
-                    labelText: 'Prix unitaire (FCA)',
+                    labelText: 'Prix unitaire (francs CFA)',
                     isDense: true,
                   ),
                   keyboardType: TextInputType.number,
@@ -482,7 +482,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Text(
-                'Total: ${ligne.total.toStringAsFixed(0)} FCA',
+                'Total: ${ligne.total.toStringAsFixed(0)} francs CFA',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ],
@@ -536,7 +536,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
                   style: TextStyle(color: Colors.white70),
                 ),
                 Text(
-                  '${_sousTotal.toStringAsFixed(0)} FCA',
+                  '${_sousTotal.toStringAsFixed(0)} francs CFA',
                   style: const TextStyle(color: Colors.white),
                 ),
               ],
@@ -550,7 +550,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
                   style: TextStyle(color: Colors.white70),
                 ),
                 Text(
-                  '${commission.toStringAsFixed(0)} FCA',
+                  '${commission.toStringAsFixed(0)} francs CFA',
                   style: const TextStyle(color: Colors.white),
                 ),
               ],
@@ -568,7 +568,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
                   ),
                 ),
                 Text(
-                  '${total.toStringAsFixed(0)} FCA',
+                  '${total.toStringAsFixed(0)} francs CFA',
                   style: const TextStyle(
                     color: Color(0xFF4CC9F0),
                     fontWeight: FontWeight.w800,

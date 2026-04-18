@@ -369,7 +369,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                       ),
                     ),
                     Text(
-                      '${l['total'].toStringAsFixed(0)} FCA',
+                      '${l['total'].toStringAsFixed(0)} francs CFA',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ],
@@ -402,7 +402,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                   style: TextStyle(color: Colors.white70),
                 ),
                 Text(
-                  '${sousTotal.toStringAsFixed(0)} FCA',
+                  '${sousTotal.toStringAsFixed(0)} francs CFA',
                   style: const TextStyle(color: Colors.white),
                 ),
               ],
@@ -416,7 +416,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                   style: const TextStyle(color: Colors.white70),
                 ),
                 Text(
-                  '${commission.toStringAsFixed(0)} FCA',
+                  '${commission.toStringAsFixed(0)} francs CFA',
                   style: const TextStyle(color: Colors.white),
                 ),
               ],
@@ -434,7 +434,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                   ),
                 ),
                 Text(
-                  '${total.toStringAsFixed(0)} FCA',
+                  '${total.toStringAsFixed(0)} francs CFA',
                   style: const TextStyle(
                     color: Color(0xFF4CC9F0),
                     fontWeight: FontWeight.w800,

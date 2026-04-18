@@ -1074,9 +1074,9 @@ BABIFIX adopte une architecture en couches (**layered architecture**) qui sépar
 Le système de messagerie en temps réel de BABIFIX est implémenté avec **Django Channels**, l'extension officielle de Django pour le protocole WebSocket et le protocole ASGI (Asynchronous Server Gateway Interface).
 
 Le fonctionnement est le suivant :
-1. Lors de l'ouverture du chat d'une réservation, l'application Flutter établit une connexion WebSocket avec le serveur Django Channels (`wss://api.babifix.ci/ws/chat/<reservation_id>/`).
-2. Django Channels assigne cette connexion à un **groupe de canal** nommé `chat_<reservation_id>`, stocké dans Redis.
-3. Lorsqu'un message est envoyé par un participant, le `ClientEventsConsumer` (pour les clients) ou le `PrestataireEventsConsumer` (pour les prestataires) persiste le message en base (modèle `Message`) et diffuse (`broadcast`) le message JSON à tous les membres du groupe WebSocket correspondant.
+1. L'application Flutter établit une connexion WebSocket avec le serveur Django Channels (`wss://api.babifix.ci/ws/client-events/?token=JWT`). Le ClientEventsConsumer gère un groupe global `babifix_client_events` pour tous les clients connectés. Le PrestataireEventsConsumer gère un groupe par prestataire `babifix_prestataire_{uid}`.
+2. Les messages chat sont envoyés via l'API REST (`POST /api/messages`) et les notifications de nouveau message transitent par WebSocket pour la réactivité temps réel.
+3. Lorsqu'un message est persisté en base (modèle `Message`), un signal broadcast发送给相应的 WebSocket 组。
 4. L'autre participant reçoit le message en temps réel dans son application Flutter sans avoir à interroger l'API REST.
 5. Le compteur de messages non lus (`totalNonLus` sur la `Conversation`) est mis à jour en base, et l'API `/api/conversations/unread-count/` permet à l'application de rafraîchir le badge.
 
@@ -1754,7 +1754,7 @@ World Bank. 2022. *Financial Inclusion in Sub-Saharan Africa: Closing the Gap.* 
 | **FCM** (*Firebase Cloud Messaging*) | Service Google de notifications push multiplateformes (iOS, Android), utilisé dans BABIFIX pour notifier clients et prestataires. |
 | **Flutter** | Framework Google open-source basé sur le langage Dart, permettant le développement d'applications mobiles cross-platform (iOS/Android) à partir d'une seule base de code. |
 | **HTTP/HTTPS** (*HyperText Transfer Protocol / Secure*) | Protocole de communication web. HTTPS chiffre les échanges via TLS/SSL, obligatoire pour toutes les communications BABIFIX en production. |
-| **JWT** (*JSON Web Token*) | Standard de jeton d'authentification stateless. BABIFIX utilise SimpleJWT (Django) pour authentifier les requêtes des applications Flutter. |
+| **JWT** (*JSON Web Token*) | Standard de jeton d'authentification stateless. BABIFIX utilise un module JWT personnalisé (auth.py) pour authentifier les requêtes des applications Flutter. |
 | **KPI** (*Key Performance Indicator*) | Indicateur clé de performance. Le tableau de bord administrateur BABIFIX affiche plusieurs KPI : nombre de réservations, taux de validation, revenus, utilisateurs actifs. |
 | **MVP** (*Minimum Viable Product*) | Version minimale d'un produit permettant de valider les hypothèses clés avec des utilisateurs réels, avant un développement complet. |
 | **MVVM** (*Model-View-ViewModel*) | Pattern d'architecture UI séparant logique métier (ViewModel) et interface (View), recommandé pour les applications Flutter. |
@@ -1779,7 +1779,7 @@ BABIFIX_BUILD/
 │
 ├── babifix_admin_django/           # Backend Django principal
 │   ├── config/
-│   │   ├── settings.py             # Django 5.2, JWT (SimpleJWT), Channels, FCM
+│   │   ├── settings.py             # Django 5.2, JWT custom (auth.py), Channels, FCM
 │   │   ├── urls.py                 # Routage API REST + WebSocket
 │   │   ├── asgi.py                 # Point d'entrée ASGI (Django Channels)
 │   │   └── settings.py            # Pagination (PAGE_SIZE=20), security headers
