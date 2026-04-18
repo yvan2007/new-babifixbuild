@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/forgot_password_screen.dart';
+import '../features/booking/devis_detail_screen.dart';
 import '../features/map/providers_map_screen.dart';
 import '../features/reservations/rate_provider_screen.dart';
 import '../features/reservations/reservations_history_screen.dart';
@@ -42,6 +43,7 @@ abstract final class BabifixRoutes {
   static const rateProvider = '/reservations/:ref/rate';
   static const forgotPassword = '/auth/forgot-password';
   static const providersMap = '/map';
+  static const devisDetail = '/devis/:reference';
 }
 
 GoRouter createBabifixClientRouter({
@@ -58,6 +60,7 @@ GoRouter createBabifixClientRouter({
   required Widget Function(BuildContext) messagesBuilder,
   required Widget Function(BuildContext, String prestataireId) chatRoomBuilder,
   required Widget Function(BuildContext) editProfileBuilder,
+  required Widget Function(BuildContext, String reference) devisDetailBuilder,
 }) {
   // Pour simplifier, on commence toujours par /home
   // L'app décidera si afficher onboarding ou non
@@ -137,6 +140,16 @@ GoRouter createBabifixClientRouter({
       GoRoute(
         path: BabifixRoutes.providersMap,
         builder: (ctx, _) => const ProvidersMapScreen(),
+      ),
+      GoRoute(
+        path: BabifixRoutes.devisDetail,
+        pageBuilder: (ctx, state) => CustomTransitionPage(
+          child: devisDetailBuilder(
+            ctx,
+            state.pathParameters['reference'] ?? '',
+          ),
+          transitionsBuilder: _fadeSlideTransition,
+        ),
       ),
     ],
     errorBuilder: (ctx, state) => Scaffold(

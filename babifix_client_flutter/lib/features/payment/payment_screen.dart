@@ -440,8 +440,8 @@ class _PaymentScreenState extends State<PaymentScreen>
 
                   const SizedBox(height: 20),
 
-                  // ── Note escrow ─────────────────────────────────────────
-                  _buildEscrowNote(),
+                  // ── Note sécurité paiement ─────────────────────────────
+                  _buildSecurityNote(),
 
                   if (_error != null) ...[
                     const SizedBox(height: 12),
@@ -762,7 +762,7 @@ class _PaymentScreenState extends State<PaymentScreen>
   }
 
   // ── Note sécurité paiement ─────────────────────────────────────────
-  Widget _buildEscrowNote() {
+  Widget _buildSecurityNote() {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1010,7 +1010,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               ),
               const SizedBox(height: 12),
               Text(
-                '${formatFcfa(_amount)} sont sécurisés en séquestre.\n'
+                '${formatFcfa(_amount)} sont sécurisés.\n'
                 'Le prestataire sera payé après validation de la mission.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: sub, height: 1.55, fontSize: 15),

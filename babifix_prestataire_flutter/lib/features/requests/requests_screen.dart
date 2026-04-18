@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import 'create_devis_screen.dart';
 import 'rate_client_screen.dart';
 
 class RequestsScreen extends StatefulWidget {
@@ -34,8 +35,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
   static String _bucketFromApi(String raw) {
     final t = raw.trim();
     if (t == 'Annulee' || t.toLowerCase().contains('annul')) return 'refused';
-    if (t == 'En attente' || t.toLowerCase().contains('attente')) return 'pending';
-    if (t == 'Terminee' || t.toLowerCase().contains('termin')) return 'completed';
+    if (t == 'En attente' || t.toLowerCase().contains('attente'))
+      return 'pending';
+    if (t == 'Terminee' || t.toLowerCase().contains('termin'))
+      return 'completed';
+    if (t == 'DEMANDE_ENVOYEE' || t == 'DEVIS_EN_COURS' || t == 'DEVIS_ENVOYE')
+      return 'pending';
     return 'active';
   }
 
@@ -49,6 +54,16 @@ class _RequestsScreenState extends State<RequestsScreen> {
         return 'Annul\u00e9e';
       case 'En cours':
         return 'En cours';
+      case 'DEMANDE_ENVOYEE':
+        return 'Demande envoy\u00e9e';
+      case 'DEVIS_EN_COURS':
+        return 'Devis en cours';
+      case 'DEVIS_ENVOYE':
+        return 'Devis envoy\u00e9';
+      case 'DEVIS_ACCEPTE':
+        return 'Devis accept\u00e9';
+      case 'INTERVENTION_EN_COURS':
+        return 'Intervention en cours';
       default:
         return apiStatus;
     }
@@ -68,23 +83,36 @@ class _RequestsScreenState extends State<RequestsScreen> {
     final refused = items.where((e) => e.status == 'refused').toList();
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(onPressed: widget.onBack, icon: const Icon(Icons.arrow_back)),
+        leading: IconButton(
+          onPressed: widget.onBack,
+          icon: const Icon(Icons.arrow_back),
+        ),
         title: const Text('Exigences'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           if (loading) const LinearProgressIndicator(),
-          Text('Nouvelles demandes (${pending.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(
+            'Nouvelles demandes (${pending.length})',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
           if (pending.isNotEmpty) ...[
             const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(Icons.swipe_rounded, size: 14, color: Color(0xFF94A3B8)),
+                const Icon(
+                  Icons.swipe_rounded,
+                  size: 14,
+                  color: Color(0xFF94A3B8),
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'Glissez \u2192 pour accepter  \u2022  \u2190 pour refuser',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
                 ),
               ],
             ),
@@ -92,18 +120,27 @@ class _RequestsScreenState extends State<RequestsScreen> {
           const SizedBox(height: 8),
           ...pending.map((item) => _buildCard(item)),
           const SizedBox(height: 8),
-          const Text('Confirm\u00e9es / en cours', style: TextStyle(fontWeight: FontWeight.w800)),
+          const Text(
+            'Confirm\u00e9es / en cours',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 8),
           ...active.map((item) => _buildCard(item)),
           if (completed.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('Termin\u00e9es (${completed.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text(
+              'Termin\u00e9es (${completed.length})',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 8),
             ...completed.map((item) => _buildCard(item)),
           ],
           if (refused.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('Annul\u00e9es (${refused.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text(
+              'Annul\u00e9es (${refused.length})',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 8),
             ...refused.map((item) => _buildCard(item)),
           ],
@@ -119,7 +156,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
       key: ValueKey(it.reference),
       direction: DismissDirection.horizontal,
       confirmDismiss: (direction) async {
-        final decision = direction == DismissDirection.startToEnd ? 'accept' : 'refuse';
+        final decision = direction == DismissDirection.startToEnd
+            ? 'accept'
+            : 'refuse';
         await _decide(it, decision);
         return false; // list updates via setState in _decide
       },
@@ -133,9 +172,20 @@ class _RequestsScreenState extends State<RequestsScreen> {
         alignment: Alignment.centerLeft,
         child: const Row(
           children: [
-            Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 28),
+            Icon(
+              Icons.check_circle_outline_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
             SizedBox(width: 8),
-            Text('Accepter', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+            Text(
+              'Accepter',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
+            ),
           ],
         ),
       ),
@@ -150,7 +200,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text('Refuser', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+            Text(
+              'Refuser',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
+            ),
             SizedBox(width: 8),
             Icon(Icons.cancel_outlined, color: Colors.white, size: 28),
           ],
@@ -163,7 +220,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
   Widget _buildCardInner(_RequestItem it) {
     final tagText = _labelStatut(it.apiStatus);
     final hasClientMsg = it.clientMessage.isNotEmpty;
-    final hasPhotos    = it.clientPhotos.isNotEmpty;
+    final hasPhotos = it.clientPhotos.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -179,7 +236,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
           // ── En-tête client + tag ──────────────────────────────────────
           Row(
             children: [
-              Expanded(child: Text(it.client, style: const TextStyle(fontWeight: FontWeight.w700))),
+              Expanded(
+                child: Text(
+                  it.client,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
               _Tag(text: tagText),
             ],
           ),
@@ -188,18 +250,37 @@ class _RequestsScreenState extends State<RequestsScreen> {
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF94A3B8)),
+              const Icon(
+                Icons.schedule_rounded,
+                size: 14,
+                color: Color(0xFF94A3B8),
+              ),
               const SizedBox(width: 4),
-              Text('${it.date}  ${it.hour}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+              Text(
+                '${it.date}  ${it.hour}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
             ],
           ),
           const SizedBox(height: 4),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF94A3B8)),
+              const Icon(
+                Icons.location_on_outlined,
+                size: 14,
+                color: Color(0xFF94A3B8),
+              ),
               const SizedBox(width: 4),
-              Expanded(child: Text(it.address, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)))),
+              Expanded(
+                child: Text(
+                  it.address,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ),
             ],
           ),
 
@@ -217,15 +298,33 @@ class _RequestsScreenState extends State<RequestsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(children: [
-                    Icon(Icons.chat_bubble_outline_rounded, size: 13, color: Color(0xFF2563EB)),
-                    SizedBox(width: 5),
-                    Text('Message du client', style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF2563EB),
-                    )),
-                  ]),
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 13,
+                        color: Color(0xFF2563EB),
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'Message du client',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 5),
-                  Text(it.clientMessage, style: const TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.5)),
+                  Text(
+                    it.clientMessage,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF374151),
+                      height: 1.5,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -237,14 +336,24 @@ class _RequestsScreenState extends State<RequestsScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  const Icon(Icons.photo_library_outlined, size: 13, color: Color(0xFF64748B)),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Photos du problème (${it.clientPhotos.length})',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-                  ),
-                ]),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.photo_library_outlined,
+                      size: 13,
+                      color: Color(0xFF64748B),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Photos du problème (${it.clientPhotos.length})',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 SizedBox(
                   height: 80,
@@ -265,7 +374,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
           // ── Description (si pas de message client dédié) ──────────────
           if (!hasClientMsg && it.description.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(it.description, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+            Text(
+              it.description,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            ),
           ],
 
           // ── Paiement ──────────────────────────────────────────────────
@@ -275,15 +387,22 @@ class _RequestsScreenState extends State<RequestsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  if (it.paymentType == 'MOBILE_MONEY' && it.mobileMoneyOperator.isNotEmpty)
+                  if (it.paymentType == 'MOBILE_MONEY' &&
+                      it.mobileMoneyOperator.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: BabifixPaymentMethodLogo(methodId: it.mobileMoneyOperator, height: 22),
+                      child: BabifixPaymentMethodLogo(
+                        methodId: it.mobileMoneyOperator,
+                        height: 22,
+                      ),
                     ),
                   Expanded(
                     child: Text(
                       'Paiement : ${_paymentLabel(it.paymentType, it.mobileMoneyOperator)}',
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
                   ),
                 ],
@@ -296,25 +415,52 @@ class _RequestsScreenState extends State<RequestsScreen> {
               const Icon(Icons.star, size: 15, color: Color(0xFFF59E0B)),
               Text(' ${it.rating}', style: const TextStyle(fontSize: 12)),
               const Spacer(),
-              Text(it.amount, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0284C7))),
+              Text(
+                it.amount,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0284C7),
+                ),
+              ),
             ],
           ),
 
           // ── Actions ───────────────────────────────────────────────────
           if (it.status == 'pending') ...[
             const SizedBox(height: 10),
-            // Bouton proposer un devis (prioritaire)
+            // Bouton créer un devis détaillé
             if (it.bookingId != null) ...[
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () => _showDevisDialog(it),
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => CreateDevisScreen(
+                        reservationReference: it.reference,
+                        reservationDetails: {
+                          'client': it.client,
+                          'title': it.service,
+                          'description_probleme': it.clientMessage,
+                        },
+                        onBack: () => Navigator.pop(context),
+                        onDevisCreated: () {
+                          Navigator.pop(context);
+                          _loadRequests();
+                        },
+                      ),
+                    ),
+                  ),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   icon: const Icon(Icons.request_quote_rounded, size: 18),
-                  label: const Text('Proposer un devis', style: TextStyle(fontWeight: FontWeight.w700)),
+                  label: const Text(
+                    'Créer un devis',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -335,7 +481,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 Expanded(
                   child: FilledButton(
                     onPressed: () => _decide(it, 'accept'),
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF22C55E)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF22C55E),
+                    ),
                     child: const Text('Accepter'),
                   ),
                 ),
@@ -395,7 +543,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   // ── Dialogue de devis ─────────────────────────────────────────────────────
   void _showDevisDialog(_RequestItem it) {
-    final priceCtrl   = TextEditingController();
+    final priceCtrl = TextEditingController();
     final messageCtrl = TextEditingController();
     bool sending = false;
 
@@ -403,7 +551,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('Proposer un devis', style: TextStyle(fontWeight: FontWeight.w800)),
+          title: const Text(
+            'Proposer un devis',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -411,12 +562,19 @@ class _RequestsScreenState extends State<RequestsScreen> {
               children: [
                 Text(
                   'Réservation : ${it.service}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
                   'Le client a déjà payé 1 500 FCFA de frais de visite.\nEntrez le prix total de la prestation.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.45),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    height: 1.45,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -426,7 +584,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     labelText: 'Prix total (FCFA)',
                     hintText: 'Ex. : 25 000',
                     prefixIcon: const Icon(Icons.payments_rounded),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -436,7 +596,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   decoration: InputDecoration(
                     labelText: 'Explication (optionnel)',
                     hintText: 'Décrivez pourquoi ce prix...',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ],
@@ -451,17 +613,25 @@ class _RequestsScreenState extends State<RequestsScreen> {
               onPressed: sending
                   ? null
                   : () async {
-                      final price = int.tryParse(priceCtrl.text.replaceAll(RegExp(r'\D'), ''));
+                      final price = int.tryParse(
+                        priceCtrl.text.replaceAll(RegExp(r'\D'), ''),
+                      );
                       if (price == null || price < 2000) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Le montant minimum d\'un devis est 2 000 FCFA.')),
+                          const SnackBar(
+                            content: Text(
+                              'Le montant minimum d\'un devis est 2 000 FCFA.',
+                            ),
+                          ),
                         );
                         return;
                       }
                       setS(() => sending = true);
                       try {
                         final res = await http.post(
-                          Uri.parse('${babifixApiBaseUrl()}/api/bookings/${it.bookingId}/devis/'),
+                          Uri.parse(
+                            '${babifixApiBaseUrl()}/api/bookings/${it.bookingId}/devis/',
+                          ),
                           headers: {
                             'Content-Type': 'application/json',
                             'Authorization': 'Bearer $authToken',
@@ -476,7 +646,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         if (res.statusCode == 200 || res.statusCode == 201) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Devis envoyé ! Le client sera notifié.'),
+                              content: Text(
+                                'Devis envoyé ! Le client sera notifié.',
+                              ),
                               backgroundColor: Color(0xFF2563EB),
                             ),
                           );
@@ -488,18 +660,29 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         }
                       } catch (_) {
                         if (mounted) Navigator.pop(ctx);
-                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Impossible de contacter le serveur.')),
-                        );
+                        if (mounted)
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Impossible de contacter le serveur.',
+                              ),
+                            ),
+                          );
                       } finally {
                         setS(() => sending = false);
                       }
                     },
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+              ),
               child: sending
                   ? const SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text('Envoyer le devis'),
             ),
@@ -602,7 +785,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
     if (authToken == null) return;
     try {
       final res = await http.post(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/decision'),
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/decision',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $authToken',
@@ -611,7 +796,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
       );
       if (res.statusCode == 200 && mounted) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
-        final st = '${body['status'] ?? (decision == 'accept' ? 'Confirmee' : 'Annulee')}';
+        final st =
+            '${body['status'] ?? (decision == 'accept' ? 'Confirmee' : 'Annulee')}';
         setState(() => _applyStatusFromApi(item, st));
       }
     } catch (_) {
@@ -623,11 +809,16 @@ class _RequestsScreenState extends State<RequestsScreen> {
     }
   }
 
-  Future<void> _postReservationStatus(_RequestItem item, String newStatus) async {
+  Future<void> _postReservationStatus(
+    _RequestItem item,
+    String newStatus,
+  ) async {
     if (authToken == null) return;
     try {
       final res = await http.post(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/status'),
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/status',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $authToken',
@@ -639,17 +830,21 @@ class _RequestsScreenState extends State<RequestsScreen> {
         final st = '${body['status'] ?? newStatus}';
         setState(() => _applyStatusFromApi(item, st));
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Statut : ${_RequestsScreenState._labelStatut(st)}')),
+          SnackBar(
+            content: Text('Statut : ${_RequestsScreenState._labelStatut(st)}'),
+          ),
         );
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur ${res.statusCode}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur ${res.statusCode}')));
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de mettre \u00e0 jour le statut')),
+          const SnackBar(
+            content: Text('Impossible de mettre \u00e0 jour le statut'),
+          ),
         );
       }
     }
@@ -659,7 +854,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
     if (authToken == null) return;
     try {
       final res = await http.post(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/cash-confirm'),
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/cash-confirm',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $authToken',
@@ -670,12 +867,16 @@ class _RequestsScreenState extends State<RequestsScreen> {
         final cfs = '${body['cash_flow_status'] ?? 'pending_admin'}';
         setState(() => item.cashFlowStatus = cfs);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Esp\u00e8ces confirm\u00e9es \u2014 en attente validation admin')),
+          const SnackBar(
+            content: Text(
+              'Esp\u00e8ces confirm\u00e9es \u2014 en attente validation admin',
+            ),
+          ),
         );
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur ${res.statusCode}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur ${res.statusCode}')));
       }
     } catch (_) {
       if (mounted) {
@@ -717,17 +918,22 @@ class _RequestItem {
   final String address;
   final String description;
   final double rating;
+
   /// pending | active | completed | refused
   String status;
+
   /// Statut brut API (En attente, Confirmee, En cours, Terminee, Annulee)
   String apiStatus;
   String paymentType;
   String mobileMoneyOperator;
   String cashFlowStatus;
+
   /// Message du client décrivant le problème
   final String clientMessage;
+
   /// Photos envoyées par le client (base64 data URI ou URL HTTP)
   final List<String> clientPhotos;
+
   /// ID numérique pour les endpoints devis
   final int? bookingId;
 }
@@ -739,7 +945,8 @@ class _SafeImage extends StatelessWidget {
   final double size;
 
   static Widget _placeholder(double sz) => Container(
-    width: sz, height: sz,
+    width: sz,
+    height: sz,
     decoration: BoxDecoration(
       color: const Color(0xFFF1F5F9),
       borderRadius: BorderRadius.circular(8),
@@ -757,7 +964,9 @@ class _SafeImage extends StatelessWidget {
         final bytes = base64Decode(src.split(',').last);
         return Image.memory(
           bytes,
-          width: size, height: size, fit: BoxFit.cover,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _placeholder(size),
         );
       } catch (_) {
@@ -769,16 +978,21 @@ class _SafeImage extends StatelessWidget {
     if (src.startsWith('http://') || src.startsWith('https://')) {
       return Image.network(
         src,
-        width: size, height: size, fit: BoxFit.cover,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : Container(
-                width: size, height: size,
+                width: size,
+                height: size,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               ),
         errorBuilder: (_, __, ___) => _placeholder(size),
       );
@@ -790,7 +1004,9 @@ class _SafeImage extends StatelessWidget {
       if (file.existsSync()) {
         return Image.file(
           file,
-          width: size, height: size, fit: BoxFit.cover,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _placeholder(size),
         );
       }
@@ -830,8 +1046,14 @@ class _Tag extends StatelessWidget {
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Text(text, style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }

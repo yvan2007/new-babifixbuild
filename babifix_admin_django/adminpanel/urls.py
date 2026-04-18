@@ -41,9 +41,14 @@ from .views import (
     api_auth_login,
     api_auth_me,
     api_auth_register,
+    api_client_accept_devis,
+    api_client_annuler_demande,
+    api_client_check_provider_availability,
+    api_client_confirmer_travaux,
     api_client_conversations,
     api_client_create_reservation,
     api_client_declare_cash,
+    api_client_demandes_list,
     api_client_home,
     api_client_actualites,
     api_client_actualite_detail,
@@ -52,21 +57,28 @@ from .views import (
     api_client_pay_post_prestation,
     api_client_prestataires,
     api_client_rate_reservation,
+    api_client_refuse_devis,
     api_messages,
     api_messages_unread_total,
+    api_prestataire_accept_demande,
     api_prestataire_confirm_cash,
     api_prestataire_conversations,
+    api_prestataire_create_devis,
     api_prestataire_decide_request,
+    api_prestataire_demarrer_intervention,
     api_prestataire_earnings,
     api_prestataire_me,
     api_prestataire_ratings,
+    api_prestataire_refuse_demande,
     api_prestataire_register,
     api_prestataire_requests,
     api_prestataire_reservation_status,
+    api_prestataire_terminer_intervention,
     api_public_categories,
     api_public_payment_methods,
     api_public_providers,
     api_public_vitrine,
+    api_reservation_devis,
     dashboard,
 )
 
@@ -307,5 +319,70 @@ urlpatterns = [
         "api/prestataire/disputes/",
         api_prestataire_disputes,
         name="api-prestataire-disputes",
+    ),
+    # ── Devis ─────────────────────────────────────────────────────────────────
+    path(
+        "api/prestataire/requests/<str:reference>/devis",
+        api_prestataire_create_devis,
+        name="api-prestataire-create-devis",
+    ),
+    path(
+        "api/client/reservations/<str:reference>/devis",
+        api_reservation_devis,
+        name="api-reservation-devis",
+    ),
+    path(
+        "api/client/reservations/<str:reference>/devis/accept",
+        api_client_accept_devis,
+        name="api-client-accept-devis",
+    ),
+    path(
+        "api/client/reservations/<str:reference>/devis/refuse",
+        api_client_refuse_devis,
+        name="api-client-refuse-devis",
+    ),
+    # ── Demandes et intervention ───────────────────────────────────────────────
+    # Prestataire
+    path(
+        "api/prestataire/requests/<str:reference>/accept",
+        api_prestataire_accept_demande,
+        name="api-prestataire-accept-demande",
+    ),
+    path(
+        "api/prestataire/requests/<str:reference>/refuse",
+        api_prestataire_refuse_demande,
+        name="api-prestataire-refuse-demande",
+    ),
+    path(
+        "api/prestataire/requests/<str:reference>/demarrer",
+        api_prestataire_demarrer_intervention,
+        name="api-prestataire-demarrer-intervention",
+    ),
+    path(
+        "api/prestataire/requests/<str:reference>/terminer",
+        api_prestataire_terminer_intervention,
+        name="api-prestataire-terminer-intervention",
+    ),
+    # Client
+    path(
+        "api/client/demandes/",
+        api_client_demandes_list,
+        name="api-client-demandes-list",
+    ),
+    path(
+        "api/client/demandes/<str:reference>/confirmer-travaux",
+        api_client_confirmer_travaux,
+        name="api-client-confirmer-travaux",
+    ),
+    path(
+        "api/client/demandes/<str:reference>/annuler",
+        api_client_annuler_demande,
+        name="api-client-annuler-demande",
+    ),
+    # ── Disponibilité ─────────────────────────────────────────────────────────
+    path(
+        "api/client/check-provider-availability",
+        api_client_check_provider_availability,
+        name="api-client-check-provider-availability",
     ),
 ]
