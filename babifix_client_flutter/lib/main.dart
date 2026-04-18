@@ -38,6 +38,7 @@ import 'features/chat/messages_screen.dart';
 import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
 import 'features/services/service_detail_screen.dart';
 import 'features/booking/booking_flow_screen.dart';
+import 'features/booking/devis_detail_screen.dart';
 import 'shared/widgets/babifix_osm_map.dart';
 import 'shared/widgets/message_with_photos_field.dart';
 import 'shared/widgets/payment_method_logo.dart';
@@ -174,8 +175,39 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
       ),
       serviceDetailBuilder: (_, id) =>
           ProviderProfileScreen(providerId: int.tryParse(id) ?? 0),
-      bookingBuilder: (_, sid) =>
-          BookingFlowScreen(serviceTitle: sid, servicePrice: 0),
+      bookingBuilder: (context, sid) => Builder(
+        builder: (ctx) {
+          return BookingFlowScreen(
+            serviceTitle: sid,
+            servicePrice: 0,
+            onConfirm: (data) async {
+              final token = await BabifixUserStore.getApiToken();
+              if (token == null) return {'ok': false};
+
+              try {
+                final resp = await http.post(
+                  Uri.parse(
+                    '${babifixApiBaseUrl()}/api/client/create-reservation',
+                  ),
+                  headers: {
+                    'Authorization': 'Bearer $token',
+                    'Content-Type': 'application/json',
+                  },
+                  body: jsonEncode(data),
+                );
+
+                if (resp.statusCode == 201) {
+                  final result = jsonDecode(resp.body);
+                  return {'ok': true, 'reference': result['reference']};
+                }
+              } catch (e) {
+                // Error
+              }
+              return {'ok': false};
+            },
+          );
+        },
+      ),
       providerProfileBuilder: (_, id) =>
           ProviderProfileScreen(providerId: int.tryParse(id) ?? 0),
       notificationsBuilder: (_) => const NotificationsScreen(),
@@ -192,6 +224,8 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
         initialAvatarBytes: null,
         onSaved: () {},
       ),
+      devisDetailBuilder: (_, ref) =>
+          DevisDetailScreen(reservationReference: ref, onBack: () {}),
     );
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
@@ -1433,8 +1467,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                     builder: (_) => ProviderProfileScreen(
                                       providerId: p.id,
                                       onStartReservation: (service) async {
-                                        final ok = await Navigator.of(context)
-                                            .push<bool>(
+                                        final result =
+                                            await Navigator.of(
+                                              context,
+                                            ).push<Map<String, dynamic>?>(
                                               MaterialPageRoute(
                                                 builder: (_) => BookingFlowScreen(
                                                   serviceTitle: service.title,
@@ -1450,12 +1486,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                                         () => navIndex = 3,
                                                       );
                                                     }
-                                                    return created;
+                                                    return created
+                                                        ? {'ok': true}
+                                                        : {'ok': false};
                                                   },
                                                 ),
                                               ),
                                             );
-                                        return ok ?? false;
+                                        return result?['ok'] == true;
                                       },
                                     ),
                                   ),
@@ -3118,7 +3156,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                             );
                                             if (ok && mounted)
                                               setState(() => navIndex = 3);
-                                            return ok;
+                                            return ok
+                                                ? {'ok': true}
+                                                : {'ok': false};
                                           },
                                         ),
                                       ),
@@ -3150,7 +3190,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                         );
                                         if (ok && mounted)
                                           setState(() => navIndex = 3);
-                                        return ok;
+                                        return ok
+                                            ? {'ok': true}
+                                            : {'ok': false};
                                       },
                                     ),
                                   ),
@@ -3840,7 +3882,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     );
                   },
                 ),
-                // ── Wallet séquestre premium ────────────────────────────
+                // ── Paiements en attente ─────────────────────────────
                 const SizedBox(height: 10),
                 if (sessionLoggedIn && totalEscrow > 0)
                   Container(
@@ -3883,7 +3925,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Wallet séquestre',
+                                'Paiements en attente',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   color: _textPrimary,
@@ -3892,7 +3934,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${formatFcfa(totalEscrow)} en attente de libération',
+                                '${formatFcfa(totalEscrow)} en attente de validation',
                                 style: const TextStyle(
                                   color: Color(0xFF4CC9F0),
                                   fontSize: 13,

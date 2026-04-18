@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
+import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
@@ -17,12 +19,23 @@ class BookingFlowScreen extends StatefulWidget {
     super.key,
     required this.serviceTitle,
     required this.servicePrice,
+    this.providerName,
+    this.providerPhoto,
+    this.providerRating,
+    this.providerSpecialite,
+    this.providerId,
     this.onConfirm,
   });
 
   final String serviceTitle;
   final int servicePrice;
-  final Future<bool> Function(Map<String, dynamic> data)? onConfirm;
+  final String? providerName;
+  final String? providerPhoto;
+  final double? providerRating;
+  final String? providerSpecialite;
+  final int? providerId;
+  final Future<Map<String, dynamic>?> Function(Map<String, dynamic> data)?
+  onConfirm;
 
   @override
   State<BookingFlowScreen> createState() => _BookingFlowScreenState();
@@ -31,8 +44,7 @@ class BookingFlowScreen extends StatefulWidget {
 class _BookingFlowScreenState extends State<BookingFlowScreen> {
   int _step = 0;
 
-  DateTime? _selectedDate;
-  TimeOfDay? _selectedTime;
+  final _problemeCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _msgCtrl = TextEditingController();
   final _prixProposeCtrl = TextEditingController();
@@ -40,13 +52,21 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   String _mmOperator = 'ORANGE_MONEY';
   bool _submitting = false;
   bool _confirmed = false;
+  bool _isUrgent = false;
+  String _disponibilites = '';
+  bool _checkingAvailability = false;
+  bool? _providerAvailable;
+  String _availabilityMessage = '';
+  List<Map<String, dynamic>> _availableCreneaux = [];
+  String _reservationReference = '';
 
   LatLng _mapPin = BabifixOsmLocationPicker.defaultCenter;
+
   /// `true` après un tap sur la carte ou « Ma position » — sinon on n'envoie pas lat/lng à l'API.
   bool _mapPinFromUser = false;
   List<Uint8List> _photos = [];
 
-  static const _steps = ['Date', 'Adresse', 'Récapitulatif', 'Confirmation'];
+  static const _steps = ['Problème', 'Adresse', 'Disponibilité', 'Envoyé'];
 
   @override
   void dispose() {
@@ -60,20 +80,61 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     setState(() => _step = step);
   }
 
+  Future<void> _checkProviderAvailability(DateTime date) async {
+    if (widget.providerId == null) return;
+
+    setState(() {
+      _checkingAvailability = true;
+      _providerAvailable = null;
+      _availabilityMessage = '';
+    });
+
+    try {
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/client/check-provider-availability'
+        '?provider_id=${widget.providerId}'
+        '&date=${date.toIso8601String().split('T')[0]}',
+      );
+      final resp = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        setState(() {
+          _providerAvailable = data['available'] as bool?;
+          if (data['available'] == true) {
+            _availabilityMessage = 'Prestataire disponible!';
+            _availableCreneaux =
+                (data['creneaux'] as List?)
+                    ?.map((c) => c as Map<String, dynamic>)
+                    .toList() ??
+                [];
+          } else {
+            _availabilityMessage = data['message'] as String? ?? 'Indisponible';
+          }
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _providerAvailable = null;
+        _availabilityMessage = '';
+      });
+    }
+
+    setState(() => _checkingAvailability = false);
+  }
+
   Future<void> _submit() async {
     if (_submitting) return;
     setState(() => _submitting = true);
-    final prixProposeText = _prixProposeCtrl.text.trim();
-    final prixPropose = prixProposeText.isNotEmpty
-        ? double.tryParse(prixProposeText.replaceAll(RegExp(r'[^\d.]'), ''))
-        : null;
     final data = <String, dynamic>{
-      'date': _selectedDate?.toIso8601String() ?? '',
-      'time': _selectedTime?.format(context) ?? '',
-      'address': _addressCtrl.text.trim(),
-      'message': _msgCtrl.text.trim(),
-      'payment_type': _paymentType,
-      if (prixPropose != null && prixPropose > 0) 'price_fcfa': prixPropose,
+      'title': widget.serviceTitle,
+      'description_probleme': _problemeCtrl.text.trim(),
+      'address_label': _addressCtrl.text.trim(),
+      'client_message': _msgCtrl.text.trim(),
+      'disponibilites_client': _disponibilites,
+      'is_urgent': _isUrgent,
+      if (widget.providerId != null) 'provider_id': widget.providerId,
+      if (widget.providerName != null) 'prestataire_name': widget.providerName,
     };
     if (_mapPinFromUser) {
       data['latitude'] = _mapPin.latitude;
@@ -84,12 +145,15 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           .map((b) => 'data:image/jpeg;base64,${base64Encode(b)}')
           .toList();
     }
-    if (_paymentType == 'MOBILE_MONEY') {
-      data['mobile_money_operator'] = _mmOperator;
-    }
+
     bool ok = false;
+    String? reference;
     if (widget.onConfirm != null) {
-      ok = await widget.onConfirm!(data);
+      final result = await widget.onConfirm!(data);
+      if (result != null) {
+        ok = result['ok'] == true;
+        reference = result['reference'] as String?;
+      }
     } else {
       await Future.delayed(const Duration(seconds: 1));
       ok = true;
@@ -98,6 +162,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     setState(() {
       _submitting = false;
       _confirmed = ok;
+      if (reference != null) _reservationReference = reference;
     });
     if (ok) _goTo(3);
   }
@@ -105,22 +170,24 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   Widget _buildCurrentStep(BuildContext context, Color text, Color sub) {
     switch (_step) {
       case 0:
-        return _StepDate(
+        return _StepProbleme(
           textColor: text,
           subColor: sub,
-          selectedDate: _selectedDate,
-          selectedTime: _selectedTime,
-          onDateChanged: (d) => setState(() => _selectedDate = d),
-          onTimeChanged: (t) => setState(() => _selectedTime = t),
+          problemeCtrl: _problemeCtrl,
+          photos: _photos,
+          onPhotosChanged: (p) => setState(() => _photos = p),
           onNext: () {
-            if (_selectedDate == null || _selectedTime == null) {
+            if (_problemeCtrl.text.trim().isEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Choisissez une date et une heure.')),
+                const SnackBar(content: Text('Décrivez votre problème.')),
               );
               return;
             }
             _goTo(1);
           },
+          providerName: widget.providerName,
+          providerSpecialite: widget.providerSpecialite,
+          providerRating: widget.providerRating,
         );
       case 1:
         return _StepAddress(
@@ -133,8 +200,6 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
             _mapPin = p;
             _mapPinFromUser = true;
           }),
-          photos: _photos,
-          onPhotosChanged: (p) => setState(() => _photos = p),
           onNext: () {
             if (_addressCtrl.text.trim().isEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -147,30 +212,38 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           onBack: () => _goTo(0),
         );
       case 2:
-        return _StepSummary(
+        return _StepDisponibilite(
           textColor: text,
           subColor: sub,
-          serviceTitle: widget.serviceTitle,
-          servicePrice: widget.servicePrice,
-          date: _selectedDate,
-          time: _selectedTime,
-          address: _addressCtrl.text,
-          mapPinRegistered: _mapPinFromUser,
-          photoCount: _photos.length,
-          paymentType: _paymentType,
-          mmOperator: _mmOperator,
-          onPaymentChanged: (v) => setState(() => _paymentType = v),
-          onMmOperatorChanged: (v) => setState(() => _mmOperator = v),
+          disponibilites: _disponibilites,
+          onDisponibilitesChanged: (v) => setState(() => _disponibilites = v),
+          isUrgent: _isUrgent,
+          onUrgentChanged: (v) => setState(() => _isUrgent = v),
           onConfirm: _submit,
           onBack: () => _goTo(1),
           submitting: _submitting,
-          prixProposeCtrl: _prixProposeCtrl,
+          providerId: widget.providerId,
+          checkingAvailability: _checkingAvailability,
+          providerAvailable: _providerAvailable,
+          availabilityMessage: _availabilityMessage,
+          onCheckAvailability: _checkProviderAvailability,
         );
       default:
         return _StepDone(
           textColor: text,
           serviceTitle: widget.serviceTitle,
+          reference: _reservationReference.isNotEmpty
+              ? _reservationReference
+              : null,
+          providerName: widget.providerName,
+          price: widget.servicePrice,
           onClose: () => Navigator.of(context).pop(),
+          onOpenChat: widget.providerId != null
+              ? () {
+                  Navigator.of(context).pop();
+                  // Navigate to chat - would need to be implemented via router
+                }
+              : null,
         );
     }
   }
@@ -197,13 +270,48 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           backgroundColor: Color(0xFF060E1C),
           foregroundColor: Colors.white,
           elevation: 0,
-          titleTextStyle: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       child: PopScope(
-        canPop: _step == 0 || _step == 3,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop && _step > 0 && _step < 3) {
+        canPop: _step == 3,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          if (_step == 0) {
+            final hasData = _problemeCtrl.text.isNotEmpty || _photos.isNotEmpty;
+            if (hasData) {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Quitter la demande ?'),
+                  content: const Text(
+                    'Les informations saisies seront perdues.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Annuler'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Quitter'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true && context.mounted) {
+                Navigator.of(context).pop();
+              }
+            } else {
+              Navigator.of(context).pop();
+            }
+            return;
+          }
+          if (_step > 0 && _step < 3) {
             _goTo(_step - 1);
           }
         },
@@ -220,7 +328,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
               duration: const Duration(milliseconds: 220),
               child: SizedBox.expand(
                 key: ValueKey(_step),
-                child: _buildCurrentStep(context, Colors.white, const Color(0x80FFFFFF)),
+                child: _buildCurrentStep(
+                  context,
+                  Colors.white,
+                  const Color(0x80FFFFFF),
+                ),
               ),
             ),
           ),
@@ -264,39 +376,38 @@ class _StepIndicator extends StatelessWidget {
   }
 }
 
-// ── Step 0 : Date ─────────────────────────────────────────────────────────────
+// ── Step 0 : Problème ─────────────────────────────────────────────────────────
 
-class _StepDate extends StatelessWidget {
-  const _StepDate({
+class _StepProbleme extends StatelessWidget {
+  const _StepProbleme({
     required this.textColor,
     required this.subColor,
-    required this.selectedDate,
-    required this.selectedTime,
-    required this.onDateChanged,
-    required this.onTimeChanged,
+    required this.problemeCtrl,
+    required this.photos,
+    required this.onPhotosChanged,
     required this.onNext,
+    this.providerName,
+    this.providerSpecialite,
+    this.providerRating,
   });
 
   final Color textColor;
   final Color subColor;
-  final DateTime? selectedDate;
-  final TimeOfDay? selectedTime;
-  final ValueChanged<DateTime> onDateChanged;
-  final ValueChanged<TimeOfDay> onTimeChanged;
+  final TextEditingController problemeCtrl;
+  final List<Uint8List> photos;
+  final ValueChanged<List<Uint8List>> onPhotosChanged;
   final VoidCallback onNext;
+  final String? providerName;
+  final String? providerSpecialite;
+  final double? providerRating;
 
   static const _kNavy = Color(0xFF050D1A);
   static const _kBlue = Color(0xFF2563EB);
   static const _kBlueDark = Color(0xFF1D4ED8);
   static const _kCyan = Color(0xFF4CC9F0);
 
-  String _formatDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-
   @override
   Widget build(BuildContext context) {
-    final dateSet = selectedDate != null;
-    final timeSet = selectedTime != null;
     return Container(
       color: _kNavy,
       child: Padding(
@@ -304,7 +415,72 @@ class _StepDate extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Titre ───────────────────────────────────────────────────
+            // ── Header prestataire ───────────────────────────────────────────
+            if (providerName != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _kBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: _kCyan,
+                      child: const Icon(Icons.person, color: _kNavy),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            providerName!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (providerSpecialite != null)
+                            Text(
+                              providerSpecialite!,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.6),
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (providerRating != null) ...[
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            color: Color(0xFFF59E0B),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            providerRating!.toStringAsFixed(1),
+                            style: const TextStyle(
+                              color: Color(0xFFF59E0B),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            // ── Titre ───────────────────────────────────────────────────────
             Row(
               children: [
                 Container(
@@ -312,99 +488,98 @@ class _StepDate extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     gradient: LinearGradient(
-                      colors: [_kBlue.withValues(alpha: 0.25), _kBlue.withValues(alpha: 0.08)],
+                      colors: [
+                        _kBlue.withValues(alpha: 0.25),
+                        _kBlue.withValues(alpha: 0.08),
+                      ],
                     ),
                   ),
-                  child: const Icon(Icons.event_rounded, color: _kCyan, size: 22),
+                  child: const Icon(
+                    Icons.build_circle_outlined,
+                    color: _kCyan,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Date & heure',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3),
+                      'Votre problème',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.3,
+                      ),
                     ),
                     Text(
-                      'Quand souhaitez-vous l\'intervention ?',
-                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.45)),
+                      'Décrivez ce que vous avez besoin',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
             const SizedBox(height: 28),
-
-            // ── Carte Date ──────────────────────────────────────────────
-            _PremiumPickerCard(
-              label: 'Date d\'intervention',
-              value: dateSet ? _formatDate(selectedDate!) : 'Choisir une date',
-              icon: Icons.calendar_month_rounded,
-              isSet: dateSet,
-              onTap: () async {
-                final d = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now().add(const Duration(days: 1)),
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 90)),
-                  builder: (ctx, child) => Theme(
-                    data: ThemeData.dark().copyWith(
-                      colorScheme: const ColorScheme.dark(primary: _kBlue, onPrimary: Colors.white, surface: Color(0xFF0A1628)),
-                    ),
-                    child: child!,
-                  ),
-                );
-                if (d != null) onDateChanged(d);
-              },
-            ),
-            const SizedBox(height: 14),
-
-            // ── Carte Heure ─────────────────────────────────────────────
-            _PremiumPickerCard(
-              label: 'Heure d\'intervention',
-              value: selectedTime?.format(context) ?? 'Choisir une heure',
-              icon: Icons.schedule_rounded,
-              isSet: timeSet,
-              onTap: () async {
-                final t = await showTimePicker(
-                  context: context,
-                  initialTime: TimeOfDay.now(),
-                  builder: (ctx, child) => Theme(
-                    data: ThemeData.dark().copyWith(
-                      colorScheme: const ColorScheme.dark(primary: _kBlue, onPrimary: Colors.white, surface: Color(0xFF0A1628)),
-                    ),
-                    child: child!,
-                  ),
-                );
-                if (t != null) onTimeChanged(t);
-              },
-            ),
-
-            const SizedBox(height: 12),
-            // ── Info bulle ───────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: _kBlue.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _kBlue.withValues(alpha: 0.20)),
+                color: const Color(0xFF0D1525),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, color: _kCyan.withValues(alpha: 0.8), size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Vous pouvez choisir jusqu\'à 3 mois à l\'avance. Le prestataire confirmera la disponibilité.',
-                      style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.55), height: 1.4),
-                    ),
+              child: TextField(
+                controller: problemeCtrl,
+                maxLines: 5,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Décrivez votre problème en quelques mots...',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
                   ),
-                ],
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.all(16),
+                ),
               ),
             ),
-
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () async {
+                final picker = await _showImagePicker(context);
+                if (picker != null && picker.isNotEmpty) {
+                  onPhotosChanged([...photos, ...picker]);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1525),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.add_a_photo_outlined,
+                      color: _kCyan.withValues(alpha: 0.8),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      photos.isEmpty
+                          ? 'Ajouter des photos (optionnel)'
+                          : '${photos.length} photo(s) ajoutée(s)',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const Spacer(),
-            // ── Bouton ───────────────────────────────────────────────────
             GestureDetector(
               onTap: onNext,
               child: Container(
@@ -414,13 +589,22 @@ class _StepDate extends StatelessWidget {
                   gradient: const LinearGradient(colors: [_kBlue, _kBlueDark]),
                   borderRadius: BorderRadius.circular(18),
                   boxShadow: [
-                    BoxShadow(color: _kBlue.withValues(alpha: 0.45), blurRadius: 20, offset: const Offset(0, 8)),
+                    BoxShadow(
+                      color: _kBlue.withValues(alpha: 0.45),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
                   ],
                 ),
                 child: const Center(
                   child: Text(
                     'Continuer',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 0.2),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
               ),
@@ -429,6 +613,50 @@ class _StepDate extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<List<Uint8List>?> _showImagePicker(BuildContext context) async {
+    return showModalBottomSheet<List<Uint8List>>(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: _kCyan),
+              title: const Text(
+                'Prendre une photo',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () async {
+                final img = await _pickImageFromCamera();
+                if (ctx.mounted) Navigator.pop(ctx, img != null ? [img] : null);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: _kCyan),
+              title: const Text(
+                'Choisir dans la galerie',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () async {
+                final imgs = await _pickImagesFromGallery();
+                if (ctx.mounted) Navigator.pop(ctx, imgs);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<Uint8List?> _pickImageFromCamera() async {
+    return null;
+  }
+
+  Future<List<Uint8List>?> _pickImagesFromGallery() async {
+    return null;
   }
 }
 
@@ -460,26 +688,45 @@ class _PremiumPickerCard extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isSet ? _kBlue.withValues(alpha: 0.55) : Colors.white.withValues(alpha: 0.10),
+            color: isSet
+                ? _kBlue.withValues(alpha: 0.55)
+                : Colors.white.withValues(alpha: 0.10),
             width: isSet ? 1.5 : 1,
           ),
           boxShadow: isSet
-              ? [BoxShadow(color: _kBlue.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4))]
+              ? [
+                  BoxShadow(
+                    color: _kBlue.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
               : [],
         ),
         child: Row(
           children: [
             Container(
-              width: 44, height: 44,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: LinearGradient(
                   colors: isSet
-                      ? [_kBlue.withValues(alpha: 0.35), _kBlue.withValues(alpha: 0.12)]
-                      : [Colors.white.withValues(alpha: 0.08), Colors.white.withValues(alpha: 0.03)],
+                      ? [
+                          _kBlue.withValues(alpha: 0.35),
+                          _kBlue.withValues(alpha: 0.12),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.08),
+                          Colors.white.withValues(alpha: 0.03),
+                        ],
                 ),
               ),
-              child: Icon(icon, color: isSet ? _kCyan : Colors.white.withValues(alpha: 0.35), size: 20),
+              child: Icon(
+                icon,
+                color: isSet ? _kCyan : Colors.white.withValues(alpha: 0.35),
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -488,7 +735,11 @@ class _PremiumPickerCard extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.40), fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.white.withValues(alpha: 0.40),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -496,14 +747,18 @@ class _PremiumPickerCard extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
-                      color: isSet ? Colors.white : Colors.white.withValues(alpha: 0.35),
+                      color: isSet
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.35),
                     ),
                   ),
                 ],
               ),
             ),
             Icon(
-              isSet ? Icons.check_circle_rounded : Icons.arrow_forward_ios_rounded,
+              isSet
+                  ? Icons.check_circle_rounded
+                  : Icons.arrow_forward_ios_rounded,
               color: isSet ? _kCyan : Colors.white.withValues(alpha: 0.25),
               size: isSet ? 20 : 16,
             ),
@@ -516,18 +771,29 @@ class _PremiumPickerCard extends StatelessWidget {
 
 // Old _DatePickerCard kept as dead code to not break references — replaced by _PremiumPickerCard
 class _DatePickerCard extends StatelessWidget {
-  const _DatePickerCard({required this.label, required this.value, required this.icon, required this.onTap});
+  const _DatePickerCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+  });
   final String label;
   final String value;
   final IconData icon;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => _PremiumPickerCard(label: label, value: value, icon: icon, isSet: false, onTap: onTap);
+  Widget build(BuildContext context) => _PremiumPickerCard(
+    label: label,
+    value: value,
+    icon: icon,
+    isSet: false,
+    onTap: onTap,
+  );
 }
 
 // ── Step 1 : Adresse ──────────────────────────────────────────────────────────
 
-class _StepAddress extends StatelessWidget {
+class _StepAddress extends StatefulWidget {
   const _StepAddress({
     required this.textColor,
     required this.subColor,
@@ -535,8 +801,6 @@ class _StepAddress extends StatelessWidget {
     required this.msgCtrl,
     required this.mapPin,
     required this.onMapPinChanged,
-    required this.photos,
-    required this.onPhotosChanged,
     required this.onNext,
     required this.onBack,
   });
@@ -547,10 +811,15 @@ class _StepAddress extends StatelessWidget {
   final TextEditingController msgCtrl;
   final LatLng mapPin;
   final ValueChanged<LatLng> onMapPinChanged;
-  final List<Uint8List> photos;
-  final ValueChanged<List<Uint8List>> onPhotosChanged;
   final VoidCallback onNext;
   final VoidCallback onBack;
+
+  @override
+  State<_StepAddress> createState() => _StepAddressState();
+}
+
+class _StepAddressState extends State<_StepAddress> {
+  bool _showDetails = false;
 
   static const _kNavy = Color(0xFF050D1A);
   static const _kBlue = Color(0xFF2563EB);
@@ -559,6 +828,12 @@ class _StepAddress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final addressCtrl = widget.addressCtrl;
+    final msgCtrl = widget.msgCtrl;
+    final mapPin = widget.mapPin;
+    final onMapPinChanged = widget.onMapPinChanged;
+    final onBack = widget.onBack;
+    final onNext = widget.onNext;
     return Theme(
       data: ThemeData.dark().copyWith(
         colorScheme: const ColorScheme.dark(
@@ -593,10 +868,17 @@ class _StepAddress extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
                       gradient: LinearGradient(
-                        colors: [_kBlue.withValues(alpha: 0.25), _kBlue.withValues(alpha: 0.08)],
+                        colors: [
+                          _kBlue.withValues(alpha: 0.25),
+                          _kBlue.withValues(alpha: 0.08),
+                        ],
                       ),
                     ),
-                    child: const Icon(Icons.location_on_rounded, color: _kCyan, size: 22),
+                    child: const Icon(
+                      Icons.location_on_rounded,
+                      color: _kCyan,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -605,11 +887,19 @@ class _StepAddress extends StatelessWidget {
                       children: [
                         Text(
                           'Lieu d\'intervention',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3),
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -0.3,
+                          ),
                         ),
                         Text(
                           'Indiquez l\'adresse exacte',
-                          style: TextStyle(fontSize: 12, color: Color(0x72FFFFFF)),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0x72FFFFFF),
+                          ),
                         ),
                       ],
                     ),
@@ -625,8 +915,16 @@ class _StepAddress extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 20, offset: const Offset(0, 8))],
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.10),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -639,7 +937,11 @@ class _StepAddress extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                             color: _kBlue.withValues(alpha: 0.18),
                           ),
-                          child: const Icon(Icons.edit_location_alt_rounded, color: _kCyan, size: 18),
+                          child: const Icon(
+                            Icons.edit_location_alt_rounded,
+                            color: _kCyan,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Column(
@@ -647,11 +949,18 @@ class _StepAddress extends StatelessWidget {
                           children: [
                             const Text(
                               'Rechercher une adresse',
-                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                color: Colors.white,
+                              ),
                             ),
                             Text(
                               'Ou touchez la carte ci-dessous',
-                              style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.40)),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.40),
+                              ),
                             ),
                           ],
                         ),
@@ -675,7 +984,11 @@ class _StepAddress extends StatelessWidget {
                   const SizedBox(width: 6),
                   const Text(
                     'Positionnez le marqueur',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -684,7 +997,13 @@ class _StepAddress extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: _kBlue.withValues(alpha: 0.30)),
-                  boxShadow: [BoxShadow(color: _kBlue.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6))],
+                  boxShadow: [
+                    BoxShadow(
+                      color: _kBlue.withValues(alpha: 0.12),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
@@ -698,56 +1017,126 @@ class _StepAddress extends StatelessWidget {
 
               const SizedBox(height: 22),
 
-              // ── Message + Photos ──────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: _kBlue.withValues(alpha: 0.18),
-                          ),
-                          child: const Icon(Icons.chat_bubble_outline_rounded, color: _kCyan, size: 18),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Détails du problème',
-                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.white),
-                            ),
-                            Text(
-                              'Message + photos (optionnel)',
-                              style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.40)),
-                            ),
-                          ],
-                        ),
-                      ],
+              // ── Bouton détails optionnels ─────────────────────────────────
+              GestureDetector(
+                onTap: () => setState(() => _showDetails = !_showDetails),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _showDetails
+                        ? _kBlue.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _showDetails
+                          ? _kBlue
+                          : Colors.white.withValues(alpha: 0.08),
                     ),
-                    const SizedBox(height: 14),
-                    MessageWithPhotosField(
-                      controller: msgCtrl,
-                      photos: photos,
-                      onPhotosChanged: onPhotosChanged,
-                      maxPhotos: 6,
-                      hint: 'Précisions, accès, contraintes…',
-                      messageHeading: 'Message',
-                      photosHeading: 'Photos',
-                    ),
-                  ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _showDetails
+                            ? Icons.expand_less_rounded
+                            : Icons.add_circle_outline_rounded,
+                        color: _kCyan,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _showDetails
+                            ? 'Masquer les détails'
+                            : 'Ajouter des détails (optionnel)',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+
+              // ── Message + Photos (dépliable) ────────────────────────────────
+              if (_showDetails) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: _kBlue.withValues(alpha: 0.18),
+                            ),
+                            child: const Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              color: _kCyan,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Détails du problème',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'Message + photos',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.40),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D1525),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _kBlue.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: msgCtrl,
+                          maxLines: 3,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Précisions, accès, contraintes...',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 28),
 
@@ -762,10 +1151,18 @@ class _StepAddress extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.07),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.15),
+                          ),
                         ),
                         child: const Center(
-                          child: Text('Retour', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                          child: Text(
+                            'Retour',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -778,12 +1175,27 @@ class _StepAddress extends StatelessWidget {
                       child: Container(
                         height: 52,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [_kBlue, _kBlueDark]),
+                          gradient: const LinearGradient(
+                            colors: [_kBlue, _kBlueDark],
+                          ),
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: _kBlue.withValues(alpha: 0.40), blurRadius: 16, offset: const Offset(0, 6))],
+                          boxShadow: [
+                            BoxShadow(
+                              color: _kBlue.withValues(alpha: 0.40),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
                         child: const Center(
-                          child: Text('Continuer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                          child: Text(
+                            'Continuer',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -798,7 +1210,337 @@ class _StepAddress extends StatelessWidget {
   }
 }
 
-// ── Step 2 : Récapitulatif ────────────────────────────────────────────────────
+// ── Step 2 : Disponibilité ────────────────────────────────────────────────────
+
+class _StepDisponibilite extends StatelessWidget {
+  const _StepDisponibilite({
+    required this.textColor,
+    required this.subColor,
+    required this.disponibilites,
+    required this.onDisponibilitesChanged,
+    required this.isUrgent,
+    required this.onUrgentChanged,
+    required this.onConfirm,
+    required this.onBack,
+    required this.submitting,
+    this.providerId,
+    this.checkingAvailability,
+    this.providerAvailable,
+    this.availabilityMessage,
+    this.onCheckAvailability,
+  });
+
+  final Color textColor;
+  final Color subColor;
+  final String disponibilites;
+  final ValueChanged<String> onDisponibilitesChanged;
+  final bool isUrgent;
+  final ValueChanged<bool> onUrgentChanged;
+  final Future<void> Function() onConfirm;
+  final VoidCallback onBack;
+  final bool submitting;
+  final int? providerId;
+  final bool? checkingAvailability;
+  final bool? providerAvailable;
+  final String? availabilityMessage;
+  final Future<void> Function(DateTime)? onCheckAvailability;
+
+  static const _kNavy = Color(0xFF050D1A);
+  static const _kBlue = Color(0xFF2563EB);
+  static const _kBlueDark = Color(0xFF1D4ED8);
+  static const _kCyan = Color(0xFF4CC9F0);
+  static const _kRed = Color(0xFFDC2626);
+
+  static const _creneaux = [
+    'Matin (8h-12h)',
+    'Après-midi (12h-17h)',
+    'Soir (17h-20h)',
+    'Jour entier',
+  ];
+  static const _jours = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedCreneaux = disponibilites.isNotEmpty
+        ? disponibilites.split(',').toSet()
+        : <String>{};
+
+    return Container(
+      color: _kNavy,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: LinearGradient(
+                      colors: [
+                        _kBlue.withValues(alpha: 0.25),
+                        _kBlue.withValues(alpha: 0.08),
+                      ],
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.schedule_rounded,
+                    color: _kCyan,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Disponibilités',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    Text(
+                      'Quand êtes-vous disponible ?',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (providerId != null && onCheckAvailability != null) ...[
+              const Text(
+                'Vérifier la disponibilité du prestataire',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () async {
+                  final now = DateTime.now();
+                  final date = await showDatePicker(
+                    context: context,
+                    initialDate: now.add(const Duration(days: 1)),
+                    firstDate: now,
+                    lastDate: now.add(const Duration(days: 60)),
+                  );
+                  if (date != null) {
+                    onCheckAvailability?.call(date);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D1525),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        color: _kCyan.withValues(alpha: 0.8),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Vérifier disponibilité',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      const Spacer(),
+                      if (checkingAvailability == true)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else if (providerAvailable == true)
+                        const Icon(Icons.check_circle, color: Colors.green)
+                      else if (providerAvailable == false)
+                        const Icon(Icons.cancel, color: Colors.red),
+                    ],
+                  ),
+                ),
+              ),
+              if (availabilityMessage != null &&
+                  availabilityMessage!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color:
+                        (providerAvailable == true
+                                ? Colors.green
+                                : providerAvailable == false
+                                ? Colors.red
+                                : _kBlue)
+                            .withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color:
+                          (providerAvailable == true
+                                  ? Colors.green
+                                  : providerAvailable == false
+                                  ? Colors.red
+                                  : _kBlue)
+                              .withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    availabilityMessage!,
+                    style: TextStyle(
+                      color: providerAvailable == true
+                          ? Colors.green
+                          : providerAvailable == false
+                          ? Colors.red
+                          : Colors.white70,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: () => onUrgentChanged(!isUrgent),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isUrgent
+                      ? _kRed.withValues(alpha: 0.15)
+                      : const Color(0xFF0D1525),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isUrgent ? _kRed : _kBlue.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isUrgent
+                          ? Icons.warning_rounded
+                          : Icons.warning_amber_rounded,
+                      color: isUrgent ? _kRed : _kCyan.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Intervention urgente',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            'Le prestataire intervient dès que possible',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: isUrgent,
+                      onChanged: onUrgentChanged,
+                      activeColor: _kRed,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: onBack,
+                    child: Container(
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Retour',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: submitting ? null : onConfirm,
+                    child: Container(
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [_kBlue, _kBlueDark],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _kBlue.withValues(alpha: 0.40),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: submitting
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Envoyer la demande',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _StepSummary extends StatelessWidget {
   const _StepSummary({
@@ -847,8 +1589,12 @@ class _StepSummary extends StatelessWidget {
     final cs = theme.colorScheme;
     final isLight = theme.brightness == Brightness.light;
     final cardBg = isLight ? Colors.white : const Color(0xFF1A1F28);
-    final sectionBg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF141920);
-    final dividerColor = isLight ? const Color(0xFFE8EDF3) : const Color(0xFF252C38);
+    final sectionBg = isLight
+        ? const Color(0xFFF8FAFC)
+        : const Color(0xFF141920);
+    final dividerColor = isLight
+        ? const Color(0xFFE8EDF3)
+        : const Color(0xFF252C38);
 
     final dateStr = date != null
         ? '${date!.day.toString().padLeft(2, '0')}/${date!.month.toString().padLeft(2, '0')}/${date!.year} — ${time?.format(context) ?? ''}'
@@ -884,16 +1630,25 @@ class _StepSummary extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: BabifixDesign.cyan.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: BabifixDesign.cyan.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.verified_rounded, size: 12, color: BabifixDesign.cyan),
+                          Icon(
+                            Icons.verified_rounded,
+                            size: 12,
+                            color: BabifixDesign.cyan,
+                          ),
                           const SizedBox(width: 5),
                           Text(
                             'Récapitulatif',
@@ -933,7 +1688,9 @@ class _StepSummary extends StatelessWidget {
                   children: [
                     _BannerChip(
                       icon: Icons.location_on_rounded,
-                      label: address.isEmpty ? 'Adresse non renseignée' : address,
+                      label: address.isEmpty
+                          ? 'Adresse non renseignée'
+                          : address,
                       maxWidth: 260,
                     ),
                   ],
@@ -941,7 +1698,10 @@ class _StepSummary extends StatelessWidget {
                 if (servicePrice > 0) ...[
                   const SizedBox(height: 14),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
@@ -1020,7 +1780,9 @@ class _StepSummary extends StatelessWidget {
                   iconBg: const Color(0xFFFFFBEB),
                   iconBgDark: const Color(0xFF451A03),
                   label: 'Repère GPS',
-                  value: mapPinRegistered ? 'Position enregistrée ✓' : 'Non renseigné (optionnel)',
+                  value: mapPinRegistered
+                      ? 'Position enregistrée ✓'
+                      : 'Non renseigné (optionnel)',
                   isLight: isLight,
                   textColor: textColor,
                   subColor: subColor,
@@ -1033,7 +1795,8 @@ class _StepSummary extends StatelessWidget {
                     iconBg: const Color(0xFFFDF2F8),
                     iconBgDark: const Color(0xFF4A044E),
                     label: 'Photos jointes',
-                    value: '$photoCount photo${photoCount > 1 ? "s" : ""} ajoutée${photoCount > 1 ? "s" : ""}',
+                    value:
+                        '$photoCount photo${photoCount > 1 ? "s" : ""} ajoutée${photoCount > 1 ? "s" : ""}',
                     isLight: isLight,
                     textColor: textColor,
                     subColor: subColor,
@@ -1060,20 +1823,34 @@ class _StepSummary extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isLight ? const Color(0xFFFFF7ED) : const Color(0xFF431407),
+                        color: isLight
+                            ? const Color(0xFFFFF7ED)
+                            : const Color(0xFF431407),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.price_change_rounded, size: 18, color: Color(0xFFF97316)),
+                      child: const Icon(
+                        Icons.price_change_rounded,
+                        size: 18,
+                        color: Color(0xFFF97316),
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Prix proposé',
-                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: textColor)),
-                          Text('Optionnel — proposez votre budget au prestataire',
-                              style: TextStyle(fontSize: 11, color: subColor)),
+                          Text(
+                            'Prix proposé',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              color: textColor,
+                            ),
+                          ),
+                          Text(
+                            'Optionnel — proposez votre budget au prestataire',
+                            style: TextStyle(fontSize: 11, color: subColor),
+                          ),
                         ],
                       ),
                     ),
@@ -1082,23 +1859,36 @@ class _StepSummary extends StatelessWidget {
                 const SizedBox(height: 14),
                 TextField(
                   controller: prixProposeCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(
                     hintText: 'ex : 15000',
                     suffixText: 'FCFA',
-                    prefixIcon: const Icon(Icons.monetization_on_outlined, color: Color(0xFFF97316)),
+                    prefixIcon: const Icon(
+                      Icons.monetization_on_outlined,
+                      color: Color(0xFFF97316),
+                    ),
                     filled: true,
-                    fillColor: isLight ? const Color(0xFFFFFBF7) : const Color(0xFF1A1410),
+                    fillColor: isLight
+                        ? const Color(0xFFFFFBF7)
+                        : const Color(0xFF1A1410),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: dividerColor),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFF97316), width: 2),
+                      borderSide: const BorderSide(
+                        color: Color(0xFFF97316),
+                        width: 2,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ],
@@ -1122,10 +1912,16 @@ class _StepSummary extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isLight ? const Color(0xFFEFF6FF) : const Color(0xFF1E3A5F),
+                        color: isLight
+                            ? const Color(0xFFEFF6FF)
+                            : const Color(0xFF1E3A5F),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.payments_rounded, size: 18, color: Color(0xFF3B82F6)),
+                      child: const Icon(
+                        Icons.payments_rounded,
+                        size: 18,
+                        color: Color(0xFF3B82F6),
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Text(
@@ -1143,7 +1939,11 @@ class _StepSummary extends StatelessWidget {
                   padding: const EdgeInsets.only(left: 36),
                   child: Text(
                     'Espèces sur place ou Mobile Money (Orange, MTN, Wave, Moov).',
-                    style: TextStyle(fontSize: 12, color: subColor, height: 1.35),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: subColor,
+                      height: 1.35,
+                    ),
                   ),
                 ),
               ],
@@ -1152,41 +1952,41 @@ class _StepSummary extends StatelessWidget {
           const SizedBox(height: 14),
           IntrinsicHeight(
             child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _PaymentModeTile(
-                  selected: paymentType == 'ESPECES',
-                  onTap: () => onPaymentChanged('ESPECES'),
-                  icon: Icons.payments_rounded,
-                  title: 'Espèces',
-                  subtitle: 'Au rendez-vous',
-                  textColor: textColor,
-                  subColor: subColor,
-                  footer: const SizedBox(height: 28),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _PaymentModeTile(
+                    selected: paymentType == 'ESPECES',
+                    onTap: () => onPaymentChanged('ESPECES'),
+                    icon: Icons.payments_rounded,
+                    title: 'Espèces',
+                    subtitle: 'Au rendez-vous',
+                    textColor: textColor,
+                    subColor: subColor,
+                    footer: const SizedBox(height: 28),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _PaymentModeTile(
-                  selected: paymentType == 'MOBILE_MONEY',
-                  onTap: () => onPaymentChanged('MOBILE_MONEY'),
-                  icon: Icons.phone_android_rounded,
-                  title: 'Mobile Money',
-                  subtitle: 'Orange · MTN · Wave',
-                  textColor: textColor,
-                  subColor: subColor,
-                  footer: const SizedBox(
-                    height: 28,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: BabifixMobileMoneyLogoStrip(height: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PaymentModeTile(
+                    selected: paymentType == 'MOBILE_MONEY',
+                    onTap: () => onPaymentChanged('MOBILE_MONEY'),
+                    icon: Icons.phone_android_rounded,
+                    title: 'Mobile Money',
+                    subtitle: 'Orange · MTN · Wave',
+                    textColor: textColor,
+                    subColor: subColor,
+                    footer: const SizedBox(
+                      height: 28,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: BabifixMobileMoneyLogoStrip(height: 20),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ), // Row
+              ],
+            ), // Row
           ), // IntrinsicHeight
           if (paymentType == 'MOBILE_MONEY') ...[
             const SizedBox(height: 14),
@@ -1249,7 +2049,9 @@ class _StepSummary extends StatelessWidget {
                           ? null
                           : [
                               BoxShadow(
-                                color: const Color(0xFF0EA5E9).withValues(alpha: 0.4),
+                                color: const Color(
+                                  0xFF0EA5E9,
+                                ).withValues(alpha: 0.4),
                                 blurRadius: 16,
                                 offset: const Offset(0, 6),
                               ),
@@ -1268,7 +2070,11 @@ class _StepSummary extends StatelessWidget {
                         : const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                              Icon(
+                                Icons.check_circle_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                               SizedBox(width: 8),
                               Text(
                                 'Confirmer la réservation',
@@ -1471,7 +2277,10 @@ class _BannerChip extends StatelessWidget {
         Icon(icon, size: 13, color: Colors.white.withValues(alpha: 0.6)),
         const SizedBox(width: 5),
         maxWidth != null
-            ? ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth!), child: text)
+            ? ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth!),
+                child: text,
+              )
             : Flexible(child: text),
       ],
     );
@@ -1539,7 +2348,9 @@ class _SummaryRow2 extends StatelessWidget {
                 Text(
                   value,
                   maxLines: valueMaxLines,
-                  overflow: valueMaxLines != null ? TextOverflow.ellipsis : null,
+                  overflow: valueMaxLines != null
+                      ? TextOverflow.ellipsis
+                      : null,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1563,11 +2374,19 @@ class _StepDone extends StatelessWidget {
     required this.textColor,
     required this.serviceTitle,
     required this.onClose,
+    this.reference,
+    this.providerName,
+    this.price,
+    this.onOpenChat,
   });
 
   final Color textColor;
   final String serviceTitle;
   final VoidCallback onClose;
+  final String? reference;
+  final String? providerName;
+  final int? price;
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -1590,14 +2409,17 @@ class _StepDone extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: BabifixDesign.cyan.withValues(alpha: 0.15),
                 ),
-                child: Icon(Icons.check_circle_rounded,
-                    size: 60, color: BabifixDesign.cyan),
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  size: 60,
+                  color: BabifixDesign.cyan,
+                ),
               ),
             ),
           ),
           const SizedBox(height: 28),
           Text(
-            'Réservation envoyée !',
+            'Demande envoyée !',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 28,
@@ -1608,15 +2430,56 @@ class _StepDone extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Votre demande pour « $serviceTitle » a été transmise. '
-            'Le prestataire vous contactera pour confirmer le rendez-vous.',
+            'Votre demande a été transmise au prestataire. '
+            'Vous recevrez un devis sous peu.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: sub,
-              height: 1.5,
-              fontSize: 15,
-            ),
+            style: TextStyle(color: sub, height: 1.5, fontSize: 15),
           ),
+          if (reference != null) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Référence de votre demande',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    reference!,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF4CC9F0),
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (providerName != null) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onOpenChat,
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: Text('Discuter avec $providerName'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF4CC9F0),
+                  side: const BorderSide(color: Color(0xFF4CC9F0)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 40),
           SizedBox(
             width: double.infinity,

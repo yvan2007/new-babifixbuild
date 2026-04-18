@@ -99,6 +99,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
 
   Future<void> _openReservation() async {
     final service = _serviceForBooking();
+    final p = _provider ?? {};
+
     if (widget.onStartReservation != null) {
       await widget.onStartReservation!(service);
       return;
@@ -109,6 +111,11 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
         builder: (_) => BookingFlowScreen(
           serviceTitle: service.title,
           servicePrice: service.price,
+          providerName: p['nom'] as String? ?? '',
+          providerPhoto: p['photo_portrait_url'] as String?,
+          providerRating: (p['average_rating'] as num?)?.toDouble(),
+          providerSpecialite: p['specialite'] as String?,
+          providerId: widget.providerId,
         ),
       ),
     );
@@ -133,7 +140,10 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     if (_error != null && _provider == null) {
       return Scaffold(
         backgroundColor: bg,
-        appBar: AppBar(backgroundColor: BabifixDesign.navy, foregroundColor: Colors.white),
+        appBar: AppBar(
+          backgroundColor: BabifixDesign.navy,
+          foregroundColor: Colors.white,
+        ),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -171,13 +181,16 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     }
 
     final p = _provider ?? {};
-    final name = '${p['prenom'] ?? p['user']?['first_name'] ?? ''} ${p['nom'] ?? p['user']?['last_name'] ?? ''}'.trim();
+    final name =
+        '${p['prenom'] ?? p['user']?['first_name'] ?? ''} ${p['nom'] ?? p['user']?['last_name'] ?? ''}'
+            .trim();
     final note = (p['note'] ?? p['rating'] as num?)?.toDouble() ?? 0.0;
     final nbAvis = (p['nb_avis'] ?? p['rating_count'] ?? 0) as int;
     final nbMissions = p['nb_missions'] as int? ?? 0;
     final tauxReussite = p['taux_reussite'] as int? ?? 0;
     final desc = (p['description'] ?? p['bio'] ?? '') as String;
-    final badges = (p['badges'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final badges =
+        (p['badges'] as List?)?.map((e) => e.toString()).toList() ?? [];
     final disponible = (p['disponible'] ?? true) as bool;
     final tarif = (p['tarif_horaire'] as num?)?.toInt() ?? 0;
 
@@ -232,7 +245,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                                   : Colors.grey.withValues(alpha: 0.3),
                               backgroundImage: () {
                                 final photo = '${p['photo_url'] ?? ''}'.trim();
-                                if (photo.startsWith('http')) return NetworkImage(photo) as ImageProvider;
+                                if (photo.startsWith('http'))
+                                  return NetworkImage(photo) as ImageProvider;
                                 return null;
                               }(),
                               child: () {
@@ -243,7 +257,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                                   style: TextStyle(
                                     fontSize: 36,
                                     fontWeight: FontWeight.w900,
-                                    color: disponible ? BabifixDesign.cyan : Colors.grey,
+                                    color: disponible
+                                        ? BabifixDesign.cyan
+                                        : Colors.grey,
                                   ),
                                 );
                               }(),
@@ -255,7 +271,11 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                                     shape: BoxShape.circle,
                                     color: Colors.black.withValues(alpha: 0.45),
                                   ),
-                                  child: const Icon(Icons.block_rounded, color: Colors.white70, size: 30),
+                                  child: const Icon(
+                                    Icons.block_rounded,
+                                    color: Colors.white70,
+                                    size: 30,
+                                  ),
                                 ),
                               ),
                           ],
@@ -271,16 +291,25 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                         ),
                         const SizedBox(height: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: disponible
-                                ? const Color(0xFF22C55E).withValues(alpha: 0.85)
+                                ? const Color(
+                                    0xFF22C55E,
+                                  ).withValues(alpha: 0.85)
                                 : Colors.grey.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             disponible ? '● Disponible' : '● Indisponible',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
@@ -488,11 +517,18 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                       children: [
                         Text(
                           'Avis clients',
-                          style: TextStyle(fontWeight: FontWeight.w700, color: text, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: text,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.amber.shade50,
                             borderRadius: BorderRadius.circular(10),
@@ -501,13 +537,27 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.star_rounded, size: 13, color: Colors.amber),
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 13,
+                                color: Colors.amber,
+                              ),
                               const SizedBox(width: 3),
                               Text(
                                 note > 0 ? note.toStringAsFixed(1) : '—',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.amber),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.amber,
+                                ),
                               ),
-                              Text(' · $nbAvis avis', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                              Text(
+                                ' · $nbAvis avis',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -537,70 +587,108 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                               children: [
                                 CircleAvatar(
                                   radius: 18,
-                                  backgroundColor: BabifixDesign.cyan.withValues(alpha: 0.15),
+                                  backgroundColor: BabifixDesign.cyan
+                                      .withValues(alpha: 0.15),
                                   child: Text(
-                                    ((r['auteur'] ?? r['client_name'] ?? 'U') as String).isNotEmpty
-                                        ? ((r['auteur'] ?? r['client_name']) as String)[0].toUpperCase()
+                                    ((r['auteur'] ?? r['client_name'] ?? 'U')
+                                                as String)
+                                            .isNotEmpty
+                                        ? ((r['auteur'] ?? r['client_name'])
+                                                  as String)[0]
+                                              .toUpperCase()
                                         : 'U',
-                                    style: TextStyle(color: BabifixDesign.ciBlue, fontWeight: FontWeight.w700),
+                                    style: TextStyle(
+                                      color: BabifixDesign.ciBlue,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        (r['auteur'] ?? r['client_name'] ?? '') as String,
-                                        style: TextStyle(fontWeight: FontWeight.w700, color: text, fontSize: 14),
+                                        (r['auteur'] ?? r['client_name'] ?? '')
+                                            as String,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: text,
+                                          fontSize: 14,
+                                        ),
                                       ),
                                       Text(
-                                        (r['date'] ?? r['created_at'] ?? '') as String,
-                                        style: TextStyle(color: sub, fontSize: 11),
+                                        (r['date'] ?? r['created_at'] ?? '')
+                                            as String,
+                                        style: TextStyle(
+                                          color: sub,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
                                 // Étoiles
                                 Row(
-                                  children: List.generate(5, (i) => Icon(
-                                    i < (r['note'] as int? ?? 0)
-                                        ? Icons.star_rounded
-                                        : Icons.star_border_rounded,
-                                    size: 15,
-                                    color: Colors.amber,
-                                  )),
+                                  children: List.generate(
+                                    5,
+                                    (i) => Icon(
+                                      i < (r['note'] as int? ?? 0)
+                                          ? Icons.star_rounded
+                                          : Icons.star_border_rounded,
+                                      size: 15,
+                                      color: Colors.amber,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
-                            if ((r['commentaire'] as String? ?? '').isNotEmpty) ...[
+                            if ((r['commentaire'] as String? ?? '')
+                                .isNotEmpty) ...[
                               const SizedBox(height: 8),
                               Text(
                                 r['commentaire'] as String,
-                                style: TextStyle(color: sub, fontSize: 14, height: 1.4),
+                                style: TextStyle(
+                                  color: sub,
+                                  fontSize: 14,
+                                  height: 1.4,
+                                ),
                               ),
                             ],
                             // Photos preuve
-                            if ((r['photo_proof'] as List? ?? []).isNotEmpty) ...[
+                            if ((r['photo_proof'] as List? ?? [])
+                                .isNotEmpty) ...[
                               const SizedBox(height: 10),
                               SizedBox(
                                 height: 70,
                                 child: ListView(
                                   scrollDirection: Axis.horizontal,
                                   children: [
-                                    for (final photoUrl in (r['photo_proof'] as List))
+                                    for (final photoUrl
+                                        in (r['photo_proof'] as List))
                                       if ((photoUrl as String).isNotEmpty)
                                         ClipRRect(
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                           child: Image.network(
                                             photoUrl,
-                                            width: 70, height: 70,
+                                            width: 70,
+                                            height: 70,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(
-                                              width: 70, height: 70,
-                                              color: const Color(0xFFF1F5F9),
-                                              child: const Icon(Icons.photo_outlined, color: Color(0xFFCBD5E1)),
-                                            ),
+                                            errorBuilder: (_, __, ___) =>
+                                                Container(
+                                                  width: 70,
+                                                  height: 70,
+                                                  color: const Color(
+                                                    0xFFF1F5F9,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.photo_outlined,
+                                                    color: Color(0xFFCBD5E1),
+                                                  ),
+                                                ),
                                           ),
                                         ),
                                   ],
@@ -634,7 +722,10 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
               if (!disponible)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 16,
+                  ),
                   margin: const EdgeInsets.only(bottom: 8),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade100,
@@ -644,11 +735,18 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.block_rounded, size: 16, color: Colors.grey.shade600),
+                      Icon(
+                        Icons.block_rounded,
+                        size: 16,
+                        color: Colors.grey.shade600,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Ce prestataire n\'accepte pas de nouvelles missions pour l\'instant.',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 13,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -657,12 +755,20 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
               FilledButton.icon(
                 onPressed: disponible ? _openReservation : null,
                 icon: const Icon(Icons.calendar_month_rounded),
-                label: Text(disponible
-                    ? (tarif > 0 ? 'Réserver · ${tarif.toString()} FCFA/h' : 'Réserver')
-                    : 'Prestataire indisponible'),
+                label: Text(
+                  disponible
+                      ? (tarif > 0
+                            ? 'Réserver · ${tarif.toString()} FCFA/h'
+                            : 'Réserver')
+                      : 'Prestataire indisponible',
+                ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: disponible ? BabifixDesign.cyan : Colors.grey.shade300,
-                  foregroundColor: disponible ? BabifixDesign.navy : Colors.grey.shade600,
+                  backgroundColor: disponible
+                      ? BabifixDesign.cyan
+                      : Colors.grey.shade300,
+                  foregroundColor: disponible
+                      ? BabifixDesign.navy
+                      : Colors.grey.shade600,
                   minimumSize: const Size(double.infinity, 54),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),

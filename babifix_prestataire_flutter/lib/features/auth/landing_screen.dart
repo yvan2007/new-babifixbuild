@@ -93,7 +93,10 @@ class LandingScreen extends StatelessWidget {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF059669),
                           borderRadius: BorderRadius.circular(20),
@@ -156,28 +159,32 @@ class LandingScreen extends StatelessWidget {
                           icon: Icons.people_alt_rounded,
                           color: _blue,
                           title: 'Clients vérifiés',
-                          subtitle: 'Accédez à des milliers de particuliers qualifiés',
+                          subtitle:
+                              'Accédez à des milliers de particuliers qualifiés',
                         ),
                         const _Divider(),
                         _BenefitRow(
                           icon: Icons.lock_rounded,
                           color: const Color(0xFF059669),
                           title: 'Paiement sécurisé FCFA',
-                          subtitle: 'Orange Money, MTN, Wave, Moov — libéré après service',
+                          subtitle:
+                              'Orange Money, MTN, Wave, Moov — paiement après validation',
                         ),
                         const _Divider(),
                         _BenefitRow(
                           icon: Icons.verified_rounded,
                           color: _orange,
                           title: 'Badge Vérifié BABIFIX',
-                          subtitle: 'La validation admin renforce votre crédibilité',
+                          subtitle:
+                              'La validation admin renforce votre crédibilité',
                         ),
                         const _Divider(),
                         _BenefitRow(
                           icon: Icons.trending_up_rounded,
                           color: const Color(0xFF7C3AED),
                           title: 'Gagnez plus chaque mois',
-                          subtitle: 'Jusqu\'à 300 000+ FCFA/mois pour les top prestataires',
+                          subtitle:
+                              'Jusqu\'à 300 000+ FCFA/mois pour les top prestataires',
                         ),
                       ],
                     ),
@@ -186,7 +193,10 @@ class LandingScreen extends StatelessWidget {
 
                   // Social proof strip
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: _blue.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(14),
@@ -213,7 +223,10 @@ class LandingScreen extends StatelessWidget {
                       icon: const Icon(Icons.person_add_rounded, size: 20),
                       label: const Text(
                         'Créer un compte Prestataire',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
                       ),
                       style: FilledButton.styleFrom(
                         backgroundColor: _blue,
@@ -236,7 +249,10 @@ class LandingScreen extends StatelessWidget {
                       onPressed: onLogin,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _navy,
-                        side: BorderSide(color: _navy.withValues(alpha: 0.25), width: 1.5),
+                        side: BorderSide(
+                          color: _navy.withValues(alpha: 0.25),
+                          width: 1.5,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -244,7 +260,10 @@ class LandingScreen extends StatelessWidget {
                       ),
                       child: const Text(
                         'Déjà inscrit ? Se connecter',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                   ),

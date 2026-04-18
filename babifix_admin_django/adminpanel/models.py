@@ -110,12 +110,20 @@ class Reservation(models.Model):
     """UML : Reservation + flux paiement espèces (déclaration client → confirmation prestataire → admin)."""
 
     class Status(models.TextChoices):
+        # Anciens statuts (compatibilité)
         PENDING = "En attente", "En attente"
         CONFIRMED = "Confirmee", "Confirmee"
         IN_PROGRESS = "En cours", "En cours"
         WAITING_CLIENT = "En attente client", "En attente client"
         DONE = "Terminee", "Terminee"
         CANCELLED = "Annulee", "Annulee"
+
+        # Nouveau parcours - demande et devis
+        DEMANDE_ENVOYEE = "DEMANDE_ENVOYEE", "Demande envoyée"
+        DEVIS_EN_COURS = "DEVIS_EN_COURS", "Devis en cours"
+        DEVIS_ENVOYE = "DEVIS_ENVOYE", "Devis envoyé"
+        DEVIS_ACCEPTE = "DEVIS_ACCEPTE", "Devis accepté"
+        INTERVENTION_EN_COURS = "INTERVENTION_EN_COURS", "Intervention en cours"
 
     class PaymentType(models.TextChoices):
         ESPECES = "ESPECES", "Especes"
@@ -149,7 +157,7 @@ class Reservation(models.Model):
         help_text="Montant de la réservation en FCA",
     )
     statut = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.PENDING
+        max_length=30, choices=Status.choices, default=Status.PENDING
     )
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
@@ -170,6 +178,28 @@ class Reservation(models.Model):
     client_message = models.TextField(
         blank=True, default="", help_text="Message client lors de la réservation (UML)"
     )
+    # Nouveau parcours : champs pour la demande
+    description_probleme = models.TextField(
+        blank=True, default="", help_text="Description du problème par le client"
+    )
+    photos_probleme = models.JSONField(
+        default=list, blank=True, help_text="URLs des photos du problème"
+    )
+    disponibilites_client = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Disponibilités du client: 'Matin, Après-midi, Lun-Mer'",
+    )
+    is_urgent = models.BooleanField(
+        default=False, help_text="Intervention urgente demandée par le client"
+    )
+    motif_refus_demande = models.TextField(
+        blank=True,
+        default="",
+        help_text="Motif de refus de la demande par le prestataire",
+    )
+
     prix_propose = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -725,3 +755,82 @@ class ClientFavorite(models.Model):
 
     def __str__(self):
         return f"{self.client.username} ♥ {self.provider.nom}"
+
+
+class Devis(models.Model):
+    """Modèle de devis pour le nouveau parcours de réservation."""
+
+    class Statut(models.TextChoices):
+        BROUILLON = "BROUILLON", "Brouillon"
+        ENVOYE = "ENVOYE", "Envoyé"
+        ACCEPTE = "ACCEPTE", "Accepté"
+        REFUSE = "REFUSE", "Refusé"
+        EXPIRE = "EXPIRE", "Expiré"
+
+    reference = models.CharField(max_length=20, unique=True)
+    reservation = models.ForeignKey(
+        "Reservation", on_delete=models.CASCADE, related_name="devis_set"
+    )
+    prestataire = models.ForeignKey(
+        "Provider", on_delete=models.CASCADE, related_name="devis_crees"
+    )
+
+    diagnostic = models.TextField(help_text="Analyse du problème par le prestataire")
+
+    date_proposee = models.DateField(null=True, blank=True)
+    heure_debut = models.TimeField(null=True, blank=True)
+    heure_fin = models.TimeField(null=True, blank=True)
+
+    sous_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    commission_rate = models.IntegerField(default=10)
+    commission_montant = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_ttc = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    note_prestataire = models.TextField(blank=True, default="")
+    validite_jours = models.IntegerField(default=7)
+    statut = models.CharField(
+        max_length=20, choices=Statut.choices, default=Statut.BROUILLON
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            year = timezone.now().year
+            count = (
+                Devis.objects.filter(reference__startswith=f"DEV-{year}").count() + 1
+            )
+            self.reference = f"DEV-{year}-{count:04d}"
+
+        self.sous_total = sum(ligne.total for ligne in self.lignes.all())
+        self.commission_montant = self.sous_total * self.commission_rate / 100
+        self.total_ttc = self.sous_total + self.commission_montant
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Devis {self.reference} - {self.reservation.title}"
+
+
+class LigneDevis(models.Model):
+    """Ligne de devis (fourniture, main d'œuvre, déplacement)."""
+
+    class TypeLigne(models.TextChoices):
+        FOURNITURE = "FOURNITURE", "Fourniture"
+        MAIN_OEUVRE = "MAIN_OEUVRE", "Main d'œuvre"
+        DEPLACEMENT = "DEPLACEMENT", "Déplacement"
+        AUTRE = "AUTRE", "Autre"
+
+    devis = models.ForeignKey(Devis, on_delete=models.CASCADE, related_name="lignes")
+    type_ligne = models.CharField(max_length=20, choices=TypeLigne.choices)
+    description = models.CharField(max_length=255)
+    quantite = models.IntegerField(default=1)
+    prix_unitaire = models.DecimalField(max_digits=10, decimal_places=2)
+
+    @property
+    def total(self):
+        return self.quantite * self.prix_unitaire
+
+    def __str__(self):
+        return f"{self.description} x{self.quantite} = {self.total} FCA"

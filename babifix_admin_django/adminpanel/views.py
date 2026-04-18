@@ -38,7 +38,9 @@ from .models import (
     Client,
     Conversation,
     DeviceToken,
+    Devis,
     Dispute,
+    LigneDevis,
     Message,
     Notification,
     Payment,
@@ -1821,7 +1823,13 @@ def api_client_create_reservation(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     title = str(payload.get("title", "")).strip()
-    amount = str(payload.get("amount", "")).strip() or "0 FCFA"
+    amount_raw = str(payload.get("amount", "")).strip() or "0"
+    try:
+        amount_numeric = float(
+            amount_raw.replace(" ", "").replace("FCFA", "").replace(",", ".")
+        )
+    except (ValueError, AttributeError):
+        amount_numeric = 0.0
     if not title:
         return JsonResponse({"error": "title_required"}, status=400)
 
@@ -1920,11 +1928,11 @@ def api_client_create_reservation(request):
 
     res_obj = Reservation.objects.create(
         reference=reference,
-        title=title,
+        title=title or "Demande de service",
         client=client_label,
-        prestataire=prest_label,
-        montant=amount,
-        statut="En attente",
+        prestataires=prest_label,
+        montant=amount_numeric,
+        statut=Reservation.Status.DEMANDE_ENVOYEE,
         latitude=lat_f,
         longitude=lon_f,
         address_label=address_label,
@@ -1937,6 +1945,9 @@ def api_client_create_reservation(request):
         client_message=client_message,
         preuve_photos=preuve_list,
         prix_propose=prix_propose,
+        description_probleme=str(payload.get("description_probleme", "") or "")[:2000],
+        disponibilites_client=str(payload.get("disponibilites_client", "") or "")[:255],
+        is_urgent=bool(payload.get("is_urgent", False)),
     )
     if res_obj.client_user_id and res_obj.prestataire_user_id:
         Conversation.objects.get_or_create(
@@ -2124,15 +2135,21 @@ def api_prestataire_requests(request):
                 else "—",
                 "address": item.address_label or "—",
                 "description": (
-                    item.client_message or f"Detail de la demande {item.reference}"
+                    item.client_message
+                    or item.description_probleme
+                    or f"Detail de la demande {item.reference}"
                 )[:500],
-                "amount": item.montant,
+                "client_message": item.description_probleme or "",
+                "disponibilites_client": item.disponibilites_client or "",
+                "is_urgent": item.is_urgent,
+                "amount": float(item.montant) if item.montant else 0,
                 "status": item.statut,
                 "payment_type": item.payment_type,
                 "mobile_money_operator": item.mobile_money_operator or "",
                 "cash_flow_status": item.cash_flow_status,
                 "rating": ravg,
                 "prix_propose": float(item.prix_propose) if item.prix_propose else None,
+                "bookingId": item.id,
             }
         )
     return JsonResponse({"items": data})
@@ -2161,12 +2178,13 @@ def api_prestataire_decide_request(request, reference):
         return JsonResponse({"error": "invalid_json"}, status=400)
     decision = str(payload.get("decision", "")).strip().lower()
     if decision == "accept":
-        reservation.statut = "Confirmee"
+        reservation.statut = Reservation.Status.DEVIS_EN_COURS
     elif decision == "refuse":
-        reservation.statut = "Annulee"
+        reservation.statut = Reservation.Status.CANCELLED
+        reservation.motif_refus_demande = str(payload.get("motif", "") or "")[:500]
     else:
         return JsonResponse({"error": "invalid_decision"}, status=400)
-    reservation.save(update_fields=["statut"])
+    reservation.save(update_fields=["statut", "motif_refus_demande"])
     return JsonResponse({"ok": True, "status": reservation.statut})
 
 
@@ -2203,6 +2221,138 @@ def api_prestataire_ratings(request):
             "items": items,
             "average_rating": float(prov.average_rating or 0),
             "rating_count": prov.rating_count or 0,
+        }
+    )
+
+
+# ── Vérification disponibilité prestataire ───────────────────────────────────
+@require_GET
+@require_api_auth(["client"])
+def api_client_check_provider_availability(request):
+    """Vérifie si un prestataire est disponible à une date/heure donnée."""
+    provider_id = request.GET.get("provider_id")
+    date_str = request.GET.get("date")
+    time_str = request.GET.get("time")
+
+    if not provider_id or not date_str:
+        return JsonResponse({"error": "provider_id and date required"}, status=400)
+
+    try:
+        prov = Provider.objects.filter(
+            id=int(provider_id), statut=Provider.Status.VALID
+        ).first()
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "invalid_provider_id"}, status=400)
+
+    if not prov:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    if not prov.disponible:
+        return JsonResponse(
+            {
+                "available": False,
+                "reason": "prestataire_indisponible",
+                "message": "Ce prestataire n'est pas disponible actuellement.",
+            }
+        )
+
+    from datetime import date, time as dt_time
+
+    try:
+        check_date = date.fromisoformat(date_str)
+    except ValueError:
+        return JsonResponse({"error": "invalid_date_format"}, status=400)
+
+    unavail = PrestataireUnavailability.objects.filter(
+        provider=prov,
+        date_debut__lte=check_date,
+        date_fin__gte=check_date,
+    ).exists()
+
+    if unavail:
+        return JsonResponse(
+            {
+                "available": False,
+                "reason": "conge",
+                "message": "Ce prestataire est en congés cette journée.",
+            }
+        )
+
+    slots = PrestataireAvailabilitySlot.objects.filter(
+        provider=prov,
+        jour_semaine=check_date.weekday(),
+        actif=True,
+    )
+
+    if not slots.exists():
+        return JsonResponse(
+            {
+                "available": False,
+                "reason": "pas_creneau",
+                "message": "Ce prestataire ne travaille pas ce jour.",
+                "available_days": list(
+                    PrestataireAvailabilitySlot.objects.filter(
+                        provider=prov,
+                        actif=True,
+                    )
+                    .values_list("jour_semaine", flat=True)
+                    .distinct()
+                ),
+            }
+        )
+
+    if time_str:
+        try:
+            time_str_clean = time_str.replace(":", ".")
+            check_time = dt_time.fromisoformat(time_str_clean)
+            check_time_minutes = check_time.hour * 60 + check_time.minute
+
+            for slot in slots:
+                debut_minutes = slot.heure_debut.hour * 60 + slot.heure_debut.minute
+                fin_minutes = slot.heure_fin.hour * 60 + slot.heure_fin.minute
+
+                if debut_minutes <= check_time_minutes <= fin_minutes:
+                    return JsonResponse(
+                        {
+                            "available": True,
+                            "provider": {
+                                "id": prov.id,
+                                "nom": prov.nom,
+                                "specialite": prov.specialite,
+                            },
+                        }
+                    )
+
+            return JsonResponse(
+                {
+                    "available": False,
+                    "reason": "hors_creneau",
+                    "message": "Ce prestataire n'est pas disponible à cette heure.",
+                    "creneaux": [
+                        {"debut": str(s.heure_debut), "fin": str(s.heure_fin)}
+                        for s in slots
+                    ],
+                }
+            )
+        except ValueError:
+            pass
+
+    return JsonResponse(
+        {
+            "available": True,
+            "provider": {
+                "id": prov.id,
+                "nom": prov.nom,
+                "specialite": prov.specialite,
+            },
+            "creneaux": [
+                {
+                    "jour": s.get_jour_semaine_display(),
+                    "debut": str(s.heure_debut),
+                    "fin": str(s.heure_fin),
+                }
+                for s in slots
+            ],
         }
     )
 
@@ -2943,6 +3093,556 @@ def api_client_message_delete(request, message_id):
 # ── Gestionnaires d'erreurs HTTP ──────────────────────────────────────────────
 def error_404(request, exception=None):
     return JsonResponse({"error": "not_found"}, status=404)
+
+
+# ── Devis API ───────────────────────────────────────────────────────────────────
+
+
+# Prestataire : accepter de faire un devis
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_accept_demande(request, reference):
+    """Le prestataire accepte de préparer un devis pour cette demande."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=403)
+
+    if res.assigned_provider_id != provider.id:
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    if res.statut != Reservation.Status.DEMANDE_ENVOYEE:
+        return JsonResponse({"error": "invalid_state"}, status=400)
+
+    res.statut = Reservation.Status.DEVIS_EN_COURS
+    res.save(update_fields=["statut"])
+
+    _schedule(
+        [res.client_user_id] if res.client_user_id else [],
+        "Demande acceptée",
+        f"{provider.nom} va vous envoyer un devis détaillé.",
+        {"type": "demande.accepted", "reference": res.reference},
+    )
+
+    return JsonResponse({"ok": True, "statut": res.statut})
+
+
+# Prestataire : refuser la demande
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_refuse_demande(request, reference):
+    """Le prestataire refuse la demande avec un motif."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=403)
+
+    if res.assigned_provider_id != provider.id:
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    motif = str(payload.get("motif", "") or "")[:500]
+
+    res.statut = Reservation.Status.CANCELLED
+    res.motif_refus_demande = motif
+    res.save(update_fields=["statut", "motif_refus_demande"])
+
+    _schedule(
+        [res.client_user_id] if res.client_user_id else [],
+        "Demande refusée",
+        f"{provider.nom} a refusé votre demande. Motif: {motif}",
+        {"type": "demande.refused", "reference": res.reference},
+    )
+
+    return JsonResponse({"ok": True, "statut": res.statut})
+
+
+# Prestataire : démarrer l'intervention
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_demarrer_intervention(request, reference):
+    """Le prestataire démarre l'intervention sur place."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=403)
+
+    if res.assigned_provider_id != provider.id:
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    if res.statut != Reservation.Status.DEVIS_ACCEPTE:
+        return JsonResponse({"error": "invalid_state"}, status=400)
+
+    res.statut = Reservation.Status.INTERVENTION_EN_COURS
+    res.save(update_fields=["statut"])
+
+    _schedule(
+        [res.client_user_id] if res.client_user_id else [],
+        "Intervention démarrée",
+        f"{provider.nom} a démarré l'intervention.",
+        {"type": "intervention.started", "reference": res.reference},
+    )
+
+    return JsonResponse({"ok": True, "statut": res.statut})
+
+
+# Prestataire : déclarer travaux terminés
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_terminer_intervention(request, reference):
+    """Le prestataire declare que les travaux sont termines."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=403)
+
+    if res.assigned_provider_id != provider.id:
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    if res.statut != Reservation.Status.INTERVENTION_EN_COURS:
+        return JsonResponse({"error": "invalid_state"}, status=400)
+
+    res.statut = Reservation.Status.DONE
+    res.prestation_terminee_at = timezone.now()
+    res.save(update_fields=["statut", "prestation_terminee_at"])
+
+    _schedule(
+        [res.client_user_id] if res.client_user_id else [],
+        "Travaux terminés",
+        f"{provider.nom} a terminé l'intervention. Veuillez confirmer la réception.",
+        {"type": "intervention.finished", "reference": res.reference},
+    )
+
+    return JsonResponse({"ok": True, "statut": res.statut})
+
+
+# Client : confirmer les travaux et ouvrir le paiement
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_client_confirmer_travaux(request, reference):
+    """Le client confirme que les travaux sont termines conformement au devis."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid and request.api_role != "admin":
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    if res.statut != Reservation.Status.DONE:
+        return JsonResponse({"error": "invalid_state"}, status=400)
+
+    res.client_confirme_prestation_at = timezone.now()
+    res.statut = Reservation.Status.DONE
+    res.save(update_fields=["client_confirme_prestation_at", "statut"])
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "statut": res.statut,
+            "montant": float(res.montant) if res.montant else 0,
+            "payment_type": res.payment_type,
+        }
+    )
+
+
+# Client : annuler la demande
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_client_annuler_demande(request, reference):
+    """Le client annule sa demande (si pas encore accepted)."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid and request.api_role != "admin":
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    if res.statut in [
+        Reservation.Status.INTERVENTION_EN_COURS,
+        Reservation.Status.DONE,
+    ]:
+        return JsonResponse({"error": "cannot_cancel"}, status=400)
+
+    res.statut = Reservation.Status.CANCELLED
+    res.save(update_fields=["statut"])
+
+    if res.assigned_provider and res.assigned_provider.user_id:
+        _schedule(
+            [res.assigned_provider.user_id],
+            "Demande annulée",
+            f"Le client a annulé la demande {res.reference}",
+            {"type": "demande.cancelled", "reference": res.reference},
+        )
+
+    return JsonResponse({"ok": True, "statut": res.statut})
+
+
+# Client : lister ses demandes
+@require_GET
+@require_api_auth(["client"])
+def api_client_demandes_list(request):
+    """Liste toutes les demandes du client."""
+    uid = request.api_user_id
+    statut_filter = request.GET.get("statut", "")
+
+    qs = (
+        Reservation.objects.filter(client_user_id=uid)
+        .select_related("assigned_provider")
+        .order_by("-pk")
+    )
+
+    if statut_filter:
+        qs = qs.filter(statut=statut_filter)
+
+    results = []
+    for res in qs:
+        provider = res.assigned_provider
+        results.append(
+            {
+                "id": res.pk,
+                "reference": res.reference,
+                "title": res.title or "Demande de service",
+                "prestataire": provider.nom if provider else None,
+                "prestataire_id": provider.id if provider else None,
+                "prestataire_specialite": provider.specialite if provider else None,
+                "prestataire_rating": float(provider.average_rating) if provider else 0,
+                "montant": float(res.montant) if res.montant else None,
+                "statut": res.statut,
+                "description_probleme": res.description_probleme or "",
+                "address_label": res.address_label or "",
+                "disponibilites_client": res.disponibilites_client or "",
+                "is_urgent": res.is_urgent,
+                "created_at": str(res.location_captured_at)
+                if res.location_captured_at
+                else None,
+            }
+        )
+
+    return JsonResponse({"demandes": results})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_create_devis(request, reference):
+    """Créer un devis pour une demande de réservation."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=403)
+
+    if res.assigned_provider_id != provider.id:
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    if res.statut not in [
+        Reservation.Status.DEMANDE_ENVOYEE,
+        Reservation.Status.DEVIS_EN_COURS,
+    ]:
+        return JsonResponse({"error": "invalid_state"}, status=400)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    diagnostic = str(payload.get("diagnostic", "")).strip()[:2000]
+    date_proposee = payload.get("date_proposee")
+    heure_debut = payload.get("heure_debut")
+    heure_fin = payload.get("heure_fin")
+    validite_jours = int(payload.get("validite_jours", 7))
+    note_prestataire = str(payload.get("note_prestataire", "")).strip()[:1000]
+    lignes_data = payload.get("lignes", [])
+
+    if not diagnostic:
+        return JsonResponse({"error": "diagnostic_required"}, status=400)
+
+    existing_devis = Devis.objects.filter(
+        reservation=res, statut__in=[Devis.Statut.ENVOYE, Devis.Statut.ACCEPTE]
+    ).first()
+    if existing_devis:
+        return JsonResponse({"error": "devis_already_exists"}, status=400)
+
+    from datetime import date, time
+    from decimal import Decimal
+
+    parsed_date = None
+    if date_proposee:
+        try:
+            parsed_date = date.fromisoformat(date_proposee)
+        except (ValueError, TypeError):
+            pass
+
+    parsed_heure_debut = None
+    if heure_debut:
+        try:
+            parsed_heure_debut = time.fromisoformat(heure_debut)
+        except (ValueError, TypeError):
+            pass
+
+    parsed_heure_fin = None
+    if heure_fin:
+        try:
+            parsed_heure_fin = time.fromisoformat(heure_fin)
+        except (ValueError, TypeError):
+            pass
+
+    category = provider.category
+    commission_rate = 10
+    if category and hasattr(category, "commission"):
+        commission_rate = category.commission.commission_rate
+
+    devis = Devis.objects.create(
+        reference="",
+        reservation=res,
+        prestataire=provider,
+        diagnostic=diagnostic,
+        date_proposee=parsed_date,
+        heure_debut=parsed_heure_debut,
+        heure_fin=parsed_heure_fin,
+        validite_jours=validite_jours,
+        note_prestataire=note_prestataire,
+        commission_rate=commission_rate,
+    )
+
+    sous_total = Decimal("0")
+    for ligne_data in lignes_data:
+        type_ligne = str(ligne_data.get("type_ligne", "AUTRE")).strip().upper()
+        description = str(ligne_data.get("description", "")).strip()[:255]
+        quantite = int(ligne_data.get("quantite", 1))
+        prix_unitaire = Decimal(str(ligne_data.get("prix_unitaire", 0)))
+
+        ligne = LigneDevis.objects.create(
+            devis=devis,
+            type_ligne=type_ligne,
+            description=description,
+            quantite=quantite,
+            prix_unitaire=prix_unitaire,
+        )
+        sous_total += ligne.total
+
+    devis.sous_total = sous_total
+    devis.commission_montant = sous_total * Decimal(commission_rate) / 100
+    devis.total_ttc = sous_total + devis.commission_montant
+    devis.statut = Devis.Statut.ENVOYE
+    devis.save()
+
+    res.statut = Reservation.Status.DEVIS_ENVOYE
+    res.save(update_fields=["statut"])
+
+    _schedule(
+        [res.client_user_id],
+        "Nouveau devis reçu",
+        f"Prestataire {provider.nom} a envoyé un devis pour {res.reference}",
+        {"type": "devis.received", "reference": res.reference},
+    )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "devis": {
+                "id": devis.id,
+                "reference": devis.reference,
+                "diagnostic": devis.diagnostic,
+                "date_proposee": str(devis.date_proposee)
+                if devis.date_proposee
+                else None,
+                "heure_debut": str(devis.heure_debut) if devis.heure_debut else None,
+                "heure_fin": str(devis.heure_fin) if devis.heure_fin else None,
+                "sous_total": float(devis.sous_total),
+                "commission_montant": float(devis.commission_montant),
+                "total_ttc": float(devis.total_ttc),
+                "statut": devis.statut,
+                "lignes": [
+                    {
+                        "id": l.id,
+                        "type_ligne": l.type_ligne,
+                        "description": l.description,
+                        "quantite": l.quantite,
+                        "prix_unitaire": float(l.prix_unitaire),
+                        "total": float(l.total),
+                    }
+                    for l in devis.lignes.all()
+                ],
+            },
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["prestataire", "client"])
+def api_reservation_devis(request, reference):
+    """Récupérer le devis associé à une réservation."""
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    is_client = res.client_user_id == uid or request.api_role == "client"
+    is_prest = (
+        res.assigned_provider
+        and res.assigned_provider.user_id == uid
+        or request.api_role == "prestataire"
+    )
+
+    if not is_client and not is_prest and request.api_role != "admin":
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    devis = Devis.objects.filter(reservation=res).order_by("-created_at").first()
+    if not devis:
+        return JsonResponse({"devis": None})
+
+    return JsonResponse(
+        {
+            "devis": {
+                "id": devis.id,
+                "reference": devis.reference,
+                "prestataire": {
+                    "id": devis.prestataire.id,
+                    "nom": devis.prestataire.nom,
+                    "specialite": devis.prestataire.specialite,
+                },
+                "diagnostic": devis.diagnostic,
+                "date_proposee": str(devis.date_proposee)
+                if devis.date_proposee
+                else None,
+                "heure_debut": str(devis.heure_debut) if devis.heure_debut else None,
+                "heure_fin": str(devis.heure_fin) if devis.heure_fin else None,
+                "sous_total": float(devis.sous_total),
+                "commission_rate": devis.commission_rate,
+                "commission_montant": float(devis.commission_montant),
+                "total_ttc": float(devis.total_ttc),
+                "note_prestataire": devis.note_prestataire,
+                "validite_jours": devis.validite_jours,
+                "statut": devis.statut,
+                "created_at": str(devis.created_at),
+                "lignes": [
+                    {
+                        "id": l.id,
+                        "type_ligne": l.type_ligne,
+                        "description": l.description,
+                        "quantite": l.quantite,
+                        "prix_unitaire": float(l.prix_unitaire),
+                        "total": float(l.total),
+                    }
+                    for l in devis.lignes.all()
+                ],
+            },
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_client_accept_devis(request, reference):
+    """Le client accepte un devis."""
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid:
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    devis = Devis.objects.filter(reservation=res, statut=Devis.Statut.ENVOYE).first()
+    if not devis:
+        return JsonResponse({"error": "devis_not_found"}, status=404)
+
+    devis.statut = Devis.Statut.ACCEPTE
+    devis.save()
+
+    res.statut = Reservation.Status.DEVIS_ACCEPTE
+    res.montant = devis.total_ttc
+    res.save(update_fields=["statut", "montant"])
+
+    _schedule(
+        [res.assigned_provider.user_id] if res.assigned_provider else [],
+        "Devis accepté",
+        f"Le client a accepté le devis {devis.reference}",
+        {"type": "devis.accepted", "reference": res.reference},
+    )
+
+    return JsonResponse(
+        {"ok": True, "statut": res.statut, "montant": float(res.montant)}
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_client_refuse_devis(request, reference):
+    """Le client refuse un devis."""
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    motif = str(payload.get("motif", "")).strip()[:500]
+
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid:
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    devis = Devis.objects.filter(reservation=res, statut=Devis.Statut.ENVOYE).first()
+    if not devis:
+        return JsonResponse({"error": "devis_not_found"}, status=404)
+
+    devis.statut = Devis.Statut.REFUSE
+    devis.note_prestataire = (
+        f"{devis.note_prestataire}\n\nRefusé par le client: {motif}".strip()[:1000]
+    )
+    devis.save()
+
+    res.statut = Reservation.Status.DEMANDE_ENVOYEE
+    res.save(update_fields=["statut"])
+
+    _schedule(
+        [res.assigned_provider.user_id] if res.assigned_provider else [],
+        "Devis refusé",
+        f"Le client a refusé le devis {devis.reference}. Motif: {motif}",
+        {"type": "devis.refused", "reference": res.reference},
+    )
+
+    return JsonResponse({"ok": True, "statut": res.statut})
 
 
 def error_500(request):
