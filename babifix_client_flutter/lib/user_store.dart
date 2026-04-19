@@ -360,8 +360,11 @@ class BabifixUserStore {
     await prefs.remove(_kPhone);
     await prefs.remove(_kAddress);
     await prefs.remove(_kAvatarB64);
-    // Clear secure storage tokens
     await _secureStorage.delete(key: _kApiToken);
     await _secureStorage.delete(key: _kRefreshToken);
+    await _secureStorage.delete(key: _kName);
+    await _secureStorage.delete(key: _kEmail);
+    await _secureStorage.delete(key: _kPhone);
+    await _secureStorage.delete(key: _kAvatarB64);
   }
 }

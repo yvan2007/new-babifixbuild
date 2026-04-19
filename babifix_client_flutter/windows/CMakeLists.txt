@@ -4,6 +4,12 @@ project(babifix_client_flutter LANGUAGES CXX)
 
 # Allow older CMake minimum versions in subprojects (e.g. Firebase C++ SDK)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+set(CMAKE_POLICY_VERSION_MINIMUM_DEFAULT 3.5)
+
+# Force CMake to accept older minimum versions for all subprojects
+if(POLICY CMP0069)
+  cmake_policy(SET CMP0069 NEW)
+endif()
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.

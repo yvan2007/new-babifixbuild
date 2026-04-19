@@ -4628,18 +4628,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
     ClientService service, {
     Map<String, dynamic>? flowData,
   }) async {
-    if (authToken == null) {
+    // Refresh token before request to avoid invalid_token
+    final freshToken = await BabifixUserStore.getApiToken();
+    if (freshToken == null || freshToken.isEmpty) {
       if (mounted) {
         setState(() => navIndex = 4);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Connectez-vous d\'abord pour réserver.'),
+            content: Text('Connectez-vous d\'abord pour réservés.'),
             duration: Duration(seconds: 3),
           ),
         );
       }
       return false;
     }
+    authToken = freshToken;
 
     double? lat;
     double? lon;

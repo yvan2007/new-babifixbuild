@@ -57,6 +57,7 @@ from .views import (
     api_client_message_delete,
     api_client_pay_post_prestation,
     api_client_prestataires,
+    api_client_prestataire_detail,
     api_client_rate_reservation,
     api_client_refuse_devis,
     api_messages,
@@ -111,6 +112,11 @@ urlpatterns = [
         "api/client/prestataires",
         api_client_prestataires,
         name="api-client-prestataires",
+    ),
+    path(
+        "api/client/prestataires/<int:pk>/",
+        api_client_prestataire_detail,
+        name="api-client-prestataire-detail",
     ),
     path(
         "api/client/conversations",
