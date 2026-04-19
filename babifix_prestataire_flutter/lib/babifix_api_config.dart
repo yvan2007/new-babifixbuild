@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-const int kBabifixApiPort = 8003;
+const int kBabifixApiPort = 8002;
 const String kBabifixApiIpDesktop = '127.0.0.1';
 const String kBabifixApiIpAndroid = '10.0.2.2';
 

@@ -1646,6 +1646,30 @@ def api_client_conversations(request):
     return JsonResponse({"conversations": data})
 
 
+@require_GET
+def api_client_prestataire_detail(request, pk):
+    """API client: get single provider detail."""
+    try:
+        p = Provider.objects.filter(pk=int(pk), statut="Valide").first()
+    except ValueError:
+        return JsonResponse({"error": "invalid_provider_id"}, status=400)
+    if not p:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+    return JsonResponse(
+        {
+            "id": p.id,
+            "nom": p.nom,
+            "specialite": p.specialite,
+            "ville": p.ville,
+            "tarif_horaire": float(p.tarif_horaire) if p.tarif_horaire else None,
+            "disponible": p.disponible,
+            "rating_count": p.rating_count or 0,
+            "bio": p.bio or "",
+            "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or ""),
+        }
+    )
+
+
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def api_messages(request):
@@ -2503,8 +2527,13 @@ def api_auth_login(request):
         return JsonResponse({"error": "invalid_json"}, status=400)
     username = str(payload.get("username", "")).strip()
     password = str(payload.get("password", "")).strip()
-    user = authenticate(username=username, password=password)
-    if not user:
+    if not username or not password:
+        return JsonResponse({"error": "username_password_required"}, status=400)
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "invalid_credentials"}, status=401)
+    if not user.check_password(password):
         return JsonResponse({"error": "invalid_credentials"}, status=401)
     profile = UserProfile.objects.filter(user=user, active=True).first()
     if not profile:

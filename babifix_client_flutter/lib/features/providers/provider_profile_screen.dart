@@ -49,7 +49,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
           ? {'Authorization': 'Bearer $token'}
           : <String, String>{};
       final uri = Uri.parse(
-        '${babifixApiBaseUrl()}/api/prestataires/${widget.providerId}/',
+        '${babifixApiBaseUrl()}/api/client/prestataires/${widget.providerId}/',
       );
       final res = await http.get(uri, headers: headers);
       if (!mounted) return;

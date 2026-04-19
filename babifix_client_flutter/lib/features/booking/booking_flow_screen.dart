@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../babifix_api_config.dart';
@@ -652,11 +653,32 @@ class _StepProbleme extends StatelessWidget {
   }
 
   Future<Uint8List?> _pickImageFromCamera() async {
-    return null;
+    try {
+      final picker = ImagePicker();
+      final XFile? img = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+      if (img == null) return null;
+      return await img.readAsBytes();
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<List<Uint8List>?> _pickImagesFromGallery() async {
-    return null;
+    try {
+      final picker = ImagePicker();
+      final List<XFile> imgs = await picker.pickMultiImage(imageQuality: 85);
+      if (imgs.isEmpty) return null;
+      final bytes = <Uint8List>[];
+      for (final img in imgs) {
+        bytes.add(await img.readAsBytes());
+      }
+      return bytes;
+    } catch (e) {
+      return null;
+    }
   }
 }
 
