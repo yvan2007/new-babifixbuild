@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MaxLengthValidator
+from django.utils import timezone
 
 
 class Provider(models.Model):
@@ -803,11 +804,22 @@ class Devis(models.Model):
             )
             self.reference = f"DEV-{year}-{count:04d}"
 
-        self.sous_total = sum(ligne.total for ligne in self.lignes.all())
-        self.commission_montant = self.sous_total * self.commission_rate / 100
-        self.total_ttc = self.sous_total + self.commission_montant
+        if self.pk:
+            self.sous_total = sum(ligne.total for ligne in self.lignes.all())
+            self.commission_montant = self.sous_total * self.commission_rate / 100
+            self.total_ttc = self.sous_total + self.commission_montant
 
         super().save(*args, **kwargs)
+
+        if not self.pk:
+            self.pk = self.id
+        if self.lignes.exists():
+            self.sous_total = sum(ligne.total for ligne in self.lignes.all())
+            self.commission_montant = self.sous_total * self.commission_rate / 100
+            self.total_ttc = self.sous_total + self.commission_montant
+            super().save(
+                update_fields=["sous_total", "commission_montant", "total_ttc"]
+            )
 
     def __str__(self):
         return f"Devis {self.reference} - {self.reservation.title}"

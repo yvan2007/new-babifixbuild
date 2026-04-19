@@ -189,9 +189,8 @@ def api_prestataire_availability(request):
             {"error": "is_available (or disponible) must be a boolean"}, status=400
         )
 
-    try:
-        provider = Provider.objects.get(user=request.babifix_user)
-    except Provider.DoesNotExist:
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
     provider.disponible = is_available
@@ -268,7 +267,7 @@ def api_admin_bulk_provider_action(request):
             provider.save(update_fields=["statut"])
 
         AdminAuditLog.objects.create(
-            admin_user=request.user,
+            admin_user_id=request.api_user_id,
             action=action_type_map.get(action, AdminAuditLog.ActionType.OTHER),
             target_type="Provider",
             target_id=provider.pk,
@@ -622,9 +621,11 @@ def api_prestataire_stats(request):
 @require_api_auth(["client", "admin"])
 def api_client_favorites(request):
     """Gérer les favoris du client."""
-    try:
-        client_user = request.user
-    except Exception:
+    from django.contrib.auth.models import User
+
+    client_user_id = request.api_user_id
+    client_user = User.objects.filter(id=client_user_id).first()
+    if not client_user:
         return JsonResponse({"error": "auth_required"}, status=401)
 
     if request.method == "GET":
@@ -694,9 +695,11 @@ def api_client_favorites(request):
 @require_api_auth(["client", "admin"])
 def api_client_payments(request):
     """Historique des paiements du client."""
-    try:
-        client_user = request.user
-    except Exception:
+    from django.contrib.auth.models import User
+
+    client_user_id = request.api_user_id
+    client_user = User.objects.filter(id=client_user_id).first()
+    if not client_user:
         return JsonResponse({"error": "auth_required"}, status=401)
 
     payments = Payment.objects.filter(client_user=client_user).order_by("-created_at")
@@ -723,9 +726,8 @@ def api_client_payments(request):
 @require_api_auth(["prestataire", "admin"])
 def api_prestataire_disputes(request):
     """Litiges pour le prestataire connecté."""
-    try:
-        provider = Provider.objects.get(user=request.user)
-    except Provider.DoesNotExist:
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
     disputes = Dispute.objects.filter(provider=provider).order_by("-created_at")
