@@ -101,21 +101,24 @@ def _bootstrap_data():
         Provider.objects.bulk_create(
             [
                 Provider(
-                    nom="Marie Dubois",
+                    nom="Konan Jean",
                     specialite="Menage",
-                    ville="Paris 15e",
+                    ville="Abidjan - Cocody",
+                    tarif_horaire=5000,
                     statut="Valide",
                 ),
                 Provider(
-                    nom="Jean Martin",
+                    nom="Kone Mariam",
                     specialite="Plomberie",
-                    ville="Lyon 3e",
+                    ville="Abidjan - Plateau",
+                    tarif_horaire=8000,
                     statut="En attente",
                 ),
                 Provider(
-                    nom="Sophie Bernard",
+                    nom="Fofana Ibrahim",
                     specialite="Electricite",
-                    ville="Marseille",
+                    ville="Abidjan - Yopougon",
+                    tarif_horaire=7500,
                     statut="Valide",
                 ),
             ]
@@ -125,24 +128,24 @@ def _bootstrap_data():
             [
                 Reservation(
                     reference="RES-001",
-                    client="Pierre Dupont",
-                    prestataire="Marie Dubois",
-                    montant="85€",
-                    statut="Confirmee",
+                    client="Akouabi Paul",
+                    prestataire="Konan Jean",
+                    montant="15000",
+                    statut="Terminee",
                 ),
                 Reservation(
                     reference="RES-002",
-                    client="Claire Martin",
-                    prestataire="Jean Martin",
-                    montant="120€",
-                    statut="En attente",
+                    client="Bamba Claire",
+                    prestataire="Kone Mariam",
+                    montant="25000",
+                    statut="DEVIS_ACCEPTE",
                 ),
                 Reservation(
                     reference="RES-003",
-                    client="Thomas Blanc",
-                    prestataire="Sophie Bernard",
-                    montant="200€",
-                    statut="Terminee",
+                    client="Coulibaly Thomas",
+                    prestataire="Fofana Ibrahim",
+                    montant="20000",
+                    statut="DEVIS_ENVOYE",
                 ),
             ]
         )
@@ -1925,8 +1928,13 @@ def api_client_create_reservation(request):
                 s = s[:600_000]
             preuve_list.append(s)
 
-    existing_count = Reservation.objects.count() + 1
-    reference = f"RES-{existing_count:03d}"
+    with transaction.atomic():
+        existing_count = Reservation.objects.select_for_update().count() + 1
+        while Reservation.objects.filter(
+            reference=f"RES-{existing_count:03d}"
+        ).exists():
+            existing_count += 1
+        reference = f"RES-{existing_count:03d}"
 
     res_obj = Reservation.objects.create(
         reference=reference,
@@ -2462,7 +2470,15 @@ def api_prestataire_me(request):
             "stats": {
                 "reservations_total": qs.count(),
                 "reservations_actives": qs.filter(
-                    statut__in=["En attente", "Confirmee", "En cours"]
+                    statut__in=[
+                        "DEMANDE_ENVOYEE",
+                        "DEVIS_EN_COURS",
+                        "DEVIS_ENVOYE",
+                        "DEVIS_ACCEPTE",
+                        "En attente",
+                        "Confirmee",
+                        "En cours",
+                    ]
                 ).count(),
                 "prestations_terminees": qs.filter(statut="Terminee").count(),
                 "chiffre_paiements": int(pay_sum),

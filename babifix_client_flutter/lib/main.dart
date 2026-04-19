@@ -307,6 +307,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
       ValueNotifier<List<BabifixInAppNotif>>([]);
 
   StreamSubscription<dynamic>? _clientWsSub;
+  WebSocketChannel? _clientWsChannel;
   StreamSubscription<RemoteMessage>? _clientFcmSub;
   StreamSubscription<RemoteMessage>? _clientFcmOpenedSub;
 
@@ -317,6 +318,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     _recentProvidersCarouselController.dispose();
     _clientInAppNotifs.dispose();
     _clientWsSub?.cancel();
+    _clientWsChannel?.sink.close();
     _clientFcmSub?.cancel();
     _clientFcmOpenedSub?.cancel();
     _searchDebounce?.cancel();
@@ -691,7 +693,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
       final uri = Uri.parse(
         '${babifixWsBaseUrl()}/ws/client/events/?token=${Uri.encodeQueryComponent(t)}',
       );
-      final ch = WebSocketChannel.connect(uri);
+      _clientWsChannel?.sink.close();
+      _clientWsChannel = WebSocketChannel.connect(uri);
+      final ch = _clientWsChannel!;
       _clientWsSub = ch.stream.listen((raw) {
         try {
           final m = jsonDecode(raw as String) as Map<String, dynamic>;
