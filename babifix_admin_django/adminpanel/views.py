@@ -2,6 +2,8 @@ import csv
 import json
 import math
 import os
+import uuid
+from decimal import Decimal
 
 from django.conf import settings
 from django.contrib import messages
@@ -2038,6 +2040,9 @@ def api_client_create_reservation(request):
             existing_count += 1
         reference = f"RES-{existing_count:03d}"
 
+    # Générer clé d'idempotence pour éviter double paiement
+    idem_key = str(uuid.uuid4())
+
     res_obj = Reservation.objects.create(
         reference=reference,
         title=title or "Demande de service",
@@ -2060,6 +2065,8 @@ def api_client_create_reservation(request):
         description_probleme=str(payload.get("description_probleme", "") or "")[:2000],
         disponibilites_client=str(payload.get("disponibilites_client", "") or "")[:255],
         is_urgent=bool(payload.get("is_urgent", False)),
+        idempotency_key=idem_key,
+        appel_masque=True,  # Activer masquage par défaut
     )
     if res_obj.client_user_id and res_obj.prestataire_user_id:
         Conversation.objects.get_or_create(
@@ -3141,6 +3148,10 @@ def api_client_pay_post_prestation(request, reference):
         return JsonResponse({"error": "invalid_state"}, status=400)
     if res.dispute_ouverte:
         return JsonResponse({"error": "dispute_open"}, status=400)
+    # Vérifier idempotence - éviter double paiement
+    idem_key = payload.get("idempotency_key")
+    if idem_key and res.idempotency_key != idem_key:
+        return JsonResponse({"error": "already_paid"}, status=400)
     if _payment_complete_exists(res):
         return JsonResponse({"error": "already_paid"}, status=400)
     try:
@@ -3170,12 +3181,13 @@ def api_client_pay_post_prestation(request, reference):
         res.mobile_money_operator = op_map.get(mid, "")
         tp = Payment.TypePaiement.MOBILE_MONEY
     ref_pay = f"PAY-{res.reference}-{int(timezone.now().timestamp())}"
+    commission = res.montant * Decimal("0.18") if res.montant else Decimal("0")
     Payment.objects.create(
         reference=ref_pay,
         client=res.client,
         prestataire=res.prestataire,
         montant=res.montant,
-        commission="0",
+        commission=str(commission),  # 18% commission
         etat=Payment.State.COMPLETE,
         reservation=res,
         type_paiement=tp,

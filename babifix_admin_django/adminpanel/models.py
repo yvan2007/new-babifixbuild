@@ -260,6 +260,40 @@ class Reservation(models.Model):
         blank=True,
     )
     cash_refusal_motif = models.CharField(max_length=500, blank=True, default="")
+    # Commission 18% - calcul automatique
+    commission = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Commission BABIFIX 18% calculée automatiquement",
+    )
+    # Idempotence paiement - évite double paiement
+    idempotency_key = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Clé d'idempotence pour les paiements",
+    )
+    # Masquage téléphone - ZEGOCLOUD
+    appel_masque = models.BooleanField(
+        default=False, help_text="Appel masqué activé via ZEGOCLOUD"
+    )
+    numero_masque = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Numéro masqué temporaire pour appel ZEGOCLOUD",
+    )
+    # Idempotence paiement - évite double paiement
+    idempotency_key = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Clé d'idempotence pour les paiements",
+    )
     client_user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -294,6 +328,11 @@ class Reservation(models.Model):
 
     def __str__(self):
         return self.reference
+
+    def save(self, *args, **kwargs):
+        if self.montant and self.montant > 0:
+            self.commission = self.montant * Decimal("0.18")
+        super().save(*args, **kwargs)
 
 
 class Dispute(models.Model):
