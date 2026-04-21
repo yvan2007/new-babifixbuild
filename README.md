@@ -1,92 +1,97 @@
 # BABIFIX BUILD
 
-**Important :** tout ce que vous lancez au quotidien doit être **ici** (`BABIFIX_BUILD`), pas dans le dossier parent `BABIFIX`.  
-Le dossier `BABIFIX\APP&site web babifix\` (projets **React / Vite / .tsx**) est un **export séparé** : ce n’est **pas** la vitrine ni l’admin officiels. La vitrine et l’admin **production** sont en **Django + templates HTML** dans ce dépôt :
-je vois
-- `babifix_vitrine_django` — landing (Tailwind/CSS custom, Lucide CDN, pas de SPA React obligatoire).
-- `babifix_admin_django` — panel + **API REST** consommée par les apps Flutter.
+**Dernière MAJ:** 2026-04-21
 
----
+## Résumé du projet
 
-Ce dossier contient la reconstruction complete hors du dossier source `BABIFIX`, avec separation par type de produit :
+**BABIFIX** - Plateforme de services à domicile (Côte d'Ivoire)
+- Client Flutter + Prestataire Flutter + Admin Django
 
-- `babifix_client_flutter` : application mobile client (Flutter).
-- `babifix_prestataire_flutter` : application mobile prestataire (Flutter).
-- `babifix_admin_django` : panneau d'administration web (Django).
-- `babifix_vitrine_django` : site vitrine web (Django).
+## Flow Devis (complet)
 
-**Rôle des 4 interfaces, admin (sans saisie clients/prestataires), FCFA & Mobile Money CI :**  
-→ `docs/QUATRE_INTERFACES_ROLE_ADMIN_ET_PAIEMENTS_CI.md`  
-**Spécification dynamique (zéro démo, PostgreSQL, KPI, logos) :**  
-→ `docs/SPEC_OBJECTIFS_CI_DYNAMIQUE.md`  
-**Panel admin** : recherche par section (`q=`), export CSV (`/export/csv/<kind>/`), rafraîchissement KPI **HTMX** sur le dashboard — voir la même spec.
-
-## Lancer les projets
-
-### 1) Application client Flutter
-```bash
-cd C:\Users\YVXN20\Downloads\BABIFIX_BUILD\babifix_client_flutter
-flutter run
+```
+Client                    Backend                    Prestataire
+   |                          |                           |
+   |--POST demande--------->|                           |
+   |                  |                           |
+   |<---DEMANDE_ENVOYEE-----|                           |
+   |                  |                           |
+   |                  |<------POST accept-------|
+   |                  | (DEVIS_EN_COURS)      |
+   |                  |                           |
+   |                  |----push + WS--------->|
+   |                  |                           |
+   |<--DEVIS_ENVOYE-----|       poll (5s)          |
+   |                  |                           |
+   |--POST accept----->|                           |
+   |  (Confirmee)    |                           |
+   |                  |----push + WS--------->|
+   |                  |                           |
+   |                  |<----POST demarrer----|
+   |                  | (INTERVENTION_EN_COURS)|
+   |                  |                           |
+   |                  |--push + WS--------->|
+   |                  |                           |
+   |<--En attente--- |   |--POST terminer-->|
+   |  client        |   |(En attente client)|
+   |               |   |                      |
+   |--confirm----->|   |                         |
+   |  (Terminee)  |   |                         |
+   |               |   |                         |
+   |--POST pay--->|   |<--payment webhook--|
+   |  (COMPLETE) |   | (CinetPay)    |
+   |               |   |--push--------->| (payment.received)
 ```
 
-### 2) Application prestataire Flutter
-```bash
-cd C:\Users\YVXN20\Downloads\BABIFIX_BUILD\babifix_prestataire_flutter
-flutter run
-```
+## Commandes
 
-### 3) Admin Django (API + dashboard — port **8002** pour les apps Flutter)
-
-Active un environnement virtuel qui contient **`daphne`**, **`channels`** et le reste du `requirements.txt` (évite d’utiliser le `.venv` de la vitrine sans avoir installé ces paquets) :
-
-```bash
-cd C:\Users\YVXN20\Downloads\BABIFIX_BUILD\babifix_admin_django
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+### Backend
+```powershell
+cd babifix_admin_django
 python manage.py runserver 0.0.0.0:8002
 ```
 
-Si tu vois **`No module named 'daphne'`**, installe toutes les dépendances : **`pip install -r requirements.txt`** dans le **même** venv (`babifix_admin_django\.venv`).  
-Base **MySQL (WAMP)**, utilisateur `root` sans mot de passe : voir **`docs/WAMP_MYSQL.md`** et le fichier **`babifix_admin_django/.env.example`** (`MYSQL_DATABASE`, etc.).
-
-### 4) Site vitrine Django (autre port si l’admin tourne déjà sur 8002)
-
-**Ordre recommandé :** démarrer d’abord l’**admin** sur le port **8002**, puis la **vitrine**.  
-La vitrine appelle `http://127.0.0.1:8002/api/public/vitrine/` et `/api/public/categories/` (variable `BABIFIX_ADMIN_API_BASE`, défaut **8002** — aligné sur Flutter). Si l’admin n’est pas démarré, les catégories restent vides et un message d’aide s’affiche.
-
-```bash
-cd C:\Users\YVXN20\Downloads\BABIFIX_BUILD\babifix_vitrine_django
-python manage.py migrate
-python manage.py runserver 8003
+### Client Flutter
+```powershell
+cd babifix_client_flutter
+flutter run
 ```
 
-Copiez `.env.example` vers `.env` si besoin et vérifiez `BABIFIX_ADMIN_API_BASE=http://127.0.0.1:8002`.
+### Prestataire Flutter
+```powershell
+cd babifix_prestataire_flutter
+flutter run
+```
 
-Guide détaillé Flutter / FCM / téléphone physique : **`docs/PARTIE_B_C_D_FLUTTER_DJANGO.md`**
+## Fichiers clés
 
-### Le panel admin « ne change pas » ?
+| Feature | Backend | Client | Prestataire |
+|---------|---------|--------|-----------|
+| Devis flow | views.py (api_prestataire_decide_request) | main.dart | requests_screen.dart |
+| WebSocket | realtime.py, push_dispatch.py | main.dart (_clientWsChannel) | main.dart |
+| StatusPill | - | status_pill.dart | - |
+| Waiting payment | - | - | waiting_payment_screen.dart |
+| Réservation accepted | - | reservation_accepted_screen.dart | - |
 
-1. **Dossier** : l’interface décrite dans les docs est celle de **`BABIFIX_BUILD/babifix_admin_django`** (template `templates/adminpanel/dashboard.html`). Le dossier racine **`BABIFIX`** (sans `_BUILD`) ou l’app **React** « ADMIN BABIFIX » est un **autre** projet : les modifications n’y apparaissent pas.
-2. **URL** : ouvre **`http://127.0.0.1:8002/`** (pas `0.0.0.0`) après `runserver` depuis **`babifix_admin_django`**.
-3. **Cache** : rafraîchissement forcé (**Ctrl+F5**) — les fichiers statiques (`static/adminpanel/style.css`) peuvent être mis en cache.
-4. **Repère visuel** : le panel mis à jour affiche une bannière violette **« Rôle administrateur (rappel) »**, le badge **🇨🇮 FCFA** en haut à droite, et en bas de barre latérale la ligne **« Build panel · CI / FCFA · fév. 2026 »**. Si tu ne les vois pas, ce n’est pas ce serveur / ce code.
+## Statuts supportés
 
-## Verifications effectuees
+| Statut | Label StatusPill | Action suivante |
+|--------|---------------|-------------|
+| DEMANDE_ENVOYEE | Demande envoyée | Prestataire accepte |
+| DEVIS_EN_COURS | Devis en cours | Prestataire crée devis |
+| DEVIS_ENVOYE | Devis reçu | Client accepte |
+| DEVIS_ACCEPTE | Devis accepté | Client paie |
+| CONFIRMEE | Confirmée | Prestataire démarrant |
+| INTERVENTION_EN_COURS | Intervention en cours | Prestataire termine |
+| EN_ATTENTE_CLIENT | En attente validation | Client confirme |
+| TERMINEE | Terminée | Client note |
 
-- `flutter analyze` passe sur les 2 projets Flutter.
-- `python manage.py check` passe sur les 2 projets Django.
+## Palette couleurs (premium)
 
-## Adaptations globales BABIFIX
-
-- Identite mobile harmonisee (suppression de `com.example`) :
-  - Client : `com.babifix.client`
-  - Prestataire : `com.babifix.prestataire`
-- CTA du site vitrine relies a des routes dediees (`/telecharger-app-client`, `/devenir-prestataire`, `/creer-un-compte`).
-- Configuration Django externalisee via variables d environnement :
-  - `DJANGO_SECRET_KEY`
-  - `DJANGO_DEBUG`
-  - `DJANGO_ALLOWED_HOSTS`
-- Fichiers `.env.example` et `requirements.txt` ajoutes dans :
-  - `babifix_admin_django`
-  - `babifix_vitrine_django`
+| Usage | Hex | Nom |
+|-------|-----|-----|
+| Primaire | #0F172A | Navy |
+| Accent | #10B981 | Emerald |
+| Secondaire | #F8FAFC | Slate-50 |
+| Warning | #F59E0B | Amber |
+| Error | #EF4444 | Red |

@@ -559,9 +559,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () => _postReservationStatus(it, 'Terminee'),
+                  onPressed: () async {
+                    await _postReservationStatus(it, 'En attente client');
+                    if (mounted) _navigateToWaitingPayment(it);
+                  },
                   icon: const Icon(Icons.check_circle_outline, size: 20),
-                  label: const Text('Terminer la prestation'),
+                  label: const Text('D\u00e9clarer travaux termin\u00e9s'),
                 ),
               ),
           ],
@@ -702,9 +705,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
         final st =
             '${body['status'] ?? (decision == 'accept' ? 'DEVIS_EN_COURS' : 'Annulee')}';
         setState(() => _applyStatusFromApi(item, st));
-        if (decision == 'accept') {
-          _navigateToWaitingPayment(item);
-        }
       }
     } catch (_) {
       if (mounted) {

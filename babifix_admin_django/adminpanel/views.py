@@ -1410,9 +1410,9 @@ def api_public_providers(request):
     Recherche + filtres.
     """
     _bootstrap_data()
-    qs = Provider.objects.filter(statut=Provider.Status.VALID).select_related(
-        "category"
-    )
+    qs = Provider.objects.filter(
+        statut=Provider.Status.VALID, is_deleted=False
+    ).select_related("category")
 
     # Filtre textuel
     q = (request.GET.get("q") or "").strip()
@@ -3042,17 +3042,30 @@ def api_prestataire_reservation_status(request, reference):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     new_status = str(payload.get("status", "")).strip()
-    allowed = {
-        "En cours",
-        "Terminee",
-        "Confirmee",
-        "En attente client",
-        "INTERVENTION_EN_COURS",
+
+    # Machine à états stricte
+    VALID_TRANSITIONS = {
+        "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
+        "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
+        "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
+        "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
+        "INTERVENTION_EN_COURS": {"En attente client", "Annulee"},
+        "En attente client": {"Terminee", "CONFIRMEE"},
+        "Confirmee": {"En cours", "INTERVENTION_EN_COURS", "Annulee"},
+        "En cours": {"En attente client", "Annulee"},
     }
-    if new_status not in allowed:
+    current = res.statut
+    valid_next = VALID_TRANSITIONS.get(current, set())
+    if new_status not in valid_next:
         return JsonResponse(
-            {"error": "invalid_status", "allowed": list(allowed)}, status=400
+            {
+                "error": "invalid_transition",
+                "current": current,
+                "allowed": list(valid_next),
+            },
+            status=400,
         )
+
     update_fields = ["statut"]
     res.statut = new_status
     if new_status == "En attente client":
