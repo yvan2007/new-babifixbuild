@@ -49,14 +49,14 @@ class RecentProviderCard {
   final bool disponible;
 
   RecentProviderCard copyWith({bool? disponible}) => RecentProviderCard(
-        id: id,
-        nom: nom,
-        specialite: specialite,
-        ville: ville,
-        imageUrl: imageUrl,
-        tarif: tarif,
-        disponible: disponible ?? this.disponible,
-      );
+    id: id,
+    nom: nom,
+    specialite: specialite,
+    ville: ville,
+    imageUrl: imageUrl,
+    tarif: tarif,
+    disponible: disponible ?? this.disponible,
+  );
 }
 
 class ClientService {
@@ -89,17 +89,17 @@ class ClientService {
   final bool disponible;
 
   ClientService copyWith({bool? disponible}) => ClientService(
-        title: title,
-        category: category,
-        duration: duration,
-        price: price,
-        rating: rating,
-        verified: verified,
-        color: color,
-        imageUrl: imageUrl,
-        providerId: providerId,
-        disponible: disponible ?? this.disponible,
-      );
+    title: title,
+    category: category,
+    duration: duration,
+    price: price,
+    rating: rating,
+    verified: verified,
+    color: color,
+    imageUrl: imageUrl,
+    providerId: providerId,
+    disponible: disponible ?? this.disponible,
+  );
 }
 
 class ClientReservation {
@@ -116,6 +116,8 @@ class ClientReservation {
     this.cashFlowStatus = '',
     this.canConfirmService = false,
     this.canPay = false,
+    this.canViewDevis = false,
+    this.canAcceptDevis = false,
     this.disputeOuverte = false,
     this.latitude,
     this.longitude,
@@ -134,9 +136,11 @@ class ClientReservation {
   final String cashFlowStatus;
   final bool canConfirmService;
   final bool canPay;
+  final bool canViewDevis;
+  final bool canAcceptDevis;
   final bool disputeOuverte;
 
-  /// Lieu d’intervention si enregistré (carte dans l’avis).
+  /// Lieu d'intervention si enregistré (carte dans l'avis).
   final double? latitude;
   final double? longitude;
   final String addressLabel;

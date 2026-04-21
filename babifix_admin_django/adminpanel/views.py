@@ -1314,6 +1314,10 @@ def api_client_home(request):
                 and not Payment.objects.filter(
                     reservation=item, etat=Payment.State.COMPLETE
                 ).exists(),
+                "can_view_devis": item.statut == "DEVIS_ENVOYE"
+                and item.client_user_id == uid,
+                "can_accept_devis": item.statut == "DEVIS_ENVOYE"
+                and item.client_user_id == uid,
                 "latitude": item.latitude,
                 "longitude": item.longitude,
                 "address_label": (item.address_label or "")[:500],
@@ -3038,7 +3042,13 @@ def api_prestataire_reservation_status(request, reference):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     new_status = str(payload.get("status", "")).strip()
-    allowed = {"En cours", "Terminee", "Confirmee", "En attente client"}
+    allowed = {
+        "En cours",
+        "Terminee",
+        "Confirmee",
+        "En attente client",
+        "INTERVENTION_EN_COURS",
+    }
     if new_status not in allowed:
         return JsonResponse(
             {"error": "invalid_status", "allowed": list(allowed)}, status=400
