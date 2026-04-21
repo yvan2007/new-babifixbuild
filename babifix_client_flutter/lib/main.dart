@@ -3389,12 +3389,18 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                   ),
                                 ),
                                 const Spacer(),
-                                StatusPill(text: r.status),
+                                StatusPill(
+                                  text: r.status == 'DEVIS_ENVOYE'
+                                      ? 'Devis re\u00e7u'
+                                      : r.status,
+                                ),
                               ],
                             ),
                             if (r.canConfirmService ||
                                 r.canPay ||
                                 r.canRate ||
+                                r.canViewDevis ||
+                                r.canAcceptDevis ||
                                 _canDeclareCash(r)) ...[
                               const SizedBox(height: 10),
                               Wrap(
@@ -3407,6 +3413,29 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                           _confirmPrestationClient(r),
                                       child: const Text(
                                         'Confirmer la prestation',
+                                      ),
+                                    ),
+                                  if (r.canViewDevis || r.canAcceptDevis)
+                                    FilledButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(context).push<void>(
+                                          MaterialPageRoute(
+                                            builder: (_) => DevisDetailScreen(
+                                              reservationReference: r.reference,
+                                              onBack: () =>
+                                                  Navigator.pop(context),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.description_outlined,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        r.canAcceptDevis
+                                            ? 'Voir et accepter le devis'
+                                            : 'Voir le devis',
                                       ),
                                     ),
                                   if (r.canPay)
@@ -4393,6 +4422,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
               cashFlowStatus: '${item['cash_flow_status'] ?? ''}',
               canConfirmService: jsonBool(item['can_confirm_service']),
               canPay: jsonBool(item['can_pay']),
+              canViewDevis: jsonBool(item['can_view_devis']),
+              canAcceptDevis: jsonBool(item['can_accept_devis']),
               disputeOuverte: jsonBool(item['dispute_ouverte']),
               latitude: jsonDoubleNullable(item['latitude']),
               longitude: jsonDoubleNullable(item['longitude']),
@@ -4890,7 +4921,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ),
                   ),
                   const Spacer(),
-                  StatusPill(text: r.status),
+                  StatusPill(
+                    text: r.status == 'DEVIS_ENVOYE'
+                        ? 'Devis re\u00e7u'
+                        : r.status,
+                  ),
                 ],
               ),
               if (r.disputeOuverte) ...[

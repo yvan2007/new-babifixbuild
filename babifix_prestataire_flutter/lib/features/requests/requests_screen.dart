@@ -9,6 +9,7 @@ import '../../shared/auth_utils.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import 'create_devis_screen.dart';
 import 'rate_client_screen.dart';
+import 'waiting_payment_screen.dart';
 
 class RequestsScreen extends StatefulWidget {
   const RequestsScreen({super.key, required this.onBack});
@@ -31,7 +32,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
     _initSession();
   }
 
-  /// Align\u00e9 UML / API : pending, active (Confirm\u00e9e/En cours), completed (Termin\u00e9e), refused.
+  /// Align\u00e9 UML / API : nouveau flow devis
+  /// pending (DEMANDE_ENVOYEE), devis_pending (DEVIS_EN_COURS), devis_sent (DEVIS_ENVOYE),
+  /// active (DEVIS_ACCEPTE, INTERVENTION_EN_COURS, Confirmee, En cours), completed, refused.
   static String _bucketFromApi(String raw) {
     final t = raw.trim();
     if (t == 'Annulee' || t.toLowerCase().contains('annul')) return 'refused';
@@ -39,8 +42,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
       return 'pending';
     if (t == 'Terminee' || t.toLowerCase().contains('termin'))
       return 'completed';
-    if (t == 'DEMANDE_ENVOYEE' || t == 'DEVIS_EN_COURS' || t == 'DEVIS_ENVOYE')
-      return 'pending';
+    if (t == 'DEMANDE_ENVOYEE') return 'pending';
+    if (t == 'DEVIS_EN_COURS') return 'devis_pending';
+    if (t == 'DEVIS_ENVOYE') return 'devis_sent';
     return 'active';
   }
 
@@ -78,6 +82,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
   @override
   Widget build(BuildContext context) {
     final pending = items.where((e) => e.status == 'pending').toList();
+    final devisPending = items
+        .where((e) => e.status == 'devis_pending')
+        .toList();
+    final devisSent = items.where((e) => e.status == 'devis_sent').toList();
     final active = items.where((e) => e.status == 'active').toList();
     final completed = items.where((e) => e.status == 'completed').toList();
     final refused = items.where((e) => e.status == 'refused').toList();
@@ -93,50 +101,69 @@ class _RequestsScreenState extends State<RequestsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (loading) const LinearProgressIndicator(),
-          Text(
-            'Nouvelles demandes (${pending.length})',
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
+          // Nouvelles demandes (à accepter/refuser)
           if (pending.isNotEmpty) ...[
+            Text(
+              'Nouvelles demandes (${pending.length})',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 4),
-            Row(
+            const Row(
               children: [
-                const Icon(
-                  Icons.swipe_rounded,
-                  size: 14,
-                  color: Color(0xFF94A3B8),
-                ),
-                const SizedBox(width: 4),
+                Icon(Icons.swipe_rounded, size: 14, color: Color(0xFF94A3B8)),
+                SizedBox(width: 4),
                 Text(
                   'Glissez \u2192 pour accepter  \u2022  \u2190 pour refuser',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF94A3B8),
-                  ),
+                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                 ),
               ],
             ),
-          ],
-          const SizedBox(height: 8),
-          ...pending.map((item) => _buildCard(item)),
-          const SizedBox(height: 8),
-          const Text(
-            'Confirm\u00e9es / en cours',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          ...active.map((item) => _buildCard(item)),
-          if (completed.isNotEmpty) ...[
             const SizedBox(height: 8),
+            ...pending.map((item) => _buildCard(item)),
+            const SizedBox(height: 16),
+          ],
+          // Devis à préparer (DEVIS_EN_COURS)
+          if (devisPending.isNotEmpty) ...[
+            const Text(
+              'Devis \u00e0 pr\u00e9parer',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            ...devisPending.map((item) => _buildCard(item)),
+            const SizedBox(height: 16),
+          ],
+          // Devis envoyés, en attente client
+          if (devisSent.isNotEmpty) ...[
+            const Text(
+              'Devis envoy\u00e9s, en attente client',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            ...devisSent.map((item) => _buildCard(item)),
+            const SizedBox(height: 16),
+          ],
+          // Confirmées / en cours
+          if (active.isNotEmpty) ...[
+            const Text(
+              'Confirm\u00e9es / en cours',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            ...active.map((item) => _buildCard(item)),
+            const SizedBox(height: 16),
+          ],
+          // Terminées
+          if (completed.isNotEmpty) ...[
             Text(
               'Termin\u00e9es (${completed.length})',
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             ...completed.map((item) => _buildCard(item)),
+            const SizedBox(height: 16),
           ],
+          // Annulées
           if (refused.isNotEmpty) ...[
-            const SizedBox(height: 8),
             Text(
               'Annul\u00e9es (${refused.length})',
               style: const TextStyle(fontWeight: FontWeight.w800),
@@ -426,9 +453,37 @@ class _RequestsScreenState extends State<RequestsScreen> {
           ),
 
           // ── Actions ───────────────────────────────────────────────────
+          // Nouvelles demandes: Accepter / Refuser (pas de devis)
           if (it.status == 'pending') ...[
             const SizedBox(height: 10),
-            // Bouton créer un devis détaillé
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _decide(it, 'refuse'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFEF4444),
+                      side: const BorderSide(color: Color(0xFFFCA5A5)),
+                    ),
+                    child: const Text('Refuser'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => _decide(it, 'accept'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF22C55E),
+                    ),
+                    child: const Text('Accepter'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          // Devis à préparer: bouton créer devis
+          if (it.status == 'devis_pending') ...[
+            const SizedBox(height: 10),
             if (it.bookingId != null) ...[
               SizedBox(
                 width: double.infinity,
@@ -458,40 +513,38 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   ),
                   icon: const Icon(Icons.request_quote_rounded, size: 18),
                   label: const Text(
-                    'Créer un devis',
+                    'Cr\u00e9er un devis',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
             ],
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _decide(it, 'refuse'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFEF4444),
-                      side: const BorderSide(color: Color(0xFFFCA5A5)),
-                    ),
-                    child: const Text('Refuser'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => _decide(it, 'accept'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF22C55E),
-                    ),
-                    child: const Text('Accepter'),
-                  ),
-                ),
-              ],
+          ],
+          // Devis envoyés: juste info, pas d'actions
+          if (it.status == 'devis_sent') ...[
+            const SizedBox(height: 10),
+            const Text(
+              'En attente de r\u00e9ponse du client',
+              style: TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF64748B),
+              ),
             ),
           ],
+          // Confirmées / en cours: Démarrer / Terminer
           if (it.status == 'active') ...[
             const SizedBox(height: 8),
+            if (it.apiStatus == 'DEVIS_ACCEPTE')
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () =>
+                      _postReservationStatus(it, 'INTERVENTION_EN_COURS'),
+                  icon: const Icon(Icons.play_arrow, size: 20),
+                  label: const Text('D\u00e9marrer la prestation'),
+                ),
+              ),
             if (it.apiStatus == 'Confirmee')
               SizedBox(
                 width: double.infinity,
@@ -501,7 +554,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   label: const Text('D\u00e9marrer la prestation'),
                 ),
               ),
-            if (it.apiStatus == 'En cours')
+            if (it.apiStatus == 'INTERVENTION_EN_COURS' ||
+                it.apiStatus == 'En cours')
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
@@ -537,157 +591,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  // ── Dialogue de devis ─────────────────────────────────────────────────────
-  void _showDevisDialog(_RequestItem it) {
-    final priceCtrl = TextEditingController();
-    final messageCtrl = TextEditingController();
-    bool sending = false;
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: const Text(
-            'Proposer un devis',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Réservation : ${it.service}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Le client a déjà payé 1 500 FCFA de frais de visite.\nEntrez le prix total de la prestation.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: priceCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Prix total (FCFA)',
-                    hintText: 'Ex. : 25 000',
-                    prefixIcon: const Icon(Icons.payments_rounded),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: messageCtrl,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'Explication (optionnel)',
-                    hintText: 'Décrivez pourquoi ce prix...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: sending ? null : () => Navigator.pop(ctx),
-              child: const Text('Annuler'),
-            ),
-            FilledButton(
-              onPressed: sending
-                  ? null
-                  : () async {
-                      final price = int.tryParse(
-                        priceCtrl.text.replaceAll(RegExp(r'\D'), ''),
-                      );
-                      if (price == null || price < 2000) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Le montant minimum d\'un devis est 2 000 FCFA.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      setS(() => sending = true);
-                      try {
-                        final res = await http.post(
-                          Uri.parse(
-                            '${babifixApiBaseUrl()}/api/bookings/${it.bookingId}/devis/',
-                          ),
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer $authToken',
-                          },
-                          body: jsonEncode({
-                            'price_fcfa': price,
-                            'devis_message': messageCtrl.text.trim(),
-                          }),
-                        );
-                        if (!mounted) return;
-                        Navigator.pop(ctx);
-                        if (res.statusCode == 200 || res.statusCode == 201) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Devis envoyé ! Le client sera notifié.',
-                              ),
-                              backgroundColor: Color(0xFF2563EB),
-                            ),
-                          );
-                          await _loadRequests();
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Erreur ${res.statusCode}')),
-                          );
-                        }
-                      } catch (_) {
-                        if (mounted) Navigator.pop(ctx);
-                        if (mounted)
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Impossible de contacter le serveur.',
-                              ),
-                            ),
-                          );
-                      } finally {
-                        setS(() => sending = false);
-                      }
-                    },
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-              ),
-              child: sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Envoyer le devis'),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -797,8 +700,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
       if (res.statusCode == 200 && mounted) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         final st =
-            '${body['status'] ?? (decision == 'accept' ? 'Confirmee' : 'Annulee')}';
+            '${body['status'] ?? (decision == 'accept' ? 'DEVIS_EN_COURS' : 'Annulee')}';
         setState(() => _applyStatusFromApi(item, st));
+        if (decision == 'accept') {
+          _navigateToWaitingPayment(item);
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -886,9 +792,76 @@ class _RequestsScreenState extends State<RequestsScreen> {
       }
     }
   }
-}
 
-class _RequestItem {
+  void _navigateToWaitingPayment(_RequestItem item) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => WaitingPaymentScreen(
+          reservationReference: item.reference,
+          onBack: () {
+            Navigator.pop(context);
+            _loadRequests();
+          },
+          onPaymentReceived: () {
+            Navigator.pop(context);
+            _loadRequests();
+          },
+          onCancelled: () {
+            Navigator.pop(context);
+            _loadRequests();
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showWaitingPaymentDialog(_RequestItem item) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => WaitingPaymentScreen(
+          reservationReference: item.reference,
+          onBack: () => Navigator.pop(context),
+          onPaymentReceived: () {
+            Navigator.pop(context);
+            _loadRequests();
+          },
+          onCancelled: () {
+            Navigator.pop(context);
+            _loadRequests();
+          },
+        ),
+      ),
+    );
+  }
+
+  final String reference;
+  final String client;
+  final String service;
+  final String date;
+  final String hour;
+  final String amount;
+  final String address;
+  final String description;
+  final double rating;
+
+  /// pending | active | completed | refused
+  late String status;
+
+  /// Statut brut API (En attente, Confirmee, En cours, Terminee, Annulee)
+  late String apiStatus;
+  late String paymentType;
+  late String mobileMoneyOperator;
+  late String cashFlowStatus;
+
+  /// Message du client décrivant le problème
+  final String clientMessage;
+
+  /// Photos envoyées par le client (base64 data URI ou URL HTTP)
+  final List<String> clientPhotos;
+
+  /// ID numérique pour les endpoints devis
+  final int? bookingId;
+
   _RequestItem({
     required this.reference,
     required this.client,
@@ -908,34 +881,6 @@ class _RequestItem {
     this.clientPhotos = const [],
     this.bookingId,
   });
-
-  final String reference;
-  final String client;
-  final String service;
-  final String date;
-  final String hour;
-  final String amount;
-  final String address;
-  final String description;
-  final double rating;
-
-  /// pending | active | completed | refused
-  String status;
-
-  /// Statut brut API (En attente, Confirmee, En cours, Terminee, Annulee)
-  String apiStatus;
-  String paymentType;
-  String mobileMoneyOperator;
-  String cashFlowStatus;
-
-  /// Message du client décrivant le problème
-  final String clientMessage;
-
-  /// Photos envoyées par le client (base64 data URI ou URL HTTP)
-  final List<String> clientPhotos;
-
-  /// ID numérique pour les endpoints devis
-  final int? bookingId;
 }
 
 // ── Widget d'image sécurisé : gère base64, HTTP et fichier local ──────────────
