@@ -35,6 +35,7 @@ from .views_v2 import (
 )
 from .views import (
     export_dashboard_csv,
+    api_admin_financial_summary,
     api_admin_validate_cash,
     api_auth_apple,
     api_auth_fcm_token,
@@ -396,5 +397,11 @@ urlpatterns = [
         "api/client/check-provider-availability",
         api_client_check_provider_availability,
         name="api-client-check-provider-availability",
+    ),
+    # ── Admin financier ────────────────────────────────────────────────────────
+    path(
+        "api/admin/financial-summary",
+        api_admin_financial_summary,
+        name="api-admin-financial-summary",
     ),
 ]
