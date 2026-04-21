@@ -186,9 +186,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
 
               try {
                 final resp = await http.post(
-                  Uri.parse(
-                    '${babifixApiBaseUrl()}/api/client/create-reservation',
-                  ),
+                  Uri.parse('${babifixApiBaseUrl()}/api/client/reservations'),
                   headers: {
                     'Authorization': 'Bearer $token',
                     'Content-Type': 'application/json',

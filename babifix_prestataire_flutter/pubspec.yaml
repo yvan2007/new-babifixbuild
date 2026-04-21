@@ -48,6 +48,7 @@ dependencies:
   sentry_flutter: ^9.16.0
   connectivity_plus: ^6.1.4
   google_sign_in: ^6.2.1
+  # zego_uikit_prebuilt_call: ^4.14.3  # Stub only
   sign_in_with_apple: ^6.1.0
   crypto: ^3.0.6
   local_auth: ^2.3.0

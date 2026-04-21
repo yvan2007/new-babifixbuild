@@ -9,6 +9,7 @@ import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../babifix_money.dart';
 import '../../models/client_models.dart';
+import '../../services/zego_call_service.dart';
 import '../booking/booking_flow_screen.dart';
 
 class ProviderProfileScreen extends StatefulWidget {
@@ -713,6 +714,24 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ZegoCallBtn(
+                      targetUserID: 'babifix_prestataire_${widget.providerId}',
+                      targetUserName: name,
+                      reservationRef: 'prestaire_${widget.providerId}',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Appelez directement sans révéler votre numéro.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: sub, height: 1.35),
+              ),
+              const SizedBox(height: 10),
               Text(
                 'La messagerie avec le prestataire est disponible après une réservation (ou via le message dans le flux « Réserver »).',
                 textAlign: TextAlign.center,
