@@ -44,6 +44,18 @@ class Provider(models.Model):
     cni_verso_url = models.CharField(
         max_length=500, blank=True, default="", help_text="CNI face arrière"
     )
+    selfie_url = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Selfie avec CNI - validation identité",
+    )
+    video_intro_url = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Vidéo intro 30-60s - filtre qualité",
+    )
     photo_portrait_url = models.CharField(
         max_length=500,
         blank=True,
@@ -68,11 +80,41 @@ class Provider(models.Model):
         db_index=True,
         help_text="Aligné sur statut Valide — visible apps client",
     )
+    is_certified = models.BooleanField(
+        default=False,
+        help_text="Badge 'Prestataire Certifié' — validation après review admin",
+    )
+    certified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date de certification Admin",
+    )
+    is_deleted = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Soft delete - ne pas afficher si True",
+    )
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date de suppression soft",
+    )
     # v2 — Galerie réalisations (max 12 photos, data URL base64)
     portfolio_photos = models.JSONField(
         default=list,
         blank=True,
         help_text="Liste de {photo, caption, added_at} — max 12 entrées",
+    )
+    # v2 — Photos avant/après intervention
+    before_photos = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Liste photos avant intervention",
+    )
+    after_photos = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Liste photos après intervention",
     )
 
     def save(self, *args, **kwargs):
@@ -327,9 +369,29 @@ class Payment(models.Model):
         choices=TypePaiement.choices,
         default=TypePaiement.ESPECES,
     )
-    valide_par_admin = models.BooleanField(default=False)
     reference_externe = models.CharField(
-        max_length=120, blank=True, default="", help_text="CinetPay / autre"
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=" Référence CinetPay ou autre externe",
+    )
+    valide_par_admin = models.BooleanField(
+        default=False,
+        help_text="Validé par admin pour les espèces",
+    )
+    # Idempotence - empêche double paiement
+    idempotency_key = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Clé d'idempotence pour éviter les doublons",
+    )
+    idempotency_used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date d'utilisation de la clé",
     )
 
     def __str__(self):
@@ -481,6 +543,17 @@ class UserProfile(models.Model):
     email_verified = models.BooleanField(default=False)
     email_verify_token = models.CharField(
         max_length=80, blank=True, default="", db_index=True
+    )
+    # Soft delete
+    is_deleted = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Soft delete - compte désactivé si True",
+    )
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date de suppression soft",
     )
 
     def __str__(self):
@@ -783,7 +856,9 @@ class Devis(models.Model):
     heure_fin = models.TimeField(null=True, blank=True)
 
     sous_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    commission_rate = models.IntegerField(default=10)
+    commission_rate = models.IntegerField(
+        default=18, help_text="Commission plateforme (15-20% recommandé)"
+    )
     commission_montant = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_ttc = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
@@ -846,3 +921,38 @@ class LigneDevis(models.Model):
 
     def __str__(self):
         return f"{self.description} x{self.quantite} = {self.total} francs CFA"
+
+
+class Abonnement(models.Model):
+    """Abonnement mensuel client - pack interventions."""
+
+    class Statut(models.TextChoices):
+        ACTIF = "actif", "Actif"
+        EXPIRE = "expire", "Expiré"
+        ANNULE = "annule", "Annulé"
+
+    client = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="abonnements",
+    )
+    pack_nom = models.CharField(max_length=50, default="3 interventions")
+    pack_interventions = models.IntegerField(default=3)
+    interventions_utilisees = models.IntegerField(default=0)
+    prix = models.DecimalField(max_digits=10, decimal_places=2)
+    date_debut = models.DateField()
+    date_fin = models.DateField()
+    statut = models.CharField(
+        max_length=20, choices=Statut.choices, default=Statut.ACTIF
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def interventions_restantes(self):
+        return max(0, self.pack_interventions - self.interventions_utilisees)
+
+    def peut_reserver(self):
+        return self.statut == self.Statut.ACTIF and self.interventions_restantes > 0
+
+    def __str__(self):
+        return f"Abonnement {self.client.username} - {self.interventions_restantes}/{self.pack_interventions} restants"

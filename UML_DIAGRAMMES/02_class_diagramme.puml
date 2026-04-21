@@ -85,6 +85,10 @@ class Prestataire {
   - specialite: String
   - description: String
   - cniUrl: String
+  - cniRectoUrl: String
+  - cniVersoUrl: String
+  - selfieUrl: String
+  - videoIntroUrl: String
   - statutValidation: StatutValidation
   - dateValidation: DateTime
   - tarifHoraire: double
@@ -92,6 +96,15 @@ class Prestataire {
   - noteMoyenne: double
   - nombreAvis: int
   - category: Categorie
+  - latitude: double
+  - longitude: double
+  - isCertified: Boolean
+  - certifiedAt: DateTime
+  - portfolioPhotos: List<String>
+  - beforePhotos: List<String>
+  - afterPhotos: List<String>
+  - isDeleted: Boolean
+  - deletedAt: DateTime
   --
   + getSpecialite(): String
   + setSpecialite(spec: String): void
@@ -103,6 +116,8 @@ class Prestataire {
   + setTarifHoraire(tarif: double): void
   + isDisponible(): Boolean
   + getNoteMoyenne(): double
+  + isCertified(): Boolean
+  + getPosition(): (lat, lon)
   + creerDevis(reservation: Reservation): Devis
   + accepterReservation(reservation: Reservation): void
   + refuserReservation(reservation: Reservation): void
@@ -267,7 +282,7 @@ class LigneDevis {
 
 class Paiement {
   - id: String
-  - reservationId: String
+  - reference: String
   - clientId: String
   - prestataireId: String
   - montant: double
@@ -279,6 +294,8 @@ class Paiement {
   - datePaiement: DateTime
   - valideParAdmin: Boolean
   - mobileMoneyOperator: String
+  - idempotencyKey: String
+  - idempotencyUsedAt: DateTime
   --
   + getMontant(): double
   + getCommission(): double
@@ -287,7 +304,8 @@ class Paiement {
   + getStatut(): StatutPaiement
   + setStatut(statut: StatutPaiement): void
   + valider(): void
-  + calculerCommission(): double
+  + getIdempotencyKey(): String
+  + isDuplicate(): Boolean
 }
 
 class Rating {
@@ -338,12 +356,37 @@ class Notification {
   + marquerCommeLu(): void
 }
 
+' ==================== ABONNEMENT MENSUEL ====================
+class Abonnement {
+  - id: String
+  - client: Client
+  - packNom: String
+  - packInterventions: int
+  - interventionsUtilisees: int
+  - prix: double
+  - dateDebut: Date
+  - dateFin: Date
+  - statut: StatutAbonnement
+  - createdAt: DateTime
+  --
+  + getInterventionsRestantes(): int
+  + peutReserver(): Boolean
+  + utiliserIntervention(): void
+}
+
+enum StatutAbonnement {
+  ACTIF
+  EXPIRE
+  ANNULE
+}
+
 ' ==================== RELATIONS ====================
 Utilisateur <|-- Client
 Utilisateur <|-- Prestataire
 Utilisateur <|-- Admin
 
 Client "1" -- "*" Reservation : effectue
+Client "1" -- "*" Abonnement : possède
 Prestataire "1" -- "*" Reservation : reçoit
 Prestataire "1" -- "*" Devis : crée
 Reservation "1" -- "0..1" Devis : génère
@@ -363,6 +406,7 @@ Devis ..> StatutDevis
 LigneDevis ..> TypeLigneDevis
 
 Prestataire "1" -- "0..1" Categorie : appartient
+Abonnement ..> StatutAbonnement
 
 Admin "1" ..> "*" Prestataire : valide
 Admin "1" ..> "*" Categorie : gère
@@ -373,7 +417,7 @@ Prestataire "1" -- "*" Message : envoie / reçoit
 
 Utilisateur "1" -- "*" Notification : reçoit
 
-@endumle "1" -- "*" Service : contient
+@enduml "1" -- "*" Service : contient
 Service "*" -- "*" Reservation : concerne
 
 Admin "1" ..> "*" Prestataire : valide
