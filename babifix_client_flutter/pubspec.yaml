@@ -48,6 +48,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
+  # zego_uikit_prebuilt_call: ^3.15.3  # Stub only - à intégrer après résolution conflits versions
   sentry_flutter: ^9.16.0
   share_plus: ^10.0.3
   connectivity_plus: ^6.1.4

@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../babifix_api_config.dart';
 import '../babifix_fcm.dart';
 
 const kBabifixApiToken = 'babifix_api_token';
 const _kRefreshToken = 'babifix_refresh_token';
+const _kProfileName = 'babifix_profile_name';
+const _kProfileEmail = 'babifix_profile_email';
 
 const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
   aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -114,4 +117,12 @@ void babifixRegisterFcm(String? token) {
   if (token != null && token.isNotEmpty) {
     BabifixFcm.registerTokenWithBackend(token);
   }
+}
+
+Future<Map<String, String>> babifixLoadProfile() async {
+  final p = await SharedPreferences.getInstance();
+  return {
+    'name': p.getString(_kProfileName) ?? '',
+    'email': p.getString(_kProfileEmail) ?? '',
+  };
 }

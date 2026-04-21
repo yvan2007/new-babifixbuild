@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
+import '../../services/zego_call_service.dart';
 import '../../user_store.dart';
 import 'biometric_login_screen.dart';
 import 'email_verification_screen.dart';
@@ -109,6 +110,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       _snack(err);
       return;
     }
+    final profile = await BabifixUserStore.loadProfile();
+    await BabifixZegoService.init(
+      userID: 'babifix_client_${profile['email']}',
+      userName: profile['name'] ?? profile['email'] ?? 'Client',
+    );
     widget.onAuthSuccess();
   }
 
@@ -157,6 +163,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       _snack(err);
       return;
     }
+    final profile = await BabifixUserStore.loadProfile();
+    await BabifixZegoService.init(
+      userID: 'babifix_client_${profile['email']}',
+      userName: profile['name'] ?? profile['email'] ?? 'Client',
+    );
     widget.onAuthSuccess();
   }
 
@@ -167,6 +178,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       _snack(err);
       return;
     }
+    final profile = await BabifixUserStore.loadProfile();
+    await BabifixZegoService.init(
+      userID: 'babifix_client_${profile['email']}',
+      userName: profile['name'] ?? profile['email'] ?? 'Client',
+    );
     widget.onAuthSuccess();
   }
 

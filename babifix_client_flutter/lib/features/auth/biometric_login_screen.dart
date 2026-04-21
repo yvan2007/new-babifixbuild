@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../services/zego_call_service.dart';
+import '../../user_store.dart';
+
 class BiometricLoginScreen extends StatefulWidget {
   final VoidCallback onSuccess;
   final VoidCallback onUsePassword;
@@ -128,6 +131,11 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen>
 
       if (didAuthenticate) {
         HapticFeedback.mediumImpact();
+        final profile = await BabifixUserStore.loadProfile();
+        await BabifixZegoService.init(
+          userID: 'babifix_client_${profile['email']}',
+          userName: profile['name'] ?? profile['email'] ?? 'Client',
+        );
         widget.onSuccess();
       } else {
         _showErrorMessage('Authentification annulée');

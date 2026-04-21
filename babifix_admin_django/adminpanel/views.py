@@ -2042,7 +2042,7 @@ def api_client_create_reservation(request):
         reference=reference,
         title=title or "Demande de service",
         client=client_label,
-        prestataires=prest_label,
+        prestataire=prest_label,
         montant=amount_numeric,
         statut=Reservation.Status.DEMANDE_ENVOYEE,
         latitude=lat_f,

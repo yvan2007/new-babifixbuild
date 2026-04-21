@@ -64,11 +64,7 @@ DEBUG = _env == "development" and os.getenv("DJANGO_DEBUG", "True").lower() in {
 if _env == "production":
     DEBUG = False
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
-    if host.strip()
-]
+ALLOWED_HOSTS = ["*"]
 
 # En production, il faut au moins un host configured
 if (

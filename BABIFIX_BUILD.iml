@@ -285,6 +285,9 @@
       <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/url_launcher_windows/example/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/url_launcher_windows/example/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/url_launcher_windows/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_shared/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_shared/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_shared/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />
