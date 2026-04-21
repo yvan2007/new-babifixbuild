@@ -1537,6 +1537,33 @@ def api_client_prestataires(request):
         qs = qs.filter(
             Q(nom__icontains=q) | Q(specialite__icontains=q) | Q(ville__icontains=q)
         )
+    # Filtre géolocalisation avec rayon (Haversine)
+    lat = request.GET.get("lat")
+    lon = request.GET.get("lon")
+    radius_km = request.GET.get("radius_km")
+    if lat and lon and radius_km:
+        try:
+            client_lat = float(lat)
+            client_lon = float(lon)
+            max_radius = float(radius_km)
+            # Get all providers with coordinates
+            qs_with_coords = qs.filter(latitude__isnull=False, longitude__isnull=False)
+            # Filter manually after fetching (since Django doesn't support Haversine natively)
+            from django.db.models.functions import ACos, Cos, Sin, Radians
+
+            # Simple bounding box pre-filter
+            lat_float = float(lat)
+            lon_float = float(lon)
+            approx_deg = max_radius / 111.0  # 1 degree ≈ 111km
+            qs = qs_with_coords.filter(
+                latitude__gte=lat_float - approx_deg,
+                latitude__lte=lat_float + approx_deg,
+                longitude__gte=lon_float - approx_deg,
+                longitude__lte=lon_float + approx_deg,
+            )
+        except ValueError:
+            pass
+
     # Filtre catégorie
     category_id = request.GET.get("category")
     if category_id and str(category_id).isdigit():
@@ -1571,6 +1598,33 @@ def api_client_prestataires(request):
         qs = qs.order_by("-tarif_horaire")
     else:
         qs = qs.order_by("-average_rating", "-rating_count")
+
+    # Préparer le calcul de distance Haversine
+    import math as _math
+
+    client_lat_f = None
+    client_lon_f = None
+    max_radius_f = None
+    if lat and lon and radius_km:
+        try:
+            client_lat_f = float(lat)
+            client_lon_f = float(lon)
+            max_radius_f = float(radius_km)
+        except ValueError:
+            pass
+
+    def haversine_km(lat1, lon1, lat2, lon2):
+        R = 6371.0
+        dlat = _math.radians(lat2 - lat1)
+        dlon = _math.radians(lon2 - lon1)
+        a = (
+            _math.sin(dlat / 2) ** 2
+            + _math.cos(_math.radians(lat1))
+            * _math.cos(_math.radians(lat2))
+            * _math.sin(dlon / 2) ** 2
+        )
+        return R * 2 * _math.atan2(_math.sqrt(a), _math.sqrt(1 - a))
+
     items = []
     for p in qs:
         uid = p.user_id
@@ -1579,6 +1633,17 @@ def api_client_prestataires(request):
             if (p.rating_count and p.average_rating)
             else None
         )
+        # Calcul distance si position dispo
+        dist_km = None
+        if client_lat_f and client_lon_f and p.latitude and p.longitude:
+            try:
+                dist_km = haversine_km(
+                    client_lat_f, client_lon_f, float(p.latitude), float(p.longitude)
+                )
+                if max_radius_f and dist_km > max_radius_f:
+                    continue  # Skip if beyond radius
+            except (ValueError, TypeError):
+                pass
         items.append(
             {
                 "id": int(p.id),
@@ -1595,6 +1660,9 @@ def api_client_prestataires(request):
                 if p.tarif_horaire is not None
                 else None,
                 "disponible": p.disponible,
+                "latitude": p.latitude,
+                "longitude": p.longitude,
+                "distance_km": round(dist_km, 1) if dist_km else None,
                 "category_nom": (p.category.nom if p.category_id else "") or "",
                 "category_icone_slug": (p.category.icone_slug or "").strip()
                 if p.category_id
@@ -1605,6 +1673,7 @@ def api_client_prestataires(request):
                 if p.category_id
                 else "",
                 "has_portfolio": bool(p.portfolio_photos),
+                "is_certified": p.is_certified,
                 "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or ""),
             }
         )
@@ -1664,8 +1733,17 @@ def api_client_prestataire_detail(request, pk):
             "tarif_horaire": float(p.tarif_horaire) if p.tarif_horaire else None,
             "disponible": p.disponible,
             "rating_count": p.rating_count or 0,
+            "average_rating": float(p.average_rating) if p.average_rating else 0.0,
             "bio": p.bio or "",
+            "years_experience": p.years_experience or 0,
+            "is_certified": p.is_certified,
+            "latitude": p.latitude,
+            "longitude": p.longitude,
             "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or ""),
+            "portfolio_photos": p.portfolio_photos or [],
+            "category": {"id": p.category.id, "nom": p.category.nom}
+            if p.category
+            else None,
         }
     )
 
