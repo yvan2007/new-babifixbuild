@@ -1737,7 +1737,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  for (int index = 0; index < services.length; index++)
+                  for (int index = 0; index < actualites.length; index++)
                     _buildFeaturedNewsCard(index),
                 ],
               ),
@@ -2167,8 +2167,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildFeaturedNewsCard(int index) {
-    if (index >= services.length) return const SizedBox.shrink();
-    final item = services[index];
+    if (index >= actualites.length) return const SizedBox.shrink();
+    final item = actualites[index];
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TweenAnimationBuilder<double>(
@@ -2251,7 +2251,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ],
                           ),
                           child: Text(
-                            item.category,
+                            item.categorieTag,
                             style: TextStyle(
                               color: BabifixDesign.navy,
                               fontWeight: FontWeight.w800,
@@ -2276,13 +2276,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           child: Row(
                             children: [
                               const Icon(
-                                Icons.schedule,
+                                Icons.calendar_today,
                                 size: 14,
                                 color: Colors.white,
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                item.duration,
+                                item.dateLabel,
                                 style: const TextStyle(fontSize: 12),
                               ),
                             ],
@@ -2299,7 +2299,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.title,
+                      item.titre,
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
@@ -2309,7 +2309,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      news.isEmpty ? '' : news[index % news.length].$2,
+                      item.description,
                       style: TextStyle(color: _textSecondary, height: 1.35),
                     ),
                   ],

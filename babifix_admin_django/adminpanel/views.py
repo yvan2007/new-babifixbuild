@@ -1422,12 +1422,15 @@ def api_public_providers(request):
     if category_id and str(category_id).isdigit():
         qs = qs.filter(category_id=int(category_id))
 
-    # Filtre disponibilité
+    # Filtre disponibilité - PAR DÉFAUT: tous mais triés dispo'abord
     disponible_param = request.GET.get("disponible", "").lower()
     if disponible_param == "true":
         qs = qs.filter(disponible=True)
     elif disponible_param == "false":
         qs = qs.filter(disponible=False)
+    else:
+        # Par défaut: tous mais disponibles'abord (grisés en bas)
+        qs = qs.order_by("-disponible")
 
     # Filtre note minimale
     min_rating_param = request.GET.get("min_rating")
@@ -2520,6 +2523,55 @@ def api_prestataire_earnings(request):
 
 
 @require_GET
+@require_api_auth(["admin"])
+def api_admin_financial_summary(request):
+    """Résumé financier global pour l'admin."""
+    _bootstrap_data()
+    from django.db.models import Sum
+    from decimal import Decimal
+
+    all_payments = Payment.objects.all()
+    all_reservations = Reservation.objects.all()
+
+    total_montant = all_payments.aggregate(Sum("montant"))["montant__sum"] or Decimal(
+        "0"
+    )
+    total_commission = Decimal("0")
+    for p in all_payments:
+        if p.commission:
+            try:
+                total_commission += Decimal(str(p.commission).replace(",", "."))
+            except:
+                pass
+
+    reservations_by_status = {}
+    for status_choice in Reservation.Status.choices:
+        status_val = status_choice[0]
+        count = all_reservations.filter(statut=status_val).count()
+        reservations_by_status[status_val] = count
+
+    pending_payments = all_reservations.filter(
+        statut__in=[Reservation.Status.DONE, Reservation.Status.INTERVENTION_EN_COURS],
+        cash_flow_status__in=[
+            Reservation.CashFlowStatus.PENDING_PRESTATAIRE,
+            Reservation.CashFlowStatus.PENDING_ADMIN,
+        ],
+    ).count()
+
+    return JsonResponse(
+        {
+            "total_revenu": float(total_montant),
+            "total_commission": float(total_commission),
+            "total_net": float(total_montant - total_commission),
+            "reservations_count": all_reservations.count(),
+            "payments_count": all_payments.count(),
+            "pending_payments": pending_payments,
+            "reservations_by_status": reservations_by_status,
+        }
+    )
+
+
+@require_GET
 @require_api_auth(["client", "prestataire", "admin"])
 def api_messages_unread_total(request):
     """Nombre total de messages non lus (badge apps client / prestataire)."""
@@ -3359,6 +3411,29 @@ def api_prestataire_terminer_intervention(request, reference):
 
     if res.assigned_provider_id != provider.id:
         return JsonResponse({"error": "not_authorized"}, status=403)
+
+    # STATUT STRICT: Interdire Terminée sans paiement confirméen
+    if _payment_complete_exists(res):
+        pass  # OK - paiement fait
+    else:
+        # Espèces déclarées mais pas encore validées - permettre avec avertissement
+        if (
+            res.payment_type == Reservation.PaymentType.ESPECES
+            and res.cash_flow_status
+            in {
+                Reservation.CashFlowStatus.NA,
+                Reservation.CashFlowStatus.PENDING_PRESTATAIRE,
+            }
+        ):
+            pass  # OK - espèces en cours de validation
+        else:
+            return JsonResponse(
+                {
+                    "error": "payment_required",
+                    "message": "Paiement non confirmé. Impossible de terminer sans paiement.",
+                },
+                status=400,
+            )
 
     if res.statut != Reservation.Status.INTERVENTION_EN_COURS:
         return JsonResponse({"error": "invalid_state"}, status=400)
