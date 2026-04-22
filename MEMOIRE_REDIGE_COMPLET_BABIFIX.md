@@ -511,7 +511,7 @@ L'analyse comparative révèle que les lacunes des solutions existantes graviten
 
 BABIFIX s'appuie sur un modèle économique mixte :
 
-- **Commission sur transactions** : un pourcentage prélevé sur chaque réservation complétée, alignant les intérêts de la plateforme et des prestataires.
+- **Commission sur transactions** : un pourcentage de 18% prélevé sur chaque réservation complétée. Cette commission est calculée automatiquement dans la méthode `save()` du modèle Reservation. Le modèle CategoryCommission permet d'ajuster ce taux par catégorie de service pour s'adapter aux différents marchés.
 - **Abonnement prestataire premium** (perspective) : formule d'abonnement mensuel pour des fonctionnalités avancées — mise en avant dans les résultats de recherche, statistiques détaillées, badge de certification.
 - **Publicité et mise en avant** (perspective) : slots sponsorisés pour des catégories ou des prestataires souhaitant augmenter leur visibilité.
 
@@ -1310,6 +1310,31 @@ La plateforme implémente un workflow complet de vérification d'adresse e-mail 
 
 Ces mécanismes garantissent que seules des adresses e-mail valides sont enregistrées sur la plateforme, réduisant les créations de comptes frauduleux.
 
+### 7.2.6. Machine à états stricte pour les réservations
+
+Le changement de statut d'une réservation est contrôlé par une machine à états stricte (`VALID_TRANSITIONS`) qui valide que chaque transition est autorisée. Le dictionnaire définit les transitions autorisées :
+
+```python
+VALID_TRANSITIONS = {
+    "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
+    "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
+    "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
+    "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
+    "INTERVENTION_EN_COURS": {"En attente client", "Annulee"},
+    "En attente client": {"Terminee"},
+    "Confirmee": {"En cours", "INTERVENTION_EN_COURS", "Annulee"},
+    "En cours": {"En attente client", "Annulee"},
+}
+```
+
+**Exemple** : une réservation au statut `DEMANDE_ENVOYEE` ne peut passer qu'à `DEVIS_EN_COURS` (prestataire accepte) ou `Annulee`. Toute transition non autorisée retourne une erreur 400 avec la liste des statuts valides.
+
+Ce mécanisme prévient les incohérences de données et les abus. Un prestataire ne peut pas directement marquer une réservation comme « Terminées » sans passer par l'étape « En attente client » qui permet au client de valider la prestation avant paiement.
+
+### 7.2.7. Idempotence des paiements
+
+Pour prévenir les doubles paiements, l'endpoint d'initiation CinetPay (`cinetpay_initiate`) vérifie l'existence d'un paiement en cours (statut `PENDING`) pour la même réservation avant d'en créer un nouveau. Si un paiement est déjà en cours, l'API retourne les références existantes (`transaction_id`, `payment_id`) sans créer de doublon.
+
 ---
 
 ## 7.3. Présentation des interfaces utilisateurs
@@ -1473,6 +1498,18 @@ Le modèle `CategoryCommission` permet de définir un pourcentage de commission 
 
 L'administrateur peut exporter les données par section (prestataires, reservations, clients) via l'endpoint `export_csv`. Les actions bulk permettent de valider ou refuser plusieurs prestataires en une seule opération via `api_admin_bulk_provider_action`.
 
+### 7.4.13. Appels vocaux masqués via ZEGOCLOUD
+
+BABIFIX intègre **ZEGOCLOUD** comme solution d'appels vocaux et vidéo avec masquage de numéro. Le client peut appeler le prestataire directement depuis le profil de l'application sans que les numéros de téléphone réels soient échangés. Le modèle Reservation contient les champs `appel_masque` (booléen) et `numero_masque` qui activent cette fonctionnalité. Le service `BabifixZegoService` gère l'initialisation du SDK et le lancement des appels via le widget `ZegoCallBtn`.
+
+### 7.4.14. Modèle Abonnement
+
+Le modèle `Abonnement` permet aux clients de souscrire à des packs d'interventions mensuels (ex: 3 interventions). Chaque abonnement comprend un nombre d'interventions incluses, un prix, une période de validité, et un compteur d'utilisation. La méthode `peut_reserver()` vérifie que l'abonnement est actif et qu'il reste des interventions disponibles.
+
+### 7.4.15. Suppression logique (Soft Delete)
+
+Les modèles Provider et Message implémentent un mécanisme de suppression logique (soft delete). Au lieu de supprimer physiquement les enregistrements, les champs `is_deleted` et `deleted_at` permettent de les masquer des requêtes tout en conservant les données pour l'audit et la conformité légale. L'endpoint `api_public_providers` filtre automatiquement `is_deleted=False`.
+
 ---
 
 # CHAPITRE 8 : TESTS, VALIDATION ET PERSPECTIVES D'ÉVOLUTION
@@ -1616,12 +1653,12 @@ La prochaine étape immédiate est l'intégration complète de la **passerelle d
 
 ### 8.3.4. CI/CD et pratiques DevOps
 
-L'adoption d'un pipeline CI/CD (Continuous Integration / Continuous Deployment) permettra d'automatiser les tests et les déploiements :
+Le projet dispose d'un pipeline CI/CD opérationnel via **GitHub Actions** déclenché à chaque push sur la branche principale :
 
-- **GitHub Actions** : pipeline automatisé déclenché à chaque push sur la branche principale — exécution des tests Django, vérification du linting Python (flake8), build Flutter.
-- **Docker** : conteneurisation de l'application Django pour garantir la reproductibilité de l'environnement de déploiement.
+- **Jobs définis** : tests Django, tests Flutter, build APK, vérifications de sécurité.
+- **Docker** : fichier `docker-compose.yml` complet avec PostgreSQL, Redis, Daphne, Nginx.
 - **Serveur de production** : Nginx (reverse proxy) + Daphne (serveur ASGI pour Django Channels) + PostgreSQL + Redis.
-- **Monitoring** : intégration de Sentry pour la gestion des erreurs en production et de Prometheus/Grafana pour les métriques applicatives.
+- **Monitoring** : intégration de Sentry configurée pour la gestion des erreurs en production.
 
 ### 8.3.5. Sécurité renforcée (OWASP Mobile)
 
@@ -1631,9 +1668,9 @@ Le renforcement de la sécurité mobile suivra les recommandations de l'**OWASP 
 - **Chiffrement du stockage local** : les tokens JWT stockés localement sur l'appareil Flutter seront chiffrés via `flutter_secure_storage`.
 - **Obfuscation du code** : le code Dart compilé en production sera obfusqué pour compliquer la rétro-ingénierie.
 
-### 8.3.6. Authentification biométrique
+### 8.3.6. Amélioration de la biométrie
 
-L'intégration de l'authentification biométrique constitue une perspective à court terme pour améliorer la sécurité et la fluidité de l'expérience utilisateur. Sur les appareils compatibles, l'utilisateur pourrait déverrouiller l'application BABIFIX via Face ID (iOS) ou l'empreinte digitale (Android) sans avoir à ressaisir son mot de passe à chaque session. Le package Flutter `local_auth` offre cette possibilité nativement, les biométriques ne quittant jamais l'appareil (l'API retourne uniquement un succès/échec binaire). Cette fonctionnalité réduirait les abandons à la reconnexion, fréquents dans les contextes d'utilisation mobile en Afrique de l'Ouest.
+L'authentification biométrique (documentée en §7.4.3) est implémentée. Une perspective d'amélioration consisterait à ajouter la **reconnaissance vocale** comme méthode d'authentification alternatif pour les utilisateurs ne disposant pas d'un appareil avec biométrie matérielle.
 
 ### 8.3.7. Intégration d'une newsletter et d'un CRM léger
 
