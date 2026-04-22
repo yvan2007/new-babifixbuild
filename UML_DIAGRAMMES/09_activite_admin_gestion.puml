@@ -41,8 +41,8 @@ title **BABIFIX Admin** - Diagramme d'Activité : Gestion Complète du Système
 
 |Admin|
 start
-:Accéder au Panel Admin (Flutter Web);
-:Se connecter via Firebase Auth;
+:Accéder au Panel Admin (Django Templates + HTMX);
+:Se connecter via Sessions Django + CSRF;
 
 |Système|
 :Vérifier que role = "admin";
@@ -94,7 +94,7 @@ fork again
       :Sélectionner catégorie;
       :Modifier nom / description / icône / ordre;
       |Système|
-      :Mettre à jour document Firestore;
+      :Mettre à jour via ORM Django (PostgreSQL);
     else (Désactiver / Supprimer)
       :Sélectionner catégorie;
       :Cliquer "Désactiver";

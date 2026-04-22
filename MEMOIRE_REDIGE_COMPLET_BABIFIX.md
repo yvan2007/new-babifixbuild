@@ -360,9 +360,9 @@ Le tableau suivant présente une estimation des coûts pour le déploiement en p
 
 **Tableau 0.2 — Budget estimatif (en FCFA)**
 
-| Poste | Coût估计 | Notes |
+| Poste | Coût estimé | Notes |
 |-------|----------|-------|
-| Serveur VPS (1 an) | 300 000 - 600 000 | DigitalOcean, OVH, ou阿里云 |
+| Serveur VPS (1 an) | 300 000 - 600 000 | DigitalOcean, OVH, ou Contabo |
 | Nom de domaine babifix.ci | 15 000 | .ci registry |
 | Certificat SSL (Let's Encrypt) | 0 | Gratuit |
 | Instance PostgreSQL managé | 100 000 - 200 000 | DigitalOcean Managed DB |
@@ -512,6 +512,20 @@ L'analyse comparative révèle que les lacunes des solutions existantes graviten
 BABIFIX s'appuie sur un modèle économique mixte :
 
 - **Commission sur transactions** : un pourcentage de 18% prélevé sur chaque réservation complétée. Cette commission est calculée automatiquement dans la méthode `save()` du modèle Reservation. Le modèle CategoryCommission permet d'ajuster ce taux par catégorie de service pour s'adapter aux différents marchés.
+
+**Projection de revenus (Année 1, scénario conservateur)** :
+
+| Indicateur | Hypothèse | Valeur |
+|---|---|---|
+| Prestataires actifs | 50 prestataires validés | |
+| Réservations/mois/prestataire | 8 réservations | |
+| Réservations totales/mois | 400 | |
+| Montant moyen par réservation | 15 000 FCFA | |
+| Volume transactions/mois | 6 000 000 FCFA | |
+| Commission BABIFIX (18%) | 1 080 000 FCFA/mois | |
+| Revenus annuels (commission) | 12 960 000 FCFA | |
+| Coûts opérationnels annuels | ~1 000 000 FCFA | |
+| **Résultat net estimé** | **~11 960 000 FCFA** | |
 - **Abonnement prestataire premium** (perspective) : formule d'abonnement mensuel pour des fonctionnalités avancées — mise en avant dans les résultats de recherche, statistiques détaillées, badge de certification.
 - **Publicité et mise en avant** (perspective) : slots sponsorisés pour des catégories ou des prestataires souhaitant augmenter leur visibilité.
 
@@ -1672,11 +1686,15 @@ Le renforcement de la sécurité mobile suivra les recommandations de l'**OWASP 
 
 L'authentification biométrique (documentée en §7.4.3) est implémentée. Une perspective d'amélioration consisterait à ajouter la **reconnaissance vocale** comme méthode d'authentification alternatif pour les utilisateurs ne disposant pas d'un appareil avec biométrie matérielle.
 
-### 8.3.7. Intégration d'une newsletter et d'un CRM léger
+### 8.3.7. Agrément BCEAO et service de séquestre (escrow)
+
+L'intégration d'un mécanisme de séquestre (escrow) constitue une perspective structurante pour renforcer la confiance lors des transactions. Sa mise en œuvre nécessiterait un agrément d'Établissement de Monnaie Électronique (EME) auprès de la BCEAO ou un partenariat formel avec un opérateur agréé. Le modèle actuel de paiement post-prestation (le client paie après confirmation de la qualité de la prestation vía le bouton "Confirmer la prestation") constitue une alternative viable en phase de lancement, évitant les contraintes réglementaires liées au séquestre tout en garantissant que le prestataire est payé pour un travail validé.
+
+### 8.3.9. Intégration d'une newsletter et d'un CRM léger
 
 Le formulaire de contact du site vitrine constitue le premier point d'entrée pour les utilisateurs potentiels. À terme, il pourrait alimenter une liste de diffusion segmentée (clients / prestataires) gérée par un service d'emailing transactionnel (Mailchimp, Brevo). Des campagnes d'activation ciblées (rappel de première réservation, offres promotionnelles saisonnières, actualités plateforme) permettraient d'améliorer la rétention et le taux de conversion. Côté backend Django, un modèle `NewsletterSubscription` et un endpoint d'inscription (`POST /api/newsletter/subscribe/`) constitueraient les fondations de ce CRM léger.
 
-### 8.3.8. Expansion géographique dans l'espace UEMOA
+### 8.3.10. Expansion géographique dans l'espace UEMOA
 
 À moyen terme, BABIFIX pourrait s'étendre aux autres marchés de l'Union Économique et Monétaire Ouest-Africaine (UEMOA) partageant le FCFA :
 
@@ -1785,7 +1803,7 @@ World Bank. 2022. *Financial Inclusion in Sub-Saharan Africa: Closing the Gap.* 
 | **API** (*Application Programming Interface*) | Interface de programmation permettant la communication entre applications via des requêtes HTTP standardisées. Dans BABIFIX, l'API REST expose les endpoints du backend Django aux applications Flutter. |
 | **ARTCI** | Autorité de Régulation des Télécommunications et des TIC de Côte d'Ivoire. Organisme régulateur ivoirien auquel fait référence la Loi n°2013-450 sur la protection des données personnelles. |
 | **ASGI** (*Asynchronous Server Gateway Interface*) | Interface de serveur asynchrone Python, successeur de WSGI, supportant les WebSockets. Django Channels repose sur ASGI via Daphne. |
-| **CI/CD** (*Continuous Integration / Continuous Deployment*) | Pipeline automatisé qui teste et déploie le code à chaque commit. Prévu dans les perspectives d'évolution de BABIFIX (GitHub Actions). |
+| **CI/CD** (*Continuous Integration / Continuous Deployment*) | Pipeline automatisé qui teste et déploie le code à chaque commit. Implémenté dans BABIFIX via GitHub Actions (2 workflows, 7 jobs). |
 | **DRF** (*Django REST Framework*) | Boîte à outils Python pour construire des API RESTful au-dessus de Django, utilisée pour tous les endpoints BABIFIX. |
 | **FCFA** (*Franc CFA*) | Franc de la Communauté Financière Africaine. Monnaie officielle de la Côte d'Ivoire et des pays de l'UEMOA, utilisée nativement dans les transactions BABIFIX. |
 | **FCM** (*Firebase Cloud Messaging*) | Service Google de notifications push multiplateformes (iOS, Android), utilisé dans BABIFIX pour notifier clients et prestataires. |

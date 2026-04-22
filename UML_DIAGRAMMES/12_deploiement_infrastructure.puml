@@ -32,7 +32,7 @@ node "Client Devices" {
   artifact "BABIFIX Client App\n(Flutter Android)" as AndroidClient
   artifact "BABIFIX Pro App\n(Flutter iOS)" as iOSPro
   artifact "BABIFIX Pro App\n(Flutter Android)" as AndroidPro
-  artifact "BABIFIX Admin Panel\n(Flutter Web)" as WebAdmin
+  artifact "BABIFIX Admin Panel\n(Django Templates + HTMX)" as WebAdmin
   artifact "Browser\n(Vitrine)" as Browser
 }
 
@@ -51,13 +51,13 @@ node "Load Balancer" {
 
 node "Application Servers" {
   node "Server 1 (App)" {
-    artifact "Gunicorn + Uvicorn"
+    artifact "Daphne (ASGI)"
     artifact "Django API"
     artifact "Channels (ASGI)"
   }
   
   node "Server 2 (App)" {
-    artifact "Gunicorn + Uvicorn"
+    artifact "Daphne (ASGI)"
     artifact "Django API"
     artifact "Channels (ASGI)"
   }
@@ -96,7 +96,7 @@ node "Monitoring" {
 }
 
 node "External Services" {
-  artifact "Firebase\n(Auth + FCM)"
+  artifact "Firebase\n(FCM uniquement)"
   artifact "CinetPay API"
   artifact "SMTP Relay"
 }
