@@ -228,6 +228,12 @@ class Reservation(models.Model):
     photos_probleme = models.JSONField(
         default=list, blank=True, help_text="URLs des photos du problème"
     )
+    photos_avant = models.JSONField(
+        default=list, blank=True, help_text="URLs des photos avant intervention"
+    )
+    photos_apres = models.JSONField(
+        default=list, blank=True, help_text="URLs des photos après intervention"
+    )
     disponibilites_client = models.CharField(
         max_length=255,
         blank=True,

@@ -1,10 +1,19 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:lottie/lottie.dart';
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
 import '../../shared/services/websocket_push_service.dart';
+import '../../shared/services/lottie_service.dart';
+import '../../shared/services/confetti_toast_service.dart';
+import '../../shared/services/haptic_service.dart';
 
 class DevisDetailScreen extends StatefulWidget {
   final String reservationReference;
@@ -91,6 +100,8 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
 
       if (resp.statusCode == 200) {
         if (mounted) {
+          HapticService.success();
+          ConfettiService.showSuccess(context, 'Devis accepté!');
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('Devis accepté!')));
@@ -182,6 +193,222 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     if (mounted) setState(() => _refusing = false);
   }
 
+  Future<void> _exportPdf() async {
+    if (_devis == null) return;
+    try {
+      await Printing.layoutPdf(
+        onLayout: (format) async {
+          final pdf = pw.Document();
+          pdf.addPage(
+            pw.Page(
+              pageFormat: PdfPageFormat.a4,
+              build: (context) => _buildPdfContent(),
+            ),
+          );
+          return pdf.save();
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur PDF: $e')));
+      }
+    }
+  }
+
+  pw.Widget _buildPdfContent() {
+    final devis = _devis!;
+    final prestataire = (devis['prestataire'] as Map<String, dynamic>?) ?? {};
+    final lignes = (devis['lignes'] as List?) ?? [];
+    final diagnostic = devis['diagnostic'] as String? ?? '';
+    final dateProposee = devis['date_proposee'] as String? ?? 'Non précisée';
+    final sousTotal = (devis['sous_total'] as num?) ?? 0;
+    final commission = (devis['commission_montant'] as num?) ?? 0;
+    final total = (devis['total_ttc'] as num?) ?? 0;
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Container(
+          padding: const pw.EdgeInsets.all(20),
+          decoration: pw.BoxDecoration(color: PdfColors.blue600),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'BABIFIX',
+                style: pw.TextStyle(
+                  fontSize: 28,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+              ),
+              pw.Text(
+                'DEVIS',
+                style: pw.TextStyle(
+                  fontSize: 24,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 20),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(15),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey300),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Prestataire',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                '${prestataire['nom'] ?? ''} ${prestataire['prenom'] ?? ''}',
+              ),
+              pw.Text('${prestataire['telephone'] ?? ''}'),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 20),
+        if (diagnostic.isNotEmpty) ...[
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.all(15),
+            decoration: pw.BoxDecoration(color: PdfColors.grey100),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Diagnostic',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 5),
+                pw.Text(diagnostic),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 20),
+        ],
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey300),
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text(
+                    'Description',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text(
+                    'Qté',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text(
+                    'Prix',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            ...lignes.map(
+              (ligne) => pw.TableRow(
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('${ligne['description'] ?? ''}'),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('${ligne['quantite'] ?? 1}'),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('${ligne['montant'] ?? 0}'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 20),
+        pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Container(
+            width: 200,
+            padding: const pw.EdgeInsets.all(15),
+            decoration: pw.BoxDecoration(color: PdfColors.blue50),
+            child: pw.Column(
+              children: [
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Sous-total'),
+                    pw.Text('${_formatMontant(sousTotal)}'),
+                  ],
+                ),
+                pw.Divider(),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Commission (18%)'),
+                    pw.Text('${_formatMontant(commission)}'),
+                  ],
+                ),
+                pw.Divider(),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Total TTC',
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      '${_formatMontant(total)}',
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        pw.SizedBox(height: 20),
+        pw.Text('Date proposée: $dateProposee'),
+        pw.SizedBox(height: 10),
+        pw.Text(
+          'Conditions: Devis valable 7 jours, Prix TTC, Commission incluse',
+        ),
+      ],
+    );
+  }
+
+  String _formatMontant(num value) =>
+      value
+          .toStringAsFixed(0)
+          .replaceAllMapped(
+            RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+            (m) => '${m[1]} ',
+          ) +
+      ' FCFA';
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -193,6 +420,13 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
             onPressed: widget.onBack,
           ),
           title: const Text('Devis'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf),
+              tooltip: 'Exporter en PDF',
+              onPressed: _devis != null ? _exportPdf : null,
+            ),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Détails'),

@@ -386,7 +386,13 @@ urlpatterns = [
     path(
         "api/prestataire/requests/<str:reference>/terminer",
         api_prestataire_terminer_intervention,
+        api_prestataire_upload_photos,
         name="api-prestataire-terminer-intervention",
+    ),
+    path(
+        "api/prestataire/requests/<str:reference>/photos",
+        api_prestataire_upload_photos,
+        name="api-prestataire-upload-photos",
     ),
     # Client
     path(

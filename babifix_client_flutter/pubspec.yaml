@@ -35,7 +35,7 @@ dependencies:
   http: ^1.5.0
   flutter_svg: ^2.0.10+1
   shared_preferences: ^2.5.3
-  image_picker: ^1.1.2
+  image_picker: ^1.2.1
   carousel_slider: ^5.0.0
   intl_phone_field: ^3.2.0
   geolocator: ^13.0.2
@@ -60,12 +60,16 @@ dependencies:
   crypto: ^3.0.6
   local_auth: ^2.3.0
   shimmer: ^3.0.0
-  lottie: ^3.3.1
+  lottie: ^3.3.3
 
   # Internationalization
   flutter_localizations:
     sdk: flutter
   intl: ^0.20.2
+  haptic_feedback: ^0.6.4+3
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -100,6 +104,7 @@ flutter:
     - assets/illustrations/icons/
     - assets/payment_logos/
     - assets/animations/
+    - assets/lottie/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -3664,6 +3664,53 @@ def api_prestataire_terminer_intervention(request, reference):
     return JsonResponse({"ok": True, "statut": res.statut})
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_upload_photos(request, reference):
+    """Upload des photos avant/après intervention par le prestataire."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider or res.assigned_provider_id != provider.id:
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    photos_avant = data.get("photos_avant", [])
+    photos_apres = data.get("photos_apres", [])
+    type_photo = data.get("type", "avant")  # "avant" ou "apres"
+
+    if type_photo == "avant" and photos_avant:
+        current = res.photos_avant or []
+        res.photos_avant = current + photos_avant
+    elif type_photo == "apres" and photos_apres:
+        current = res.photos_apres or []
+        res.photos_apres = current + photos_apres
+    elif photos_avant:
+        current = res.photos_avant or []
+        res.photos_avant = current + photos_avant
+    elif photos_apres:
+        current = res.photos_apres or []
+        res.photos_apres = current + photos_apres
+
+    res.save(update_fields=["photos_avant", "photos_apres"])
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "photos_avant": res.photos_avant,
+            "photos_apres": res.photos_apres,
+        }
+    )
+
+
 # Client : confirmer les travaux et ouvrir le paiement
 @csrf_exempt
 @require_http_methods(["POST"])
