@@ -163,14 +163,16 @@ Soucieux d'ancrer sa pédagogie dans la réalité professionnelle, l'IIT encoura
 | Tableau 4 | Comparatif des plateformes internationales de services à domicile | [p.] |
 | Tableau 5 | Positionnement différencié de BABIFIX par rapport aux concurrents | [p.] |
 | Tableau 6 | Analyse SWOT de BABIFIX | [p.] |
-| Tableau 7 | Composantes fondamentales des algorithmes de matching | [p.] |
-| Tableau 8 | Tableau des besoins fonctionnels (BF-01 à BF-12) | [p.] |
-| Tableau 9 | Tableau des exigences non fonctionnelles | [p.] |
-| Tableau 10 | Description des cas d'utilisation par acteur | [p.] |
-| Tableau 11 | Description des entités du diagramme de classes | [p.] |
-| Tableau 12 | Justification des choix technologiques | [p.] |
-| Tableau 13 | Protocoles de tests et résultats | [p.] |
-| Tableau 14 | Bilan de conformité aux objectifs du projet | [p.] |
+| Tableau 7 | Analyse des risques et mesures d'atténuation | [p.] |
+| Tableau 8 | Composantes fondamentales des algorithmes de matching | [p.] |
+| Tableau 9 | Tableau des besoins fonctionnels (BF-01 à BF-12) | [p.] |
+| Tableau 10 | Tableau des exigences non fonctionnelles | [p.] |
+| Tableau 11 | Description des cas d'utilisation par acteur | [p.] |
+| Tableau 12 | Description des entités du diagramme de classes | [p.] |
+| Tableau 13 | Justification des choix technologiques | [p.] |
+| Tableau 14 | Protocoles de tests et résultats | [p.] |
+| Tableau 15 | Bilan de conformité aux objectifs du projet | [p.] |
+| Tableau 16 | Indicateurs clés de performance post-lancement | [p.] |
 
 *Note : les numéros de page seront mis à jour lors de la mise en forme finale dans Word.*
 
@@ -544,7 +546,7 @@ Le taux de commission de 18% se situe dans la fourchette du marché internationa
 | **Résultat net/an** | **12 M** | **70 M** | **281 M** | **853 M** | **2 392 M** |
 | Villes couvertes | Abidjan | Abidjan + Bouaké | 5 villes CI | CI + Sénégal | 4 pays UEMOA |
 
-Ces projections reposent sur l'hypothèse d'une croissance organique alimentée par le bouche-a-oreille et le marketing digital ciblé, avec un taux de rétention client de 40% et un taux de conversion prestataire (inscription vers validation) de 60%. Le seuil de rentabilité est atteint dès la première année grâce a des coûts operationnels tres faibles en phase de lancement (hebergement cloud, pas de locaux, equipe minimale).
+Ces projections reposent sur l'hypothèse d'une croissance organique alimentée par le bouche-à-oreille et le marketing digital ciblé, avec un taux de rétention client de 40% et un taux de conversion prestataire (inscription vers validation) de 60%. Le seuil de rentabilité est atteint dès la première année grâce à des coûts opérationnels très faibles en phase de lancement (hébergement cloud, pas de locaux, équipe minimale).
 - **Abonnement prestataire premium** (perspective) : formule d'abonnement mensuel pour des fonctionnalités avancées — mise en avant dans les résultats de recherche, statistiques détaillées, badge de certification.
 - **Publicité et mise en avant** (perspective) : slots sponsorisés pour des catégories ou des prestataires souhaitant augmenter leur visibilité.
 
@@ -565,17 +567,17 @@ La proposition de valeur repose sur trois piliers :
 | | **Facteurs positifs** | **Facteurs négatifs** |
 |---|---|---|
 | **Internes** | **FORCES :** Validation admin unique sur le marché local ; chat lié aux réservations ; paiements FCFA natifs ; architecture solide (Django + Flutter) ; 4 interfaces cohérentes | **FAIBLESSES :** Phase prototype (tests auto à renforcer) ; déploiement production à finaliser ; masse critique d'utilisateurs à constituer |
-| **Externes** | **OPPPORTUNITÉS :** Marché sous-digitalise ; 70 %+ penetration Mobile Money ; croissance economique souten ue ; absence de concurrent dominant local | **MENACES :** Entree potentielle de Lynk/SweepSouth ; plateformes internationales evoluant vers l'Afrique ; resistance culturelle a la formalisation |
+| **Externes** | **OPPORTUNITÉS :** Marché sous-digitalisé ; 70 %+ pénétration Mobile Money ; croissance économique soutenue ; absence de concurrent dominant local | **MENACES :** Entrée potentielle de Lynk/SweepSouth ; plateformes internationales évoluant vers l'Afrique ; résistance culturelle à la formalisation |
 
-**Tableau 7 — Analyse des risques et mesures d'attenuation** :
+**Tableau 7 — Analyse des risques et mesures d'atténuation** :
 
-| Risque | Probabilite | Impact | Mesure d'attenuation |
+| Risque | Probabilité | Impact | Mesure d'atténuation |
 |---|---|---|---|
-| Masse critique insuffisante (trop peu de prestataires au lancement) | Elevee | Critique | Recrutement terrain + commission reduite beta + parrainage |
-| Fraude prestataire (fausses CNI) | Moyenne | Eleve | Verification manuelle admin + signalement client + suspension automatique |
-| Defaillance CinetPay (panne passerelle) | Faible | Eleve | Mode especes comme fallback + monitoring webhook + alertes |
-| Concurrence d'un acteur international | Moyenne | Moyen | Avantage local (FCFA, validation admin, chat integre) |
-| Changement reglementaire (ARTCI/BCEAO) | Faible | Eleve | Veille juridique + conformite proactive |
+| Masse critique insuffisante (trop peu de prestataires au lancement) | Élevée | Critique | Recrutement terrain + commission réduite + parrainage |
+| Fraude prestataire (fausses CNI) | Moyenne | Élevé | Vérification manuelle admin + signalement client + suspension automatique |
+| Défaillance CinetPay (panne passerelle) | Faible | Élevé | Mode espèces comme fallback + monitoring webhook + alertes |
+| Concurrence d'un acteur international | Moyenne | Moyen | Avantage local (FCFA, validation admin, chat intégré) |
+| Changement réglementaire (ARTCI/BCEAO) | Faible | Élevé | Veille juridique + conformité proactive |
 | Surcharge serveur (pic de demandes) | Moyenne | Moyen | Auto-scaling Docker, CDN Cloudflare, pagination API, cache Redis |
 
 ### 1.3.4. Strategie de lancement
@@ -590,7 +592,7 @@ Le lancement de BABIFIX s'articulera en trois phases distinctes :
 
 ### 1.3.5. Cadre juridique et fiscal
 
-Sur le plan juridique, le deploiement commercial de BABIFIX necessite la creation d'une structure juridique (SARL ou SAS de droit ivoirien) immatriculee au Registre du Commerce et du Credit Mobilier (RCCM). En tant que plateforme de mise en relation prelevant une commission sur les transactions, BABIFIX est soumise a l'impot sur les benefices (25% en CI), a la TVA (18% sur la commission, pas sur le montant total de la prestation), et aux obligations declaratives aupres de la Direction Generale des Impots (DGI). La declaration de traitement de donnees personnelles aupres de l'ARTCI est un prerequis reglementaire avant le lancement commercial.
+Sur le plan juridique, le déploiement commercial de BABIFIX nécessite la création d'une structure juridique (SARL ou SAS de droit ivoirien) immatriculée au Registre du Commerce et du Crédit Mobilier (RCCM). En tant que plateforme de mise en relation prélevant une commission sur les transactions, BABIFIX est soumise à l'impôt sur les bénéfices (25% en CI), à la TVA (18% sur la commission, pas sur le montant total de la prestation), et aux obligations déclaratives auprès de la Direction Générale des Impôts (DGI). La déclaration de traitement de données personnelles auprès de l'ARTCI est un préalable réglementaire avant le lancement commercial.
 
 ---
 
@@ -623,7 +625,7 @@ Les systèmes de notation remplissent deux fonctions : réduire l'asymétrie d'i
 
 Dans BABIFIX, après chaque prestation, le client peut noter le prestataire (note + commentaire). La note moyenne est affichée sur le profil et utilisée comme critère de tri dans les résultats de recherche.
 
-**Tableau 7 — Composantes fondamentales des algorithmes de matching dans les plateformes de services**
+**Tableau 8 — Composantes fondamentales des algorithmes de matching dans les plateformes de services**
 
 | Composante | Description | Implémentation BABIFIX |
 |------------|-------------|----------------------|
@@ -798,7 +800,7 @@ La gestion des litiges permet de traiter les désaccords entre clients et presta
 
 Le suivi des paiements est centralisé dans le panneau d'administration. Pour chaque transaction, les informations suivantes sont enregistrées : identifiant de réservation, montant en FCFA, opérateur Mobile Money utilisé (Orange Money, MTN Moov, Wave), statut de la transaction (en attente, confirmé, échoué), et date/heure.
 
-**Tableau 7 — Tableau des besoins fonctionnels de BABIFIX (BF-01 à BF-12)**
+**Tableau 9 — Tableau des besoins fonctionnels de BABIFIX (BF-01 à BF-12)**
 
 | ID | Besoin fonctionnel | Acteur concerné | Priorité |
 |---|---|---|---|
@@ -857,7 +859,7 @@ Conformément à la **Loi n°2013-450 du 19 juin 2013** (Côte d'Ivoire) sur la 
 
 ### 4.2.1. Performances attendues
 
-**Tableau 8 — Tableau des exigences non fonctionnelles**
+**Tableau 10 — Tableau des exigences non fonctionnelles**
 
 | Exigence | Métrique | Valeur cible | Justification |
 |---|---|---|---|
@@ -933,7 +935,7 @@ Le diagramme des cas d'utilisation de BABIFIX (`01_use_case_diagramme.puml`) pr�
 
 ### 5.1.2. Description des cas d'utilisation par acteur
 
-**Tableau 9 — Description des cas d'utilisation par acteur**
+**Tableau 11 — Description des cas d'utilisation par acteur**
 
 | Acteur | Cas d'utilisation |
 |---|---|
@@ -958,7 +960,7 @@ Le diagramme de classes (`02_class_diagramme.puml`) présente la structure conce
 - `Prestataire` : attributs spécifiques (statutValidation, motifRefus, cniFichier, specialites, tarif, noteMovenne, disponible).
 - `Admin` : attributs spécifiques (niveauAcces).
 
-**Tableau 10 — Description des entités du diagramme de classes**
+**Tableau 12 — Description des entités du diagramme de classes**
 
 | Entité | Attributs clés | Relations |
 |---|---|---|
@@ -1155,7 +1157,7 @@ Le modèle de données de BABIFIX s'articule autour de la table centrale `Reserv
 
 ### 6.2.1. Tableau des choix technologiques justifiés
 
-**Tableau 11 — Justification des choix technologiques**
+**Tableau 13 — Justification des choix technologiques**
 
 | Composant | Technologie retenue | Alternatives considérées | Justification |
 |---|---|---|---|
@@ -1578,7 +1580,7 @@ Les modèles Provider et Message implémentent un mécanisme de suppression logi
 
 Les tests fonctionnels visent à valider que chaque parcours utilisateur identifié dans l'analyse des besoins fonctionne correctement de bout en bout. Ils sont réalisés manuellement selon des scénarios de test définis.
 
-**Tableau 12 — Protocoles de tests et résultats**
+**Tableau 14 — Protocoles de tests et résultats**
 
 | Type de test | Domaine testé | Méthode | Critère de succès | Statut |
 |---|---|---|---|---|
@@ -1633,7 +1635,7 @@ Les tests de sécurité vérifient que les mécanismes de protection implément�
 
 Le tableau ci-dessous definit les metriques pour mesurer le succes de BABIFIX apres de ploiement :
 
-**Tableau 14 — Indicateurs cles de performance post-lancement** :
+**Tableau 16 — Indicateurs clés de performance post-lancement** :
 
 | KPI | Cible Mois 3 | Cible Mois 6 | Cible Annee 1 |
 |---|---|---|---|
@@ -1650,7 +1652,7 @@ Le tableau ci-dessous definit les metriques pour mesurer le succes de BABIFIX ap
 
 A l'issue des versions 1 a 8 du cahier fonctionnel, BABIFIX repond a l'ensemble des objectifs fixes au demarrage du projet.
 
-**Tableau 13 — Bilan de conformité aux objectifs du projet**
+**Tableau 15 — Bilan de conformité aux objectifs du projet**
 
 | Objectif fixé | Statut | Preuve / Élément de vérification |
 |---|---|---|
@@ -1726,21 +1728,21 @@ La prochaine etape immediate est l'integration complete de la **passerelle de pa
 - Gestion des remboursements via l'API.
 - Support des quatre operateurs principaux : Orange Money, MTN Moov Money, Wave, et Moov Africa.
 
-### 8.3.4. Plan de deploiement technique
+### 8.3.4. Plan de déploiement technique
 
-Le deploiement en production de BABIFIX suivra un plan en quatre etapes :
+Le déploiement en production de BABIFIX suivra un plan en quatre étapes :
 
-**Etape 1 — Infrastructure** : provisionnement d'un serveur VPS chez DigitalOcean ou Contabo (4 vCPU, 8 GB RAM, 160 GB SSD, datacenter Europe), configuration du DNS pour babifix.ci, obtention du certificat SSL via Let's Encrypt, mise en place du reverse proxy Nginx.
+**Étape 1 — Infrastructure** : provisionnement d'un serveur VPS chez DigitalOcean ou Contabo (4 vCPU, 8 GB RAM, 160 GB SSD, datacenter Europe), configuration du DNS pour babifix.ci, obtention du certificat SSL via Let's Encrypt, mise en place du reverse proxy Nginx.
 
-**Etape 2 — Deploiement backend** : execution du docker-compose.yml incluant PostgreSQL 16, Redis 7, Daphne (ASGI), Gunicorn (vitrine), et Nginx. Migration de la base de donnees, creation du superutilisateur admin, import des categories de services initiales.
+**Étape 2 — Déploiement backend** : exécution du docker-compose.yml incluant PostgreSQL 16, Redis 7, Daphne (ASGI), Gunicorn (vitrine), et Nginx. Migration de la base de données, création du superutilisateur admin, import des catégories de services initiales.
 
-**Etape 3 — Publication mobile** : build APK release avec obfuscation du code Dart (pipeline GitHub Actions existant), soumission sur Google Play Store, soumission sur Apple App Store via TestFlight puis publication. Configuration des cles CinetPay de production et des credentials Firebase FCM de production.
+**Étape 3 — Publication mobile** : build APK release avec obfuscation du code Dart (pipeline GitHub Actions existant), soumission sur Google Play Store, soumission sur Apple App Store via TestFlight puis publication. Configuration des clés CinetPay de production et des credentials Firebase FCM de production.
 
-**Etape 4 — Monitoring et iteration** : activation de Sentry pour le tracking d'erreurs en production, configuration des alertes email pour les erreurs critiques, mise en place d'un backup automatique PostgreSQL quotidien, monitoring des performances via les logs Nginx.
+**Étape 4 — Monitoring et itération** : activation de Sentry pour le tracking d'erreurs en production, configuration des alertes email pour les erreurs critiques, mise en place d'un backup automatique PostgreSQL quotidien, monitoring des performances via les logs Nginx.
 
-### 8.3.5. Strategie de contenu et SEO
+### 8.3.5. Stratégie de contenu et SEO
 
-Le site vitrine integre deja le rendu cote serveur (SSR) favorable au referencement. En perspective, l'ajout d'une section blog avec des articles cibles ('Comment trouver un bon plombier a Abidjan', 'Tarifs electricien Cote d'Ivoire 2026', 'Guide : que faire en cas de fuite d'eau') permettrait de capter du trafic organique sur les requetes frequentes des menages ivoiriens. Cette strategie de contenu SEO, combinee a la section Actualites deja en place, positionnerait BABIFIX comme reference informationnelle en plus de sa fonction transactionnelle.
+Le site vitrine intègre déjà le rendu côté serveur (SSR) favorable au référencement. En perspective, l'ajout d'une section blog avec des articles cibles ('Comment trouver un bon plombier à Abidjan', 'Tarifs électricien Côte d'Ivoire 2026', 'Guide : que faire en cas de fuite d'eau') permettrait de capter du trafic organique sur les requêtes fréquentes des ménages ivoiriens. Cette stratégie de contenu SEO, combinée à la section Actualités déjà en place, positionnerait BABIFIX comme référence informationnelle en plus de sa fonction transactionnelle.
 
 ### 8.3.6. CI/CD et pratiques DevOps
 
@@ -1751,7 +1753,7 @@ Le projet dispose d'un pipeline CI/CD opérationnel via **GitHub Actions** décl
 - **Serveur de production** : Nginx (reverse proxy) + Daphne (serveur ASGI pour Django Channels) + PostgreSQL + Redis.
 - **Monitoring** : intégration de Sentry configurée pour la gestion des erreurs en production.
 
-### 8.3.7. Securite renforcee (OWASP Mobile)
+### 8.3.7. Sécurité renforcée (OWASP Mobile)
 
 Le renforcement de la sécurité mobile suivra les recommandations de l'**OWASP Mobile Application Security Verification Standard (MASVS)** :
 
@@ -1765,11 +1767,11 @@ L'authentification biométrique (documentée en §7.4.3) est implémentée. Une 
 
 ### 8.3.9. Agrément BCEAO et service de séquestre (escrow)
 
-L'integration d'un mecanisme de sequestre (escrow) constitue une perspective structurante pour renforcer la confiance lors des transactions. Sa mise en oeuvre necessiterait un agrement d'Etablissement de Monnaie Electronique (EME) aupres de la BCEAO ou un partenariat formel avec un operateur agreé. Le modele actuel de paiement post-prestation (le client paie apres confirmation de la qualite de la prestation via le bouton "Confirmer la prestation") constitue une alternative viable en phase de lancement, evitant les contraintes reglementaires liees au sequestre tout en garantissant que le prestataire est paye pour un travail valide.
+L'intégration d'un mécanisme de séquestre (escrow) constitue une perspective structurante pour renforcer la confiance lors des transactions. Sa mise en œuvre nécessiterait un agrément d'Établissement de Monnaie Électronique (EME) auprès de la BCEAO ou un partenariat formel avec un opérateur agréé. Le modèle actuel de paiement post-prestation (le client paie après confirmation de la qualité de la prestation via le bouton « Confirmer la prestation ») constitue une alternative viable en phase de lancement, évitant les contraintes réglementaires liées au séquestre tout en garantissant que le prestataire est payé pour un travail validé.
 
-### 8.3.10. Analytics et optimisation basee sur les donnees
+### 8.3.10. Analytics et optimisation basée sur les données
 
-L'accumulation de donnees transactionnelles (prestataires, reservations, paiements, avis) permet d'alimenter un tableau de bord analytique destine a l'equipe BABIFIX. L'analyse des donnees permettrait d'identifier les tendances (prestations les plus demandees, zones geographiques sous-couvertes, heure creuses vs heure pleine) pour orienter les decisions marketing et operationnelles. L'integration d'un outil de business intelligence (Metabase, Grafana, ou Power BI) connecte a la base PostgreSQL constituerait le premier niveau d'analyse.
+L'accumulation de données transactionnelles (prestataires, réservations, paiements, avis) permet d'alimenter un tableau de bord analytique destiné à l'équipe BABIFIX. L'analyse des données permettrait d'identifier les tendances (prestations les plus demandées, zones géographiques sous-couvertes, heures creuses vs heures pleines) pour orienter les décisions marketing et opérationnelles. L'intégration d'un outil de business intelligence (Metabase, Grafana, ou Power BI) connecté à la base PostgreSQL constituerait le premier niveau d'analyse.
 
 ### 8.3.11. Intégration d'une newsletter et d'un CRM léger
 
