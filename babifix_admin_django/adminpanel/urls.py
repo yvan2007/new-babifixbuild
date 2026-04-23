@@ -79,6 +79,7 @@ from .views import (
     api_prestataire_requests,
     api_prestataire_reservation_status,
     api_prestataire_terminer_intervention,
+    api_prestataire_upload_photos,
     api_public_categories,
     api_public_payment_methods,
     api_public_providers,
@@ -386,7 +387,6 @@ urlpatterns = [
     path(
         "api/prestataire/requests/<str:reference>/terminer",
         api_prestataire_terminer_intervention,
-        api_prestataire_upload_photos,
         name="api-prestataire-terminer-intervention",
     ),
     path(

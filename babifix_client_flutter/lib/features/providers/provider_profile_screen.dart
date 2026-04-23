@@ -359,13 +359,15 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                             '($nbAvis avis)',
                             style: TextStyle(fontSize: 13, color: sub),
                           ),
-],
-                    ),
-                    const SizedBox(height: 20),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
 
                   // Portfolio Photos Carrousel
-                  if ((p['portfolio_photos'] as List?)?.isNotEmpty ?? false) ...[
+                  if ((p['portfolio_photos'] as List?)?.isNotEmpty ??
+                      false) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Portfolio',
