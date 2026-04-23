@@ -131,40 +131,41 @@ def email_mission_completed(reservation: Reservation) -> None:
 
 def email_welcome(user, role: str) -> None:
     """Email de bienvenue lors de l'inscription."""
+    print(f"📧 email_welcome appelé: {user.email}, role={role}")
     if not user.email:
+        print("⚠️ Pas d'email utilisateur, email ignoré")
         return
 
-    role_label = "Client" if role == "client" else "Prestataire"
-    is_provider = role == "prestataire"
-
-    body = f"Bonjour {user.username},\n\nBienvenue sur BABIFIX !\n\n"
-
-    if is_provider:
-        body += (
-            "Votre compte prestataire a été créé avec succès.\n"
-            "Pour commencer à recevoir des missions, vous devez :\n"
-            "1. Compléter votre profil (photo, bio, tarifs)\n"
-            "2. Soumettre vos pièces d'identification\n"
-            "3. Attendre la validation de notre équipe\n\n"
-            "Téléchargez l'application BABIFIX Prestataire pour finaliser votre inscription.\n\n"
-        )
-    else:
-        body += (
-            "Votre compte client a été créé avec succès.\n"
-            "Vous pouvez maintenant :\n"
-            "- Rechercher des prestataires près de chez vous\n"
-            "- Réserver des services en quelques clics\n"
-            "- Paiement sécurisé via Mobile Money\n\n"
-            "Téléchargez l'application BABIFIX Client pour profiter de tous nos services.\n\n"
-        )
-
-    body += "L'équipe BABIFIX — Côte d'Ivoire\ncontact@babifix.ci | https://babifix.ci"
-
-    send_babifix_email(
-        to_email=user.email,
-        subject=f"Bienvenue sur BABIFIX ! ({role_label})",
-        body=body,
+    is_prestataire = role == "prestataire"
+    role_description = (
+        "Rejoignez des milliers de prestataires certifiés"
+        if is_prestataire
+        else "Trouvez le prestataire idéal près de chez vous"
     )
+    cta_text = (
+        "Gérer mon espace prestataire" if is_prestataire else "Explorer les services"
+    )
+
+    context = {
+        "username": user.username,
+        "role_description": role_description,
+        "is_prestataire": is_prestataire,
+        "cta_text": cta_text,
+        "app_url": "https://babifix.ci/app",
+    }
+
+    html_content = _render_email_template("welcome.html", context)
+    print(f"📧 Template rendu: {len(html_content) if html_content else 0} chars")
+    if not html_content:
+        print("❌ Template welcome.html vide ou non trouvé")
+        return
+
+    send_babifix_email_html(
+        to_email=user.email,
+        subject=f"Bienvenue sur BABIFIX ! 🎉",
+        html_content=html_content,
+    )
+    print(f"✅ email_welcome terminé")
 
 
 # =============================================================================
@@ -867,26 +868,34 @@ def send_weekly_digest_email(prestataire: "Provider", stats_dict: dict) -> None:
 
 
 def send_babifix_email_html(to_email: str, subject: str, html_content: str) -> None:
-    """Envoi email HTML transactionnel BABIFIX."""
+    """Envoi email HTML transactionnel BABIFIX avec fallback plain text."""
     from django.conf import settings
     from django.core.mail import EmailMultiAlternatives
 
     try:
-        if html_content:
-            msg = EmailMultiAlternatives(
-                subject=subject,
-                body=html_content,
-                from_email=getattr(
-                    settings, "DEFAULT_FROM_EMAIL", "contact@babifix.ci"
-                ),
-                to=[to_email],
-            )
-            msg.content_subtype = "html"
-            msg.send(fail_silently=True)
-        else:
-            send_babifix_email(to_email, subject, subject)
+        if not html_content:
+            return
+
+        # Créer version plain text du HTML (enlever les balises)
+        import re
+
+        plain_text = re.sub(r"<[^>]+>", "", html_content)
+        plain_text = re.sub(r"\n+", "\n", plain_text).strip()
+
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_text,
+            from_email=getattr(
+                settings, "DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.ci>"
+            ),
+            to=[to_email],
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send(fail_silently=False)
+        print(f"\n📧 EMAIL ENVOYÉ À {to_email} : {subject}\n")
+        logger.info(f"Email envoyé à {to_email}: {subject}")
     except Exception as exc:
-        logger.warning("Email HTML non envoyé (%s) : %s", to_email, exc)
+        logger.warning("Email non envoyé (%s) : %s", to_email, exc)
 
 
 def _get_admin_emails() -> list:

@@ -214,6 +214,7 @@ class BabifixUserStore {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': key,
+          'email': key, // Ajouter le champ email
           'password': password,
           'role': 'client',
           'phone_e164': phone.trim(),

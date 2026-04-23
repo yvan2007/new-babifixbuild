@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message reçu — BABIFIX</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); padding: 40px 30px; text-align: center; }
+        .header h1 { color: #fff; margin: 0; font-size: 28px; }
+        .content { padding: 40px 30px; }
+        .success-icon { font-size: 60px; text-align: center; margin: 20px 0; }
+        .message-box {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #FF6B00;
+        }
+        .message-box p { color: #495057; margin: 0; font-size: 15px; line-height: 1.6; }
+        .footer { background: #1a1a2e; padding: 30px; text-align: center; }
+        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Message reçu — BABIFIX</h1>
+        </div>
+        <div class="content">
+            <div class="success-icon">✅</div>
+            <h2 style="text-align: center; color: #28a745;">Message bien reçu !</h2>
+            <p style="text-align: center; color: #6c757d;">Merci de nous avoir contacté. Notre équipe vous répondra sous 24h.</p>
+            
+            <div class="message-box">
+                <p><strong>Sujet :</strong> {{ subject }}</p>
+                <p><strong>Message :</strong></p>
+                <p>{{ message }}</p>
+            </div>
+            
+            <p style="text-align: center; color: #6c757d; font-size: 14px;">
+                Notre équipe BABIFIX vous répondra à <strong>{{ user_email }}</strong>
+            </p>
+        </div>
+        <div class="footer">
+            <p>🔧 BABIFIX — Connection. Service. Confiance. | 📍 Abidjan, Côte d'Ivoire</p>
+        </div>
+    </div>
+</body>
+</html>

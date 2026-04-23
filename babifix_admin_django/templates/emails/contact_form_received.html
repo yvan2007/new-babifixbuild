@@ -5,41 +5,91 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message reçu — BABIFIX</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .header { background-color: #FF6B00; padding: 30px; text-align: center; }
-        .header h1 { color: #ffffff; margin: 0; font-size: 24px; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); padding: 40px 30px; text-align: center; }
+        .header .logo { font-size: 40px; color: #fff; font-weight: bold; }
+        
         .content { padding: 40px 30px; }
-        .content p { color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 15px; }
-        .success-icon { font-size: 60px; text-align: center; margin: 20px 0; }
-        .message-box { background: #f9f9f9; border-left: 4px solid #FF6B00; padding: 15px; margin: 20px 0; }
-        .footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #666666; }
+        .success-section { text-align: center; padding: 30px 0; border-bottom: 1px solid #eee; }
+        .success-badge { 
+            width: 70px; height: 70px; 
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border-radius: 50%; 
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .success-badge span { color: white; font-size: 35px; }
+        .success-section h2 { color: #1a1a2e; margin: 0 0 10px; font-size: 24px; }
+        .success-section p { color: #6c757d; margin: 0; font-size: 16px; }
+        
+        .message-box {
+            background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+            border: 1px solid #e9ecef;
+            border-left: 4px solid #FF6B00;
+            border-radius: 0 12px 12px 0;
+            padding: 25px;
+            margin: 25px 0;
+        }
+        .message-meta { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .message-meta strong { color: #FF6B00; font-size: 18px; }
+        .message-content { color: #495057; font-size: 15px; line-height: 1.7; margin: 0; }
+        
+        .info-box {
+            background: #e8f4fd;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .info-box p { color: #004085; margin: 0; font-size: 14px; }
+        
+        .footer { background: #1a1a2e; padding: 30px; text-align: center; }
+        .footer .logo { font-size: 20px; font-weight: bold; color: #FF6B00; margin-bottom: 10px; }
+        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
+        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 15px; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>BABIFIX</h1>
+            <div class="logo">🔧 BABIFIX</div>
         </div>
+        
         <div class="content">
-            <div class="success-icon">&#10003;</div>
-            <p>Bonjour <strong>{{ name }}</strong>,</p>
-            <p>Nous avons bien reçu votre message. Notre équipe vous répondra dans les plus brefs délais.</p>
-            
-            <div class="message-box">
-                <p><strong>Sujet :</strong> {{ subject }}</p>
-                <p><strong>Message :</strong></p>
-                <p>{{ message }}</p>
+            <div class="success-section">
+                <div class="success-badge"><span>✓</span></div>
+                <h2>Message bien reçu !</h2>
+                <p>Merci de nous avoir contacté</p>
             </div>
             
-            <p>Notre délai de réponse est généralement de 24 à 48 heures ouvrées.</p>
-            <p>Merci de faire confiance à <strong>BABIFIX</strong> !</p>
+            <p style="font-size: 16px; color: #495057;">Bonjour <strong>{{ name }}</strong>,</p>
+            <p style="font-size: 16px; color: #495057;">Nous avons bien reçu votre message. Notre équipe vous répondra dans les plus brefs délais.</p>
             
-            <p>L'équipe BABIFIX — Côte d'Ivoire<br>
-            <a href="https://babifix.ci" style="color: #FF6B00;">babifix.ci</a> | contact@babifix.ci</p>
+            <div class="message-box">
+                <div class="message-meta">
+                    <span style="color: #6c757d;">Sujet :</span><br>
+                    <strong>{{ subject }}</strong>
+                </div>
+                <p class="message-content">{{ message }}</p>
+            </div>
+            
+            <div class="info-box">
+                <p>⏱️ Délai de réponse : <strong>24 à 48h ouvrées</strong></p>
+            </div>
+            
+            <p style="font-size: 14px; color: #6c757d; text-align: center;">
+                Merci de faire confiance à <strong style="color: #FF6B00;">BABIFIX</strong> ! �🇨🇮
+            </p>
         </div>
+        
         <div class="footer">
-            <p>BABIFIX — Connection. Service. Confiance.</p>
+            <div class="logo">🔧 BABIFIX</div>
+            <p>Connection. Service. Confiance.</p>
+            <p>📍 Abidjan, Côte d'Ivoire | contact@babifix.ci</p>
+            <p class="copyright">© 2026 BABIFIX. Tous droits réservés.</p>
         </div>
     </div>
 </body>

@@ -97,6 +97,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
   // ── Documents étape 2 ────────────────────────────────────────────────────
   String? _profilePhotoPath;
+  List<int>? _profilePhotoBytes; // pour envoi base64
   String? _cniRectoPath;
   String? _cniVersoPath;
 
@@ -184,7 +185,18 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         maxWidth: 1600,
       );
       if (x == null || !mounted) return;
-      setState(() => onPicked(x.path));
+      // Stocker le chemin et les bytes pour envoi base64
+      final bytes = await x.readAsBytes();
+      setState(() {
+        onPicked(x.path);
+        // Stocker les bytes pour envoi base64
+        if (onPicked ==
+            (p) {
+              _profilePhotoPath = p;
+            }) {
+          _profilePhotoBytes = bytes;
+        }
+      });
     } catch (e) {
       debugPrint('Image picker error: $e');
     }
@@ -1234,9 +1246,12 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   Future<_SubmitResult> _submitRegistration() async {
     final base = babifixApiBaseUrl();
     final email = _emailCtrl.text.trim();
-    final username = email.isNotEmpty
-        ? email
-        : 'prest_${DateTime.now().millisecondsSinceEpoch}';
+    // Username = prefix de l'email (sans @domaine), pas l'email entier
+    final username = email.isNotEmpty && email.contains('@')
+        ? email.split('@').first
+        : (email.isNotEmpty
+              ? email
+              : 'prest_${DateTime.now().millisecondsSinceEpoch}');
     final password = _passCtrl.text;
     final phone = _phoneE164.trim();
     final villeText = _villeCtrl.text.trim();
@@ -1245,7 +1260,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         ? _villeAddressLabel.trim()
         : villeText;
 
-    final body = jsonEncode({
+    var body = jsonEncode({
       'nom': '${_prenomCtrl.text.trim()} ${_nomCtrl.text.trim()}'.trim(),
       'specialite': _specialite ?? '',
       if (_categoryId != null) 'category_id': _categoryId,
@@ -1256,13 +1271,27 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           : addrLabel,
       if (_villePin != null) 'service_latitude': _villePin!.latitude,
       if (_villePin != null) 'service_longitude': _villePin!.longitude,
-      if (_profilePhotoPath != null && _profilePhotoPath!.trim().isNotEmpty)
-        'photo_portrait_url': _profilePhotoPath!.trim(),
       'years_experience': _yearsExperience.round(),
       'bio': _bioCtrl.text.trim(),
       'phone_e164': phone,
       'email': email,
     });
+
+    // Envoi photo en base64 si exists
+    if (_profilePhotoPath != null && _profilePhotoPath!.isNotEmpty) {
+      var photoData = jsonDecode(body) as Map<String, dynamic>;
+      final ext = _profilePhotoPath!.split('.').last.toLowerCase();
+      final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+      try {
+        final bytes = await File(_profilePhotoPath!).readAsBytes();
+        final b64 = base64Encode(bytes);
+        photoData['photo_portrait_b64'] = 'data:$mime;base64,$b64';
+        photoData.remove('photo_portrait_url');
+      } catch (e) {
+        debugPrint('Could not read photo: $e');
+      }
+      body = jsonEncode(photoData);
+    }
 
     try {
       Future<String?> obtainJwt() async {
@@ -1276,6 +1305,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'username': username,
+            'email': email, // AJOUTER email
             'password': password,
             'role': 'prestataire',
             'phone_e164': phone,

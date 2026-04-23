@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nouveau devis — BABIFIX</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); padding: 40px 30px; text-align: center; }
+        .header h1 { color: #fff; margin: 0; font-size: 28px; font-weight: 700; }
+        .header p { color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px; }
+        
+        .content { padding: 40px 30px; }
+        .quote-box {
+            background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+            border: 2px solid #FF6B00;
+            border-radius: 16px;
+            padding: 30px;
+            margin: 25px 0;
+        }
+        .quote-header { 
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px;
+        }
+        .quote-from { color: #6c757d; font-size: 14px; }
+        .quote-from strong { color: #1a1a2e; font-size: 18px; }
+        .quote-date { color: #6c757d; font-size: 14px; }
+        
+        .quote-items { margin: 20px 0; }
+        .quote-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .quote-item:last-child { border-bottom: none; }
+        .quote-item-label { color: #495057; }
+        .quote-item-value { font-weight: 600; color: #1a1a2e; }
+        
+        .quote-total {
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .quote-total-label { font-size: 16px; }
+        .quote-total-value { font-size: 28px; font-weight: bold; }
+        
+        .btn { 
+            display: block;
+            max-width: 280px;
+            margin: 30px auto;
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
+            color: #fff; 
+            padding: 16px 30px; 
+            text-align: center;
+            text-decoration: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .expiry { 
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+            margin: 20px 0;
+        }
+        
+        .footer { background: #1a1a2e; padding: 30px; text-align: center; }
+        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
+        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Nouveau Devis</h1>
+            <p>De {{ provider_name }}</p>
+        </div>
+        <div class="content">
+            <p style="font-size: 16px; color: #495057;">Bonjour <strong>{{ client_name }}</strong>,</p>
+            <p style="font-size: 16px; color: #495057;">{{ provider_name }} vous a envoyé un devis pour votre demande.</p>
+            
+            <div class="quote-box">
+                <div class="quote-header">
+                    <div class="quote-from">
+                        <div class="quote-label">Devis de</div>
+                        <strong>{{ provider_name }}</strong>
+                    </div>
+                    <div class="quote-date">{{ quote_date }}</div>
+                </div>
+                
+                {% if description %}
+                <p style="color: #6c757d; font-size: 14px; margin: 0 0 15px;">{{ description }}</p>
+                {% endif %}
+                
+                <div class="quote-items">
+                    {% for item in items %}
+                    <div class="quote-item">
+                        <span class="quote-item-label">{{ item.description }}</span>
+                        <span class="quote-item-value">{{ item.amount }} FCFA</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="quote-total">
+                    <span class="quote-total-label">Total TTC</span>
+                    <span class="quote-total-value">{{ total }} FCFA</span>
+                </div>
+            </div>
+            
+            <p class="expiry">⏰ Ce devis expire dans <strong>7 jours</strong></p>
+            
+            <a href="{{ app_url }}/devis/{{ quote_id }}" class="btn">Voir et accepter le devis</a>
+        </div>
+        <div class="footer">
+            <p>🔧 BABIFIX — Connection. Service. Confiance.</p>
+            <p>📍 Abidjan, Côte d'Ivoire | contact@babifix.ci</p>
+            <p class="copyright">© 2026 BABIFIX</p>
+        </div>
+    </div>
+</body>
+</html>
