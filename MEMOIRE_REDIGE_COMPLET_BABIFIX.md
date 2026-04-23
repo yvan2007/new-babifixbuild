@@ -582,11 +582,11 @@ La proposition de valeur repose sur trois piliers :
 
 Le lancement de BABIFIX s'articulera en trois phases distinctes :
 
-**Phase Beta (Mois 1-3)** : recrutement de 20 prestataires pilotes dans les communes de Cocody, Marcory et Yopougon a Abidjan, via un demarchage terrain direct dans les quincailleries, les associations d'artisans et les groupes WhatsApp professionnels. Les prestataires beta beneficieront d'une commission reduite a 10% pendant 6 mois. Parallelement, 100 clients beta seront recrutes via les reseaux sociaux (Facebook, Instagram, TikTok) avec une premiere intervention gratuite offerte.
+**Phase Bêta (Mois 1-3)** — Amorçage terrain. Recrutement de 20 prestataires pilotes dans les communes de Cocody, Marcory et Yopougon à Abidjan, via un démarchage physique direct dans les quincailleries, les associations d'artisans et les groupes WhatsApp professionnels. La commission standard de 18% s'applique dès la première intervention, ce qui garantit un modèle économique sain dès le départ : le prestataire ne paie que lorsqu'il est effectivement rémunéré, ce qui constitue un risque zéro pour lui. Les premiers clients sont recrutés via les groupes Facebook de quartier et les réseaux WhatsApp résidentiels, en mettant en avant la proposition de valeur unique : prestataires vérifiés par CNI, devis détaillé avant intervention, paiement après validation du travail. Objectif : 50 réservations complétées et premiers avis publiés. C'est exactement ce modèle qu'ont utilisé les plateformes qui réussissent en Afrique : Lynk au Kenya a recruté 1 300 prestataires en allant les chercher dans les marchés informels, sans leur offrir de réduction.
 
-**Phase Lancement (Mois 4-6)** : campagne de communication digitale ciblee sur Facebook Ads et Instagram Ads (budget : 200 000 FCFA/mois), ciblant les menages urbains d'Abidjan (25-45 ans, proprietaires ou locataires). Programme de parrainage : chaque client qui recommande BABIFIX recoit 2 000 FCFA de reduction sur sa prochaine intervention. Partenariats avec des quincailleries locales (affichage en magasin, QR code vers l'application).
+**Phase Lancement (Mois 4-8)** — Preuve sociale. Les avis et témoignages des premiers mois deviennent l'outil marketing principal. Le bouche-à-oreille, premier canal d'acquisition en Côte d'Ivoire, est amplifié par une campagne de contenu digital ciblée (budget : 100 000 FCFA/mois sur Facebook et Instagram) utilisant de vrais témoignages de clients et prestataires satisfaits. Un programme de parrainage basé sur le statut (badge « Membre fondateur », accès prioritaire aux meilleurs prestataires) crée de l'engagement sans coût de subvention. Des partenariats avec les syndics de résidences et les agences immobilières permettent d'accéder aux prescripteurs naturels des services à domicile.
 
-**Phase Croissance (Mois 7-12)** : extension a Bouake et Yamoussoukro. Recrutement de community managers locaux. Partenariats avec des influenceurs lifestyle ivoiriens. Programme de fidelite client (abonnements mensuels avec interventions incluses). Presence sur les salons technologiques locaux (Abidjan Tech Meetup, FINTECH Week Abidjan).
+**Phase Croissance (Mois 9-18)** — Effet réseau. Extension à Bouaké puis Yamoussoukro, chaque ville démarrant avec 10 prestataires recrutés en terrain, pas par une campagne digitale. Lancement de l'abonnement prestataire premium optionnel (5 000 FCFA/mois) pour les prestataires souhaitant une visibilité accrue. L'effet réseau (plus de prestataires attire plus de clients, et inversement) alimente une croissance organique auto-entretenue. Présence sur les événements technologiques locaux pour renforcer la crédibilité de la marque.
 
 ### 1.3.5. Cadre juridique et fiscal
 
@@ -1633,7 +1633,7 @@ Les tests de sécurité vérifient que les mécanismes de protection implément�
 
 Le tableau ci-dessous definit les metriques pour mesurer le succes de BABIFIX apres de ploiement :
 
-**Tableau 13 — Indicateurs cles de performance post-lancement** :
+**Tableau 14 — Indicateurs cles de performance post-lancement** :
 
 | KPI | Cible Mois 3 | Cible Mois 6 | Cible Annee 1 |
 |---|---|---|---|
@@ -1726,7 +1726,7 @@ La prochaine etape immediate est l'integration complete de la **passerelle de pa
 - Gestion des remboursements via l'API.
 - Support des quatre operateurs principaux : Orange Money, MTN Moov Money, Wave, et Moov Africa.
 
-### 8.3.3. Plan de deploiement technique
+### 8.3.4. Plan de deploiement technique
 
 Le deploiement en production de BABIFIX suivra un plan en quatre etapes :
 
@@ -1738,11 +1738,11 @@ Le deploiement en production de BABIFIX suivra un plan en quatre etapes :
 
 **Etape 4 — Monitoring et iteration** : activation de Sentry pour le tracking d'erreurs en production, configuration des alertes email pour les erreurs critiques, mise en place d'un backup automatique PostgreSQL quotidien, monitoring des performances via les logs Nginx.
 
-### 8.3.4. Strategie de contenu et SEO
+### 8.3.5. Strategie de contenu et SEO
 
 Le site vitrine integre deja le rendu cote serveur (SSR) favorable au referencement. En perspective, l'ajout d'une section blog avec des articles cibles ('Comment trouver un bon plombier a Abidjan', 'Tarifs electricien Cote d'Ivoire 2026', 'Guide : que faire en cas de fuite d'eau') permettrait de capter du trafic organique sur les requetes frequentes des menages ivoiriens. Cette strategie de contenu SEO, combinee a la section Actualites deja en place, positionnerait BABIFIX comme reference informationnelle en plus de sa fonction transactionnelle.
 
-### 8.3.5. CI/CD et pratiques DevOps
+### 8.3.6. CI/CD et pratiques DevOps
 
 Le projet dispose d'un pipeline CI/CD opérationnel via **GitHub Actions** déclenché à chaque push sur la branche principale :
 
@@ -1751,7 +1751,7 @@ Le projet dispose d'un pipeline CI/CD opérationnel via **GitHub Actions** décl
 - **Serveur de production** : Nginx (reverse proxy) + Daphne (serveur ASGI pour Django Channels) + PostgreSQL + Redis.
 - **Monitoring** : intégration de Sentry configurée pour la gestion des erreurs en production.
 
-### 8.3.5. Sécurité renforcée (OWASP Mobile)
+### 8.3.7. Securite renforcee (OWASP Mobile)
 
 Le renforcement de la sécurité mobile suivra les recommandations de l'**OWASP Mobile Application Security Verification Standard (MASVS)** :
 
@@ -1759,19 +1759,23 @@ Le renforcement de la sécurité mobile suivra les recommandations de l'**OWASP 
 - **Chiffrement du stockage local** : les tokens JWT stockés localement sur l'appareil Flutter seront chiffrés via `flutter_secure_storage`.
 - **Obfuscation du code** : le code Dart compilé en production sera obfusqué pour compliquer la rétro-ingénierie.
 
-### 8.3.6. Amélioration de la biométrie
+### 8.3.8. Amélioration de la biométrie
 
 L'authentification biométrique (documentée en §7.4.3) est implémentée. Une perspective d'amélioration consisterait à ajouter la **reconnaissance vocale** comme méthode d'authentification alternatif pour les utilisateurs ne disposant pas d'un appareil avec biométrie matérielle.
 
-### 8.3.7. Agrément BCEAO et service de séquestre (escrow)
+### 8.3.9. Agrément BCEAO et service de séquestre (escrow)
 
 L'integration d'un mecanisme de sequestre (escrow) constitue une perspective structurante pour renforcer la confiance lors des transactions. Sa mise en oeuvre necessiterait un agrement d'Etablissement de Monnaie Electronique (EME) aupres de la BCEAO ou un partenariat formel avec un operateur agreé. Le modele actuel de paiement post-prestation (le client paie apres confirmation de la qualite de la prestation via le bouton "Confirmer la prestation") constitue une alternative viable en phase de lancement, evitant les contraintes reglementaires liees au sequestre tout en garantissant que le prestataire est paye pour un travail valide.
 
-### 8.3.8. Intégration d'une newsletter et d'un CRM léger
+### 8.3.10. Analytics et optimisation basee sur les donnees
+
+L'accumulation de donnees transactionnelles (prestataires, reservations, paiements, avis) permet d'alimenter un tableau de bord analytique destine a l'equipe BABIFIX. L'analyse des donnees permettrait d'identifier les tendances (prestations les plus demandees, zones geographiques sous-couvertes, heure creuses vs heure pleine) pour orienter les decisions marketing et operationnelles. L'integration d'un outil de business intelligence (Metabase, Grafana, ou Power BI) connecte a la base PostgreSQL constituerait le premier niveau d'analyse.
+
+### 8.3.11. Intégration d'une newsletter et d'un CRM léger
 
 Le formulaire de contact du site vitrine constitue le premier point d'entrée pour les utilisateurs potentiels. À terme, il pourrait alimenter une liste de diffusion segmentée (clients / prestataires) gérée par un service d'emailing transactionnel (Mailchimp, Brevo). Des campagnes d'activation ciblées (rappel de première réservation, offres promotionnelles saisonnières, actualités plateforme) permettraient d'améliorer la rétention et le taux de conversion. Côté backend Django, un modèle `NewsletterSubscription` et un endpoint d'inscription (`POST /api/newsletter/subscribe/`) constitueraient les fondations de ce CRM léger.
 
-### 8.3.10. Expansion géographique dans l'espace UEMOA
+### 8.3.12. Expansion géographique dans l'espace UEMOA
 
 À moyen terme, BABIFIX pourrait s'étendre aux autres marchés de l'Union Économique et Monétaire Ouest-Africaine (UEMOA) partageant le FCFA :
 
