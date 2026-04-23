@@ -3,6 +3,7 @@ import time
 
 from django.core import signing
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 
 TOKEN_SALT = "babifix-api-token"
@@ -76,6 +77,7 @@ def require_api_auth(roles=None):
     allowed = set(roles or [])
 
     def decorator(view_func):
+        @csrf_exempt
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             auth_header = request.headers.get("Authorization", "")

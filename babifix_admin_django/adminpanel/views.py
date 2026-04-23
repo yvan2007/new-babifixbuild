@@ -554,6 +554,25 @@ def _dashboard_forms_context(request, section):
                 ctx["edit_reservation_id"] = inst.pk
             except Reservation.DoesNotExist:
                 pass
+    elif section == "kanban":
+        # Kanban view - get all reservations grouped by status
+        kanban_reservations = {}
+        statuses = [
+            "DEMANDE_ENVOYEE",
+            "DEVIS_EN_COURS",
+            "DEVIS_ENVOYE",
+            "DEVIS_ACCEPTE",
+            "INTERVENTION_EN_COURS",
+            "En attente client",
+            "Terminee",
+        ]
+        for s in statuses:
+            kanban_reservations[s] = list(
+                Reservation.objects.filter(statut=s)
+                .select_related("client_user", "assigned_provider")
+                .order_by("-created_at")[:20]
+            )
+        ctx["kanban_reservations"] = kanban_reservations
     elif section == "litiges":
         eid = request.GET.get("edit_litige")
         if eid and str(eid).isdigit():
@@ -1223,6 +1242,10 @@ def dashboard(request):
             "Réservations",
             "Suivi des missions, mode de paiement (espèces, Mobile Money Orange/MTN/Wave/Moov, carte) et flux espèces.",
         ),
+        "kanban": (
+            "Kanban Réservations",
+            "Vue drag & drop du pipeline de réservations — glissez pour changer le statut.",
+        ),
         "litiges": ("Litiges", "Médiation et décisions enregistrées côté plateforme."),
         "clients": (
             "Clients",
@@ -1803,9 +1826,122 @@ def api_messages(request):
     return _api_messages_send(request)
 
 
-def _api_messages_list(request):
+@require_GET
+@require_api_auth(["client", "prestataire", "admin"])
+def api_messages_by_reservation(request, reservation_reference):
+    """Récupère les messages pour une réservation spécifique."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reservation_reference).first()
+    if not res:
+        return JsonResponse({"error": "reservation_not_found"}, status=404)
+
     uid = int(request.api_user_id)
-    conv_id = request.GET.get("conversation_id")
+    if request.api_role == "client" and res.client_user_id != uid:
+        return JsonResponse({"error": "forbidden"}, status=403)
+    if (
+        request.api_role == "prestataire"
+        and res.assigned_provider_id
+        and res.prestataire_user_id != uid
+    ):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    conv = Conversation.objects.filter(reservation=res).first()
+    if not conv:
+        return JsonResponse({"messages": []})
+
+    messages = (
+        Message.objects.filter(conversation=conv)
+        .select_related("sender")
+        .order_by("created_at")
+    )
+
+    messages_data = []
+    for m in messages:
+        sender_type = "client" if m.sender_id == res.client_user_id else "prestataire"
+        messages_data.append(
+            {
+                "id": m.id,
+                "message": m.body,
+                "sender_type": sender_type,
+                "sender_name": m.sender.username if m.sender else "",
+                "created_at": m.created_at.isoformat() if m.created_at else "",
+            }
+        )
+
+    return JsonResponse({"messages": messages_data})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client", "prestataire", "admin"])
+def api_messages_send_by_reservation(request):
+    """Envoie un message pour une réservation spécifique."""
+    _bootstrap_data()
+    try:
+        payload_data = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    reservation_ref = payload_data.get("reservation_reference")
+    message_text = payload_data.get("message", "").strip()
+
+    if not reservation_ref:
+        return JsonResponse({"error": "reservation_reference_required"}, status=400)
+    if not message_text:
+        return JsonResponse({"error": "message_required"}, status=400)
+
+    res = Reservation.objects.filter(reference=reservation_ref).first()
+    if not res:
+        return JsonResponse({"error": "reservation_not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    if request.api_role == "client" and res.client_user_id != uid:
+        return JsonResponse({"error": "forbidden"}, status=403)
+    if (
+        request.api_role == "prestataire"
+        and res.prestataire_user_id
+        and res.prestataire_user_id != uid
+    ):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    conv = Conversation.objects.filter(reservation=res).first()
+    if not conv:
+        conv = Conversation.objects.create(
+            client_id=res.client_user_id,
+            prestataire_id=res.assigned_provider_id,
+            reservation=res,
+        )
+
+    sender = User.objects.filter(pk=uid).first()
+    message = Message.objects.create(
+        conversation=conv,
+        sender=sender,
+        body=message_text,
+    )
+
+    _schedule(
+        [
+            res.client_user_id
+            if request.api_role != "client"
+            else res.prestataire_user_id
+        ],
+        "Nouveau message BABIFIX",
+        f"Vous avez un nouveau message concernant {reservation_ref}",
+        {"type": "chat.message", "reference": reservation_ref},
+    )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "message_id": message.id,
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["client", "prestataire"])
+def api_messages(request):
     prestataire_id = request.GET.get("prestataire_id")
     client_id = request.GET.get("client_id")
     reservation_id = request.GET.get("reservation_id")

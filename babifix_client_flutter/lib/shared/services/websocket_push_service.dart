@@ -18,11 +18,13 @@ class WebSocketPushService {
       StreamController<List<Map<String, dynamic>>>.broadcast();
   final _providerController =
       StreamController<List<Map<String, dynamic>>>.broadcast();
+  final _chatController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<List<Map<String, dynamic>>> get categoriesStream =>
       _categoryController.stream;
   Stream<List<Map<String, dynamic>>> get providersStream =>
       _providerController.stream;
+  Stream<Map<String, dynamic>> get chatStream => _chatController.stream;
 
   bool get isConnected => _isConnected;
 
@@ -78,6 +80,11 @@ class WebSocketPushService {
           debugPrint('WebSocketPush: Nouveau prestataire');
           break;
 
+        case 'chat_message':
+          _chatController.add(data);
+          debugPrint('WebSocketPush: Nouveau message chat');
+          break;
+
         default:
           debugPrint('WebSocketPush: Message type inconnu: $type');
       }
@@ -118,6 +125,7 @@ class WebSocketPushService {
     disconnect();
     _categoryController.close();
     _providerController.close();
+    _chatController.close();
   }
 }
 

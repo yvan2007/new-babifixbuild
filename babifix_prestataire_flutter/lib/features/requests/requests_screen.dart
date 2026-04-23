@@ -833,7 +833,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
       ),
     );
   }
+}
 
+// ── Modèle de données pour une demande de réservation ───────────────────────
+class _RequestItem {
   final String reference;
   final String client;
   final String service;

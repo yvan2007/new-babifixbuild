@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
@@ -358,90 +359,69 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                             '($nbAvis avis)',
                             style: TextStyle(fontSize: 13, color: sub),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
 
-                  // Stats
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _StatCard(
-                          label: 'Missions',
-                          value: nbMissions.toString(),
-                          icon: Icons.check_circle_outline_rounded,
-                          card: card,
-                          text: text,
-                          sub: sub,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _StatCard(
-                          label: 'Succès',
-                          value: '$tauxReussite%',
-                          icon: Icons.thumb_up_alt_outlined,
-                          card: card,
-                          text: text,
-                          sub: sub,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _StatCard(
-                          label: 'Avis',
-                          value: nbAvis.toString(),
-                          icon: Icons.star_outline_rounded,
-                          card: card,
-                          text: text,
-                          sub: sub,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Badges
-                  if (badges.isNotEmpty) ...[
+                  // Portfolio Photos Carrousel
+                  if ((p['portfolio_photos'] as List?)?.isNotEmpty ?? false) ...[
+                    const SizedBox(height: 8),
                     Text(
-                      'Distinctions',
+                      'Portfolio',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: text,
+                        fontSize: 16,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        for (final b in badges)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: BabifixDesign.cyan.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: BabifixDesign.cyan.withValues(
-                                  alpha: 0.3,
-                                ),
+                    const SizedBox(height: 10),
+                    CarouselSlider(
+                      options: CarouselOptions(
+                        height: 160,
+                        enlargeCenterPage: true,
+                        viewportFraction: 0.7,
+                        autoPlay: true,
+                        autoPlayInterval: const Duration(seconds: 4),
+                      ),
+                      items: (p['portfolio_photos'] as List).map((photo) {
+                        String imageUrl = '';
+                        if (photo is Map) {
+                          imageUrl = photo['photo']?.toString() ?? '';
+                        } else if (photo is String) {
+                          imageUrl = photo;
+                        }
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
                               ),
-                            ),
-                            child: Text(
-                              b,
-                              style: TextStyle(
-                                color: BabifixDesign.ciBlue,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
+                            ],
                           ),
-                      ],
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: imageUrl.startsWith('http')
+                                ? Image.network(
+                                    imageUrl,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: Colors.grey.shade200,
+                                      child: const Icon(Icons.broken_image),
+                                    ),
+                                  )
+                                : Container(
+                                    color: Colors.grey.shade200,
+                                    child: const Icon(Icons.image, size: 40),
+                                  ),
+                          ),
+                        );
+                      }).toList(),
                     ),
                     const SizedBox(height: 20),
                   ],

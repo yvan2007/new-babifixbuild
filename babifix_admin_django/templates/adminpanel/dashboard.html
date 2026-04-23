@@ -1,4 +1,4 @@
-﻿{% load static %}
+{% load static %}
 {% load babifix_tags %}
 <!DOCTYPE html>
 <html lang="fr" class="no-js" data-theme="light">
@@ -43,6 +43,10 @@
       <a href="/?section=reservations{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'reservations' %}active{% endif %}">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
         <span>Réservations</span>
+      </a>
+      <a href="/?section=kanban{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'kanban' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="15" y="3" width="6" height="12" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+        <span>Kanban</span>
       </a>
       <a href="/?section=litiges{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'litiges' %}active{% endif %}">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 9v4M12 17h.01M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0z"/></svg>
@@ -810,6 +814,46 @@
           </tbody>
         </table>
       </article>
+    {% elif section == 'kanban' %}
+      <div class="kanban-board">
+        {% for status, items in kanban_reservations.items %}
+        <div class="kanban-column" data-status="{{ status }}">
+          <div class="kanban-header">
+            <span class="kanban-title">{{ status }}</span>
+            <span class="kanban-count">{{ items|length }}</span>
+          </div>
+          <div class="kanban-cards" 
+               hx-post="/api/admin/reservation/move"
+               hx-vals='{"status": "{{ status }}"}'
+               hx-trigger="drop"
+               ondragover="allowDrop(event)"
+               ondrop="drop(event, '{{ status }}')">
+            {% for r in items %}
+            <div class="kanban-card" draggable="true" ondragstart="drag(event, {{ r.id }})" data-id="{{ r.id }}">
+              <div class="kanban-card-ref">{{ r.reference }}</div>
+              <div class="kanban-card-client">{{ r.client_user.username|default:"Client" }}</div>
+              <div class="kanban-card-provider">{{ r.assigned_provider.nom|default:"" }}</div>
+              <div class="kanban-card-amount">{{ r.montant|default:0 }}₣</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <script>
+      function allowDrop(ev) { ev.preventDefault(); }
+      function drag(ev, id) { ev.dataTransfer.setData("text", id); }
+      function drop(ev, newStatus) {
+        ev.preventDefault();
+        var id = ev.dataTransfer.getData("text");
+        if (!id) return;
+        fetch('/api/admin/reservation/' + id + '/status', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+          body: JSON.stringify({status: newStatus})
+        }).then(function() { location.reload(); });
+      }
+      </script>
     {% elif section == 'litiges' %}
       {% if edit_litige_id %}
       <article class="card card-elevate crud-form-card">
@@ -1241,12 +1285,19 @@
   (function () {
     var btn = document.getElementById('theme-toggle');
     if (!btn) return;
+    
+    // Load saved theme
+    var saved = localStorage.getItem('babifix-theme');
+    if (saved) {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+    
     btn.addEventListener('click', function () {
       var h = document.documentElement;
       var next = h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       h.setAttribute('data-theme', next);
-      try { localStorage.setItem('babifix-theme', next === 'dark' ? 'dark' : 'light'); } catch (e) {}
-      location.reload();
+      try { localStorage.setItem('babifix-theme', next); } catch (e) {}
+      // No reload needed - CSS variables update instantly
     });
   })();
   </script>

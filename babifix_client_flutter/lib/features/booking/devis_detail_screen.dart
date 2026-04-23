@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
+import '../../shared/services/websocket_push_service.dart';
 
 class DevisDetailScreen extends StatefulWidget {
   final String reservationReference;
@@ -29,6 +31,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
   void initState() {
     super.initState();
     _loadDevis();
+    _initChatWebSocket();
   }
 
   Future<void> _loadDevis() async {
@@ -181,21 +184,30 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: widget.onBack,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: widget.onBack,
+          ),
+          title: const Text('Devis'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Détails'),
+              Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Chat'),
+            ],
+          ),
         ),
-        title: const Text('Devis'),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(child: Text(_error!))
+            : _devis == null
+            ? const Center(child: Text('Aucun devis disponible'))
+            : TabBarView(children: [_buildDevisContent(), _buildChatSection()]),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? Center(child: Text(_error!))
-          : _devis == null
-          ? const Center(child: Text('Aucun devis disponible'))
-          : _buildDevisContent(),
     );
   }
 
@@ -472,5 +484,187 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         ),
       ],
     );
+  }
+
+  // Chat Section
+  final TextEditingController _chatController = TextEditingController();
+  final ScrollController _chatScrollController = ScrollController();
+  List<Map<String, dynamic>> _messages = [];
+  StreamSubscription? _wsSubscription;
+  String? _chatToken;
+
+  Future<void> _initChatWebSocket() async {
+    _chatToken = await BabifixUserStore.getApiToken();
+    _loadMessages();
+    _wsSubscription = WebSocketPushService.instance.chatStream.listen(
+      _onNewMessage,
+    );
+    WebSocketPushService.instance.connect();
+  }
+
+  void _onNewMessage(Map<String, dynamic> data) {
+    final ref = data['reference']?.toString() ?? '';
+    if (ref == widget.reservationReference && mounted) {
+      setState(() {
+        _messages.insert(0, data);
+      });
+      _scrollToBottom();
+    }
+  }
+
+  Future<void> _loadMessages() async {
+    if (_chatToken == null) return;
+    try {
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/messages/${widget.reservationReference}',
+      );
+      final resp = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $_chatToken'},
+      );
+      if (resp.statusCode == 200 && mounted) {
+        final data = jsonDecode(resp.body);
+        setState(() {
+          _messages = List<Map<String, dynamic>>.from(data['messages'] ?? []);
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      debugPrint('Chat load error: $e');
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_chatScrollController.hasClients) {
+        _chatScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _chatController.text.trim();
+    if (text.isEmpty || _chatToken == null) return;
+
+    try {
+      final uri = Uri.parse('${babifixApiBaseUrl()}/api/messages/send');
+      final resp = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_chatToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'reservation_reference': widget.reservationReference,
+          'message': text,
+        }),
+      );
+      if (resp.statusCode == 200 && mounted) {
+        _chatController.clear();
+        _loadMessages();
+      }
+    } catch (e) {
+      debugPrint('Chat send error: $e');
+    }
+  }
+
+  Widget _buildChatSection() {
+    return Column(
+      children: [
+        Expanded(
+          child: _messages.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Aucun message.\nCommencez la conversation !',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                )
+              : ListView.builder(
+                  controller: _chatScrollController,
+                  reverse: true,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = _messages[index];
+                    final isMe = msg['sender_type'] == 'client';
+                    return Align(
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isMe
+                              ? Theme.of(context).primaryColor
+                              : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          msg['message'] ?? '',
+                          style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _chatController,
+                  decoration: const InputDecoration(
+                    hintText: 'Envoyer un message...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  onSubmitted: (_) => _sendMessage(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.send),
+                color: Theme.of(context).primaryColor,
+                onPressed: _sendMessage,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _chatController.dispose();
+    _chatScrollController.dispose();
+    _wsSubscription?.cancel();
+    super.dispose();
   }
 }

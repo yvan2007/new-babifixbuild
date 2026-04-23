@@ -62,6 +62,8 @@ from .views import (
     api_client_rate_reservation,
     api_client_refuse_devis,
     api_messages,
+    api_messages_by_reservation,
+    api_messages_send_by_reservation,
     api_messages_unread_total,
     api_prestataire_accept_demande,
     api_prestataire_confirm_cash,
@@ -159,6 +161,16 @@ urlpatterns = [
         "api/messages/unread-total",
         api_messages_unread_total,
         name="api-messages-unread-total",
+    ),
+    path(
+        "api/messages/send",
+        api_messages_send_by_reservation,
+        name="api-messages-send",
+    ),
+    path(
+        "api/messages/<str:reservation_reference>",
+        api_messages_by_reservation,
+        name="api-messages-by-reservation",
     ),
     path(
         "api/prestataire/register",
