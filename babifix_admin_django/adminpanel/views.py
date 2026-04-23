@@ -19,6 +19,29 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
+# Machine à états stricte — utilisée dans tous les endpoints de changement de statut
+RESERVATION_VALID_TRANSITIONS = {
+    "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
+    "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
+    "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
+    "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
+    "INTERVENTION_EN_COURS": {"En attente client", "Terminee", "Annulee"},
+    "En attente client": {"Terminee", "CONFIRMEE"},
+    "Confirmee": {"En cours", "INTERVENTION_EN_COURS", "Annulee"},
+    "En cours": {"En attente client", "Annulee"},
+    "Terminee": {"CONFIRMEE", "Annulee"},
+    "CONFIRMEE": {"INTERVENTION_EN_COURS", "Annulee"},
+}
+
+
+def validate_reservation_transition(current_status, new_status):
+    """Valide une transition de statut de réservation."""
+    valid_next = RESERVATION_VALID_TRANSITIONS.get(current_status, set())
+    if new_status not in valid_next:
+        return False, list(valid_next)
+    return True, []
+
+
 from .auth import create_token, require_api_auth, verify_token
 from .category_catalog import import_categories_from_catalog
 from .constants import CATEGORY_ICON_SLUGS, PAYMENT_METHOD_STATIC
@@ -678,7 +701,9 @@ def _filter_lists_for_section(section, search_q):
     Filtre les listes selon la section courante et le paramètre GET q=.
     """
     q = (search_q or "").strip()
-    providers = Provider.objects.all().select_related("user", "category")
+    providers = Provider.objects.filter(is_deleted=False).select_related(
+        "user", "category"
+    )
     reservations = Reservation.objects.all()
     litiges = Dispute.objects.all()
     # Synchroniser les clients réels depuis UserProfile (rattrapage des inscriptions passées)
@@ -1344,7 +1369,7 @@ def api_client_home(request):
     ]
     recent_providers = []
     for p in (
-        Provider.objects.filter(statut=Provider.Status.VALID)
+        Provider.objects.filter(statut=Provider.Status.VALID, is_deleted=False)
         .select_related("category", "user")
         .order_by("-user__date_joined")[:12]
     ):
@@ -1537,9 +1562,9 @@ def api_client_prestataires(request):
       sort       — 'rating' | 'tarif_asc' | 'tarif_desc' (défaut : rating desc)
     """
     _bootstrap_data()
-    qs = Provider.objects.filter(statut=Provider.Status.VALID).select_related(
-        "category"
-    )
+    qs = Provider.objects.filter(
+        statut=Provider.Status.VALID, is_deleted=False
+    ).select_related("category")
     # Filtre textuel
     q = (request.GET.get("q") or "").strip()
     if q:
@@ -2303,13 +2328,28 @@ def api_prestataire_decide_request(request, reference):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     decision = str(payload.get("decision", "")).strip().lower()
+    new_status = None
     if decision == "accept":
-        reservation.statut = Reservation.Status.DEVIS_EN_COURS
+        new_status = Reservation.Status.DEVIS_EN_COURS
     elif decision == "refuse":
-        reservation.statut = Reservation.Status.CANCELLED
+        new_status = Reservation.Status.CANCELLED
         reservation.motif_refus_demande = str(payload.get("motif", "") or "")[:500]
     else:
         return JsonResponse({"error": "invalid_decision"}, status=400)
+
+    # Validation transition de statut
+    is_valid, allowed = validate_reservation_transition(reservation.statut, new_status)
+    if not is_valid:
+        return JsonResponse(
+            {
+                "error": "invalid_transition",
+                "current": reservation.statut,
+                "allowed": allowed,
+            },
+            status=400,
+        )
+
+    reservation.statut = new_status
     reservation.save(update_fields=["statut", "motif_refus_demande"])
     return JsonResponse({"ok": True, "status": reservation.statut})
 
@@ -3043,25 +3083,26 @@ def api_prestataire_reservation_status(request, reference):
         return JsonResponse({"error": "invalid_json"}, status=400)
     new_status = str(payload.get("status", "")).strip()
 
-    # Machine à états stricte
-    VALID_TRANSITIONS = {
-        "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
-        "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
-        "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
-        "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
-        "INTERVENTION_EN_COURS": {"En attente client", "Annulee"},
-        "En attente client": {"Terminee", "CONFIRMEE"},
-        "Confirmee": {"En cours", "INTERVENTION_EN_COURS", "Annulee"},
-        "En cours": {"En attente client", "Annulee"},
-    }
+    # Validation via machine à états centralisée
+    is_valid, allowed = validate_reservation_transition(res.statut, new_status)
+    if not is_valid:
+        return JsonResponse(
+            {
+                "error": "invalid_transition",
+                "current": res.statut,
+                "allowed": allowed,
+            },
+            status=400,
+        )
+
     current = res.statut
-    valid_next = VALID_TRANSITIONS.get(current, set())
-    if new_status not in valid_next:
+    is_valid, allowed = validate_reservation_transition(current, new_status)
+    if not is_valid:
         return JsonResponse(
             {
                 "error": "invalid_transition",
                 "current": current,
-                "allowed": list(valid_next),
+                "allowed": allowed,
             },
             status=400,
         )
@@ -3401,8 +3442,15 @@ def api_prestataire_demarrer_intervention(request, reference):
     if res.assigned_provider_id != provider.id:
         return JsonResponse({"error": "not_authorized"}, status=403)
 
-    if res.statut != Reservation.Status.DEVIS_ACCEPTE:
-        return JsonResponse({"error": "invalid_state"}, status=400)
+    # Validation transition de statut
+    is_valid, allowed = validate_reservation_transition(
+        res.statut, Reservation.Status.INTERVENTION_EN_COURS
+    )
+    if not is_valid:
+        return JsonResponse(
+            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+            status=400,
+        )
 
     res.statut = Reservation.Status.INTERVENTION_EN_COURS
     res.save(update_fields=["statut"])
@@ -3458,10 +3506,15 @@ def api_prestataire_terminer_intervention(request, reference):
                 status=400,
             )
 
-    if res.statut != Reservation.Status.INTERVENTION_EN_COURS:
-        return JsonResponse({"error": "invalid_state"}, status=400)
+    # Validation transition de statut
+    is_valid, allowed = validate_reservation_transition(res.statut, "Terminee")
+    if not is_valid:
+        return JsonResponse(
+            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+            status=400,
+        )
 
-    res.statut = Reservation.Status.DONE
+    res.statut = "Terminee"
     res.prestation_terminee_at = timezone.now()
     res.save(update_fields=["statut", "prestation_terminee_at"])
 
@@ -3490,11 +3543,16 @@ def api_client_confirmer_travaux(request, reference):
     if res.client_user_id != uid and request.api_role != "admin":
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    if res.statut != Reservation.Status.DONE:
-        return JsonResponse({"error": "invalid_state"}, status=400)
+    # Validation transition de statut
+    is_valid, allowed = validate_reservation_transition(res.statut, "CONFIRMEE")
+    if not is_valid:
+        return JsonResponse(
+            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+            status=400,
+        )
 
     res.client_confirme_prestation_at = timezone.now()
-    res.statut = Reservation.Status.DONE
+    res.statut = "CONFIRMED"
     res.save(update_fields=["client_confirme_prestation_at", "statut"])
 
     return JsonResponse(
@@ -3656,9 +3714,17 @@ def api_prestataire_create_devis(request, reference):
             pass
 
     category = provider.category
-    commission_rate = 10
+    commission_rate = 18
     if category and hasattr(category, "commission"):
         commission_rate = category.commission.commission_rate
+
+    # Validation transition de statut
+    is_valid, allowed = validate_reservation_transition(res.statut, "DEVIS_ENVOYE")
+    if not is_valid:
+        return JsonResponse(
+            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+            status=400,
+        )
 
     devis = Devis.objects.create(
         reference="",
@@ -3817,6 +3883,14 @@ def api_client_accept_devis(request, reference):
     devis = Devis.objects.filter(reservation=res, statut=Devis.Statut.ENVOYE).first()
     if not devis:
         return JsonResponse({"error": "devis_not_found"}, status=404)
+
+    # Validation transition de statut
+    is_valid, allowed = validate_reservation_transition(res.statut, "DEVIS_ACCEPTE")
+    if not is_valid:
+        return JsonResponse(
+            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+            status=400,
+        )
 
     devis.statut = Devis.Statut.ACCEPTE
     devis.save()

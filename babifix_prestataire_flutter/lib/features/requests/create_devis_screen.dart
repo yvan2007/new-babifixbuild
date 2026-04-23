@@ -519,7 +519,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
   }
 
   Widget _buildTotalSection() {
-    final commission = _sousTotal * 0.1;
+    final commission = _sousTotal * 0.18;
     final total = _sousTotal + commission;
 
     return Card(
@@ -546,7 +546,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Commission (10%)',
+                  'Commission (18%)',
                   style: TextStyle(color: Colors.white70),
                 ),
                 Text(

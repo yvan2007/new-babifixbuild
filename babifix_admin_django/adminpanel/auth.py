@@ -6,7 +6,10 @@ from django.http import JsonResponse
 
 
 TOKEN_SALT = "babifix-api-token"
-TOKEN_MAX_AGE_SECONDS = 365 * 24 * 3600  # 1 year - tokens expire after 1 year
+ACCESS_TOKEN_MAX_AGE_SECONDS = 15 * 60  # 15 minutes - access token expire after 15 min
+REFRESH_TOKEN_MAX_AGE_SECONDS = (
+    7 * 24 * 3600
+)  # 7 days - refresh token expires after 7 days
 
 
 def create_token(user_id, role):
@@ -14,14 +17,16 @@ def create_token(user_id, role):
         "uid": user_id,
         "role": role,
         "iat": int(time.time()),
-        "exp": int(time.time()) + TOKEN_MAX_AGE_SECONDS,
+        "exp": int(time.time()) + ACCESS_TOKEN_MAX_AGE_SECONDS,
     }
     return signing.dumps(token_data, salt=TOKEN_SALT)
 
 
 def verify_token(token):
     try:
-        payload = signing.loads(token, salt=TOKEN_SALT, max_age=365 * 24 * 3600)
+        payload = signing.loads(
+            token, salt=TOKEN_SALT, max_age=ACCESS_TOKEN_MAX_AGE_SECONDS
+        )
 
         # Additional validation of expiration
         if "exp" in payload:
@@ -46,7 +51,7 @@ def create_refresh_token(user_id, role):
         "uid": user_id,
         "role": role,
         "iat": int(time.time()),
-        "exp": int(time.time()) + (365 * 24 * 3600),  # 1 year
+        "exp": int(time.time()) + REFRESH_TOKEN_MAX_AGE_SECONDS,
         "type": "refresh",
     }
     return signing.dumps(refresh_data, salt=f"{TOKEN_SALT}-refresh")
@@ -56,7 +61,7 @@ def verify_refresh_token(token):
     """Verify refresh token and return payload if valid."""
     try:
         payload = signing.loads(
-            token, salt=f"{TOKEN_SALT}-refresh", max_age=365 * 24 * 3600
+            token, salt=f"{TOKEN_SALT}-refresh", max_age=REFRESH_TOKEN_MAX_AGE_SECONDS
         )
         if payload.get("type") != "refresh":
             return None
