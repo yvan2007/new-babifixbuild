@@ -692,7 +692,7 @@ def _sync_missing_clients():
     to_create = []
     for profile in profiles:
         user = profile.user
-        client_email = user.email or f"{user.username}@clients.babifix.app"
+        client_email = user.email or f"{user.username}"
         if client_email not in existing_emails:
             nb_res = Reservation.objects.filter(client_user=user).count()
             total_fcfa = (
@@ -2295,6 +2295,13 @@ def api_prestataire_register(request):
     phone_e164 = str(payload.get("phone_e164", "") or "")[:24]
     email = str(payload.get("email", "") or "").strip()[:254]
     photo_portrait_url = str(payload.get("photo_portrait_url", "") or "").strip()[:500]
+    # Support base64 (data:image/...;base64,...)
+    if not photo_portrait_url:
+        photo_portrait_b64 = payload.get("photo_portrait_b64") or ""
+        if isinstance(photo_portrait_b64, str) and photo_portrait_b64.startswith(
+            "data:"
+        ):
+            photo_portrait_url = photo_portrait_b64[:500]
     cni_url = str(
         payload.get("cni_url", "") or payload.get("kyc_document_url", "") or ""
     ).strip()[:500]
@@ -2843,12 +2850,30 @@ def api_auth_login(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     username = str(payload.get("username", "")).strip()
+    email = str(payload.get("email", "")).strip()
     password = str(payload.get("password", "")).strip()
-    if not username or not password:
+    if not password:
         return JsonResponse({"error": "username_password_required"}, status=400)
-    try:
-        user = User.objects.get(username=username)
-    except User.DoesNotExist:
+
+    # Login par email ou username
+    login_field = email or username
+    if not login_field:
+        return JsonResponse({"error": "username_password_required"}, status=400)
+
+    # Chercher par email d'abord, puis par username
+    user = None
+    if email:
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            pass
+    if not user and username:
+        try:
+            user = User.objects.get(username__iexact=username)
+        except User.DoesNotExist:
+            pass
+
+    if not user:
         return JsonResponse({"error": "invalid_credentials"}, status=401)
     if not user.check_password(password):
         return JsonResponse({"error": "invalid_credentials"}, status=401)
@@ -2873,7 +2898,8 @@ def api_auth_register(request):
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
-    username = str(payload.get("username", "")).strip()
+    email = str(payload.get("email", "")).strip()
+    username = str(payload.get("username", "")).strip() or email.split("@").first
     password = str(payload.get("password", "")).strip()
     role = str(payload.get("role", "")).strip()
     phone_e164 = str(payload.get("phone_e164", "") or "")[:24]
@@ -2884,15 +2910,26 @@ def api_auth_register(request):
         UserProfile.Role.ADMIN,
     }:
         return JsonResponse({"error": "invalid_role"}, status=400)
-    if not username or not password:
-        return JsonResponse({"error": "username_password_required"}, status=400)
+
+    # Username obligatoire, utiliser email prefix si non fourni
+    if not username and email:
+        username = email.split("@").first
+    if not username:
+        return JsonResponse({"error": "username_required"}, status=400)
+    if not password:
+        return JsonResponse({"error": "password_required"}, status=400)
     if len(password) < 6:
         return JsonResponse({"error": "password_too_short"}, status=400)
     if User.objects.filter(username=username).exists():
         return JsonResponse({"error": "username_exists"}, status=400)
+
     import secrets as _secrets
 
-    user = User.objects.create_user(username=username, password=password)
+    user = User.objects.create_user(
+        username=username,
+        password=password,
+        email=email if email else None,
+    )
     email_token = _secrets.token_urlsafe(32)
     profile = UserProfile.objects.create(
         user=user,
@@ -2913,13 +2950,14 @@ def api_auth_register(request):
         from .views_extra import email_welcome
 
         email_welcome(user, role)
-    except Exception:
-        pass  # Email welcome échoué mais inscription réussie
+        print(f"✅ Email bienvenue appelé pour {user.email}")
+    except Exception as e:
+        print(f"❌ Erreur email_welcome: {e}")
 
     # Synchroniser le Client dans la table admin dès l'inscription
     if role == UserProfile.Role.CLIENT:
         try:
-            client_email = user.email or f"{username}@clients.babifix.app"
+            client_email = user.email or username
             Client.objects.create(
                 nom=username,
                 email=client_email,
@@ -4139,3 +4177,90 @@ def api_client_refuse_devis(request, reference):
 
 def error_500(request):
     return JsonResponse({"error": "server_error"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def api_admin_reservation_move(request):
+    """Déplace une réservation vers une nouvelle colonne Kanban (drag & drop)."""
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    reservation_id = data.get("id") or data.get("reservation_id")
+    new_status = data.get("status")
+
+    if not reservation_id or not new_status:
+        return JsonResponse({"error": "missing_fields"}, status=400)
+
+    try:
+        res = Reservation.objects.get(pk=int(reservation_id))
+    except (Reservation.DoesNotExist, ValueError):
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    old_status = res.statut
+
+    # Valider la transition
+    is_valid, allowed = validate_reservation_transition(old_status, new_status)
+    if not is_valid:
+        return JsonResponse(
+            {
+                "error": "invalid_transition",
+                "from": old_status,
+                "to": new_status,
+                "allowed": allowed,
+            },
+            status=400,
+        )
+
+    res.statut = new_status
+    res.save(update_fields=["statut"])
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "from": old_status,
+            "to": new_status,
+            "reference": res.reference,
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def api_admin_reservation_status(request, id):
+    """Change le statut d'une réservation (depuis le drag & drop Kanban)."""
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    new_status = data.get("status")
+    if not new_status:
+        return JsonResponse({"error": "status_required"}, status=400)
+
+    try:
+        res = Reservation.objects.get(pk=id)
+    except Reservation.DoesNotExist:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    old_status = res.statut
+    is_valid, allowed = validate_reservation_transition(old_status, new_status)
+    if not is_valid:
+        return JsonResponse(
+            {
+                "error": "invalid_transition",
+                "from": old_status,
+                "to": new_status,
+                "allowed": allowed,
+            },
+            status=400,
+        )
+
+    res.statut = new_status
+    res.save(update_fields=["statut"])
+
+    return JsonResponse({"ok": True, "reference": res.reference, "statut": new_status})

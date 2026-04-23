@@ -85,6 +85,8 @@ from .views import (
     api_public_providers,
     api_public_vitrine,
     api_reservation_devis,
+    api_admin_reservation_move,
+    api_admin_reservation_status,
     dashboard,
 )
 
@@ -287,6 +289,16 @@ urlpatterns = [
         name="api-auth-reset-password",
     ),
     path("api/auth/refresh", api_auth_refresh_token, name="api-auth-refresh"),
+    path(
+        "api/admin/reservation/move",
+        api_admin_reservation_move,
+        name="api-admin-reservation-move",
+    ),
+    path(
+        "api/admin/reservation/<int:id>/status",
+        api_admin_reservation_status,
+        name="api-admin-reservation-status",
+    ),
     path(
         "api/auth/delete-account",
         api_auth_delete_account,

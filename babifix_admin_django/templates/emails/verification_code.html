@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vérifiez votre email — BABIFIX</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); padding: 40px 30px; text-align: center; }
+        .header .logo { font-size: 40px; color: #fff; font-weight: bold; }
+        .content { padding: 40px 30px; }
+        .title { font-size: 24px; color: #1a1a2e; margin: 0 0 20px; text-align: center; }
+        .text { font-size: 16px; color: #495057; line-height: 1.6; margin: 20px 0; }
+        .code-box { 
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px dashed #FF6B00;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .code { 
+            font-size: 32px; 
+            font-weight: bold; 
+            color: #FF6B00;
+            letter-spacing: 8px;
+            font-family: monospace;
+        }
+        .warning { 
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .warning p { color: #856404; margin: 0; font-size: 14px; }
+        .footer { background: #1a1a2e; padding: 30px; text-align: center; }
+        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
+        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🔧 BABIFIX</div>
+        </div>
+        <div class="content">
+            <h2 class="title">Vérification de votre email</h2>
+            <p class="text">Bonjour <strong>{{ username }}</strong>,</p>
+            <p class="text">Pour activer votre compte BABIFIX, Veuillez entrer ce code de vérification :</p>
+            
+            <div class="code-box">
+                <div class="code">{{ verification_code }}</div>
+            </div>
+            
+            <p class="text" style="text-align: center; color: #6c757d;">Ce code expire dans <strong>15 minutes</strong></p>
+            
+            <div class="warning">
+                <p>⚠️ Si vous n'êtes pas à l'origine de cette demande, ignorez cet email. Votre compte reste sécurisé.</p>
+            </div>
+        </div>
+        <div class="footer">
+            <p>🔧 BABIFIX — Connection. Service. Confiance.</p>
+            <p>📍 Abidjan, Côte d'Ivoire | contact@babifix.ci</p>
+            <p class="copyright">© 2026 BABIFIX</p>
+        </div>
+    </div>
+</body>
+</html>

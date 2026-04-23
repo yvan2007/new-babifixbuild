@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paiement confirmé — BABIFIX</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); padding: 40px 30px; text-align: center; }
+        .header .icon { font-size: 50px; margin-bottom: 10px; }
+        .header h1 { color: #fff; margin: 0; font-size: 28px; font-weight: 700; }
+        .header p { color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px; }
+        
+        .content { padding: 40px 30px; }
+        .amount-box {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 16px;
+            padding: 30px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .amount-label { font-size: 14px; color: #6c757d; text-transform: uppercase; letter-spacing: 1px; }
+        .amount { font-size: 42px; font-weight: bold; color: #28a745; margin: 10px 0; }
+        .amount-currency { font-size: 18px; color: #6c757d; }
+        .details-table { width: 100%; margin: 20px 0; }
+        .details-table td { padding: 12px 0; border-bottom: 1px solid #eee; }
+        .details-table td:first-child { color: #6c757d; font-size: 14px; }
+        .details-table td:last-child { color: #1a1a2e; font-weight: 600; text-align: right; }
+        
+        .receipt-badge {
+            display: inline-block;
+            background: #28a745;
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin: 10px 0;
+        }
+        .footer { background: #1a1a2e; padding: 30px; text-align: center; }
+        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
+        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">✅</div>
+            <h1>Paiement Confirmé</h1>
+            <p>Votre transaction a été traitée avec succès</p>
+        </div>
+        <div class="content">
+            <p style="text-align: center;">
+                <span class="receipt-badge">REÇU № {{ transaction_id }}</span>
+            </p>
+            
+            <p style="font-size: 16px; color: #495057;">Bonjour <strong>{{ client_name }}</strong>,</p>
+            <p style="font-size: 16px; color: #495057;">Votre paiement a été accepté. Merci pour votre confiance !</p>
+            
+            <div class="amount-box">
+                <div class="amount-label">Montant payé</div>
+                <div class="amount">{{ amount }}<span class="amount-currency"> FCFA</span></div>
+                <div style="font-size: 14px; color: #6c757d;">{{ payment_method }}</div>
+            </div>
+            
+            <table class="details-table">
+                <tr>
+                    <td>Prestataire</td>
+                    <td>{{ provider_name }}</td>
+                </tr>
+                <tr>
+                    <td>Service</td>
+                    <td>{{ service_name }}</td>
+                </tr>
+                <tr>
+                    <td>Référence</td>
+                    <td>{{ reservation_reference }}</td>
+                </tr>
+                <tr>
+                    <td>Date</td>
+                    <td>{{ payment_date }}</td>
+                </tr>
+                <tr>
+                    <td>Commission BABIFIX</td>
+                    <td>{{ commission }}</td>
+                </tr>
+            </table>
+            
+            <p style="font-size: 14px; color: #6c757d; text-align: center;">
+                Un reçu sera disponible dans votre espace client.
+            </p>
+        </div>
+        <div class="footer">
+            <p>🔧 BABIFIX — Connection. Service. Confiance.</p>
+            <p>📍 Abidjan, Côte d'Ivoire | contact@babifix.ci</p>
+            <p class="copyright">© 2026 BABIFIX</p>
+        </div>
+    </div>
+</body>
+</html>

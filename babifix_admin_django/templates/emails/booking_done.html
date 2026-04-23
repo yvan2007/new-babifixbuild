@@ -5,45 +5,180 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Votre mission est terminée — BABIFIX</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .header { background-color: #FF6B00; padding: 30px; text-align: center; }
-        .header h1 { color: #ffffff; margin: 0; font-size: 24px; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        
+        .header { 
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
+            padding: 40px 30px; 
+            text-align: center;
+        }
+        .header img.logo { height: 45px; margin-bottom: 5px; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 1px; }
+        .header p { color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px; }
+        
+        .success-section { 
+            background: linear-gradient(180deg, #fff 0%, #f8f9fa 100%);
+            padding: 40px 30px; 
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+        .success-badge {
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(40,167,69,0.3);
+        }
+        .success-badge span { color: white; font-size: 40px; }
+        .success-section h2 { color: #1a1a2e; margin: 0 0 10px; font-size: 24px; }
+        .success-section p { color: #6c757d; margin: 0; font-size: 16px; line-height: 1.6; }
+        
         .content { padding: 40px 30px; }
-        .content p { color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 15px; }
-        .success-icon { font-size: 60px; text-align: center; margin: 20px 0; color: #28a745; }
-        .details-box { background: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0; }
-        .details-box p { margin: 8px 0; }
-        .details-label { font-weight: bold; color: #666666; }
-        .btn { display: inline-block; background-color: #FF6B00; color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; margin: 20px 5px 0; }
-        .btn-secondary { background-color: #6c757d; }
-        .footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #666666; }
+        .greeting { font-size: 18px; color: #1a1a2e; margin-bottom: 25px; }
+        .greeting strong { color: #FF6B00; }
+        
+        .details-card {
+            background: linear-gradient(135deg, #fff 0%, #fafafa 100%);
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+        .details-card h3 {
+            color: #FF6B00;
+            font-size: 16px;
+            margin: 0 0 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { color: #6c757d; font-size: 14px; }
+        .detail-value { color: #1a1a2e; font-weight: 600; font-size: 15px; text-align: right; }
+        .detail-value.highlight { color: #FF6B00; font-size: 18px; }
+        
+        .cta-section { text-align: center; padding: 30px 0; }
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
+            color: #ffffff;
+            padding: 16px 40px;
+            text-decoration: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(255,107,0,0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255,107,0,0.4); }
+        
+        .rating-stars { color: #FFD700; font-size: 24px; margin: 15px 0; }
+        
+        .info-box {
+            background: #e8f4fd;
+            border-left: 4px solid #007bff;
+            border-radius: 0 8px 8px 0;
+            padding: 15px 20px;
+            margin: 25px 0;
+        }
+        .info-box p { color: #495057; margin: 0; font-size: 14px; line-height: 1.5; }
+        
+        .footer { 
+            background: #1a1a2e;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .footer .logo { font-size: 24px; font-weight: bold; color: #FF6B00; margin-bottom: 15px; }
+        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
+        .footer .social { margin: 20px 0; }
+        .footer .social a { color: #FF6B00; text-decoration: none; margin: 0 10px; }
+        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 20px; }
+        
+        @media (max-width: 480px) {
+            .container { margin: 10px; }
+            .header { padding: 30px 20px; }
+            .content { padding: 30px 20px; }
+            .detail-row { flex-direction: column; }
+            .detail-value { text-align: left; margin-top: 5px; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- HEADER -->
         <div class="header">
-            <h1>BABIFIX</h1>
+            <div class="logo">🔧 BABIFIX</div>
+            <h1>Mission Terminée</h1>
+            <p>Prestation confirmée par votre prestataire</p>
         </div>
+        
+        <!-- SUCCESS BADGE -->
+        <div class="success-section">
+            <div class="success-badge">
+                <span>✓</span>
+            </div>
+            <h2>C'est terminé !</h2>
+            <p>Votre mission a été marquée comme terminée.<br>Merci pour votre confiance.</p>
+        </div>
+        
+        <!-- CONTENT -->
         <div class="content">
-            <div class="success-icon">&#10003;</div>
-            <p>Bonjour <strong>{{ client_name }}</strong>,</p>
-            <p>Votre mission vient d'être marquée comme terminée par le prestataire. Merci de votre confiance !</p>
+            <p class="greeting">Bonjour <strong>{{ client_name }}</strong>,</p>
             
-            <div class="details-box">
-                <p><span class="details-label">Mission :</span> {{ reservation_title }}</p>
-                <p><span class="details-label">Prestataire :</span> {{ prestataire_name }}</p>
-                <p><span class="details-label">Montant :</span> {{ montant }}</p>
-                {% if date_mission %}<p><span class="details-label">Date :</span> {{ date_mission }}</p>{% endif %}
+            <p>Votre prestataire <strong>{{ prestataire_name }}</strong> vient de confirmer la fin de l'intervention. Nous vous invitons à :</p>
+            
+            <div class="info-box">
+                <p>📝 <strong>Vérifier le travail effectué</strong> puis <strong>laisser un avis</strong> pour aider les autres clients à choisir.</p>
             </div>
             
-            <p>Votre avis nous est précieux ! Prenez un moment pour évaluer le prestataire.</p>
+            <div class="details-card">
+                <h3>📋 Détails de la mission</h3>
+                <div class="detail-row">
+                    <span class="detail-label">Mission</span>
+                    <span class="detail-value">{{ reservation_title }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Prestataire</span>
+                    <span class="detail-value">{{ prestataire_name }}</span>
+                </div>
+                {% if date_mission %}
+                <div class="detail-row">
+                    <span class="detail-label">Date</span>
+                    <span class="detail-value">{{ date_mission }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-row">
+                    <span class="detail-label">Montant payé</span>
+                    <span class="detail-value highlight">{{ montant }}</span>
+                </div>
+            </div>
             
-            <p>L'équipe BABIFIX — Côte d'Ivoire<br>
-            <a href="https://babifix.ci" style="color: #FF6B00;">babifix.ci</a> | contact@babifix.ci</p>
+            <div class="cta-section">
+                <p>Comment évalueriez-vous cette intervention ?</p>
+                <div class="rating-stars">★★★★★</div>
+                <a href="{{ app_url }}/#/ratings/{{ reservation_id }}" class="btn">Noter maintenant</a>
+            </div>
         </div>
+        
+        <!-- FOOTER -->
         <div class="footer">
-            <p>BABIFIX — Connection. Service. Confiance.</p>
+            <div class="logo">🔧 BABIFIX</div>
+            <p>Connection. Service. Confiance.</p>
+            <p>📍 Abidjan, Côte d'Ivoire</p>
+            <div class="social">
+                <a href="https://babifix.ci">🌐 babifix.ci</a>
+                <a href="mailto:contact@babifix.ci">✉️ Contact</a>
+            </div>
+            <p class="copyright">© 2026 BABIFIX. Tous droits réservés.</p>
         </div>
     </div>
 </body>

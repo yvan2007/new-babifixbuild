@@ -682,10 +682,18 @@
                     </h4>
                     <div class="dossier-portfolio-grid">
                       {% for photo in p.portfolio_photos %}
-                      <a href="{{ photo.photo }}" target="_blank" rel="noopener" class="dossier-portfolio-item" title="{{ photo.caption|default:'Réalisation' }}">
-                        <img src="{{ photo.photo }}" alt="{{ photo.caption|default:'Photo portfolio' }}" class="dossier-portfolio-img">
+                      <div class="dossier-portfolio-item" title="{{ photo.caption|default:'Réalisation' }}">
+                        {% if photo.photo|slice:":5" == "data:" %}
+                        <button type="button" onclick="showPhotoModal('{{ photo.photo|escapejs }}')" style="background:none;border:none;padding:0;cursor:pointer;width:100%;">
+                          <img src="{{ photo.photo }}" alt="{{ photo.caption|default:'Photo portfolio' }}" class="dossier-portfolio-img">
+                        </button>
+                        {% else %}
+                        <a href="{{ photo.photo }}" target="_blank" rel="noopener" style="display:block;">
+                          <img src="{{ photo.photo }}" alt="{{ photo.caption|default:'Photo portfolio' }}" class="dossier-portfolio-img">
+                        </a>
+                        {% endif %}
                         {% if photo.caption %}<span class="dossier-portfolio-caption">{{ photo.caption }}</span>{% endif %}
-                      </a>
+                      </div>
                       {% endfor %}
                     </div>
                   </div>
@@ -851,7 +859,10 @@
           method: 'POST',
           headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
           body: JSON.stringify({status: newStatus})
-        }).then(function() { location.reload(); });
+        }).then(function() {
+          // Rester sur le Kanban après le drop
+          location.href = '/?section=kanban';
+        });
       }
       </script>
     {% elif section == 'litiges' %}
@@ -1309,6 +1320,18 @@
     var isHidden = row.hidden;
     row.hidden = !isHidden;
     if (btn) btn.textContent = isHidden ? '✕ Fermer dossier' : '📋 Voir dossier';
+  }
+  function showPhotoModal(src) {
+    var modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+    modal.onclick = function() { document.body.removeChild(modal); };
+    var img = document.createElement('img');
+    img.src = src;
+    img.style.maxWidth = '90%';
+    img.style.maxHeight = '90%';
+    img.style.borderRadius = '8px';
+    modal.appendChild(img);
+    document.body.appendChild(modal);
   }
   </script>
 </body>
