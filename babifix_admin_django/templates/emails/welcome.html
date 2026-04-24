@@ -8,72 +8,96 @@
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
         .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
         
-        .header { background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); padding: 50px 30px; text-align: center; }
-        .header .logo { font-size: 48px; margin-bottom: 10px; }
-        .header h1 { color: #fff; margin: 0; font-size: 32px; font-weight: 700; }
-        .header p { color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 18px; }
+        /* HEADER AVEC LOGO IMAGE + FALLBACK */
+        .header {
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .logo-img {
+            height: 70px;
+            margin-bottom: 10px;
+        }
+        .logo-text-fallback {
+            display: none;
+            font-size: 36px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: 3px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .header h1 { color: #fff; margin: 0; font-size: 28px; font-weight: 700; }
+        .header p { color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px; }
         
-        .hero { background: linear-gradient(180deg, #fff 0%, #fff8f5 100%); padding: 50px 30px; text-align: center; border-bottom: 1px solid #eee; }
-        .hero h2 { color: #1a1a2e; margin: 0 0 15px; font-size: 26px; }
+        .hero { background: linear-gradient(180deg, #fff 0%, #fff8f5 100%); padding: 40px 30px; text-align: center; border-bottom: 1px solid #eee; }
+        .hero h2 { color: #1a1a2e; margin: 0 0 15px; font-size: 24px; }
         .hero p { color: #6c757d; margin: 0; font-size: 16px; line-height: 1.6; }
         
         .content { padding: 40px 30px; }
-        .welcome-text { font-size: 18px; color: #1a1a2e; margin-bottom: 30px; }
+        .welcome-text { font-size: 17px; color: #495057; margin-bottom: 25px; line-height: 1.7; }
         .welcome-text strong { color: #FF6B00; }
         
-        .features { margin: 30px 0; }
-        .feature { display: flex; align-items: flex-start; padding: 20px; background: #f8f9fa; border-radius: 12px; margin: 15px 0; }
-        .feature-icon { font-size: 32px; margin-right: 15px; }
-        .feature h4 { color: #1a1a2e; margin: 0 0 5px; font-size: 16px; }
+        .features { margin: 25px 0; }
+        .feature { display: flex; align-items: flex-start; padding: 18px; background: #f8f9fa; border-radius: 12px; margin: 12px 0; }
+        .feature-icon { font-size: 28px; margin-right: 15px; }
+        .feature h4 { color: #1a1a2e; margin: 0 0 5px; font-size: 15px; }
         .feature p { color: #6c757d; margin: 0; font-size: 14px; line-height: 1.5; }
         
-        .steps { margin: 35px 0; }
-        .steps h3 { color: #FF6B00; font-size: 18px; margin: 0 0 20px; text-transform: uppercase; letter-spacing: 1px; }
-        .step { display: flex; align-items: center; margin: 15px 0; }
+        .steps { margin: 25px 0; }
+        .steps h3 { color: #FF6B00; font-size: 16px; margin: 0 0 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .step { display: flex; align-items: center; margin: 12px 0; }
         .step-number { 
-            width: 35px; height: 35px; 
+            width: 32px; height: 32px; 
             background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            color: #fff; font-weight: bold; font-size: 16px;
-            margin-right: 15px; flex-shrink: 0;
+            color: #fff; font-weight: bold; font-size: 14px;
+            margin-right: 12px; flex-shrink: 0;
         }
-        .step-text { color: #495057; font-size: 15px; }
+        .step-text { color: #495057; font-size: 14px; }
         
-        .cta-section { text-align: center; padding: 30px 0 40px; }
+        .cta-section { text-align: center; padding: 25px 0 30px; }
         .btn { 
             display: inline-block;
             background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
-            color: #fff; padding: 18px 45px; text-decoration: none;
+            color: #fff; padding: 16px 40px; text-decoration: none;
             border-radius: 30px; font-size: 16px; font-weight: 600;
             box-shadow: 0 4px 15px rgba(255,107,0,0.3);
         }
         
-        .trust { background: #f8f9fa; padding: 30px; margin: 30px 0; border-radius: 12px; text-align: center; }
-        .trust h4 { color: #1a1a2e; margin: 0 0 15px; font-size: 16px; }
-        .trust-badges { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; }
-        .trust-item { color: #6c757d; font-size: 14px; }
-        .trust-item span { display: block; font-size: 20px; margin-bottom: 5px; }
+        .trust { background: #f8f9fa; padding: 25px; margin: 25px 0; border-radius: 12px; text-align: center; }
+        .trust h4 { color: #1a1a2e; margin: 0 0 12px; font-size: 15px; }
+        .trust-badges { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .trust-item { color: #6c757d; font-size: 13px; }
+        .trust-item span { display: block; font-size: 18px; margin-bottom: 4px; }
         
-        .footer { background: #1a1a2e; padding: 40px 30px; text-align: center; }
-        .footer .logo { font-size: 24px; font-weight: bold; color: #FF6B00; margin-bottom: 15px; }
-        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
-        .footer .social { margin: 20px 0; }
-        .footer .social a { color: #FF6B00; text-decoration: none; margin: 0 10px; font-size: 14px; }
-        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 20px; }
+        .footer { background: #1a1a2e; padding: 35px 30px; text-align: center; }
+        .footer .logo { font-size: 22px; font-weight: bold; color: #FF6B00; margin-bottom: 12px; }
+        .footer p { color: rgba(255,255,255,0.7); margin: 4px 0; font-size: 13px; }
+        .footer .social { margin: 15px 0; }
+        .footer .social a { color: #FF6B00; text-decoration: none; margin: 0 10px; font-size: 13px; }
+        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 11px; margin-top: 15px; }
+        
+        @media (max-width: 480px) {
+            .container { margin: 10px; }
+            .header, .content, .footer { padding: 25px 20px; }
+            .btn { display: block; padding: 14px 20px; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- HEADER AVEC LOGO -->
         <div class="header">
-            <div class="logo">🔧</div>
-            <h1>BABIFIX</h1>
-            <p>Votre plateforme de services à domicile</p>
+            <img src="https://babifix.ci/static/adminpanel/logo_babifix.png" alt="BABIFIX" class="logo-img" onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='block';">
+            <div id="logoFallback" class="logo-text-fallback">BABIFIX</div>
+            <h1>Bienvenue ! 🎉</h1>
+            <p>{{ role_description }}</p>
         </div>
         
         <div class="hero">
-            <h2>Bienvenue {{ username }} ! 🎉</h2>
-            <p>{{ role_description }}</p>
+            <h2>Bienvenue {{ username }} !</h2>
+            <p>Votre plateforme de services à domicile</p>
         </div>
         
         <div class="content">
@@ -108,7 +132,7 @@
             
             {% if is_prestataire %}
             <div class="steps">
-                <h3>Prochaine étapes</h3>
+                <h3>Prochaines étapes</h3>
                 <div class="step">
                     <div class="step-number">1</div>
                     <div class="step-text">Complétez votre profil avec photo et description</div>
@@ -125,28 +149,26 @@
             {% endif %}
             
             <div class="cta-section">
-                <a href="{{ app_url }}" class="btn">
-                    {{ cta_text }}
-                </a>
+                <a href="{{ app_url }}" class="btn">{{ cta_text }}</a>
             </div>
             
             <div class="trust">
-                <h4>💪 Pourquoi BABIFIX ?</h4>
+                <h4>Pourquoi BABIFIX ?</h4>
                 <div class="trust-badges">
                     <div class="trust-item"><span>🔒</span>Paiement sécurisé</div>
                     <div class="trust-item"><span>✅</span>Vérifié & Approuvé</div>
-                    <div class="trust-item"><span>🇨🇮</span>Made in Côte d'Ivoire</div>
+                    <div class="trust-item"><span>🇨🇮</span>Made in CI</div>
                 </div>
             </div>
         </div>
         
         <div class="footer">
-            <div class="logo">🔧 BABIFIX</div>
+            <div class="logo">BABIFIX</div>
             <p>Connection. Service. Confiance.</p>
             <p>📍 Abidjan, Côte d'Ivoire</p>
             <div class="social">
-                <a href="https://babifix.ci">🌐 babifix.ci</a>
-                <a href="mailto:contact@babifix.ci">✉️ Contact</a>
+                <a href="https://babifix.ci">babifix.ci</a>
+                <a href="mailto:contact@babifix.ci">Contact</a>
             </div>
             <p class="copyright">© 2026 BABIFIX. Tous droits réservés.</p>
         </div>

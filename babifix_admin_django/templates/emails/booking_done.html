@@ -5,143 +5,78 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Votre mission est terminée — BABIFIX</title>
     <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
-        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
         
-        .header { 
-            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
-            padding: 40px 30px; 
-            text-align: center;
-        }
-        .header img.logo { height: 45px; margin-bottom: 5px; }
-        .header h1 { color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 1px; }
+        .header { background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); padding: 40px 30px; text-align: center; }
+        .logo-img { height: 65px; margin-bottom: 8px; }
+        .logo-text-fallback { display: none; font-size: 32px; font-weight: 800; color: #fff; letter-spacing: 2px; }
+        .header h1 { color: #fff; margin: 0; font-size: 26px; font-weight: 700; }
         .header p { color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px; }
         
-        .success-section { 
-            background: linear-gradient(180deg, #fff 0%, #f8f9fa 100%);
-            padding: 40px 30px; 
-            text-align: center;
-            border-bottom: 1px solid #eee;
-        }
-        .success-badge {
-            width: 80px; height: 80px;
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(40,167,69,0.3);
-        }
-        .success-badge span { color: white; font-size: 40px; }
+        .success-section { background: linear-gradient(180deg, #fff 0%, #f8f9fa 100%); padding: 40px 30px; text-align: center; border-bottom: 1px solid #eee; }
+        .success-badge { width: 75px; height: 75px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(40,167,69,0.3); }
+        .success-badge span { color: white; font-size: 38px; }
         .success-section h2 { color: #1a1a2e; margin: 0 0 10px; font-size: 24px; }
-        .success-section p { color: #6c757d; margin: 0; font-size: 16px; line-height: 1.6; }
+        .success-section p { color: #6c757d; margin: 0; font-size: 15px; line-height: 1.6; }
         
-        .content { padding: 40px 30px; }
-        .greeting { font-size: 18px; color: #1a1a2e; margin-bottom: 25px; }
+        .content { padding: 35px 30px; }
+        .greeting { font-size: 17px; color: #1a1a2e; margin-bottom: 20px; }
         .greeting strong { color: #FF6B00; }
+        .content p { color: #495057; font-size: 15px; line-height: 1.6; margin: 0 0 12px; }
         
-        .details-card {
-            background: linear-gradient(135deg, #fff 0%, #fafafa 100%);
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 25px;
-            margin: 25px 0;
-        }
-        .details-card h3 {
-            color: #FF6B00;
-            font-size: 16px;
-            margin: 0 0 15px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #eee;
-        }
+        .details-card { background: linear-gradient(135deg, #fff 0%, #fafafa 100%); border: 1px solid #e9ecef; border-radius: 12px; padding: 22px; margin: 20px 0; }
+        .details-card h3 { color: #FF6B00; font-size: 14px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
         .detail-row:last-child { border-bottom: none; }
         .detail-label { color: #6c757d; font-size: 14px; }
-        .detail-value { color: #1a1a2e; font-weight: 600; font-size: 15px; text-align: right; }
+        .detail-value { color: #1a1a2e; font-weight: 600; font-size: 14px; }
         .detail-value.highlight { color: #FF6B00; font-size: 18px; }
         
-        .cta-section { text-align: center; padding: 30px 0; }
-        .btn {
-            display: inline-block;
-            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
-            color: #ffffff;
-            padding: 16px 40px;
-            text-decoration: none;
-            border-radius: 30px;
-            font-size: 16px;
-            font-weight: 600;
-            box-shadow: 0 4px 15px rgba(255,107,0,0.3);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255,107,0,0.4); }
-        
-        .rating-stars { color: #FFD700; font-size: 24px; margin: 15px 0; }
-        
-        .info-box {
-            background: #e8f4fd;
-            border-left: 4px solid #007bff;
-            border-radius: 0 8px 8px 0;
-            padding: 15px 20px;
-            margin: 25px 0;
-        }
+        .info-box { background: #e8f4fd; border-left: 4px solid #007bff; border-radius: 0 8px 8px 0; padding: 15px 18px; margin: 18px 0; }
         .info-box p { color: #495057; margin: 0; font-size: 14px; line-height: 1.5; }
         
-        .footer { 
-            background: #1a1a2e;
-            padding: 40px 30px;
-            text-align: center;
-        }
-        .footer .logo { font-size: 24px; font-weight: bold; color: #FF6B00; margin-bottom: 15px; }
-        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
-        .footer .social { margin: 20px 0; }
-        .footer .social a { color: #FF6B00; text-decoration: none; margin: 0 10px; }
-        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 20px; }
+        .cta-section { text-align: center; padding: 25px 0; }
+        .rating-stars { color: #FFD700; font-size: 22px; margin-bottom: 12px; }
+        .btn { display: inline-block; background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); color: #fff; padding: 15px 35px; text-decoration: none; border-radius: 30px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 15px rgba(255,107,0,0.3); }
+        
+        .footer { background: #1a1a2e; padding: 30px; text-align: center; }
+        .footer .logo { font-size: 20px; font-weight: bold; color: #FF6B00; margin-bottom: 12px; }
+        .footer p { color: rgba(255,255,255,0.7); margin: 4px 0; font-size: 13px; }
+        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 11px; margin-top: 12px; }
         
         @media (max-width: 480px) {
             .container { margin: 10px; }
-            .header { padding: 30px 20px; }
-            .content { padding: 30px 20px; }
-            .detail-row { flex-direction: column; }
-            .detail-value { text-align: left; margin-top: 5px; }
+            .btn { display: block; padding: 14px 20px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- HEADER -->
         <div class="header">
-            <div class="logo">🔧 BABIFIX</div>
+            <img src="https://babifix.ci/static/adminpanel/logo_babifix.png" alt="BABIFIX" class="logo-img" onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='block';">
+            <div id="logoFallback" class="logo-text-fallback">BABIFIX</div>
             <h1>Mission Terminée</h1>
-            <p>Prestation confirmée par votre prestataire</p>
+            <p>Prestation confirmée</p>
         </div>
         
-        <!-- SUCCESS BADGE -->
         <div class="success-section">
-            <div class="success-badge">
-                <span>✓</span>
-            </div>
+            <div class="success-badge"><span>✓</span></div>
             <h2>C'est terminé !</h2>
             <p>Votre mission a été marquée comme terminée.<br>Merci pour votre confiance.</p>
         </div>
         
-        <!-- CONTENT -->
         <div class="content">
             <p class="greeting">Bonjour <strong>{{ client_name }}</strong>,</p>
             
-            <p>Votre prestataire <strong>{{ prestataire_name }}</strong> vient de confirmer la fin de l'intervention. Nous vous invitons à :</p>
+            <p>Votre prestataire <strong>{{ prestataire_name }}</strong> vient de confirmer la fin de l'intervention.</p>
             
             <div class="info-box">
-                <p>📝 <strong>Vérifier le travail effectué</strong> puis <strong>laisser un avis</strong> pour aider les autres clients à choisir.</p>
+                <p>📝 <strong>Vérifiez le travail</strong> puis <strong>laisser un avis</strong> pour aider les autres.</p>
             </div>
             
             <div class="details-card">
-                <h3>📋 Détails de la mission</h3>
+                <h3>Détails de la mission</h3>
                 <div class="detail-row">
                     <span class="detail-label">Mission</span>
                     <span class="detail-value">{{ reservation_title }}</span>
@@ -169,15 +104,9 @@
             </div>
         </div>
         
-        <!-- FOOTER -->
         <div class="footer">
-            <div class="logo">🔧 BABIFIX</div>
-            <p>Connection. Service. Confiance.</p>
-            <p>📍 Abidjan, Côte d'Ivoire</p>
-            <div class="social">
-                <a href="https://babifix.ci">🌐 babifix.ci</a>
-                <a href="mailto:contact@babifix.ci">✉️ Contact</a>
-            </div>
+            <div class="logo">BABIFIX</div>
+            <p>Connection. Service. Confiance. | Abidjan, Côte d'Ivoire</p>
             <p class="copyright">© 2026 BABIFIX. Tous droits réservés.</p>
         </div>
     </div>

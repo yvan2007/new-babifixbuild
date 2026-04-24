@@ -117,13 +117,16 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       duration: const Duration(milliseconds: 280),
     )..forward();
     _hydrateInitialProvider();
+    // Toujours vérifier/charger les catégories — même si preloadedCategories est non-vide,
+    // les catégories pré-chargées sont parfois arrivées après initState de main.dart.
     if (widget.preloadedCategories != null &&
-        widget.preloadedCategories!.isNotEmpty) {
+        widget.preloadedCategories!.isNotEmpty &&
+        (_publicCategories.isEmpty)) {
       _publicCategories = widget.preloadedCategories!;
       _loadingCategories = false;
-    } else {
-      _loadPublicCategories();
     }
+    // Charger les catégories depuis l'API (fallback si preloadedCategories vide ou timing)
+    _loadPublicCategories();
   }
 
   void _hydrateInitialProvider() {
@@ -151,14 +154,22 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
   Future<void> _loadPublicCategories() async {
     try {
-      final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/public/categories/'),
+      final url = '${babifixApiBaseUrl()}/api/public/categories/';
+      debugPrint(
+        'BABIFIX PRESTATAIRE REGISTRATION: Loading categories from $url',
+      );
+      final res = await http.get(Uri.parse(url));
+      debugPrint(
+        'BABIFIX PRESTATAIRE REGISTRATION: Response status ${res.statusCode}',
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final rows = (data['categories'] as List? ?? [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
+        debugPrint(
+          'BABIFIX PRESTATAIRE REGISTRATION: Loaded ${rows.length} categories',
+        );
         if (!mounted) return;
         setState(() {
           _publicCategories = rows;
@@ -166,7 +177,14 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         });
         return;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint(
+        'BABIFIX PRESTATAIRE REGISTRATION: Error loading categories: $e',
+      );
+    }
+    debugPrint(
+      'BABIFIX PRESTATAIRE REGISTRATION: Using ${_publicCategories.length} categories (from preloaded)',
+    );
     if (mounted) setState(() => _loadingCategories = false);
   }
 
@@ -1295,48 +1313,71 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
     try {
       Future<String?> obtainJwt() async {
+        debugPrint(
+          'BABIFIX REG: Starting obtainJwt, credentialLock=${widget.credentialLock}',
+        );
         if (widget.credentialLock) {
           final t = await readStoredApiToken();
+          debugPrint(
+            'BABIFIX REG: credentialLock=true, stored token: ${t != null ? "exists" : "null"}',
+          );
           if (t != null && t.isNotEmpty) return t;
           return null;
         }
+        debugPrint(
+          'BABIFIX REG: Calling /api/auth/register with username=$username, email=$email',
+        );
         var res = await http.post(
           Uri.parse('$base/api/auth/register'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'username': username,
-            'email': email, // AJOUTER email
+            'email': email,
             'password': password,
             'role': 'prestataire',
             'phone_e164': phone,
             'country_code': 'CI',
           }),
         );
+        debugPrint(
+          'BABIFIX REG: /api/auth/register status=${res.statusCode}, body=${res.body.substring(0, res.body.length.clamp(0, 200))}',
+        );
         if (res.statusCode == 201) {
           final data = jsonDecode(res.body) as Map<String, dynamic>;
           final t = data['token'] as String?;
+          debugPrint(
+            'BABIFIX REG: token from register: ${t != null ? "exists (${t.length} chars)" : "null"}',
+          );
           if (t != null && t.isNotEmpty) return t;
         }
         if (res.statusCode == 400) {
           final data = jsonDecode(res.body) as Map<String, dynamic>;
+          debugPrint('BABIFIX REG: 400 response: $data');
           if (data['error'] == 'username_exists') {
+            debugPrint('BABIFIX REG: username exists, attempting login');
             final loginRes = await http.post(
               Uri.parse('$base/api/auth/login'),
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({'username': username, 'password': password}),
             );
+            debugPrint('BABIFIX REG: login status=${loginRes.statusCode}');
             if (loginRes.statusCode == 200) {
               final d = jsonDecode(loginRes.body) as Map<String, dynamic>;
               final t = d['token'] as String?;
+              debugPrint(
+                'BABIFIX REG: login token: ${t != null ? "exists" : "null"}',
+              );
               if (t != null && t.isNotEmpty) return t;
             }
-            return null;
           }
         }
         return null;
       }
 
       final jwt = await obtainJwt();
+      debugPrint(
+        'BABIFIX REG: JWT obtained: ${jwt != null ? "yes (${jwt.length} chars)" : "NULL"}',
+      );
       if (jwt == null || jwt.isEmpty) {
         return const _SubmitResult(
           false,
@@ -1345,6 +1386,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       }
       await writeStoredApiToken(jwt);
 
+      debugPrint('BABIFIX REG: Calling /api/prestataire/register');
       final response = await http.post(
         Uri.parse('$base/api/prestataire/register'),
         headers: {
@@ -1352,6 +1394,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           'Authorization': 'Bearer $jwt',
         },
         body: body,
+      );
+      debugPrint(
+        'BABIFIX REG: /api/prestataire/register status=${response.statusCode}, body=${response.body}',
       );
       final ok =
           response.statusCode >= 200 &&

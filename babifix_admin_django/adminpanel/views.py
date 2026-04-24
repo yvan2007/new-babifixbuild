@@ -226,6 +226,8 @@ def _bootstrap_data():
                 ),
             ]
         )
+    from decimal import Decimal
+
     if not Payment.objects.exists():
         Payment.objects.bulk_create(
             [
@@ -233,25 +235,25 @@ def _bootstrap_data():
                     reference="PAY-2026-001",
                     client="Pierre Durand",
                     prestataire="Marie Dubois",
-                    montant="89.5€",
-                    commission="8.95€",
-                    etat="Complete",
+                    montant=Decimal("8950.00"),
+                    commission=Decimal("895.00"),
+                    etat=Payment.State.COMPLETE,
                 ),
                 Payment(
                     reference="PAY-2026-002",
                     client="Claire Rousseau",
                     prestataire="Jean Martin",
-                    montant="145€",
-                    commission="14.5€",
-                    etat="Pending",
+                    montant=Decimal("14500.00"),
+                    commission=Decimal("1450.00"),
+                    etat=Payment.State.PENDING,
                 ),
                 Payment(
                     reference="PAY-2026-003",
                     client="Thomas Blanc",
                     prestataire="Sophie Bernard",
-                    montant="210€",
-                    commission="21€",
-                    etat="Complete",
+                    montant=Decimal("21000.00"),
+                    commission=Decimal("2100.00"),
+                    etat=Payment.State.COMPLETE,
                 ),
             ]
         )
