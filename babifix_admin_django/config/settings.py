@@ -64,7 +64,13 @@ DEBUG = _env == "development" and os.getenv("DJANGO_DEBUG", "True").lower() in {
 if _env == "production":
     DEBUG = False
 
-ALLOWED_HOSTS = ["*"]
+_allowed_hosts_env = os.getenv("DJANGO_ALLOWED_HOSTS", "").strip()
+if _allowed_hosts_env:
+    ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_env.split(",") if host.strip()]
+elif _env == "production":
+    ALLOWED_HOSTS = ["babifix.ci", "www.babifix.ci", "localhost", "127.0.0.1"]
+else:
+    ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1"]
 
 # En production, il faut au moins un host configured
 if (
@@ -432,8 +438,11 @@ if _env == "production":
 # =============================================================================
 # CELERY CONFIGURATION (tâches asynchrones)
 # =============================================================================
-CELERY_BROKER_URL = "redis://localhost:6379/0"
-CELERY_RESULT_BACKEND = "redis://localhost:6379/1"
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", _redis_url or "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.getenv(
+    "CELERY_RESULT_BACKEND",
+    "redis://localhost:6379/1" if not _redis_url else _redis_url.replace("/0", "/1"),
+)
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"

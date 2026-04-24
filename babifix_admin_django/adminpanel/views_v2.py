@@ -30,7 +30,13 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
-from .auth import create_token, require_api_auth, verify_token
+from .auth import (
+    create_refresh_token,
+    create_token,
+    require_api_auth,
+    verify_refresh_token,
+    verify_token,
+)
 from .models import (
     DeviceToken,
     Dispute,
@@ -68,7 +74,8 @@ def _res_to_dict(res: Reservation, uid: int) -> dict:
         "client_message": res.client_message,
         "cash_flow_status": res.cash_flow_status,
         "dispute_ouverte": res.dispute_ouverte,
-        "can_cancel": res.statut in ("En attente", "Confirmee"),
+        "can_cancel": res.statut
+        in ("En attente", "Confirmee", "DEMANDE_ENVOYEE", "DEVIS_EN_COURS", "DEVIS_ENVOYE"),
         "can_rate": res.statut == "Terminee" and not has_rating,
         "can_dispute": res.statut in ("Terminee", "En cours")
         and not res.dispute_ouverte,
@@ -129,7 +136,13 @@ def api_client_cancel_reservation(request, reference):
     res = _get_res_for_client(reference, uid)
     if not res:
         return JsonResponse({"error": "not_found"}, status=404)
-    if res.statut not in ("En attente", "Confirmee"):
+    if res.statut not in (
+        "En attente",
+        "Confirmee",
+        "DEMANDE_ENVOYEE",
+        "DEVIS_EN_COURS",
+        "DEVIS_ENVOYE",
+    ):
         return JsonResponse(
             {"error": "cannot_cancel", "statut": res.statut}, status=400
         )
@@ -310,17 +323,30 @@ def api_auth_reset_password(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_auth_refresh_token(request):
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return JsonResponse({"error": "missing_token"}, status=401)
-    old_token = auth_header.split(" ", 1)[1].strip()
-    payload = verify_token(old_token)
-    if not payload:
+    refresh_token = ""
+    try:
+        payload = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        payload = {}
+
+    refresh_token = str(payload.get("refresh", "") or "").strip()
+    token_payload = verify_refresh_token(refresh_token) if refresh_token else None
+
+    if not token_payload:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JsonResponse({"error": "missing_token"}, status=401)
+        old_token = auth_header.split(" ", 1)[1].strip()
+        token_payload = verify_token(old_token)
+    if not token_payload:
         return JsonResponse({"error": "invalid_or_expired_token"}, status=401)
-    uid = payload.get("uid")
-    role = payload.get("role")
+    uid = token_payload.get("uid")
+    role = token_payload.get("role")
     new_token = create_token(uid, role)
-    return JsonResponse({"token": new_token, "role": role})
+    new_refresh = create_refresh_token(uid, role)
+    return JsonResponse(
+        {"token": new_token, "access": new_token, "refresh": new_refresh, "role": role}
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
