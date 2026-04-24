@@ -262,12 +262,15 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
     try {
       final base = babifixApiBaseUrl();
       final url = '$base/api/public/categories/';
-      debugPrint('BABIFIX PRESTATAIRE: Fetching categories from: $url');
+      debugPrint('BABIFIX PRESTATAIRE MAIN: Fetching categories from: $url');
       final cres = await http.get(Uri.parse(url));
+      debugPrint(
+        'BABIFIX PRESTATAIRE MAIN: Response status: ${cres.statusCode}',
+      );
       if (cres.statusCode == 200) {
         final cdata = jsonDecode(cres.body) as Map<String, dynamic>;
-        final rows = (cdata['categories'] as List<dynamic>? ?? []);
-        debugPrint('BABIFIX PRESTATAIRE: Found ${rows.length} categories');
+        final rows = cdata['categories'] as List<dynamic>? ?? [];
+        debugPrint('BABIFIX PRESTATAIRE MAIN: Found ${rows.length} categories');
         if (mounted) {
           setState(() {
             _publicCategories = rows.cast<Map<String, dynamic>>();
@@ -275,7 +278,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         }
       }
     } catch (e) {
-      debugPrint('BABIFIX PRESTATAIRE: Error loading categories: $e');
+      debugPrint('BABIFIX PRESTATAIRE MAIN: Error loading categories: $e');
     }
   }
 
