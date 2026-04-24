@@ -325,8 +325,7 @@ class BabifixUserStore {
     await _setSession(true);
     await _saveApiToken(result.accessToken);
     if (result.refreshToken != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kRefreshToken, result.refreshToken!);
+      await _saveRefreshToken(result.refreshToken);
     }
     return null; // success
   }
@@ -340,8 +339,7 @@ class BabifixUserStore {
     await _setSession(true);
     await _saveApiToken(result.accessToken);
     if (result.refreshToken != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kRefreshToken, result.refreshToken!);
+      await _saveRefreshToken(result.refreshToken);
     }
     return null; // success
   }

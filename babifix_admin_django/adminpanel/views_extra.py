@@ -12,6 +12,7 @@ BABIFIX — vues API supplémentaires (ajout sans modifier views.py principal)
   - Litiges prestataire
 """
 
+import builtins
 import csv
 import json
 import logging
@@ -36,24 +37,53 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# EMAIL NOTIFICATIONS BABIFIX
-# =============================================================================
+def _safe_print(*args, **kwargs):
+    cleaned = []
+    for arg in args:
+        text = str(arg)
+        cleaned.append(text.encode("cp1252", errors="ignore").decode("cp1252"))
+    builtins.print(*cleaned, **kwargs)
 
 
-def send_babifix_email(to_email: str, subject: str, body: str) -> None:
-    """Envoi e-mail transactionnel (configure EMAIL_* dans .env)."""
-    from django.core.mail import send_mail
-    from django.conf import settings
+print = _safe_print
 
-    try:
-        send_mail(
-            subject=subject,
-            message=body,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "contact@babifix.ci"),
-            recipient_list=[to_email],
-            fail_silently=True,
-        )
+
+def email_welcome(user, role: str) -> None:
+    """Email de bienvenue lors de l'inscription."""
+    print(f"[EMAIL] email_welcome called: {user.email}, role={role}")
+    if not user.email:
+        print("[WARN] No user email, skipping")
+        return
+
+    is_prestataire = role == "prestataire"
+    role_description = (
+        "Rejoignez des milliers de prestataires certifies"
+        if is_prestataire
+        else "Trouvez le prestataire ideal pres de chez vous"
+    )
+    cta_text = (
+        "Gerer mon espace prestataire" if is_prestataire else "Explorer les services"
+    )
+
+    context = {
+        "username": user.username,
+        "role_description": role_description,
+        "is_prestataire": is_prestataire,
+        "cta_text": cta_text,
+        "app_url": "https://babifix.ci/app",
+    }
+
+    html_content = _render_email_template("welcome.html", context)
+    print(f"[EMAIL] Template rendered: {len(html_content) if html_content else 0} chars")
+    if not html_content:
+        print("[ERROR] Template welcome.html empty or not found")
+        return
+
+    send_babifix_email_html(
+        to_email=user.email,
+        subject=f"Bienvenue sur BABIFIX !",
+        html_content=html_content,
+    )
     except Exception as exc:
         logger.warning("Email non envoyé (%s) : %s", to_email, exc)
 
@@ -129,45 +159,8 @@ def email_mission_completed(reservation: Reservation) -> None:
     )
 
 
-def email_welcome(user, role: str) -> None:
-    """Email de bienvenue lors de l'inscription."""
-    print(f"📧 email_welcome appelé: {user.email}, role={role}")
-    if not user.email:
-        print("⚠️ Pas d'email utilisateur, email ignoré")
-        return
-
-    is_prestataire = role == "prestataire"
-    role_description = (
-        "Rejoignez des milliers de prestataires certifiés"
-        if is_prestataire
-        else "Trouvez le prestataire idéal près de chez vous"
-    )
-    cta_text = (
-        "Gérer mon espace prestataire" if is_prestataire else "Explorer les services"
-    )
-
-    context = {
-        "username": user.username,
-        "role_description": role_description,
-        "is_prestataire": is_prestataire,
-        "cta_text": cta_text,
-        "app_url": "https://babifix.ci/app",
-    }
-
-    html_content = _render_email_template("welcome.html", context)
-    print(f"📧 Template rendu: {len(html_content) if html_content else 0} chars")
-    if not html_content:
-        print("❌ Template welcome.html vide ou non trouvé")
-        return
-
-    send_babifix_email_html(
-        to_email=user.email,
-        subject=f"Bienvenue sur BABIFIX ! 🎉",
-        html_content=html_content,
-    )
-    print(f"✅ email_welcome terminé")
-
-
+# =============================================================================
+# TOGGLE DISPONIBILITE — PATCH /api/prestataire/availability/
 # =============================================================================
 # TOGGLE DISPONIBILITÉ — PATCH /api/prestataire/availability/
 # =============================================================================
@@ -892,8 +885,8 @@ def send_babifix_email_html(to_email: str, subject: str, html_content: str) -> N
         )
         msg.attach_alternative(html_content, "text/html")
         msg.send(fail_silently=False)
-        print(f"\n📧 EMAIL ENVOYÉ À {to_email} : {subject}\n")
-        logger.info(f"Email envoyé à {to_email}: {subject}")
+        print(f"\n[EMAIL] Sent to {to_email}: {subject}\n")
+        logger.info(f"Email envoye a {to_email}: {subject}")
     except Exception as exc:
         logger.warning("Email non envoyé (%s) : %s", to_email, exc)
 

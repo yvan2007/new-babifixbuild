@@ -1,5 +1,7 @@
 import csv
+import builtins
 import json
+import logging
 import math
 import os
 import uuid
@@ -19,18 +21,31 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
-# Machine à états stricte — utilisée dans tous les endpoints de changement de statut
+logger = logging.getLogger(__name__)
+
+
+def _safe_print(*args, **kwargs):
+    cleaned = []
+    for arg in args:
+        text = str(arg)
+        cleaned.append(text.encode("cp1252", errors="ignore").decode("cp1252"))
+    builtins.print(*cleaned, **kwargs)
+
+
+print = _safe_print
+
+# Machine a etats stricte — utilisee dans tous les endpoints de changement de statut
 RESERVATION_VALID_TRANSITIONS = {
+    "En attente": {"Confirmee", "Annulee"},
     "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
     "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
     "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
     "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
     "INTERVENTION_EN_COURS": {"En attente client", "Terminee", "Annulee"},
-    "En attente client": {"Terminee", "CONFIRMEE"},
+    "En attente client": {"Terminee", "Confirmee"},
     "Confirmee": {"En cours", "INTERVENTION_EN_COURS", "Annulee"},
     "En cours": {"En attente client", "Annulee"},
-    "Terminee": {"CONFIRMEE", "Annulee"},
-    "CONFIRMEE": {"INTERVENTION_EN_COURS", "Annulee"},
+    "Terminee": {"Confirmee", "Annulee"},
 }
 
 
@@ -42,7 +57,67 @@ def validate_reservation_transition(current_status, new_status):
     return True, []
 
 
-from .auth import create_token, require_api_auth, verify_token
+RESERVATION_VALID_TRANSITIONS = {
+    "En attente": {"Confirmee", "Annulee"},
+    "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
+    "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
+    "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
+    "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
+    "INTERVENTION_EN_COURS": {"En attente client", "Terminee", "Annulee"},
+    "En attente client": {"Terminee", "Confirmee"},
+    "Confirmee": {"En cours", "INTERVENTION_EN_COURS", "Annulee"},
+    "En cours": {"En attente client", "Annulee"},
+    "Terminee": {"Confirmee", "Annulee"},
+}
+
+RESERVATION_STATUS_ALIASES = {
+    "PENDING": "En attente",
+    "EN ATTENTE": "En attente",
+    "CONFIRMED": "Confirmee",
+    "CONFIRMEE": "Confirmee",
+    "IN_PROGRESS": "En cours",
+    "WAITING_CLIENT": "En attente client",
+    "DONE": "Terminee",
+    "CANCELLED": "Annulee",
+}
+
+
+def normalize_reservation_status(status):
+    raw = str(status or "").strip()
+    if not raw:
+        return raw
+    return RESERVATION_STATUS_ALIASES.get(raw.upper(), raw)
+
+
+def parse_money_amount(value, default="0") -> Decimal:
+    raw = str(value if value not in (None, "") else default).strip()
+    cleaned = (
+        raw.replace("francs CFA", "")
+        .replace("F CFA", "")
+        .replace("FCFA", "")
+        .replace(" ", "")
+        .replace(",", ".")
+        .strip()
+    )
+    if not cleaned:
+        cleaned = str(default)
+    try:
+        return Decimal(cleaned)
+    except Exception:
+        return Decimal(str(default))
+
+
+def validate_reservation_transition(current_status, new_status):
+    """Valide une transition de statut de rÃ©servation."""
+    current = normalize_reservation_status(current_status)
+    target = normalize_reservation_status(new_status)
+    valid_next = RESERVATION_VALID_TRANSITIONS.get(current, set())
+    if target not in valid_next:
+        return False, sorted(valid_next)
+    return True, []
+
+
+from .auth import create_refresh_token, create_token, require_api_auth, verify_token
 from .category_catalog import import_categories_from_catalog
 from .constants import CATEGORY_ICON_SLUGS, PAYMENT_METHOD_STATIC
 from .push_dispatch import _schedule
@@ -2102,13 +2177,8 @@ def api_client_create_reservation(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     title = str(payload.get("title", "")).strip()
-    amount_raw = str(payload.get("amount", "")).strip() or "0"
-    try:
-        amount_numeric = float(
-            amount_raw.replace(" ", "").replace("FCFA", "").replace(",", ".")
-        )
-    except (ValueError, AttributeError):
-        amount_numeric = 0.0
+    amount_raw = payload.get("amount", payload.get("montant", "0"))
+    amount_numeric = float(parse_money_amount(amount_raw, default="0"))
     if not title:
         return JsonResponse({"error": "title_required"}, status=400)
 
@@ -2202,6 +2272,21 @@ def api_client_create_reservation(request):
                 s = s[:600_000]
             preuve_list.append(s)
 
+    use_quote_flow = bool(payload.get("use_devis", False)) or any(
+        [
+            bool(str(payload.get("description_probleme", "") or "").strip()),
+            bool(str(payload.get("disponibilites_client", "") or "").strip()),
+            bool(preuve_list),
+            prix_propose is not None,
+            bool(payload.get("is_urgent", False)),
+        ]
+    )
+    initial_status = (
+        Reservation.Status.DEMANDE_ENVOYEE
+        if use_quote_flow
+        else Reservation.Status.PENDING
+    )
+
     with transaction.atomic():
         existing_count = Reservation.objects.select_for_update().count() + 1
         while Reservation.objects.filter(
@@ -2219,7 +2304,7 @@ def api_client_create_reservation(request):
         client=client_label,
         prestataire=prest_label,
         montant=amount_numeric,
-        statut=Reservation.Status.DEMANDE_ENVOYEE,
+        statut=initial_status,
         latitude=lat_f,
         longitude=lon_f,
         address_label=address_label,
@@ -2473,9 +2558,13 @@ def api_prestataire_decide_request(request, reference):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     decision = str(payload.get("decision", "")).strip().lower()
+    current_status = normalize_reservation_status(reservation.statut)
     new_status = None
     if decision == "accept":
-        new_status = Reservation.Status.DEVIS_EN_COURS
+        if current_status == Reservation.Status.PENDING:
+            new_status = Reservation.Status.CONFIRMED
+        else:
+            new_status = Reservation.Status.DEVIS_EN_COURS
     elif decision == "refuse":
         new_status = Reservation.Status.CANCELLED
         reservation.motif_refus_demande = str(payload.get("motif", "") or "")[:500]
@@ -2494,7 +2583,7 @@ def api_prestataire_decide_request(request, reference):
             status=400,
         )
 
-    reservation.statut = new_status
+    reservation.statut = normalize_reservation_status(new_status)
     reservation.save(update_fields=["statut", "motif_refus_demande"])
     return JsonResponse({"ok": True, "status": reservation.statut})
 
@@ -2883,8 +2972,15 @@ def api_auth_login(request):
     if not profile:
         return JsonResponse({"error": "user_role_not_found"}, status=403)
     token = create_token(user.id, profile.role)
+    refresh = create_refresh_token(user.id, profile.role)
     return JsonResponse(
-        {"token": token, "role": profile.role, "username": user.username}
+        {
+            "token": token,
+            "access": token,
+            "refresh": refresh,
+            "role": profile.role,
+            "username": user.username,
+        }
     )
 
 
@@ -2900,8 +2996,9 @@ def api_auth_register(request):
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
-    email = str(payload.get("email", "")).strip()
-    username = str(payload.get("username", "")).strip() or email.split("@").first
+    email = str(payload.get("email", "")).strip().lower()
+    email_prefix = email.split("@", 1)[0] if "@" in email else email
+    username = str(payload.get("username", "")).strip() or email_prefix
     password = str(payload.get("password", "")).strip()
     role = str(payload.get("role", "")).strip()
     phone_e164 = str(payload.get("phone_e164", "") or "")[:24]
@@ -2915,7 +3012,7 @@ def api_auth_register(request):
 
     # Username obligatoire, utiliser email prefix si non fourni
     if not username and email:
-        username = email.split("@").first
+        username = email_prefix
     if not username:
         return JsonResponse({"error": "username_required"}, status=400)
     if not password:
@@ -2952,9 +3049,9 @@ def api_auth_register(request):
         from .views_extra import email_welcome
 
         email_welcome(user, role)
-        print(f"✅ Email bienvenue appelé pour {user.email}")
+        print(f"[OK] Email bienvenue appele pour {user.email}")
     except Exception as e:
-        print(f"❌ Erreur email_welcome: {e}")
+        print(f"[ERROR] Erreur email_welcome: {e}")
 
     # Synchroniser le Client dans la table admin dès l'inscription
     if role == UserProfile.Role.CLIENT:
@@ -2965,14 +3062,22 @@ def api_auth_register(request):
                 email=client_email,
                 ville=country_code,
                 reservations=0,
-                depense="0 FCFA",
+                depense=Decimal("0"),
             )
         except Exception:
             pass  # Ne pas bloquer l'inscription si la synchro échoue
 
     token = create_token(user.id, role)
+    refresh = create_refresh_token(user.id, role)
     return JsonResponse(
-        {"token": token, "role": role, "username": user.username}, status=201
+        {
+            "token": token,
+            "access": token,
+            "refresh": refresh,
+            "role": role,
+            "username": user.username,
+        },
+        status=201,
     )
 
 
@@ -3257,21 +3362,9 @@ def api_prestataire_reservation_status(request, reference):
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
-    new_status = str(payload.get("status", "")).strip()
+    new_status = normalize_reservation_status(payload.get("status", ""))
 
-    # Validation via machine à états centralisée
-    is_valid, allowed = validate_reservation_transition(res.statut, new_status)
-    if not is_valid:
-        return JsonResponse(
-            {
-                "error": "invalid_transition",
-                "current": res.statut,
-                "allowed": allowed,
-            },
-            status=400,
-        )
-
-    current = res.statut
+    current = normalize_reservation_status(res.statut)
     is_valid, allowed = validate_reservation_transition(current, new_status)
     if not is_valid:
         return JsonResponse(
@@ -3766,8 +3859,8 @@ def api_client_confirmer_travaux(request, reference):
     if res.client_user_id != uid and request.api_role != "admin":
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    # Validation transition de statut
-    is_valid, allowed = validate_reservation_transition(res.statut, "CONFIRMEE")
+    target_status = Reservation.Status.CONFIRMED
+    is_valid, allowed = validate_reservation_transition(res.statut, target_status)
     if not is_valid:
         return JsonResponse(
             {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
@@ -3775,7 +3868,7 @@ def api_client_confirmer_travaux(request, reference):
         )
 
     res.client_confirme_prestation_at = timezone.now()
-    res.statut = "CONFIRMED"
+    res.statut = target_status
     res.save(update_fields=["client_confirme_prestation_at", "statut"])
 
     return JsonResponse(
@@ -4036,14 +4129,14 @@ def api_reservation_devis(request, reference):
         return JsonResponse({"error": "not_found"}, status=404)
 
     uid = int(request.api_user_id)
-    is_client = res.client_user_id == uid or request.api_role == "client"
-    is_prest = (
+    is_client = res.client_user_id == uid
+    is_prest = bool(
         res.assigned_provider
+        and res.assigned_provider.user_id
         and res.assigned_provider.user_id == uid
-        or request.api_role == "prestataire"
     )
 
-    if not is_client and not is_prest and request.api_role != "admin":
+    if request.api_role != "admin" and not is_client and not is_prest:
         return JsonResponse({"error": "forbidden"}, status=403)
 
     devis = Devis.objects.filter(reservation=res).order_by("-created_at").first()

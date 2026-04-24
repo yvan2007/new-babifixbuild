@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import models
 from django.contrib.auth.models import User
@@ -338,8 +338,29 @@ class Reservation(models.Model):
         return self.reference
 
     def save(self, *args, **kwargs):
-        if self.montant and self.montant > 0:
-            self.commission = self.montant * Decimal("0.18")
+        if isinstance(self.montant, str):
+            cleaned = (
+                self.montant.replace("FCFA", "")
+                .replace("F CFA", "")
+                .replace("francs CFA", "")
+                .replace(" ", "")
+                .replace(",", ".")
+                .strip()
+            )
+            try:
+                self.montant = Decimal(cleaned or "0")
+            except InvalidOperation:
+                self.montant = Decimal("0")
+
+        if self.montant:
+            montant_decimal = (
+                self.montant
+                if isinstance(self.montant, Decimal)
+                else Decimal(str(self.montant))
+            )
+            if montant_decimal > 0:
+                self.montant = montant_decimal
+                self.commission = montant_decimal * Decimal("0.18")
         super().save(*args, **kwargs)
 
 
