@@ -20,7 +20,7 @@
     </div>
     <div class="kpi-card__body">
       <span class="kpi-card__label">{{ stat.label }}</span>
-      <strong class="kpi-card__value">{{ stat.value }}</strong>
+      <strong class="kpi-card__value" data-target="{{ stat.value }}">0</strong>
       <span class="kpi-card__trend {% if forloop.counter0 == 2 %}kpi-card__trend--warn{% else %}kpi-card__trend--up{% endif %}">
         {% if forloop.counter0 == 2 %}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4M12 17h.01M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0z"/></svg>
@@ -232,7 +232,30 @@
         }
       }
     });
-  }
+}
 })();
-</script>
+
+(function(){
+  var counters = document.querySelectorAll('.kpi-card__value[data-target]');
+  if (!counters.length) return;
+  var observer = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if (entry.isIntersecting) {
+        var el = entry.target;
+        var target = parseInt(el.getAttribute('data-target'), 10) || 0;
+        var duration = 1200;
+        var start = performance.now();
+        function animate(now){
+          var progress = Math.min((now - start) / duration, 1);
+          var eased = 1 - Math.pow(1 - progress, 3);
+          el.textContent = Math.round(target * eased).toLocaleString('fr-FR');
+          if (progress < 1) requestAnimationFrame(animate);
+        }
+        requestAnimationFrame(animate);
+        observer.unobserve(el);
+      }
+    });
+  }, {threshold: 0.5});
+  counters.forEach(function(c){ observer.observe(c); });
+})();
 {% endif %}

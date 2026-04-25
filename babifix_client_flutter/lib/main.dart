@@ -155,11 +155,40 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
   @override
   Widget build(BuildContext context) {
     if (!_prefsLoaded) {
-      return const MaterialApp(
+      return MaterialApp(
         debugShowCheckedModeBanner: false,
+        theme: _themeForMode(paletteMode),
         home: Scaffold(
+          backgroundColor: const Color(0xFF0D1F3C),
           body: Center(
-            child: CircularProgressIndicator(color: Color(0xFF4CC9F0)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CC9F0),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: const Icon(
+                    Icons.home_repair_service,
+                    size: 64,
+                    color: Color(0xFF0D1F3C),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'BABIFIX',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 4,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -405,9 +434,100 @@ class _ClientHomePageState extends State<ClientHomePage> {
               ),
           ],
         ),
-      );
-    });
+);
+    );
   }
+}
+
+class _SplashScreen extends StatefulWidget {
+  const _SplashScreen();
+
+  @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOutBack,
+      ),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1F3C),
+      body: Center(
+        child: AnimatedBuilder(
+          animation: _scaleAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _scaleAnimation.value,
+              child: child,
+            );
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CC9F0),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(
+                  Icons.home_repair_service,
+                  size: 64,
+                  color: Color(0xFF0D1F3C),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'BABIFIX',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Services a domicile',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white70,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
   void _handleFcmNavigation(Map<String, dynamic> data) {
     if (!mounted) return;
@@ -1362,6 +1482,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   /// Accueil : un seul scroll vertical (évite les bugs Windows où seul le bas défilait).
   Widget _buildNews() {
     return RefreshIndicator(
+      color: const Color(0xFF4CC9F0),
       onRefresh: _loadRemoteData,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -2342,6 +2463,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
 
     return RefreshIndicator(
+      color: const Color(0xFF4CC9F0),
       onRefresh: _loadRemoteData,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -3258,6 +3380,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         Expanded(
           child: reservations.isEmpty
               ? RefreshIndicator(
+                  color: const Color(0xFF4CC9F0),
                   onRefresh: _loadRemoteData,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -3296,6 +3419,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 )
               : RefreshIndicator(
+                  color: const Color(0xFF4CC9F0),
                   onRefresh: _loadRemoteData,
                   child: ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -3524,6 +3648,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 )
               : RefreshIndicator(
+                  color: const Color(0xFF4CC9F0),
                   onRefresh: _loadRemoteData,
                   child: ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -4811,10 +4936,100 @@ class _ClientHomePageState extends State<ClientHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Erreur réseau — réessayez dans un instant.'),
+),
+    );
+  }
+}
+
+class _SplashScreen extends StatefulWidget {
+  const _SplashScreen();
+
+  @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOutBack,
+      ),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1F3C),
+      body: Center(
+        child: AnimatedBuilder(
+          animation: _scaleAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _scaleAnimation.value,
+              child: child,
+            );
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CC9F0),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(
+                  Icons.home_repair_service,
+                  size: 64,
+                  color: Color(0xFF0D1F3C),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'BABIFIX',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white.withValues(alpha: 0.95),
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Services a domicile',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withValues(alpha: 0.6),
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
           ),
-        );
-      }
-    }
+        ),
+      ),
+    );
+  }
+}
     return false;
   }
 
