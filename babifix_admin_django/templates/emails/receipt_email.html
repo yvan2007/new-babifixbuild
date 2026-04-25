@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reçu de paiement — BABIFIX</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #0D1F3C 0%, #1a3a6e 100%); padding: 40px 30px; text-align: center; }
+        .header .icon { font-size: 52px; margin-bottom: 12px; }
+        .header h1 { color: #4CC9F0; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+        .header p { color: rgba(255,255,255,0.8); margin: 8px 0 0; font-size: 15px; }
+        .invoice-badge { display: inline-block; background: #4CC9F0; color: #0D1F3C; padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 14px; letter-spacing: 0.5px; }
+        .content { padding: 36px 30px; }
+        .greeting { font-size: 16px; color: #374151; margin-bottom: 6px; }
+        .subtext { font-size: 15px; color: #6b7280; margin-bottom: 28px; }
+        .amount-box { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #bae6fd; border-radius: 16px; padding: 28px; margin: 20px 0 28px; text-align: center; }
+        .amount-label { font-size: 12px; color: #0369a1; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+        .amount { font-size: 44px; font-weight: 900; color: #0D1F3C; margin: 10px 0 4px; line-height: 1; }
+        .amount-currency { font-size: 18px; color: #6b7280; font-weight: 400; }
+        .operator-tag { display: inline-block; background: #0D1F3C; color: #4CC9F0; padding: 5px 16px; border-radius: 12px; font-size: 13px; font-weight: 600; margin-top: 10px; }
+        .details-table { width: 100%; margin: 0 0 24px; border-collapse: collapse; }
+        .details-table tr { border-bottom: 1px solid #f3f4f6; }
+        .details-table tr:last-child { border-bottom: none; }
+        .details-table td { padding: 13px 4px; vertical-align: middle; }
+        .details-table td:first-child { color: #9ca3af; font-size: 13px; font-weight: 500; width: 45%; }
+        .details-table td:last-child { color: #111827; font-weight: 700; text-align: right; font-size: 14px; }
+        .pdf-notice { background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 10px; padding: 16px 20px; text-align: center; margin: 20px 0 0; }
+        .pdf-notice p { margin: 0; font-size: 13px; color: #6b7280; }
+        .pdf-notice strong { color: #374151; }
+        .footer { background: #0D1F3C; padding: 28px 30px; text-align: center; }
+        .footer p { color: rgba(255,255,255,0.65); margin: 5px 0; font-size: 13px; }
+        .footer .brand { color: #4CC9F0; font-weight: 700; font-size: 15px; letter-spacing: 1px; margin-bottom: 8px; }
+        .footer .copyright { color: rgba(255,255,255,0.35); font-size: 11px; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">🧾</div>
+            <h1>Reçu de Paiement</h1>
+            <p>Votre paiement a bien été reçu et validé</p>
+            <div class="invoice-badge">{{ invoice_number }}</div>
+        </div>
+
+        <div class="content">
+            <p class="greeting">Bonjour <strong>{{ client_name }}</strong>,</p>
+            <p class="subtext">
+                Nous avons bien reçu votre paiement pour la prestation <strong>{{ service_title }}</strong>.
+                Votre reçu officiel est joint à cet email en format PDF.
+            </p>
+
+            <div class="amount-box">
+                <div class="amount-label">Montant payé</div>
+                <div class="amount">{{ montant }}<span class="amount-currency"> FCFA</span></div>
+                <div class="operator-tag">{{ operateur }}</div>
+            </div>
+
+            <table class="details-table">
+                <tr>
+                    <td>N° Facture</td>
+                    <td>{{ invoice_number }}</td>
+                </tr>
+                <tr>
+                    <td>Référence réservation</td>
+                    <td>{{ reference }}</td>
+                </tr>
+                <tr>
+                    <td>Service</td>
+                    <td>{{ service_title }}</td>
+                </tr>
+                <tr>
+                    <td>Opérateur</td>
+                    <td>{{ operateur }}</td>
+                </tr>
+            </table>
+
+            <div class="pdf-notice">
+                <p>📎 <strong>Votre reçu PDF est joint à cet email.</strong><br>
+                Vous pouvez également télécharger votre reçu depuis l'application BABIFIX,
+                rubrique <em>Mes réservations → Télécharger le reçu</em>.</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p class="brand">BABIFIX</p>
+            <p>🔧 Connection. Service. Confiance.</p>
+            <p>📍 Abidjan, Côte d'Ivoire | contact@babifix.ci</p>
+            <p class="copyright">© 2026 BABIFIX — Ce reçu fait foi de votre paiement.</p>
+        </div>
+    </div>
+</body>
+</html>

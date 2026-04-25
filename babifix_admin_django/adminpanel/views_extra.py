@@ -19,7 +19,7 @@ import logging
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count, Q, Sum
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
@@ -73,19 +73,20 @@ def email_welcome(user, role: str) -> None:
         "app_url": "https://babifix.ci/app",
     }
 
-    html_content = _render_email_template("welcome.html", context)
-    print(f"[EMAIL] Template rendered: {len(html_content) if html_content else 0} chars")
-    if not html_content:
-        print("[ERROR] Template welcome.html empty or not found")
-        return
+    try:
+        html_content = _render_email_template("welcome.html", context)
+        print(f"[EMAIL] Template rendered: {len(html_content) if html_content else 0} chars")
+        if not html_content:
+            print("[ERROR] Template welcome.html empty or not found")
+            return
 
-    send_babifix_email_html(
-        to_email=user.email,
-        subject=f"Bienvenue sur BABIFIX !",
-        html_content=html_content,
-    )
+        send_babifix_email_html(
+            to_email=user.email,
+            subject=f"Bienvenue sur BABIFIX !",
+            html_content=html_content,
+        )
     except Exception as exc:
-        logger.warning("Email non envoyé (%s) : %s", to_email, exc)
+        logger.warning("Email non envoyé (%s) : %s", user.email, exc)
 
 
 def email_provider_accepted(provider: Provider) -> None:
@@ -860,8 +861,16 @@ def send_weekly_digest_email(prestataire: "Provider", stats_dict: dict) -> None:
     )
 
 
-def send_babifix_email_html(to_email: str, subject: str, html_content: str) -> None:
-    """Envoi email HTML transactionnel BABIFIX avec fallback plain text."""
+def send_babifix_email_html(
+    to_email: str,
+    subject: str,
+    html_content: str,
+    attachments: list | None = None,
+) -> None:
+    """Envoi email HTML transactionnel BABIFIX avec fallback plain text.
+
+    attachments: liste de tuples (filename, content, mimetype) — ex: PDF reçu.
+    """
     from django.conf import settings
     from django.core.mail import EmailMultiAlternatives
 
@@ -869,7 +878,6 @@ def send_babifix_email_html(to_email: str, subject: str, html_content: str) -> N
         if not html_content:
             return
 
-        # Créer version plain text du HTML (enlever les balises)
         import re
 
         plain_text = re.sub(r"<[^>]+>", "", html_content)
@@ -884,6 +892,8 @@ def send_babifix_email_html(to_email: str, subject: str, html_content: str) -> N
             to=[to_email],
         )
         msg.attach_alternative(html_content, "text/html")
+        for filename, content, mimetype in (attachments or []):
+            msg.attach(filename, content, mimetype)
         msg.send(fail_silently=False)
         print(f"\n[EMAIL] Sent to {to_email}: {subject}\n")
         logger.info(f"Email envoye a {to_email}: {subject}")
@@ -937,7 +947,104 @@ def api_health_check(request):
         status["checks"]["redis"] = str(e)
         status["status"] = "error"
 
-    from django.http import JsonResponse
-
     http_status = 200 if status["status"] == "ok" else 503
     return JsonResponse(status, status=http_status)
+
+
+# ---------------------------------------------------------------------------
+# Reçus / Factures PDF
+# ---------------------------------------------------------------------------
+
+@csrf_exempt
+@require_GET
+def api_client_invoice_pdf(request, reference):
+    """GET /api/client/invoices/<reference>/pdf/ — Télécharger le reçu PDF."""
+    user, err = require_api_auth(request)
+    if err:
+        return err
+
+    try:
+        payment = (
+            Payment.objects.select_related("reservation__client_user")
+            .filter(
+                reservation__reference=reference,
+                reservation__client_user=user,
+                etat=Payment.State.COMPLETE,
+            )
+            .first()
+        )
+    except Exception:
+        payment = None
+
+    if not payment:
+        return JsonResponse({"error": "Reçu introuvable ou accès refusé"}, status=404)
+
+    try:
+        from adminpanel.services.invoice_service import InvoiceService
+
+        pdf_bytes = InvoiceService.generate_pdf(payment)
+        invoice_number = InvoiceService.generate_invoice_number(payment)
+    except Exception as exc:
+        logger.error("Erreur génération PDF reçu ref=%s: %s", reference, exc)
+        return JsonResponse({"error": "Erreur génération PDF"}, status=500)
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="recu_{invoice_number}.pdf"'
+    return response
+
+
+@csrf_exempt
+@require_GET
+def api_prestataire_invoice_pdf(request, reference):
+    """GET /api/prestataire/invoices/<reference>/pdf/ — Télécharger le reçu PDF."""
+    user, err = require_api_auth(request)
+    if err:
+        return err
+
+    try:
+        provider = Provider.objects.filter(user=user).first()
+        payment = (
+            Payment.objects.select_related("reservation__prestataire_user")
+            .filter(
+                reservation__reference=reference,
+                reservation__prestataire_user=user,
+                etat=Payment.State.COMPLETE,
+            )
+            .first()
+        )
+    except Exception:
+        payment = None
+
+    if not payment:
+        return JsonResponse({"error": "Reçu introuvable ou accès refusé"}, status=404)
+
+    try:
+        from adminpanel.services.invoice_service import InvoiceService
+
+        pdf_bytes = InvoiceService.generate_pdf(payment)
+        invoice_number = InvoiceService.generate_invoice_number(payment)
+    except Exception as exc:
+        logger.error("Erreur génération PDF reçu prestataire ref=%s: %s", reference, exc)
+        return JsonResponse({"error": "Erreur génération PDF"}, status=500)
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="recu_{invoice_number}.pdf"'
+    return response
+
+
+@csrf_exempt
+@require_GET
+def api_client_invoices_list(request):
+    """GET /api/client/invoices/ — Liste des reçus du client."""
+    user, err = require_api_auth(request)
+    if err:
+        return err
+
+    try:
+        from adminpanel.services.invoice_service import InvoiceService
+
+        invoices = InvoiceService.get_client_invoices(user)
+        return JsonResponse({"invoices": invoices}, status=200)
+    except Exception as exc:
+        logger.error("Erreur liste reçus client: %s", exc)
+        return JsonResponse({"invoices": []}, status=200)

@@ -82,7 +82,7 @@ class ChatRoomScreen extends StatefulWidget {
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-class _ChatRoomScreenState extends State<ChatRoomScreen> {
+class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStateMixin {
   final _input = TextEditingController();
   final _picker = ImagePicker();
   final _scrollCtrl = ScrollController();
@@ -91,6 +91,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   int _nextMsgId = 0;
   int? _conversationId;
   int? _myUserId;
+  final _msgAnimations = <int, AnimationController>{};
 
   // Typing indicator
   bool _peerTyping = false;
@@ -123,6 +124,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _peerTypingTimer?.cancel();
     _chatWsSub?.cancel();
     _chatWs?.sink.close();
+    for (final c in _msgAnimations.values) {
+      c.dispose();
+    }
+    _msgAnimations.clear();
     super.dispose();
   }
 
@@ -503,19 +508,33 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     );
                   }
                   final msg = _chat[i];
-                  return Align(
-                    alignment: msg.me
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: ChatBubble(
-                      message: msg,
-                      peerName: widget.name,
-                      onReply: () => _beginReplyTo(msg),
-                      onDelete: msg.me ? () => _deleteMessageSmart(msg) : null,
-                      onImageTap:
-                          msg.imageUrl != null && msg.imageUrl!.isNotEmpty
-                          ? () => _openImageZoom(msg.imageUrl!)
-                          : null,
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.5),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: _msgAnimations.putIfAbsent(msg.id, () {
+                        return AnimationController(
+                          duration: const Duration(milliseconds: 300),
+                          vsync: this,
+                        );
+                      }),
+                      curve: Curves.easeOutCubic,
+                    )),
+                    child: Align(
+                      alignment: msg.me
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: ChatBubble(
+                        message: msg,
+                        peerName: widget.name,
+                        onReply: () => _beginReplyTo(msg),
+                        onDelete: msg.me ? () => _deleteMessageSmart(msg) : null,
+                        onImageTap:
+                            msg.imageUrl != null && msg.imageUrl!.isNotEmpty
+                            ? () => _openImageZoom(msg.imageUrl!)
+                            : null,
+                      ),
                     ),
                   );
                 },

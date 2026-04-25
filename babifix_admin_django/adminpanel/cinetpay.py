@@ -21,6 +21,7 @@ import urllib.request
 import urllib.error
 
 from .auth import require_api_auth
+from .throttle import check_rate_limit, rate_limited_response
 from .models import Payment, Reservation
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,10 @@ def _verify_webhook_signature(payload: dict, received_sig: str) -> bool:
 @csrf_exempt
 @require_api_auth(["client", "prestataire", "admin"])
 def cinetpay_initiate(request):
+    # ✅ S5: Rate limiting sur les paiements
+    if check_rate_limit(request, "cinetpay", max_requests=10, window=60):
+        return rate_limited_response()
+    
     if request.method != "POST":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
     try:
@@ -308,6 +313,40 @@ def cinetpay_webhook(request):
                 )
             except Exception:
                 pass
+
+        # Générer et envoyer le reçu PDF au client
+        try:
+            from adminpanel.services.invoice_service import InvoiceService
+            from adminpanel.views_extra import send_babifix_email_html
+            from django.template.loader import render_to_string
+
+            pdf_bytes = InvoiceService.generate_pdf(payment)
+            if pdf_bytes and payment.reservation and payment.reservation.client_user:
+                client_email = payment.reservation.client_user.email
+                invoice_number = InvoiceService.generate_invoice_number(payment)
+                html_content = render_to_string(
+                    "emails/receipt_email.html",
+                    {
+                        "invoice_number": invoice_number,
+                        "reference": payment.reservation.reference,
+                        "service_title": payment.reservation.titre or payment.reservation.reference,
+                        "montant": payment.montant,
+                        "operateur": payment.operateur or "Mobile Money",
+                        "client_name": payment.reservation.client_user.get_full_name()
+                        or payment.reservation.client_user.username,
+                    },
+                )
+                send_babifix_email_html(
+                    to_email=client_email,
+                    subject=f"BABIFIX — Reçu de paiement {invoice_number}",
+                    html_content=html_content,
+                    attachments=[
+                        (f"recu_{invoice_number}.pdf", pdf_bytes, "application/pdf")
+                    ],
+                )
+                logger.info("Reçu PDF envoyé à %s pour paiement %s", client_email, payment.reference)
+        except Exception as exc:
+            logger.warning("Erreur envoi reçu PDF pour paiement %s: %s", payment.reference, exc)
 
         logger.info("CinetPay webhook — paiement %s SUCCÈS", payment.reference)
     else:

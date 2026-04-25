@@ -12,6 +12,19 @@ REFRESH_TOKEN_MAX_AGE_SECONDS = (
     7 * 24 * 3600
 )  # 7 days - refresh token expires after 7 days
 
+# Flag pour utiliser le nouveau systeme JWT (plus securise)
+USE_JWT = True  # ✅ Migration vers PyJWT activee
+
+# ✅ S2: Hasher reset tokens avec PasswordResetTokenGenerator
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from six import text_type
+
+class AppPasswordResetTokenGenerator(PasswordResetTokenGenerator):
+    """Generator securise pour les tokens de reset mot de passe."""
+    pass
+
+password_token_generator = AppPasswordResetTokenGenerator()
+
 
 def create_token(user_id, role):
     token_data = {

@@ -17,8 +17,24 @@ class ClientEventsConsumer(AsyncWebsocketConsumer):
     group_name = 'babifix_client_events'
 
     async def connect(self):
-        qs = parse_qs(self.scope.get('query_string', b'').decode())
-        token = (qs.get('token') or [''])[0].strip()
+        token = None
+        
+        # Method 1: Authorization header (PRIVILEGED - recommended)
+        auth_header = self.scope.get('headers', {}).get(b'authorization', b'').decode()
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:].strip()
+        
+        # Method 2: Sec-WebSocket-Protocol header
+        if not token:
+            protocols = self.scope.get('headers', {}).get(b'sec-websocket-protocol', b'').decode()
+            if protocols.startswith('BABIFIX '):
+                token = protocols[7:].strip()
+        
+        # Method 3: Query string token (DEPRECATED - only for backward compatibility)
+        if not token:
+            qs = parse_qs(self.scope.get('query_string', b'').decode())
+            token = (qs.get('token') or [''])[0].strip()
+        
         if not token:
             await self.close(code=4401)
             return
@@ -62,8 +78,24 @@ class PrestataireEventsConsumer(AsyncWebsocketConsumer):
     """
 
     async def connect(self):
-        qs = parse_qs(self.scope.get('query_string', b'').decode())
-        token = (qs.get('token') or [''])[0].strip()
+        token = None
+        
+        # Method 1: Authorization header (PRIVILEGED - recommended)
+        auth_header = self.scope.get('headers', {}).get(b'authorization', b'').decode()
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:].strip()
+        
+        # Method 2: Sec-WebSocket-Protocol header
+        if not token:
+            protocols = self.scope.get('headers', {}).get(b'sec-websocket-protocol', b'').decode()
+            if protocols.startswith('BABIFIX '):
+                token = protocols[7:].strip()
+        
+        # Method 3: Query string token (DEPRECATED - only for backward compatibility)
+        if not token:
+            qs = parse_qs(self.scope.get('query_string', b'').decode())
+            token = (qs.get('token') or [''])[0].strip()
+        
         if not token:
             await self.close(code=4401)
             return
