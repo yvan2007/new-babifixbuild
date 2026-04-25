@@ -6,11 +6,14 @@ from .views_extra import (
     api_admin_bulk_provider_action,
     api_admin_export_csv,
     api_client_favorites,
+    api_client_invoice_pdf,
+    api_client_invoices_list,
     api_client_payments,
     api_health_check,
     api_prestataire_availability,
     api_prestataire_availability_crud,
     api_prestataire_disputes,
+    api_prestataire_invoice_pdf,
     api_prestataire_stats,
     api_prestataire_unavailability_crud,
 )
@@ -312,6 +315,10 @@ urlpatterns = [
         name="api-auth-delete-account",
     ),
     path("api/health/", api_health_check, name="api-health-check"),
+    # ── Reçus / Factures PDF ─────────────────────────────────────────────────
+    path("api/client/invoices/", api_client_invoices_list, name="api-client-invoices-list"),
+    path("api/client/invoices/<str:reference>/pdf/", api_client_invoice_pdf, name="api-client-invoice-pdf"),
+    path("api/prestataire/invoices/<str:reference>/pdf/", api_prestataire_invoice_pdf, name="api-prestataire-invoice-pdf"),
     path(
         "api/auth/verify-email/<str:token>",
         api_auth_verify_email,

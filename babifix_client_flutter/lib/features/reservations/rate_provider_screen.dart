@@ -386,13 +386,21 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Widget sélecteur d'étoiles
+// Widget selecteur d'etoiles avec animation bounce
 // ─────────────────────────────────────────────────────────────────────────────
-class _StarSelector extends StatelessWidget {
+class _StarSelector extends StatefulWidget {
   final int note;
   final void Function(int) onChanged;
 
   const _StarSelector({required this.note, required this.onChanged});
+
+  @override
+  State<_StarSelector> createState() => _StarSelectorState();
+}
+
+class _StarSelectorState extends State<_StarSelector> {
+  int? _animatingIndex;
+  double? _scale;
 
   @override
   Widget build(BuildContext context) {
@@ -400,16 +408,101 @@ class _StarSelector extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(
         5,
-        (i) => GestureDetector(
-          onTap: () => onChanged(i + 1),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.all(6),
-            child: Icon(
-              i < note ? Icons.star_rounded : Icons.star_border_rounded,
-              color: i < note ? Colors.amber : Colors.grey,
-              size: 40,
-            ),
+        (i) => _AnimatedStar(
+          key: ValueKey(i),
+          filled: i < widget.note,
+          animating: _animatingIndex == i,
+          scale: _scale,
+          onTap: () => _onTap(i),
+        ),
+      ),
+    );
+  }
+
+  void _onTap(int index) {
+    setState(() {
+      _animatingIndex = index;
+      _scale = 1.0;
+    });
+    widget.onChanged(index + 1);
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() {
+          _animatingIndex = null;
+          _scale = null;
+        });
+      }
+    });
+  }
+}
+
+class _AnimatedStar extends StatefulWidget {
+  final bool filled;
+  final bool animating;
+  final double? scale;
+  final VoidCallback onTap;
+
+  const _AnimatedStar({
+    super.key,
+    required this.filled,
+    required this.animating,
+    required this.scale,
+    required this.onTap,
+  });
+
+  @override
+  State<_AnimatedStar> createState() => _AnimatedStarState();
+}
+
+class _AnimatedStarState extends State<_AnimatedStar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _scaleAnim = Tween<double>(begin: 1.0, end: 1.4).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedStar old) {
+    super.didUpdateWidget(old);
+    if (widget.animating && !old.animating) {
+      _ctrl.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _scaleAnim,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _ctrl.isAnimating ? _scaleAnim.value : 1.0,
+            child: child,
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(
+            widget.filled ? Icons.star_rounded : Icons.star_border_rounded,
+            color: widget.filled ? Colors.amber : Colors.grey.shade400,
+            size: 40,
           ),
         ),
       ),

@@ -80,26 +80,40 @@ class Provider(models.Model):
     is_approved = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Aligné sur statut Valide — visible apps client",
+        help_text="Aligne sur statut Valide — visible apps client",
     )
     is_certified = models.BooleanField(
         default=False,
-        help_text="Badge 'Prestataire Certifié' — validation après review admin",
+        help_text="Badge 'Prestataire Certifie' — validation apres review admin",
     )
     certified_at = models.DateTimeField(
         null=True,
         blank=True,
         help_text="Date de certification Admin",
     )
-    is_deleted = models.BooleanField(
+    # M2: Premium abonnement
+    is_premium = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Soft delete - ne pas afficher si True",
+        help_text="Abonnement premium actif (bronze/silver/gold)",
     )
-    deleted_at = models.DateTimeField(
+    premium_tier = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        choices=[
+            ("bronze", "Bronze"),
+            ("silver", "Argent"),
+            ("gold", "Or"),
+        ],
+    )
+    premium_since = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Date de suppression soft",
+    )
+    premium_until = models.DateTimeField(
+        null=True,
+        blank=True,
     )
     # v2 — Galerie réalisations (max 12 photos, data URL base64)
     portfolio_photos = models.JSONField(
@@ -118,15 +132,11 @@ class Provider(models.Model):
         blank=True,
         help_text="Liste photos après intervention",
     )
-
-    def save(self, *args, **kwargs):
-        self.is_approved = self.statut == self.Status.VALID
-        update_fields = kwargs.get("update_fields")
-        if update_fields is not None:
-            s = set(update_fields)
-            s.add("is_approved")
-            kwargs["update_fields"] = list(s)
-        super().save(*args, **kwargs)
+    is_deleted = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Soft delete - prestataire supprime si True",
+    )
 
     def __str__(self):
         return self.nom
@@ -284,24 +294,19 @@ class Reservation(models.Model):
         blank=True,
         help_text="Clé d'idempotence pour les paiements",
     )
-    # Masquage téléphone - ZEGOCLOUD
+    # Masquage telephone - ZEGOCLOUD
     appel_masque = models.BooleanField(
-        default=False, help_text="Appel masqué activé via ZEGOCLOUD"
+        default=False, help_text="Appel masquevia ZEGOCLOUD"
     )
     numero_masque = models.CharField(
         max_length=20,
         blank=True,
         default="",
-        help_text="Numéro masqué temporaire pour appel ZEGOCLOUD",
+        help_text="Numero masque temporaire pour appel ZEGOCLOUD",
     )
-    # Idempotence paiement - évite double paiement
-    idempotency_key = models.CharField(
-        max_length=64,
-        unique=True,
-        null=True,
-        blank=True,
-        help_text="Clé d'idempotence pour les paiements",
-    )
+    # Idempotence paiement - [DEPRECATED] Utiliser Payment.idempotency_key
+    # Ce champ est en doublon avec la definition ci-dessus (ligne 280).
+    # TODO: Supprimer apres migration des donnees
     client_user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -604,10 +609,10 @@ class UserProfile(models.Model):
     active = models.BooleanField(default=True)
     phone_e164 = models.CharField(max_length=24, blank=True, default="")
     country_code = models.CharField(max_length=5, blank=True, default="CI")
-    # v2 — Réinitialisation mot de passe
+    # v2 — Reinitialisation mot de passe
     reset_token = models.CharField(max_length=80, blank=True, default="", db_index=True)
     reset_token_created_at = models.DateTimeField(null=True, blank=True)
-    # v2 — Vérification email
+    # v2 — Verification email
     email_verified = models.BooleanField(default=False)
     email_verify_token = models.CharField(
         max_length=80, blank=True, default="", db_index=True
@@ -616,12 +621,34 @@ class UserProfile(models.Model):
     is_deleted = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Soft delete - compte désactivé si True",
+        help_text="Soft delete - compte desactive si True",
     )
     deleted_at = models.DateTimeField(
         null=True,
         blank=True,
         help_text="Date de suppression soft",
+    )
+    # v2 — Parrainage (ReferralService)
+    referral_code = models.CharField(
+        max_length=20, blank=True, default="", db_index=True,
+        help_text="Code de parrainage unique"
+    )
+    recommended_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="filleuls",
+        help_text="Parrain qui a invite cet utilisateur"
+    )
+    referral_code_used = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="Code de parrainage utilise a l'inscription"
+    )
+    referral_credits_earned = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Credits gagnes via parrainage"
+    )
+    referral_bonus_applied = models.BooleanField(
+        default=False,
+        help_text="Bonus premiere reservation applique"
     )
 
     def __str__(self):

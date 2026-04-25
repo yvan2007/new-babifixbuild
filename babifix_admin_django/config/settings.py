@@ -448,3 +448,23 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Africa/Abidjan"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    # Annuler les demandes sans réponse après 72h (toutes les heures à H:00)
+    "expire-pending-reservations": {
+        "task": "adminpanel.tasks.expire_pending_reservations",
+        "schedule": crontab(minute=0),
+    },
+    # Auto-confirmer les interventions terminées sans retour client après 48h (H:30)
+    "auto-confirm-interventions": {
+        "task": "adminpanel.tasks.auto_confirm_interventions",
+        "schedule": crontab(minute=30),
+    },
+    # Clore les litiges inactifs depuis 5 jours (chaque nuit à 2h)
+    "expire-stale-disputes": {
+        "task": "adminpanel.tasks.expire_stale_disputes",
+        "schedule": crontab(hour=2, minute=0),
+    },
+}

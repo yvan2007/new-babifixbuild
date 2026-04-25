@@ -23,6 +23,18 @@ from django.views.decorators.http import require_GET, require_http_methods
 
 logger = logging.getLogger(__name__)
 
+# JWT auth - nouveau systeme securise
+from .jwt_auth import (
+    create_access_token,
+    create_refresh_token,
+    verify_access_token,
+    verify_refresh_token,
+    refresh_access_token,
+    require_jwt_auth,
+    require_jwt_auth_or_refresh,
+)
+from .auth import require_api_auth  # Backward compat
+
 
 def _safe_print(*args, **kwargs):
     cleaned = []
@@ -48,6 +60,22 @@ RESERVATION_VALID_TRANSITIONS = {
     "Terminee": {"Confirmee", "Annulee"},
 }
 
+# ✅ F3: Workflow annulation avec penalites
+ANNULATION_RULES = {
+    "ANNULE_CLIENT": {
+        "before_devis": {"penalty_pct": 0, "refund": True},  # Pas de penalite avant devis
+        "after_devis": {"penalty_pct": 0, "refund": True},  # Devis recu mais pas accepte
+        "after_accept": {"penalty_pct": 10, "refund": True},  # 10% penalite si annule apres accept
+        "after_start": {"penalty_pct": 50, "refund": False},  # 50% si intervention commencee
+    },
+    "ANNULE_PRESTATAIRE": {
+        "before_devis": {"penalty_pct": 0, "refund": True},
+        "after_devis": {"penalty_pct": 0, "refund": True},
+        "after_accept": {"penalty_pct": 0, "refund": True},  # Pas de penalite prest
+        "after_start": {"penalty_pct": 0, "refund": True},
+    },
+}
+
 
 def validate_reservation_transition(current_status, new_status):
     """Valide une transition de statut de réservation."""
@@ -56,19 +84,6 @@ def validate_reservation_transition(current_status, new_status):
         return False, list(valid_next)
     return True, []
 
-
-RESERVATION_VALID_TRANSITIONS = {
-    "En attente": {"Confirmee", "Annulee"},
-    "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
-    "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
-    "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
-    "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
-    "INTERVENTION_EN_COURS": {"En attente client", "Terminee", "Annulee"},
-    "En attente client": {"Terminee", "Confirmee"},
-    "Confirmee": {"En cours", "INTERVENTION_EN_COURS", "Annulee"},
-    "En cours": {"En attente client", "Annulee"},
-    "Terminee": {"Confirmee", "Annulee"},
-}
 
 RESERVATION_STATUS_ALIASES = {
     "PENDING": "En attente",
@@ -1759,6 +1774,17 @@ def api_client_prestataires(request):
         )
         return R * 2 * _math.atan2(_math.sqrt(a), _math.sqrt(1 - a))
 
+    # Pagination
+    try:
+        page = max(1, int(request.GET.get("page", 1)))
+        page_size = min(50, max(1, int(request.GET.get("page_size", 20))))
+    except ValueError:
+        page = 1
+        page_size = 20
+    total_filtered = qs.count()
+    offset = (page - 1) * page_size
+    qs = qs[offset:offset + page_size]
+
     items = []
     for p in qs:
         uid = p.user_id
@@ -1811,7 +1837,13 @@ def api_client_prestataires(request):
                 "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or ""),
             }
         )
-    return JsonResponse({"items": items, "total": len(items)})
+    return JsonResponse({
+        "items": items,
+        "total": total_filtered,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total_filtered + page_size - 1) // page_size,
+    })
 
 
 @require_GET
@@ -3446,8 +3478,17 @@ def api_public_payment_methods(request):
 
 @require_GET
 def api_public_categories(request):
-    """Catégories pour vitrine / apps (UML Categorie)."""
+    """Categories pour vitrine / apps (UML Categorie)."""
     _bootstrap_data()
+    # Redis cache (5 min) pour eviter de requeter la DB a chaque appel
+    try:
+        from django.core.cache import cache
+        cache_key = "babifix:public:categories"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return JsonResponse({"categories": cached})
+    except Exception:
+        pass  # Pas de Redis = degrade gracieusement
     rows = []
     cats = (
         Category.objects.filter(actif=True)
@@ -3459,21 +3500,13 @@ def api_public_categories(request):
                 ),
             )
         )
-        .order_by("ordre_affichage", "nom")
     )
-    for c in cats:
-        rows.append(
-            {
-                "id": int(c.id),
-                "nom": c.nom,
-                "description": c.description,
-                "icone_slug": (c.icone_slug or "").strip(),
-                "icone_url": _category_icon_url(request, c)
-                or (c.icone_url or "").strip(),
-                "ordre_affichage": c.ordre_affichage,
-                "providers_count": c.providers_count,
-            }
-        )
+    # Mise en cache Redis (5 min TTL)
+    try:
+        from django.core.cache import cache
+        cache.set("babifix:public:categories", rows, 300)
+    except Exception:
+        pass
     return JsonResponse(
         {
             "categories": rows,
@@ -3517,6 +3550,8 @@ def api_client_confirm_prestation(request, reference):
     return JsonResponse({"ok": True, "status": res.statut})
 
 
+from django.db import transaction
+
 @csrf_exempt
 @require_http_methods(["POST"])
 @require_api_auth(["client", "admin"])
@@ -3533,12 +3568,6 @@ def api_client_pay_post_prestation(request, reference):
         return JsonResponse({"error": "invalid_state"}, status=400)
     if res.dispute_ouverte:
         return JsonResponse({"error": "dispute_open"}, status=400)
-    # Vérifier idempotence - éviter double paiement
-    idem_key = payload.get("idempotency_key")
-    if idem_key and res.idempotency_key != idem_key:
-        return JsonResponse({"error": "already_paid"}, status=400)
-    if _payment_complete_exists(res):
-        return JsonResponse({"error": "already_paid"}, status=400)
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
@@ -3550,41 +3579,46 @@ def api_client_pay_post_prestation(request, reference):
             {"error": "invalid_payment_method", "allowed": list(valid_ids)}, status=400
         )
     note = str(payload.get("message", "") or "")[:2000]
-    res.payment_client_note = note
-    if mid == "ESPECES":
-        res.payment_type = Reservation.PaymentType.ESPECES
-        res.mobile_money_operator = ""
-        tp = Payment.TypePaiement.ESPECES
-    else:
-        res.payment_type = Reservation.PaymentType.MOBILE_MONEY
-        op_map = {
-            "ORANGE_MONEY": Reservation.MobileMoneyOperator.ORANGE_MONEY,
-            "MTN_MOMO": Reservation.MobileMoneyOperator.MTN_MOMO,
-            "WAVE": Reservation.MobileMoneyOperator.WAVE,
-            "MOOV": Reservation.MobileMoneyOperator.MOOV,
-        }
-        res.mobile_money_operator = op_map.get(mid, "")
-        tp = Payment.TypePaiement.MOBILE_MONEY
     ref_pay = f"PAY-{res.reference}-{int(timezone.now().timestamp())}"
     commission = res.montant * Decimal("0.18") if res.montant else Decimal("0")
-    Payment.objects.create(
-        reference=ref_pay,
-        client=res.client,
-        prestataire=res.prestataire,
-        montant=res.montant,
-        commission=str(commission),  # 18% commission
-        etat=Payment.State.COMPLETE,
-        reservation=res,
-        type_paiement=tp,
-        valide_par_admin=False,
-    )
-    res.save(
-        update_fields=["payment_type", "mobile_money_operator", "payment_client_note"]
-    )
+    tp = Payment.TypePaiement.ESPECES
+    if mid != "ESPECES":
+        tp = Payment.TypePaiement.MOBILE_MONEY
+    idem_key = payload.get("idempotency_key", "")
+    try:
+        with transaction.atomic():
+            res.payment_client_note = note
+            if mid == "ESPECES":
+                res.payment_type = Reservation.PaymentType.ESPECES
+                res.mobile_money_operator = ""
+            else:
+                res.payment_type = Reservation.PaymentType.MOBILE_MONEY
+                op_map = {
+                    "ORANGE_MONEY": Reservation.MobileMoneyOperator.ORANGE_MONEY,
+                    "MTN_MOMO": Reservation.MobileMoneyOperator.MTN_MOMO,
+                    "WAVE": Reservation.MobileMoneyOperator.WAVE,
+                    "MOOV": Reservation.MobileMoneyOperator.MOOV,
+                }
+                res.mobile_money_operator = op_map.get(mid, "")
+            res.save(update_fields=["payment_type", "mobile_money_operator", "payment_client_note"])
+            Payment.objects.create(
+                reference=ref_pay,
+                client=res.client,
+                prestataire=res.prestataire,
+                montant=res.montant,
+                commission=str(commission),
+                etat=Payment.State.COMPLETE,
+                reservation=res,
+                type_paiement=tp,
+                valide_par_admin=False,
+                idempotency_key=idem_key,
+            )
+    except Exception as e:
+        return JsonResponse({"error": "transaction_failed", "detail": str(e)}, status=500)
     _schedule(
         [res.prestataire_user_id],
-        "BABIFIX — Paiement enregistré",
-        f"{res.reference} — {mid}",
+        "BABIFIX - Paiement enregistre",
+        f"{res.reference} - {mid}",
         {"type": "payment.recorded", "reference": res.reference},
     )
     return JsonResponse({"ok": True, "payment_reference": ref_pay})

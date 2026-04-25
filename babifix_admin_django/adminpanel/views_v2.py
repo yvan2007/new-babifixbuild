@@ -25,6 +25,7 @@ import uuid
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -146,14 +147,16 @@ def api_client_cancel_reservation(request, reference):
         return JsonResponse(
             {"error": "cannot_cancel", "statut": res.statut}, status=400
         )
-    res.statut = Reservation.Status.CANCELLED
-    res.save(update_fields=["statut"])
-    # Notifier le prestataire
+    with transaction.atomic():
+        res.statut = Reservation.Status.CANCELLED
+        res.save(update_fields=["statut"])
+        # Notifier le prestataire
+        if res.prestataire_user_id:
+            Notification.objects.create(
+                title=f"Réservation {reference} annulée par le client",
+                user_id=res.prestataire_user_id,
+            )
     if res.prestataire_user_id:
-        Notification.objects.create(
-            title=f"Réservation {reference} annulée par le client",
-            user_id=res.prestataire_user_id,
-        )
         _schedule(
             user_ids=[res.prestataire_user_id],
             title="Réservation annulée",
@@ -188,19 +191,19 @@ def api_client_open_dispute(request, reference):
     if not motif:
         return JsonResponse({"error": "motif_required"}, status=400)
     ref_litige = f"LIT-{uuid.uuid4().hex[:8].upper()}"
-    Dispute.objects.create(
-        reference=ref_litige,
-        motif=motif[:200],
-        client=res.client,
-        prestataire=res.prestataire,
-        priorite=Dispute.Priority.MEDIUM,
-        decision=Dispute.Decision.OPEN,
-        reservation=res,
-    )
-    res.dispute_ouverte = True
-    res.save(update_fields=["dispute_ouverte"])
-    # Notifier l'admin
-    Notification.objects.create(title=f"Nouveau litige {ref_litige} — {reference}")
+    with transaction.atomic():
+        Dispute.objects.create(
+            reference=ref_litige,
+            motif=motif[:200],
+            client=res.client,
+            prestataire=res.prestataire,
+            priorite=Dispute.Priority.MEDIUM,
+            decision=Dispute.Decision.OPEN,
+            reservation=res,
+        )
+        res.dispute_ouverte = True
+        res.save(update_fields=["dispute_ouverte"])
+        Notification.objects.create(title=f"Nouveau litige {ref_litige} — {reference}")
     return JsonResponse({"ok": True, "litige_reference": ref_litige})
 
 
