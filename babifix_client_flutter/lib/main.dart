@@ -20,7 +20,6 @@ import 'babifix_fcm.dart';
 import 'babifix_money.dart';
 import 'json_utils.dart';
 import 'user_store.dart';
-import 'category_icon_mapper.dart';
 
 import 'models/client_models.dart';
 import 'shared/in_app_notifications.dart';
@@ -50,13 +49,13 @@ import 'features/fidelite/fidelite_screen.dart';
 import 'theme/app_theme.dart';
 import 'router/babifix_client_router.dart';
 
-/// Aligné sur [adminpanel.views._normalize_category_key] : espaces → underscores, max 24.
+/// Aligne sur [adminpanel.views._normalize_category_key] : espaces → underscores, max 24.
 String babifixCategoryFilterKey(String nom) {
   final x = nom.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '_');
   return x.length > 24 ? x.substring(0, 24) : x;
 }
 
-/// Date/heure du flux réservation → libellé API (`when_label`).
+/// Date/heure du flux reservation → libelle API (`when_label`).
 String reservationWhenLabelFromFlowData(Map<String, dynamic> flowData) {
   final timeStr = '${flowData['time'] ?? ''}'.trim();
   final dateStr = '${flowData['date'] ?? ''}'.trim();
@@ -64,7 +63,7 @@ String reservationWhenLabelFromFlowData(Map<String, dynamic> flowData) {
   try {
     final d = DateTime.parse(dateStr).toLocal();
     final dh = '${d.day}/${d.month}/${d.year}';
-    if (timeStr.isNotEmpty) return '$dh à $timeStr';
+    if (timeStr.isNotEmpty) return '$dh a $timeStr';
     return dh;
   } catch (_) {
     if (timeStr.isNotEmpty) return '$dateStr $timeStr'.trim();
@@ -289,7 +288,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   String _searchQuery = '';
   Timer? _searchDebounce;
   final _searchCtrl = TextEditingController();
-  // Filtres avancés
+  // Filtres avances
   double _filterMinRating = 0;
   int _filterMaxPrice = 0; // 0 = pas de limite
   String _filterSort = 'default'; // default | rating | price_asc | price_desc
@@ -305,7 +304,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   bool loadingRemote = false;
   bool _showEmptyAfterDelay = false;
 
-  /// Onglets catégories : « Tous » + entrées API `/api/public/categories/`.
+  /// Onglets categories : « Tous » + entrees API `/api/public/categories/`.
   List<CategoryTab> categoryTabs = const [
     CategoryTab(
       icon: Icons.grid_view_rounded,
@@ -314,16 +313,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
     ),
   ];
 
-  /// Données 100 % issues de l’API — aucune liste locale fictive.
+  /// Donnees 100 % issues de l'API — aucune liste locale fictive.
   List<ClientService> services = <ClientService>[];
 
   /// Moyens de paiement (logos) — home + fallback public.
   List<PaymentMethodOption> paymentMethodsRemote = <PaymentMethodOption>[];
 
-  /// Prestataires récents (carousel accueil).
+  /// Prestataires recents (carousel accueil).
   List<RecentProviderCard> recentProviders = <RecentProviderCard>[];
 
-  /// Email support (paramètre site Django).
+  /// Email support (parametre site Django).
   String contactAdminEmail = '';
 
   List<ClientReservation> reservations = <ClientReservation>[];
@@ -359,13 +358,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
     super.initState();
     _recentProvidersCarouselController = PageController(viewportFraction: 0.88);
     _restoreClientNotifsThenInit();
-    // Chargement immédiat des catégories (sans authentification)
+    // Chargement immediat des categories (sans authentification)
     _loadPublicCategories();
-    // Synchronisation temps réel toutes les 3 secondes (auto-refresh)
+    // Synchronisation temps reel toutes les 3 secondes (auto-refresh)
     RealTimeSyncService.instance.startSync(intervalSeconds: 3);
     RealTimeSyncService.instance.categoriesStream.listen((_) {
       if (mounted) {
-        // Auto-refresh sans afficher de bannière
+        // Auto-refresh sans afficher de banniere
         _loadRemoteData();
       }
     });
@@ -537,7 +536,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      'Réservations, litiges, messages et actus — selon votre profil client.',
+                      'Reservations, litiges, messages et actus — selon votre profil client.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -550,7 +549,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     child: items.isEmpty
                         ? Center(
                             child: Text(
-                              'Aucune alerte récente dans l’app.',
+                              'Aucune alerte recente dans l\'app.',
                               style: TextStyle(
                                 color: Theme.of(context).colorScheme.outline,
                               ),
@@ -734,16 +733,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
             if (typ == 'provider.approved') {
               _pushClientNotif(
                 category: 'actu',
-                title: 'Catalogue mis à jour',
-                body: 'Un nouveau prestataire est disponible près de vous.',
+                title: 'Catalogue mis a jour',
+                body: 'Un nouveau prestataire est disponible pres de vous.',
                 actionRoute: 'services',
                 severity: BabifixNotifSeverity.important,
               );
             } else {
               _pushClientNotif(
                 category: 'actu',
-                title: 'Actualité BABIFIX',
-                body: 'Une nouvelle annonce a été publiée.',
+                title: 'Actualite BABIFIX',
+                body: 'Une nouvelle annonce a ete publiee.',
                 actionRoute: 'actus',
                 severity: BabifixNotifSeverity.important,
               );
@@ -753,8 +752,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 SnackBar(
                   content: Text(
                     typ == 'provider.approved'
-                        ? 'Catalogue mis à jour : nouveau prestataire.'
-                        : 'Nouvelle actualité BABIFIX.',
+                        ? 'Catalogue mis a jour : nouveau prestataire.'
+                        : 'Nouvelle actualite BABIFIX.',
                   ),
                 ),
               );
@@ -764,7 +763,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             _pushClientNotif(
               category: 'message',
               title: 'Nouveau message',
-              body: 'Votre prestataire ou le support vous a écrit.',
+              body: 'Votre prestataire ou le support vous a ecrit.',
               actionRoute: 'messages',
             );
           } else if (typ.contains('reservation') ||
@@ -773,15 +772,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
             _loadRemoteData();
             _pushClientNotif(
               category: 'demande',
-              title: 'Votre réservation',
-              body: 'Mise à jour sur une de vos demandes de service.',
+              title: 'Votre reservation',
+              body: 'Mise a jour sur une de vos demandes de service.',
               actionRoute: 'reservations',
               severity: BabifixNotifSeverity.important,
             );
           } else if (typ.contains('dispute') || typ == 'litige.ouvert') {
             _pushClientNotif(
               category: 'litige',
-              title: 'Litige / réclamation',
+              title: 'Litige / reclamation',
               body:
                   'Une action est requise sur un dossier. Consultez vos rendez-vous.',
               actionRoute: 'reservations',
@@ -818,14 +817,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
           _pushClientNotif(
             category: 'actu',
             title: 'Nouveau prestataire',
-            body: 'Le catalogue BABIFIX a été enrichi.',
+            body: 'Le catalogue BABIFIX a ete enrichi.',
             actionRoute: 'services',
             severity: BabifixNotifSeverity.important,
           );
         } else {
           _pushClientNotif(
             category: 'actu',
-            title: 'Actualité',
+            title: 'Actualite',
             body: 'Nouvelle publication BABIFIX.',
             actionRoute: 'actus',
             severity: BabifixNotifSeverity.important,
@@ -843,8 +842,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
         _loadRemoteData();
         _pushClientNotif(
           category: 'demande',
-          title: 'Réservation',
-          body: 'Statut ou détail d’une réservation a changé.',
+          title: 'Reservation',
+          body: 'Statut ou detail d\'une reservation a change.',
           actionRoute: 'reservations',
           severity: BabifixNotifSeverity.important,
         );
@@ -862,7 +861,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
       _handleFcmNavigation(msg.data);
     });
 
-    // Message qui a lancé l'app depuis état terminé
+    // Message qui a lance l\'app depuis etat termine
     FirebaseMessaging.instance.getInitialMessage().then((msg) {
       if (msg != null && mounted) {
         _handleFcmNavigation(msg.data);
@@ -878,7 +877,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     setState(() {
       sessionLoggedIn = logged;
       profileName = (m['name'] ?? '').trim().isEmpty
-          ? 'Invité'
+          ? 'Invite'
           : (m['name'] ?? '').trim();
       profileEmail = (m['email'] ?? '').trim();
       profilePhone = (m['phone'] ?? '').trim();
@@ -936,7 +935,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ),
             const SizedBox(height: 14),
             Text(
-              'Connexion biométrique',
+              'Connexion biometrique',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
@@ -945,7 +944,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Activez Face ID ou l\'empreinte digitale pour accéder à votre compte rapidement.',
+              'Activez Face ID ou l\'empreinte digitale pour acceder a votre compte rapidement.',
               style: TextStyle(color: _textSecondary, height: 1.45),
               textAlign: TextAlign.center,
             ),
@@ -955,7 +954,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               child: FilledButton.icon(
                 onPressed: () => Navigator.pop(ctx),
                 icon: const Icon(Icons.check_rounded),
-                label: const Text('Configurer dans Paramètres'),
+                label: const Text('Configurer dans Parametres'),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF4CC9F0),
                   shape: RoundedRectangleBorder(
@@ -1310,7 +1309,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               color: iconColor,
                             ),
                             const SizedBox(width: 12),
-                            const Text('Contacter l’admin'),
+                            const Text('Contacter l\'admin'),
                           ],
                         ),
                       ),
@@ -1347,33 +1346,33 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Comment utiliser l’app',
+              'Comment utiliser l\'app',
               style: TextStyle(color: _textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 16),
             _HelpRow(
               icon: Icons.home_repair_service,
-              title: 'Réserver',
+              title: 'Reserver',
               body:
-                  'Onglet Services : choisissez une prestation, puis Réserver. Vous pouvez indiquer le mode de paiement et un message.',
+                  'Onglet Services : choisissez une prestation, puis Reserver. Vous pouvez indiquer le mode de paiement et un message.',
             ),
             _HelpRow(
               icon: Icons.calendar_month,
               title: 'Suivre vos rendez-vous',
               body:
-                  'Onglet Rendez-vous : statut, paiement espèces, notation après prestation terminée.',
+                  'Onglet Rendez-vous : statut, paiement especes, notation apres prestation terminee.',
             ),
             _HelpRow(
               icon: Icons.chat_bubble_outline,
               title: 'Messages',
               body:
-                  'Échangez avec le prestataire depuis l’icône message en haut à droite.',
+                  'Échangez avec le prestataire depuis l\'icone message en haut a droite.',
             ),
             _HelpRow(
               icon: Icons.palette_outlined,
-              title: 'Thème & coordonnées',
+              title: 'Theme & coordonnees',
               body:
-                  'Profil → Paramètres : thème clair / bleu BABIFIX, téléphone et adresse d’intervention.',
+                  'Profil -> Parametres : theme clair / bleu BABIFIX, telephone et adresse d\'intervention.',
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
@@ -1390,7 +1389,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
-  /// Accueil : un seul scroll vertical (évite les bugs Windows où seul le bas défilait).
+  /// Accueil : un seul scroll vertical (evite les bugs Windows où seul le bas defilait).
   Widget _buildNews() {
     return RefreshIndicator(
       onRefresh: _loadRemoteData,
@@ -1711,7 +1710,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                 ),
                               ),
                               Text(
-                                '${categoryTabs.length > 1 ? categoryTabs.length - 1 : ''} catégories disponibles',
+                                '${categoryTabs.length > 1 ? categoryTabs.length - 1 : ''} categories disponibles',
                                 style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 13,
@@ -1752,7 +1751,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Offres, actus et nouveautés BABIFIX',
+                      'Offres, actus et nouveautes BABIFIX',
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.35,
@@ -1779,10 +1778,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
-  // ── ACCUEIL : Hero banner personnalisé ───────────────────────────────────
+  // ── ACCUEIL : Hero banner personnalise ───────────────────────────────────
   Widget _buildHomeHero() {
     final firstName = profileName.split(' ').first;
-    final greet = (firstName.isEmpty || firstName == 'Invité')
+    final greet = (firstName.isEmpty || firstName == 'Invite')
         ? 'Bienvenue sur BABIFIX'
         : 'Bonjour, $firstName !';
     return Padding(
@@ -1829,7 +1828,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'Côte d\'Ivoire',
+                    'Cote d\'Ivoire',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -1851,7 +1850,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Trouvez un artisan qualifié et vérifiable\nen quelques secondes.',
+              'Trouvez un artisan qualifie et verifiable\nen quelques secondes.',
               style: TextStyle(
                 fontSize: 13,
                 color: Colors.white.withValues(alpha: 0.72),
@@ -1859,7 +1858,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               ),
             ),
             const SizedBox(height: 16),
-            // Barre de recherche simulée → onglet Services
+            // Barre de recherche simulee → onglet Services
             GestureDetector(
               onTap: () => setState(() => navIndex = 1),
               child: Container(
@@ -1884,7 +1883,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Plombier, électricien, peintre…',
+                        'Plombier, electricien, peintre…',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.6),
                           fontSize: 14,
@@ -1919,7 +1918,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
-  // ── ACCUEIL : Catégories en accès rapide ─────────────────────────────────
+  // ── ACCUEIL : Categories en acces rapide ─────────────────────────────────
   Widget _buildCategoriesSection() {
     if (categoryTabs.length <= 1) return const SizedBox.shrink();
     final cats = categoryTabs.skip(1).toList(); // skip "Tous"
@@ -2028,11 +2027,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
-  // ── ACCUEIL : Comment ça marche (3 étapes) ───────────────────────────────
+  // ── ACCUEIL : Comment ca marche (3 etapes) ───────────────────────────────
   Widget _buildHowItWorksSection() {
     const steps = [
       (Icons.search_rounded, 'Recherchez', '0xFF0066B3'),
-      (Icons.calendar_today_rounded, 'Réservez', '0xFFE87722'),
+      (Icons.calendar_today_rounded, 'Reservez', '0xFFE87722'),
       (Icons.verified_rounded, 'Profitez', '0xFF009A44'),
     ];
     const stepColors = [
@@ -2057,7 +2056,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               ),
               const SizedBox(width: 10),
               Text(
-                'Comment ça marche',
+                'Comment ca marche',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -2179,7 +2178,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Paiements 100 % sécurisés en FCFA',
+                'Paiements 100 % securises en FCFA',
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
@@ -2437,7 +2436,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 ),
               ),
             ),
-            // ── Filtres avancés ──────────────────────────────────────────
+            // ── Filtres avances ──────────────────────────────────────────
             _buildFilterChipsRow(filtered.length),
             if (categoryTabs.isNotEmpty)
               CategoryStrip(
@@ -2466,10 +2465,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       (loadingRemote && services.isEmpty)
                           ? 'Chargement du catalogue...'
                           : _searchQuery.isNotEmpty
-                          ? '${filtered.length} résultat(s) pour "$_searchQuery"'
+                          ? '${filtered.length} resultat(s) pour "$_searchQuery"'
                           : filtered.isEmpty
-                          ? 'Aucun service dans cette catégorie'
-                          : 'Réservez en un clic — ${filtered.length} prestation(s)',
+                          ? 'Aucun service dans cette categorie'
+                          : 'Reservez en un clic — ${filtered.length} prestation(s)',
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.35,
@@ -2512,10 +2511,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Widget _buildFilterChipsRow(int count) {
     final sortLabels = {
-      'default': 'Par défaut',
-      'rating': 'Mieux notés',
+      'default': 'Par defaut',
+      'rating': 'Mieux notes',
       'price_asc': 'Prix croissant',
-      'price_desc': 'Prix décroissant',
+      'price_desc': 'Prix decroissant',
     };
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -2675,7 +2674,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         tempSort = 'default';
                       });
                     },
-                    child: const Text('Réinitialiser'),
+                    child: const Text('Reinitialiser'),
                   ),
                 ],
               ),
@@ -2690,8 +2689,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 spacing: 8,
                 children: [
                   for (final entry in {
-                    'default': 'Par défaut',
-                    'rating': 'Mieux notés',
+                    'default': 'Par defaut',
+                    'rating': 'Mieux notes',
                     'price_asc': 'Prix ↑',
                     'price_desc': 'Prix ↓',
                   }.entries)
@@ -2827,7 +2826,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
           ),
           const SizedBox(height: 14),
           Text(
-            'Aucun résultat pour "$_searchQuery"',
+            'Aucun resultat pour "$_searchQuery"',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -2837,7 +2836,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Essayez un autre mot-clé ou consultez\ntoutes les catégories.',
+            'Essayez un autre mot-cle ou consultez\ntoutes les categories.',
             textAlign: TextAlign.center,
             style: TextStyle(color: _textSecondary, height: 1.45),
           ),
@@ -2907,7 +2906,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ),
             const SizedBox(height: 10),
             Text(
-              'De nouveaux prestataires arrivent bientôt.\nExplore les autres catégories !',
+              'De nouveaux prestataires arrivent bientot.\nExplore les autres categories !',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -3154,7 +3153,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        'Prestataire vérifié',
+                        'Prestataire verifie',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -3203,7 +3202,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             Icons.info_outline_rounded,
                             size: 18,
                           ),
-                          label: const Text('Détails'),
+                          label: const Text('Details'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -3231,7 +3230,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                   ),
                                 )
                               : null,
-                          child: const Text('Réserver'),
+                          child: const Text('Reserver'),
                         ),
                       ),
                     ],
@@ -3248,7 +3247,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   String _paymentLabelClient(String code) {
     switch (code) {
       case 'ESPECES':
-        return 'Espèces';
+        return 'Especes';
       case 'MOBILE_MONEY':
         return 'Mobile Money';
       case 'CARTE':
@@ -3270,7 +3269,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Mes réservations',
+                  'Mes reservations',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
@@ -3278,7 +3277,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 ),
                 Text(
-                  '${reservations.length} élément(s) — tirez pour actualiser',
+                  '${reservations.length} element(s) — tirez pour actualiser',
                   style: TextStyle(fontSize: 13, color: _textSecondary),
                 ),
               ],
@@ -3301,7 +3300,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Aucune réservation pour l’instant',
+                        'Aucune reservation pour l\'instant',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 20,
@@ -3311,7 +3310,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Parcourez le catalogue et réservez une prestation. Elle apparaîtra ici.',
+                        'Parcourez le catalogue et reservez une prestation. Elle apparaitra ici.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: _textSecondary, height: 1.4),
                       ),
@@ -3391,7 +3390,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             if (r.disputeOuverte) ...[
                               const SizedBox(height: 6),
                               Text(
-                                'Litige signalé — suivi avec BABIFIX',
+                                'Litige signale — suivi avec BABIFIX',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -3402,7 +3401,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             if (r.rated) ...[
                               const SizedBox(height: 4),
                               Text(
-                                'Avis laissé',
+                                'Avis laisse',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: _textSecondary,
@@ -3500,7 +3499,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                     FilledButton.tonal(
                                       onPressed: () => _declareCashPayment(r),
                                       child: const Text(
-                                        'J\'ai payé en espèces',
+                                        'J\'ai paye en especes',
                                       ),
                                     ),
                                 ],
@@ -3520,7 +3519,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   Widget _buildActualites() {
     return Column(
       children: [
-        _buildTopBar('Actualités'),
+        _buildTopBar('Actualites'),
         if (loadingRemote) const LinearProgressIndicator(minHeight: 2),
         Expanded(
           child: actualites.isEmpty
@@ -3537,7 +3536,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Aucune actualité publiée',
+                        'Aucune actualite publiee',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 20,
@@ -3547,7 +3546,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'L’équipe BABIFIX publiera ici les annonces et mises à jour.',
+                        'L\'equipe BABIFIX publiera ici les annonces et mises a jour.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: _textSecondary, height: 1.4),
                       ),
@@ -3790,7 +3789,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                 const SizedBox(height: 3),
                                 Text(
                                   profileEmail.isEmpty
-                                      ? 'Connectez-vous ou créez un compte'
+                                      ? 'Connectez-vous ou creez un compte'
                                       : profileEmail,
                                   style: TextStyle(
                                     color: _textSecondary,
@@ -3855,7 +3854,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         Row(
                           children: [
                             _MiniStatChip(
-                              label: 'Réservations',
+                              label: 'Reservations',
                               value: '${reservations.length}',
                               icon: Icons.calendar_today_rounded,
                               color: BabifixDesign.cyan,
@@ -3888,26 +3887,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 ),
                 // ── Section : Mon Compte ─────────────────────────────
                 const SizedBox(height: 20),
-                _SectionLabel(label: ‘MON COMPTE’, icon: Icons.person_rounded, color: BabifixDesign.cyan, isLight: _isLight),
+                _SectionLabel(label: 'MON COMPTE', icon: Icons.person_rounded, color: BabifixDesign.cyan, isLight: _isLight),
                 const SizedBox(height: 8),
                 _PremiumActionTile(
                   icon: Icons.person_outline_rounded,
-                  title: ‘Modifier le profil’,
-                  subtitle: ‘Photo, nom, coordonnées’,
+                  title: 'Modifier le profil',
+                  subtitle: 'Photo, nom, coordonnees',
                   onTap: _openEditProfile,
                 ),
                 const SizedBox(height: 8),
                 _PremiumActionTile(
                   icon: Icons.chat_bubble_outline_rounded,
-                  title: ‘Messages’,
-                  subtitle: ‘Échanger avec vos prestataires’,
+                  title: 'Messages',
+                  subtitle: 'Échanger avec vos prestataires',
                   onTap: _openMessages,
                 ),
                 const SizedBox(height: 8),
                 _PremiumActionTile(
                   icon: Icons.emoji_events_rounded,
-                  title: ‘Mon Programme’,
-                  subtitle: ‘Fidélité, garanties & parrainage’,
+                  title: 'Mon Programme',
+                  subtitle: 'Fidelite, garanties & parrainage',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -3938,21 +3937,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(‘Paiements en attente’, style: TextStyle(fontWeight: FontWeight.w800, color: _textPrimary, fontSize: 13)),
-                        Text(‘${formatFcfa(totalEscrow)} sécurisés’, style: const TextStyle(color: Color(0xFF4CC9F0), fontSize: 12)),
+                        Text('Paiements en attente', style: TextStyle(fontWeight: FontWeight.w800, color: _textPrimary, fontSize: 13)),
+                        Text('${formatFcfa(totalEscrow)} securises', style: const TextStyle(color: Color(0xFF4CC9F0), fontSize: 12)),
                       ])),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(color: BabifixDesign.cyan.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-                        child: const Text(‘Sécurisé’, style: TextStyle(color: Color(0xFF4CC9F0), fontSize: 10, fontWeight: FontWeight.w700)),
+                        child: const Text('Securise', style: TextStyle(color: Color(0xFF4CC9F0), fontSize: 10, fontWeight: FontWeight.w700)),
                       ),
                     ]),
                   ),
                 ],
 
-                // ── Section : Préférences ─────────────────────────────
+                // ── Section : Preferences ─────────────────────────────
                 const SizedBox(height: 20),
-                _SectionLabel(label: ‘PRÉFÉRENCES’, icon: Icons.palette_outlined, color: const Color(0xFFA855F7), isLight: _isLight),
+                _SectionLabel(label: 'PRÉFÉRENCES', icon: Icons.palette_outlined, color: const Color(0xFFA855F7), isLight: _isLight),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -3969,9 +3968,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text("Thème d’affichage", style: TextStyle(fontWeight: FontWeight.w700, color: _textPrimary, fontSize: 14)),
+                      Text("Theme d'affichage", style: TextStyle(fontWeight: FontWeight.w700, color: _textPrimary, fontSize: 14)),
                       Text(
-                        widget.paletteMode == AppPaletteMode.light ? ‘Mode blanc (actif)’ : ‘Bleu BABIFIX (actif)’,
+                        widget.paletteMode == AppPaletteMode.light ? 'Mode blanc (actif)' : 'Bleu BABIFIX (actif)',
                         style: TextStyle(color: _textSecondary, fontSize: 12),
                       ),
                     ])),
@@ -3984,9 +3983,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ]),
                 ),
 
-                // ── Section : Sécurité ────────────────────────────────
+                // ── Section : Securite ────────────────────────────────
                 const SizedBox(height: 20),
-                _SectionLabel(label: ‘SÉCURITÉ’, icon: Icons.lock_outline_rounded, color: const Color(0xFFF59E0B), isLight: _isLight),
+                _SectionLabel(label: 'SÉCURITÉ', icon: Icons.lock_outline_rounded, color: const Color(0xFFF59E0B), isLight: _isLight),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -4002,8 +4001,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     children: [
                       _PremiumActionTile(
                         icon: Icons.fingerprint_rounded,
-                        title: 'Connexion biométrique',
-                        subtitle: 'Face ID / Empreinte pour accéder rapidement',
+                        title: 'Connexion biometrique',
+                        subtitle: 'Face ID / Empreinte pour acceder rapidement',
                         onTap: _openBiometricSettings,
                       ),
                       const SizedBox(height: 8),
@@ -4023,7 +4022,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 const SizedBox(height: 8),
                 _PremiumActionTile(
                   icon: Icons.support_agent_rounded,
-                  title: "Contacter l'administrateur",
+                  title: "Contacter l\'administrateur",
                   subtitle: contactAdminEmail.isEmpty ? 'Email support BABIFIX' : contactAdminEmail,
                   onTap: _contactAdminMail,
                 ),
@@ -4031,24 +4030,24 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 _PremiumActionTile(
                   icon: Icons.help_center_outlined,
                   title: 'FAQ & aide',
-                  subtitle: 'Guide réservation, paiement, avis',
+                  subtitle: 'Guide reservation, paiement, avis',
                   onTap: _showHelpSheet,
                 ),
                 const SizedBox(height: 8),
                 _PremiumActionTile(
                   icon: Icons.info_outline_rounded,
                   title: 'À propos de BABIFIX',
-                  subtitle: 'Version, mentions légales et support',
+                  subtitle: 'Version, mentions legales et support',
                   onTap: () => showAboutDialog(
                     context: context,
                     applicationName: 'BABIFIX',
                     applicationVersion: '1.0.0',
                     applicationIcon: const CircleAvatar(backgroundImage: AssetImage(_logoAsset)),
-                    children: const [Text('Plateforme premium de services à domicile avec réservation et paiement sécurisé.')],
+                    children: const [Text('Plateforme premium de services a domicile avec reservation et paiement securise.')],
                   ),
                 ),
 
-                // ── Section : Légal ───────────────────────────────────
+                // ── Section : Legal ───────────────────────────────────
                 const SizedBox(height: 20),
                 _SectionLabel(label: 'LÉGAL', icon: Icons.description_outlined, color: const Color(0xFF64748B), isLight: _isLight),
                 const SizedBox(height: 8),
@@ -4065,7 +4064,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: _isLight,
                           onTap: () => _launchUrl('https://babifix.ci/cgu')),
                       _VerticalDivider(isLight: _isLight),
-                      _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: _isLight,
+                      _LegalLink(label: 'Confidentialite', icon: Icons.privacy_tip_outlined, isLight: _isLight,
                           onTap: () => _launchUrl('https://babifix.ci/privacy')),
                       _VerticalDivider(isLight: _isLight),
                       _LegalLink(label: 'Aide', icon: Icons.help_outline_rounded, isLight: _isLight,
@@ -4104,7 +4103,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               ),
                             ),
                             Text(
-                              'Paiement sécurisé · Prestataires vérifiés · Support 7j/7',
+                              'Paiement securise · Prestataires verifies · Support 7j/7',
                               style: TextStyle(
                                 color: _textSecondary,
                                 fontSize: 11,
@@ -4117,7 +4116,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 ),
 
-                // ── Zone Déconnexion ──────────────────────────────────
+                // ── Zone Deconnexion ──────────────────────────────────
                 const SizedBox(height: 20),
                 if (sessionLoggedIn)
                   Container(
@@ -4146,7 +4145,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              const Text('Déconnexion', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFEF4444), fontSize: 14)),
+                              const Text('Deconnexion', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFEF4444), fontSize: 14)),
                               Text('Quitter ce compte sur cet appareil', style: TextStyle(color: const Color(0xFFEF4444).withValues(alpha: 0.7), fontSize: 12)),
                             ])),
                             const Icon(Icons.chevron_right_rounded, color: Color(0xFFEF4444)),
@@ -4183,7 +4182,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             const SizedBox(width: 12),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               const Text('Connexion', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF4CC9F0), fontSize: 14)),
-                              Text('Se connecter ou créer un compte', style: TextStyle(color: _textSecondary, fontSize: 12)),
+                              Text('Se connecter ou creer un compte', style: TextStyle(color: _textSecondary, fontSize: 12)),
                             ])),
                             const Icon(Icons.chevron_right_rounded, color: Color(0xFF4CC9F0)),
                           ]),
@@ -4194,7 +4193,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 const SizedBox(height: 16),
                 Center(
                   child: Text(
-                    "BABIFIX v1.0.0 · Abidjan, Côte d'Ivoire",
+                    "BABIFIX v1.0.0 · Abidjan, Cote d'Ivoire",
                     style: TextStyle(fontSize: 11, color: _textSecondary.withValues(alpha: 0.5)),
                   ),
                 ),
@@ -4216,19 +4215,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
   Future<void> _loadRemoteData() async {
     setState(() => loadingRemote = true);
 
-    // Charger les catégories publiques (sans authentification)
+    // Charger les categories publiques (sans authentification)
     await _loadPublicCategories();
 
     // Charger les prestataires sans authentification
     await _loadPublicProviders();
 
-    // Charger les données utilisateur (si connecté)
+    // Charger les donnees utilisateur (si connecte)
     if (authToken != null) {
       await _loadClientHomeData();
     } else {
       if (mounted) {
         setState(() => loadingRemote = false);
-        // Aucun service sans auth — déclencher le délai pour l'état vide
+        // Aucun service sans auth — declencher le delai pour l'etat vide
         Future.delayed(const Duration(milliseconds: 600), () {
           if (mounted) setState(() => _showEmptyAfterDelay = true);
         });
@@ -4289,7 +4288,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         if (mounted) {
           setState(() {
             recentProviders = rp;
-            // Peupler services seulement si pas encore chargés (avant auth)
+            // Peupler services seulement si pas encore charges (avant auth)
             if (services.isEmpty) {
               services = publicServices;
             }
@@ -4326,18 +4325,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
           final nom = '${m['nom'] ?? m['name'] ?? ''}'.trim();
           if (nom.isEmpty) continue;
           final fk = babifixCategoryFilterKey(nom);
-          final slug = '${m['icone_slug'] ?? m['slug'] ?? ''}'.trim();
           final iconUrl = '${m['icone_url'] ?? ''}'.trim();
-          final icon = CategoryIconMapper.resolve(slug, '');
-          final color = CategoryIconMapper.color(slug);
           nextTabs = [
             ...nextTabs,
             CategoryTab(
-              icon: icon,
               iconNetworkUrl: iconUrl.isNotEmpty ? iconUrl : null,
               label: nom,
               filterKey: fk,
-              color: color,
             ),
           ];
         }
@@ -4404,19 +4398,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
             final nom = '${m['nom'] ?? m['name'] ?? ''}'.trim();
             if (nom.isEmpty) continue;
             final fk = babifixCategoryFilterKey(nom);
-            final slug = '${m['icone_slug'] ?? m['slug'] ?? ''}'.trim();
-            final emoji = '${m['icon_emoji'] ?? ''}'.trim();
             final iconUrl = '${m['icone_url'] ?? ''}'.trim();
-            final icon = CategoryIconMapper.resolve(slug, emoji);
-            final color = CategoryIconMapper.color(slug);
             nextTabs = [
               ...nextTabs,
               CategoryTab(
-                icon: icon,
                 iconNetworkUrl: iconUrl.isNotEmpty ? iconUrl : null,
                 label: nom,
                 filterKey: fk,
-                color: color,
               ),
             ];
           }
@@ -4536,8 +4524,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
       if (!mounted) return;
       setState(() {
-        // Ne remplacer les catégories que si nextTabs contient plus que "Tous"
-        // (évite d'écraser les 77 catégories déjà chargées si la requête interne a échoué)
+        // Ne remplacer les categories que si nextTabs contient plus que "Tous"
+        // (evite d'ecraser les 77 categories deja chargees si la requête interne a echoue)
         if (nextTabs.length > 1) {
           categoryTabs = nextTabs;
           if (categoryIndex >= categoryTabs.length) {
@@ -4545,7 +4533,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
           }
         }
         // Si l'API retourne des services auth → ils remplacent les services publics
-        // Sinon on garde les services publics déjà chargés
+        // Sinon on garde les services publics deja charges
         if (remoteServices.isNotEmpty) {
           services = remoteServices;
         }
@@ -4610,7 +4598,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 runSpacing: 8,
                 children: [
                   ChoiceChip(
-                    label: const Text('Espèces'),
+                    label: const Text('Especes'),
                     selected: payment == 'ESPECES',
                     onSelected: (_) => setModal(() => payment = 'ESPECES'),
                   ),
@@ -4700,7 +4688,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         setState(() => navIndex = 4);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Connectez-vous d\'abord pour réservés.'),
+            content: Text('Connectez-vous d\'abord pour reserves.'),
             duration: Duration(seconds: 3),
           ),
         );
@@ -4776,7 +4764,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
           }
         }
       } catch (_) {
-        // pas de GPS : la réservation part quand même sans coordonnées
+        // pas de GPS : la reservation part quand même sans coordonnees
       }
     }
 
@@ -4837,7 +4825,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         final detail = babifixFormatApiErrorBody(res.body);
         final msg = detail.isNotEmpty
             ? detail
-            : 'Réservation impossible (${res.statusCode})';
+            : 'Reservation impossible (${res.statusCode})';
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(msg)));
@@ -4846,7 +4834,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Erreur réseau — réessayez dans un instant.'),
+            content: Text('Erreur reseau — reessayez dans un instant.'),
           ),
         );
       }
@@ -4879,7 +4867,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Paiement espèces déclaré — en attente du prestataire.',
+              'Paiement especes declare — en attente du prestataire.',
             ),
           ),
         );
@@ -4981,7 +4969,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Litige signalé — suivi avec BABIFIX',
+                          'Litige signale — suivi avec BABIFIX',
                           style: TextStyle(
                             color: Colors.orange.shade800,
                             fontWeight: FontWeight.w600,
@@ -5042,7 +5030,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           _declareCashPayment(r);
                         },
                         icon: const Icon(Icons.money),
-                        label: const Text('Payé en espèces'),
+                        label: const Text('Paye en especes'),
                       ),
                     if (r.canRate && !r.rated)
                       OutlinedButton.icon(
@@ -5058,7 +5046,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               ] else ...[
                 const Center(
                   child: Text(
-                    'Aucune action disponible pour cette réservation',
+                    'Aucune action disponible pour cette reservation',
                     style: TextStyle(color: Colors.grey),
                   ),
                 ),
@@ -5089,7 +5077,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Prestation confirmée — vous pouvez choisir le mode de paiement.',
+              'Prestation confirmee — vous pouvez choisir le mode de paiement.',
             ),
           ),
         );
@@ -5113,7 +5101,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final methods = paymentMethodsRemote.isNotEmpty
         ? paymentMethodsRemote
         : const [
-            PaymentMethodOption(id: 'ESPECES', label: 'Espèces', logoUrl: ''),
+            PaymentMethodOption(id: 'ESPECES', label: 'Especes', logoUrl: ''),
             PaymentMethodOption(
               id: 'ORANGE_MONEY',
               label: 'Orange Money',
@@ -5250,7 +5238,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
       if (!mounted) return;
       if (res.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Paiement enregistré (MVP).')),
+          const SnackBar(content: Text('Paiement enregistre (MVP).')),
         );
         await _loadRemoteData();
       } else {
@@ -5272,7 +5260,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     if (e.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email admin non configuré.')),
+          const SnackBar(content: Text('Email admin non configure.')),
         );
       }
       return;
@@ -5325,7 +5313,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Comment s’est passée la prestation ?',
+                        'La prestation est passee',
                       style: TextStyle(
                         fontSize: 14,
                         color: cs.onSurfaceVariant,
@@ -5365,7 +5353,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     if (r.latitude != null && r.longitude != null) ...[
                       const SizedBox(height: 20),
                       Text(
-                        'Lieu de l’intervention',
+                        'Lieu de l\'intervention',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
@@ -5399,7 +5387,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           ..addAll(p);
                       }),
                       maxPhotos: 5,
-                      hint: 'Commentaire ou détails utiles (optionnel)',
+                      hint: 'Commentaire ou details utiles (optionnel)',
                       messageHeading: 'Commentaire',
                       photosHeading: 'Photos avec votre avis',
                     ),
@@ -5717,7 +5705,7 @@ class _SplashScreenState extends State<_SplashScreen>
   }
 }
 
-/// Raccourcis visibles sur l’onglet Accueil.
+/// Raccourcis visibles sur l'onglet Accueil.
 class _HomeQuickChip extends StatelessWidget {
   const _HomeQuickChip({
     required this.icon,
@@ -5780,7 +5768,7 @@ class _HomeQuickChip extends StatelessWidget {
   }
 }
 
-/// Puce opérateur Mobile Money (logo + libellé).
+/// Puce operateur Mobile Money (logo + libelle).
 class _MmLogoChip extends StatelessWidget {
   const _MmLogoChip({
     required this.operatorId,
@@ -5940,7 +5928,7 @@ class _MiniStatChip extends StatelessWidget {
   }
 }
 
-// ── Lien légal compact ────────────────────────────────────────────────────────
+// ── Lien legal compact ────────────────────────────────────────────────────────
 class _LegalLink extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -6261,7 +6249,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                 spacing: 8,
                 children: [
                   ChoiceChip(
-                    label: const Text('Blanc (par défaut)'),
+                    label: const Text('Blanc (par defaut)'),
                     selected: widget.currentMode == AppPaletteMode.light,
                     onSelected: (_) =>
                         widget.onModeChanged(AppPaletteMode.light),

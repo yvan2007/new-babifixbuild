@@ -70,7 +70,7 @@ if _allowed_hosts_env:
 elif _env == "production":
     ALLOWED_HOSTS = ["babifix.ci", "www.babifix.ci", "localhost", "127.0.0.1"]
 else:
-    ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1"]
+    ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1", "10.0.2.2"]
 
 # En production, il faut au moins un host configured
 if (

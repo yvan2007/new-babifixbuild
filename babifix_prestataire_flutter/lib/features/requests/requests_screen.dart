@@ -206,10 +206,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 8),
+const SizedBox(height: 8),
                   const Text(
-                    'Vos demandes de clients
-arrêtront ici.',
+                    'Vos demandes de clients arreteront ici.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,

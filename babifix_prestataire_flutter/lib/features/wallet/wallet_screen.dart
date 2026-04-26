@@ -275,14 +275,14 @@ class _BalanceCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [BabifixDesign.indigo, opColor.withValues(alpha: 0.7)],
+          colors: [BabifixDesign.ciBlue, opColor.withValues(alpha: 0.7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: BabifixDesign.indigo.withValues(alpha: 0.3),
+            color: BabifixDesign.ciBlue.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -326,7 +326,7 @@ class _BalanceCard extends StatelessWidget {
               onPressed: onWithdraw,
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: BabifixDesign.indigo,
+                foregroundColor: BabifixDesign.ciBlue,
                 disabledBackgroundColor: Colors.white30,
                 disabledForegroundColor: Colors.white60,
                 shape: RoundedRectangleBorder(
