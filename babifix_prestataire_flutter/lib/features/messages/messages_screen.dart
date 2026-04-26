@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -25,16 +26,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
   List<Map<String, dynamic>> _filtered = [];
   final _searchCtrl = TextEditingController();
   bool _searching = false;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _bootstrap();
-    _searchCtrl.addListener(_applyFilter);
+    _searchCtrl.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), _applyFilter);
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }

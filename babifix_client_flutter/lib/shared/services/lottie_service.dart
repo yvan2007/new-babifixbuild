@@ -2,6 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
 class LottieService {
+  static Widget _lottie(String asset, {double size = 200, bool repeat = false}) {
+    return Lottie.asset(
+      asset,
+      width: size,
+      height: size,
+      repeat: repeat,
+      errorBuilder: (_, __, ___) => Icon(
+        Icons.check_circle_outline,
+        size: size * 0.6,
+        color: Colors.green,
+      ),
+    );
+  }
+
   static Future<void> showSuccessAnimation(
     BuildContext context, {
     String? message,
@@ -14,12 +28,7 @@ class LottieService {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Lottie.asset(
-              'assets/lottie/success.json',
-              width: 200,
-              height: 200,
-              repeat: false,
-            ),
+            _lottie('assets/lottie/success.json'),
             if (message != null) ...[
               const SizedBox(height: 16),
               Text(
@@ -47,26 +56,14 @@ class LottieService {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Lottie.asset(
-              'assets/lottie/success.json',
-              width: 200,
-              height: 200,
-              repeat: false,
-            ),
+            _lottie('assets/lottie/success.json'),
             const SizedBox(height: 16),
             const Text(
               'Devis accepté !',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Le prestataire sera notifié',
-              style: TextStyle(color: Colors.white70),
-            ),
+            const Text('Le prestataire sera notifié', style: TextStyle(color: Colors.white70)),
           ],
         ),
       ),
@@ -82,20 +79,11 @@ class LottieService {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Lottie.asset(
-              'assets/lottie/payment.json',
-              width: 200,
-              height: 200,
-              repeat: false,
-            ),
+            _lottie('assets/lottie/payment.json'),
             const SizedBox(height: 16),
             const Text(
               'Paiement réussi !',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
             ),
           ],
         ),
@@ -112,26 +100,14 @@ class LottieService {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Lottie.asset(
-              'assets/lottie/success.json',
-              width: 200,
-              height: 200,
-              repeat: false,
-            ),
+            _lottie('assets/lottie/success.json'),
             const SizedBox(height: 16),
             const Text(
               'Travaux terminés !',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Merci de confirmer la fin des travaux',
-              style: TextStyle(color: Colors.white70),
-            ),
+            const Text('Merci de confirmer la fin des travaux', style: TextStyle(color: Colors.white70)),
           ],
         ),
       ),

@@ -155,10 +155,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
     await _chatWs?.sink.close();
 
     final wsBase = babifixWsBaseUrl();
-    final uri = Uri.parse(
-      '$wsBase/ws/chat/$convId/?token=${Uri.encodeQueryComponent(token)}',
-    );
-    final ch = WebSocketChannel.connect(uri);
+    final uri = Uri.parse('$wsBase/ws/chat/$convId/');
+    final ch = WebSocketChannel.connect(uri, protocols: ['BABIFIX $token']);
     _chatWs = ch;
     _chatWsSub = ch.stream.listen(
       (raw) {

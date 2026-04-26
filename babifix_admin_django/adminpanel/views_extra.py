@@ -1048,3 +1048,283 @@ def api_client_invoices_list(request):
     except Exception as exc:
         logger.error("Erreur liste reçus client: %s", exc)
         return JsonResponse({"invoices": []}, status=200)
+
+
+# =============================================================================
+# WALLET PRESTATAIRE
+# =============================================================================
+
+@csrf_exempt
+@require_GET
+def api_prestataire_wallet(request):
+    """GET /api/prestataire/wallet/ — Solde + historique transactions."""
+    user, err = require_api_auth(request)
+    if err:
+        return err
+
+    provider = Provider.objects.filter(user=user).first()
+    if not provider:
+        return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
+
+    from adminpanel.services.wallet_service import WalletService
+    summary = WalletService.get_wallet_summary(provider.pk)
+    return JsonResponse(summary, status=200)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_prestataire_wallet_withdraw(request):
+    """
+    POST /api/prestataire/wallet/withdraw/
+    Body JSON : {amount_fcfa, phone, operator}
+    """
+    user, err = require_api_auth(request)
+    if err:
+        return err
+
+    provider = Provider.objects.filter(user=user).first()
+    if not provider:
+        return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({"error": "JSON invalide"}, status=400)
+
+    try:
+        from decimal import Decimal
+        amount = Decimal(str(body.get("amount_fcfa", 0)))
+    except Exception:
+        return JsonResponse({"error": "amount_fcfa invalide"}, status=400)
+
+    phone = (body.get("phone") or "").strip()
+    operator = (body.get("operator") or "").strip().lower()
+
+    if not phone:
+        return JsonResponse({"error": "Numéro Mobile Money requis"}, status=400)
+
+    from adminpanel.services.wallet_service import WalletService
+    result = WalletService.request_withdrawal(provider.pk, amount, phone, operator)
+
+    if "error" in result:
+        return JsonResponse(result, status=400)
+    return JsonResponse(result, status=200)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_prestataire_wallet_update_info(request):
+    """
+    POST /api/prestataire/wallet/info/
+    Body JSON : {phone, operator}
+    Met à jour les infos Mobile Money du prestataire.
+    """
+    user, err = require_api_auth(request)
+    if err:
+        return err
+
+    provider = Provider.objects.filter(user=user).first()
+    if not provider:
+        return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({"error": "JSON invalide"}, status=400)
+
+    phone = (body.get("phone") or "").strip()
+    operator = (body.get("operator") or "").strip().lower()
+
+    valid_operators = {"mtn", "orange", "wave", "moov", ""}
+    if operator not in valid_operators:
+        return JsonResponse({"error": f"Opérateur invalide : {operator}"}, status=400)
+
+    update_fields = []
+    if phone:
+        provider.wallet_phone = phone
+        update_fields.append("wallet_phone")
+    if operator:
+        provider.wallet_operator = operator
+        update_fields.append("wallet_operator")
+
+    if update_fields:
+        provider.save(update_fields=update_fields)
+
+    return JsonResponse({
+        "status": "ok",
+        "wallet_phone": provider.wallet_phone,
+        "wallet_operator": provider.wallet_operator,
+    }, status=200)
+
+
+# ─── Programme de fidélité client ───────────────────────────────────────────
+@require_api_auth(["client"])
+@require_GET
+def api_client_fidelite(request):
+    """
+    GET /api/client/fidelite/
+    Retourne le niveau fidélité, les garanties, le code parrainage et les crédits.
+    """
+    from django.contrib.auth.models import User
+    from .models import UserProfile
+    from .services.referral_service import ReferralService
+
+    user_id = request.api_user_id
+
+    # Compter les réservations terminées
+    nb_reservations = Reservation.objects.filter(
+        client_user_id=user_id,
+        statut="Terminee",
+    ).count()
+
+    # Niveau fidélité basé sur le nombre de missions
+    if nb_reservations >= 20:
+        niveau, couleur, reduction, prochainNiveau = "Platine", "#A855F7", 15, None
+        prochainSeuil = None
+    elif nb_reservations >= 10:
+        niveau, couleur, reduction = "Or", "#F59E0B", 10
+        prochainNiveau, prochainSeuil = "Platine", 20
+    elif nb_reservations >= 5:
+        niveau, couleur, reduction = "Argent", "#64748B", 5
+        prochainNiveau, prochainSeuil = "Or", 10
+    else:
+        niveau, couleur, reduction = "Bronze", "#CD7F32", 0
+        prochainNiveau, prochainSeuil = "Argent", 5
+
+    # Profil et code parrainage
+    try:
+        user = User.objects.get(pk=user_id)
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        if not profile.referral_code:
+            result = ReferralService.create_referral_code(user)
+            referral_code = result.referral_code or ""
+        else:
+            referral_code = profile.referral_code
+        referral_credits = float(profile.referral_credits_earned or 0)
+        filleuls_count = UserProfile.objects.filter(recommended_by=user).count()
+        bonus_applique = profile.referral_bonus_applied
+    except Exception:
+        referral_code, referral_credits, filleuls_count, bonus_applique = "", 0, 0, False
+
+    return JsonResponse({
+        "niveau": niveau,
+        "couleur": couleur,
+        "reduction_pct": reduction,
+        "nb_reservations": nb_reservations,
+        "prochain_niveau": prochainNiveau,
+        "prochain_seuil": prochainSeuil,
+        "referral_code": referral_code,
+        "referral_credits": referral_credits,
+        "filleuls_count": filleuls_count,
+        "bonus_premiere_reservation_applique": bonus_applique,
+        "garanties": [
+            {
+                "icon": "verified_rounded",
+                "titre": "Prestataires vérifiés",
+                "description": "Chaque prestataire est contrôlé : CNI, selfie, vidéo d'introduction et recommandations.",
+            },
+            {
+                "icon": "shield_rounded",
+                "titre": "Satisfaction garantie",
+                "description": "Si vous n'êtes pas satisfait, BABIFIX prend en charge le litige et peut rembourser.",
+            },
+            {
+                "icon": "lock_rounded",
+                "titre": "Paiement sécurisé",
+                "description": "Vos paiements sont protégés. L'argent n'est libéré qu'après confirmation de la prestation.",
+            },
+            {
+                "icon": "support_agent_rounded",
+                "titre": "Support 7j/7",
+                "description": "Notre équipe est disponible tous les jours pour répondre à vos questions.",
+            },
+            {
+                "icon": "star_rounded",
+                "titre": "Avis certifiés",
+                "description": "Seuls les clients ayant effectué une réservation peuvent laisser un avis.",
+            },
+        ],
+    })
+
+
+# ─── Contrat / Charte prestataire ────────────────────────────────────────────
+@require_api_auth(["prestataire"])
+@require_GET
+def api_prestataire_contrat(request):
+    """
+    GET /api/prestataire/contrat/
+    Retourne la charte BABIFIX, le taux de commission et les statistiques du prestataire.
+    """
+    from django.contrib.auth.models import User
+
+    user_id = request.api_user_id
+    try:
+        provider = Provider.objects.select_related("user", "category").get(user_id=user_id)
+    except Provider.DoesNotExist:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    # Taux commission (par catégorie si disponible)
+    commission_rate = 18
+    if provider.category:
+        from .services.referral_service import CATEGORY_COMMISSIONS
+        commission_rate = CATEGORY_COMMISSIONS.get(
+            (provider.category.slug or provider.category.nom or "").lower(),
+            CATEGORY_COMMISSIONS["default"],
+        )
+
+    # Réduction commission selon tier premium
+    premium_reduction = {"bronze": 0, "silver": 5, "gold": 10}.get(provider.premium_tier or "", 0)
+    commission_effective = max(5, commission_rate - premium_reduction)
+
+    # Stats prestataire
+    nb_missions = Reservation.objects.filter(
+        prestataire_user_id=user_id, statut="Terminee"
+    ).count()
+    nb_demandes = Reservation.objects.filter(prestataire_user_id=user_id).count()
+
+    return JsonResponse({
+        "nom": provider.nom,
+        "specialite": provider.specialite,
+        "ville": provider.ville,
+        "commission_rate": commission_effective,
+        "commission_base": commission_rate,
+        "premium_reduction": premium_reduction,
+        "is_premium": provider.is_premium,
+        "premium_tier": provider.premium_tier or "standard",
+        "is_certified": provider.is_certified,
+        "certified_at": provider.certified_at.isoformat() if provider.certified_at else None,
+        "nb_missions": nb_missions,
+        "nb_demandes": nb_demandes,
+        "average_rating": provider.average_rating,
+        "rating_count": provider.rating_count,
+        "clauses": [
+            {
+                "titre": "Engagement de qualité",
+                "contenu": "Le prestataire s'engage à réaliser les prestations avec soin, dans les délais convenus et selon les standards professionnels BABIFIX.",
+            },
+            {
+                "titre": "Commission BABIFIX",
+                "contenu": f"BABIFIX prélève une commission de {commission_effective}% sur chaque prestation réalisée via la plateforme. Ce taux inclut les frais de paiement, d'assurance et de support client.",
+            },
+            {
+                "titre": "Identité et vérification",
+                "contenu": "Le prestataire confirme avoir fourni des documents d'identité valides (CNI, selfie) et accepte que BABIFIX les conserve pour des vérifications réglementaires.",
+            },
+            {
+                "titre": "Disponibilité et réactivité",
+                "contenu": "Le prestataire s'engage à répondre aux demandes dans les 48 heures. Un taux de refus élevé ou une inactivité prolongée peut entraîner la suspension du compte.",
+            },
+            {
+                "titre": "Conduite professionnelle",
+                "contenu": "Le prestataire garantit un comportement respectueux envers les clients. Tout manquement constaté pourra entraîner la suspension immédiate du compte.",
+            },
+            {
+                "titre": "Paiements et retraits",
+                "contenu": "Les gains nets sont crédités sur le wallet BABIFIX après confirmation du paiement client. Les retraits sont traités sous 24–72 heures ouvrées.",
+            },
+            {
+                "titre": "Résiliation",
+                "contenu": "Le prestataire peut résilier son compte à tout moment depuis les paramètres de l'app. BABIFIX se réserve le droit de suspendre un compte en cas de non-respect de la charte.",
+            },
+        ],
+    })

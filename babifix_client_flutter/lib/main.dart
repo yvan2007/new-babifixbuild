@@ -46,6 +46,7 @@ import 'package:latlong2/latlong.dart';
 import 'features/providers/provider_profile_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/payment/payment_screen.dart';
+import 'features/fidelite/fidelite_screen.dart';
 import 'theme/app_theme.dart';
 import 'router/babifix_client_router.dart';
 
@@ -717,11 +718,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final t = authToken;
     if (t == null || t.isEmpty || kIsWeb) return;
     try {
-      final uri = Uri.parse(
-        '${babifixWsBaseUrl()}/ws/client/events/?token=${Uri.encodeQueryComponent(t)}',
-      );
+      final uri = Uri.parse('${babifixWsBaseUrl()}/ws/client/events/');
       _clientWsChannel?.sink.close();
-      _clientWsChannel = WebSocketChannel.connect(uri);
+      _clientWsChannel = WebSocketChannel.connect(
+        uri,
+        protocols: ['BABIFIX $t'],
+      );
       final ch = _clientWsChannel!;
       _clientWsSub = ch.stream.listen((raw) {
         try {
@@ -3884,177 +3886,120 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                // ── Section : Mon Compte ─────────────────────────────
+                const SizedBox(height: 20),
+                _SectionLabel(label: ‘MON COMPTE’, icon: Icons.person_rounded, color: BabifixDesign.cyan, isLight: _isLight),
+                const SizedBox(height: 8),
                 _PremiumActionTile(
                   icon: Icons.person_outline_rounded,
-                  title: 'Modifier le profil',
-                  subtitle: 'Photo, nom, coordonnees',
+                  title: ‘Modifier le profil’,
+                  subtitle: ‘Photo, nom, coordonnées’,
                   onTap: _openEditProfile,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _PremiumActionTile(
                   icon: Icons.chat_bubble_outline_rounded,
-                  title: 'Messages',
-                  subtitle: 'Echanger avec vos prestataires',
+                  title: ‘Messages’,
+                  subtitle: ‘Échanger avec vos prestataires’,
                   onTap: _openMessages,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _PremiumActionTile(
-                  icon: Icons.support_agent_rounded,
-                  title: 'Contacter l’administrateur',
-                  subtitle: contactAdminEmail.isEmpty
-                      ? 'Email support (configure côté serveur)'
-                      : contactAdminEmail,
-                  onTap: _contactAdminMail,
+                  icon: Icons.emoji_events_rounded,
+                  title: ‘Mon Programme’,
+                  subtitle: ‘Fidélité, garanties & parrainage’,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FideliteScreen(isLight: _isLight),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 10),
-                _PremiumActionTile(
-                  icon: Icons.help_center_outlined,
-                  title: 'FAQ & aide',
-                  subtitle: 'Guide reservation, paiement, avis',
-                  onTap: _showHelpSheet,
-                ),
-                const SizedBox(height: 10),
-                _PremiumActionTile(
-                  icon: Icons.palette_outlined,
-                  title: 'Parametres',
-                  subtitle: 'Telephone, adresse exacte, theme',
-                  onTap: _openSettings,
-                ),
-                const SizedBox(height: 10),
-                _PremiumActionTile(
-                  icon: Icons.info_outline_rounded,
-                  title: 'A propos de BABIFIX',
-                  subtitle: 'Version, mentions et support',
-                  onTap: () {
-                    showAboutDialog(
-                      context: context,
-                      applicationName: 'BABIFIX',
-                      applicationVersion: '1.0.0',
-                      applicationIcon: const CircleAvatar(
-                        backgroundImage: AssetImage(_logoAsset),
-                      ),
-                      children: const [
-                        Text(
-                          'Plateforme premium de services a domicile avec reservation et paiement securise.',
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                // ── Paiements en attente ─────────────────────────────
-                const SizedBox(height: 10),
-                if (sessionLoggedIn && totalEscrow > 0)
+                if (sessionLoggedIn && totalEscrow > 0) ...[
+                  const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
                         colors: _isLight
                             ? const [Color(0xFFEFFAFF), Color(0xFFE0F7FE)]
                             : const [Color(0xFF071523), Color(0xFF0B2035)],
                       ),
                       border: Border.all(
-                        color: _isLight
-                            ? const Color(0xFF7DD3FC)
-                            : const Color(0x334CC9F0),
+                        color: _isLight ? const Color(0xFF7DD3FC) : const Color(0x334CC9F0),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(
-                              0xFF4CC9F0,
-                            ).withValues(alpha: 0.15),
-                          ),
-                          child: const Icon(
-                            Icons.account_balance_wallet_rounded,
-                            color: Color(0xFF4CC9F0),
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Paiements en attente',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _textPrimary,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${formatFcfa(totalEscrow)} en attente de validation',
-                                style: const TextStyle(
-                                  color: Color(0xFF4CC9F0),
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF4CC9F0,
-                            ).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'Sécurisé',
-                            style: TextStyle(
-                              color: Color(0xFF4CC9F0),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: Row(children: [
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: BabifixDesign.cyan.withValues(alpha: 0.15)),
+                        child: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF4CC9F0), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(‘Paiements en attente’, style: TextStyle(fontWeight: FontWeight.w800, color: _textPrimary, fontSize: 13)),
+                        Text(‘${formatFcfa(totalEscrow)} sécurisés’, style: const TextStyle(color: Color(0xFF4CC9F0), fontSize: 12)),
+                      ])),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: BabifixDesign.cyan.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+                        child: const Text(‘Sécurisé’, style: TextStyle(color: Color(0xFF4CC9F0), fontSize: 10, fontWeight: FontWeight.w700)),
+                      ),
+                    ]),
                   ),
+                ],
 
-                // ── Sécurité & compte ───────────────────────────────────
-                const SizedBox(height: 10),
+                // ── Section : Préférences ─────────────────────────────
+                const SizedBox(height: 20),
+                _SectionLabel(label: ‘PRÉFÉRENCES’, icon: Icons.palette_outlined, color: const Color(0xFFA855F7), isLight: _isLight),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
+                  ),
+                  child: Row(children: [
+                    Container(
+                      width: 40, height: 40,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFA855F7).withValues(alpha: 0.12)),
+                      child: const Icon(Icons.brightness_6_rounded, color: Color(0xFFA855F7), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text("Thème d’affichage", style: TextStyle(fontWeight: FontWeight.w700, color: _textPrimary, fontSize: 14)),
+                      Text(
+                        widget.paletteMode == AppPaletteMode.light ? ‘Mode blanc (actif)’ : ‘Bleu BABIFIX (actif)’,
+                        style: TextStyle(color: _textSecondary, fontSize: 12),
+                      ),
+                    ])),
+                    Switch(
+                      value: widget.paletteMode == AppPaletteMode.blue,
+                      activeColor: const Color(0xFF4CC9F0),
+                      activeTrackColor: const Color(0xFF4CC9F0).withValues(alpha: 0.3),
+                      onChanged: (v) => widget.onPaletteChanged(v ? AppPaletteMode.blue : AppPaletteMode.light),
+                    ),
+                  ]),
+                ),
+
+                // ── Section : Sécurité ────────────────────────────────
+                const SizedBox(height: 20),
+                _SectionLabel(label: ‘SÉCURITÉ’, icon: Icons.lock_outline_rounded, color: const Color(0xFFF59E0B), isLight: _isLight),
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: _cardBg,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: _isLight
-                          ? const Color(0x10000000)
-                          : const Color(0x18FFFFFF),
+                      color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF),
                     ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Text(
-                          'Sécurité & compte',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: _textSecondary,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
                       _PremiumActionTile(
                         icon: Icons.fingerprint_rounded,
                         title: 'Connexion biométrique',
@@ -4072,56 +4017,67 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 ),
 
-                // ── Légal & confidentialité ─────────────────────────────
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                // ── Section : Support & Aide ─────────────────────────
+                const SizedBox(height: 20),
+                _SectionLabel(label: 'SUPPORT & AIDE', icon: Icons.support_agent_rounded, color: const Color(0xFF10B981), isLight: _isLight),
+                const SizedBox(height: 8),
+                _PremiumActionTile(
+                  icon: Icons.support_agent_rounded,
+                  title: "Contacter l'administrateur",
+                  subtitle: contactAdminEmail.isEmpty ? 'Email support BABIFIX' : contactAdminEmail,
+                  onTap: _contactAdminMail,
+                ),
+                const SizedBox(height: 8),
+                _PremiumActionTile(
+                  icon: Icons.help_center_outlined,
+                  title: 'FAQ & aide',
+                  subtitle: 'Guide réservation, paiement, avis',
+                  onTap: _showHelpSheet,
+                ),
+                const SizedBox(height: 8),
+                _PremiumActionTile(
+                  icon: Icons.info_outline_rounded,
+                  title: 'À propos de BABIFIX',
+                  subtitle: 'Version, mentions légales et support',
+                  onTap: () => showAboutDialog(
+                    context: context,
+                    applicationName: 'BABIFIX',
+                    applicationVersion: '1.0.0',
+                    applicationIcon: const CircleAvatar(backgroundImage: AssetImage(_logoAsset)),
+                    children: const [Text('Plateforme premium de services à domicile avec réservation et paiement sécurisé.')],
                   ),
+                ),
+
+                // ── Section : Légal ───────────────────────────────────
+                const SizedBox(height: 20),
+                _SectionLabel(label: 'LÉGAL', icon: Icons.description_outlined, color: const Color(0xFF64748B), isLight: _isLight),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: _cardBg,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: _isLight
-                          ? const Color(0x10000000)
-                          : const Color(0x18FFFFFF),
-                    ),
+                    border: Border.all(color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _LegalLink(
-                        label: 'CGU',
-                        icon: Icons.description_outlined,
-                        isLight: _isLight,
-                        onTap: () => _launchUrl('https://babifix.ci/cgu'),
-                      ),
+                      _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: _isLight,
+                          onTap: () => _launchUrl('https://babifix.ci/cgu')),
                       _VerticalDivider(isLight: _isLight),
-                      _LegalLink(
-                        label: 'Confidentialité',
-                        icon: Icons.privacy_tip_outlined,
-                        isLight: _isLight,
-                        onTap: () => _launchUrl('https://babifix.ci/privacy'),
-                      ),
+                      _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: _isLight,
+                          onTap: () => _launchUrl('https://babifix.ci/privacy')),
                       _VerticalDivider(isLight: _isLight),
-                      _LegalLink(
-                        label: 'Aide',
-                        icon: Icons.help_outline_rounded,
-                        isLight: _isLight,
-                        onTap: _showHelpSheet,
-                      ),
+                      _LegalLink(label: 'Aide', icon: Icons.help_outline_rounded, isLight: _isLight,
+                          onTap: _showHelpSheet),
                     ],
                   ),
                 ),
 
-                // ── Badge BABIFIX Protect ───────────────────────────────
-                const SizedBox(height: 10),
+                // ── Badge BABIFIX Protect ─────────────────────────────
+                const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     gradient: LinearGradient(
@@ -4129,19 +4085,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
                           : const [Color(0xFF052010), Color(0xFF073318)],
                     ),
-                    border: Border.all(
-                      color: _isLight
-                          ? const Color(0xFF86EFAC)
-                          : const Color(0x3322C55E),
-                    ),
+                    border: Border.all(color: _isLight ? const Color(0xFF86EFAC) : const Color(0x3322C55E)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.verified_user_rounded,
-                        color: Color(0xFF22C55E),
-                        size: 22,
-                      ),
+                      const Icon(Icons.verified_user_rounded, color: Color(0xFF22C55E), size: 22),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -4169,26 +4117,85 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 ),
 
-                // ── Déconnexion ─────────────────────────────────────────
-                const SizedBox(height: 10),
-                _PremiumActionTile(
-                  icon: sessionLoggedIn
-                      ? Icons.logout_rounded
-                      : Icons.login_rounded,
-                  title: sessionLoggedIn ? 'Déconnexion' : 'Connexion',
-                  subtitle: sessionLoggedIn
-                      ? 'Quitter ce compte sur cet appareil'
-                      : 'Se connecter ou créer un compte',
-                  onTap: sessionLoggedIn ? _logout : _openAuth,
-                ),
-                const SizedBox(height: 8),
+                // ── Zone Déconnexion ──────────────────────────────────
+                const SizedBox(height: 20),
+                if (sessionLoggedIn)
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                      gradient: LinearGradient(
+                        colors: _isLight
+                            ? const [Color(0xFFFFF5F5), Color(0xFFFFEBEB)]
+                            : const [Color(0xFF1A0808), Color(0xFF220E0E)],
+                      ),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(18),
+                      child: InkWell(
+                        onTap: _logout,
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(children: [
+                            Container(
+                              width: 40, height: 40,
+                              decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFEF4444).withValues(alpha: 0.12)),
+                              child: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              const Text('Déconnexion', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFEF4444), fontSize: 14)),
+                              Text('Quitter ce compte sur cet appareil', style: TextStyle(color: const Color(0xFFEF4444).withValues(alpha: 0.7), fontSize: 12)),
+                            ])),
+                            const Icon(Icons.chevron_right_rounded, color: Color(0xFFEF4444)),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.3)),
+                      gradient: LinearGradient(
+                        colors: _isLight
+                            ? const [Color(0xFFEFFAFF), Color(0xFFE0F7FE)]
+                            : const [Color(0xFF071523), Color(0xFF0B2035)],
+                      ),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(18),
+                      child: InkWell(
+                        onTap: _openAuth,
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(children: [
+                            Container(
+                              width: 40, height: 40,
+                              decoration: BoxDecoration(shape: BoxShape.circle, color: BabifixDesign.cyan.withValues(alpha: 0.12)),
+                              child: const Icon(Icons.login_rounded, color: Color(0xFF4CC9F0), size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              const Text('Connexion', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF4CC9F0), fontSize: 14)),
+                              Text('Se connecter ou créer un compte', style: TextStyle(color: _textSecondary, fontSize: 12)),
+                            ])),
+                            const Icon(Icons.chevron_right_rounded, color: Color(0xFF4CC9F0)),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
                 Center(
                   child: Text(
-                    'BABIFIX v1.0.0 · Abidjan, Côte d\'Ivoire',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: _textSecondary.withValues(alpha: 0.5),
-                    ),
+                    "BABIFIX v1.0.0 · Abidjan, Côte d'Ivoire",
+                    style: TextStyle(fontSize: 11, color: _textSecondary.withValues(alpha: 0.5)),
                   ),
                 ),
               ],
@@ -6072,6 +6079,35 @@ class _PremiumActionTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section label with colored icon stripe
+// ─────────────────────────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool isLight;
+
+  const _SectionLabel({required this.label, required this.icon, required this.color, required this.isLight});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(
+        width: 28, height: 28,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
+        child: Icon(icon, size: 14, color: color),
+      ),
+      const SizedBox(width: 8),
+      Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0,
+            color: isLight ? const Color(0xFF64748B) : const Color(0xFF9CA3AF)),
+      ),
+    ]);
   }
 }
 

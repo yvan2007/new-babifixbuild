@@ -3334,15 +3334,16 @@ def api_client_declare_cash(request, reference):
         return JsonResponse({"error": "reservation_not_completed"}, status=400)
     if res.cash_client_declared_at:
         return JsonResponse({"error": "already_declared"}, status=400)
-    res.cash_client_declared_at = timezone.now()
-    res.cash_flow_status = Reservation.CashFlowStatus.PENDING_PRESTATAIRE
-    res.save(
-        update_fields=[
-            "cash_client_declared_at",
-            "cash_flow_status",
-        ]
-    )
-    Notification.objects.create(title=f"Client a declare paiement especes: {reference}")
+    with transaction.atomic():
+        res.cash_client_declared_at = timezone.now()
+        res.cash_flow_status = Reservation.CashFlowStatus.PENDING_PRESTATAIRE
+        res.save(
+            update_fields=[
+                "cash_client_declared_at",
+                "cash_flow_status",
+            ]
+        )
+        Notification.objects.create(title=f"Client a declare paiement especes: {reference}")
     return JsonResponse({"ok": True, "cash_flow_status": res.cash_flow_status})
 
 
@@ -3364,12 +3365,13 @@ def api_prestataire_confirm_cash(request, reference):
         return JsonResponse({"error": "client_not_declared"}, status=400)
     if res.cash_prestataire_confirmed_at:
         return JsonResponse({"error": "already_confirmed"}, status=400)
-    res.cash_prestataire_confirmed_at = timezone.now()
-    res.cash_flow_status = Reservation.CashFlowStatus.PENDING_ADMIN
-    res.save(update_fields=["cash_prestataire_confirmed_at", "cash_flow_status"])
-    Notification.objects.create(
-        title=f"Paiement especes a valider (admin): {reference}"
-    )
+    with transaction.atomic():
+        res.cash_prestataire_confirmed_at = timezone.now()
+        res.cash_flow_status = Reservation.CashFlowStatus.PENDING_ADMIN
+        res.save(update_fields=["cash_prestataire_confirmed_at", "cash_flow_status"])
+        Notification.objects.create(
+            title=f"Paiement especes a valider (admin): {reference}"
+        )
     return JsonResponse({"ok": True, "cash_flow_status": res.cash_flow_status})
 
 

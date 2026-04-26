@@ -387,6 +387,46 @@ class _EarningsScreenState extends State<EarningsScreen>
             const SizedBox(height: 20),
 
             // Graphique barres fl_chart
+            if (_chartData.isEmpty && !_loading)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.bar_chart_rounded,
+                        size: 32,
+                        color: Color(0xFF4CC9F0),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Aucune donnée sur cette période',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: text,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Vos gains apparaîtront ici\naprès vos premières missions.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: sub,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (_chartData.isNotEmpty) ...[
               Text(
                 'Évolution des gains',
