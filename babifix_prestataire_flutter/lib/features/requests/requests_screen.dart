@@ -97,10 +97,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
         ),
         title: const Text('Exigences'),
       ),
-      body: ListView(
+      body: loading
+          ? _buildShimmer()
+          : ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (loading) const LinearProgressIndicator(),
           // Nouvelles demandes (à accepter/refuser)
           if (pending.isNotEmpty) ...[
             Text(
@@ -171,8 +172,64 @@ class _RequestsScreenState extends State<RequestsScreen> {
             const SizedBox(height: 8),
             ...refused.map((item) => _buildCard(item)),
           ],
+          // Empty state quand tout est vide
+          if (!loading &&
+              pending.isEmpty &&
+              devisPending.isEmpty &&
+              devisSent.isEmpty &&
+              active.isEmpty &&
+              completed.isEmpty &&
+              refused.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 60),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CC9F0).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.assignment_outlined,
+                      size: 40,
+                      color: Color(0xFF4CC9F0),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Aucune mission',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Vos demandes de clients
+arrêtront ici.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF64748B),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _buildShimmer() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 5,
+      itemBuilder: (_, __) => const _ShimmerCard(),
     );
   }
 
@@ -1001,6 +1058,106 @@ class _Tag extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _ShimmerCard extends StatefulWidget {
+  const _ShimmerCard();
+  @override
+  State<_ShimmerCard> createState() => _ShimmerCardState();
+}
+
+class _ShimmerCardState extends State<_ShimmerCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat();
+    _anim = Tween<double>(begin: -1.5, end: 1.5).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: LinearGradient(
+              begin: Alignment(_anim.value - 1, 0),
+              end: Alignment(_anim.value + 1, 0),
+              colors: const [
+                Color(0xFFE2E8F0),
+                Color(0xFFF8FAFC),
+                Color(0xFFE2E8F0),
+              ],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _Box(w: 48, h: 48, r: 12),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Box(w: double.infinity, h: 14, r: 6),
+                        const SizedBox(height: 6),
+                        _Box(w: 120, h: 12, r: 6),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _Box(w: 60, h: 28, r: 14),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _Box(w: double.infinity, h: 12, r: 6),
+              const SizedBox(height: 6),
+              _Box(w: 180, h: 12, r: 6),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _Box extends StatelessWidget {
+  const _Box({required this.w, required this.h, required this.r});
+  final double w;
+  final double h;
+  final double r;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: w == double.infinity ? null : w,
+      height: h,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(r),
       ),
     );
   }

@@ -6,16 +6,21 @@ from .views_extra import (
     api_admin_bulk_provider_action,
     api_admin_export_csv,
     api_client_favorites,
+    api_client_fidelite,
     api_client_invoice_pdf,
     api_client_invoices_list,
     api_client_payments,
     api_health_check,
     api_prestataire_availability,
     api_prestataire_availability_crud,
+    api_prestataire_contrat,
     api_prestataire_disputes,
     api_prestataire_invoice_pdf,
     api_prestataire_stats,
     api_prestataire_unavailability_crud,
+    api_prestataire_wallet,
+    api_prestataire_wallet_withdraw,
+    api_prestataire_wallet_update_info,
 )
 from .views_v2 import (
     api_admin_push_broadcast,
@@ -448,4 +453,11 @@ urlpatterns = [
         api_admin_financial_summary,
         name="api-admin-financial-summary",
     ),
+    # ── Wallet prestataire ─────────────────────────────────────────────────────
+    path("api/prestataire/wallet/", api_prestataire_wallet, name="api-prestataire-wallet"),
+    path("api/prestataire/wallet/withdraw/", api_prestataire_wallet_withdraw, name="api-prestataire-wallet-withdraw"),
+    path("api/prestataire/wallet/info/", api_prestataire_wallet_update_info, name="api-prestataire-wallet-info"),
+    # ── Contrat prestataire & Fidélité client ─────────────────────────────────
+    path("api/prestataire/contrat/", api_prestataire_contrat, name="api-prestataire-contrat"),
+    path("api/client/fidelite/", api_client_fidelite, name="api-client-fidelite"),
 ]

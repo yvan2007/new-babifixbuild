@@ -137,9 +137,70 @@ class Provider(models.Model):
         db_index=True,
         help_text="Soft delete - prestataire supprime si True",
     )
+    # Wallet prestataire
+    solde_fcfa = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Solde disponible pour retrait (FCFA)",
+    )
+    wallet_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Numéro Mobile Money pour les retraits (MTN/Orange/Wave)",
+    )
+    wallet_operator = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        choices=[
+            ("mtn", "MTN Mobile Money"),
+            ("orange", "Orange Money"),
+            ("wave", "Wave"),
+            ("moov", "Moov Money"),
+        ],
+        help_text="Opérateur Mobile Money préféré",
+    )
 
     def __str__(self):
         return self.nom
+
+
+class WalletTransaction(models.Model):
+    """Historique des mouvements du wallet prestataire."""
+
+    class TxType(models.TextChoices):
+        CREDIT = "credit", "Crédit (paiement reçu)"
+        DEBIT = "debit", "Débit (retrait)"
+        COMMISSION = "commission", "Commission BABIFIX"
+        REFUND = "refund", "Remboursement"
+
+    class TxStatus(models.TextChoices):
+        PENDING = "pending", "En attente"
+        SUCCESS = "success", "Réussi"
+        FAILED = "failed", "Échoué"
+
+    provider = models.ForeignKey(
+        Provider,
+        on_delete=models.CASCADE,
+        related_name="wallet_transactions",
+    )
+    tx_type = models.CharField(max_length=12, choices=TxType.choices)
+    amount_fcfa = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=10, choices=TxStatus.choices, default=TxStatus.SUCCESS)
+    reference = models.CharField(max_length=100, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    operator = models.CharField(max_length=20, blank=True, default="")
+    phone = models.CharField(max_length=20, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["provider", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.tx_type} {self.amount_fcfa} FCFA — {self.provider_id}"
 
 
 class Client(models.Model):

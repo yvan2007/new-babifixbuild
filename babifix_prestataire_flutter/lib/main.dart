@@ -21,6 +21,7 @@ import 'shared/in_app_notifications.dart';
 
 import 'features/earnings/earnings_screen.dart' as earnings_feature;
 import 'features/auth/landing_screen.dart';
+import 'features/auth/onboarding_screen.dart';
 import 'features/auth/registration_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/pending_screen.dart';
@@ -30,6 +31,7 @@ import 'features/requests/requests_screen.dart';
 import 'features/messages/messages_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/actualites/actualites_screen.dart';
+import 'features/wallet/wallet_screen.dart' as wallet_feature;
 
 Future<void> main() async {
   const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
@@ -220,8 +222,9 @@ class _PrestataireFlow extends StatefulWidget {
 
 class _PrestataireFlowState extends State<_PrestataireFlow> {
   static const _coachKey = 'prestataire_coach_profile_photo_v1';
+  static const _onboardingKey = 'prestataire_onboarding_done_v1';
 
-  /// bootstrap → landing | dashboard | pending | refused | registration | …
+  /// bootstrap → onboarding | landing | dashboard | pending | refused | registration | …
   String current = 'bootstrap';
   String? _refusalReason;
   StreamSubscription<dynamic>? _wsSub;
@@ -370,7 +373,9 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
   Future<void> _bootstrapSession() async {
     final t = await readStoredApiToken();
     if (t == null || t.isEmpty) {
-      if (mounted) setState(() => current = 'landing');
+      final prefs = await SharedPreferences.getInstance();
+      final seenOnboarding = prefs.getBool(_onboardingKey) ?? false;
+      if (mounted) setState(() => current = seenOnboarding ? 'landing' : 'onboarding');
       return;
     }
     try {
@@ -730,10 +735,14 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
   Widget build(BuildContext context) {
     Widget child;
     if (current == 'bootstrap') {
-      child = const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF4CC9F0)),
-        ),
+      child = const _PrestataireSplashScreen();
+    } else if (current == 'onboarding') {
+      child = PrestataireOnboardingScreen(
+        onDone: () async {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_onboardingKey, true);
+          if (mounted) setState(() => current = 'landing');
+        },
       );
     } else if (current == 'landing') {
       child = LandingScreen(
@@ -780,6 +789,11 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       );
     } else if (current == 'earnings') {
       child = earnings_feature.EarningsScreen(
+        onBack: () => setState(() => current = 'dashboard'),
+        paletteMode: widget.paletteMode,
+      );
+    } else if (current == 'wallet') {
+      child = wallet_feature.WalletScreen(
         onBack: () => setState(() => current = 'dashboard'),
         paletteMode: widget.paletteMode,
       );
@@ -834,6 +848,111 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         ),
       ),
       child: child,
+    );
+  }
+}
+
+class _PrestataireSplashScreen extends StatefulWidget {
+  const _PrestataireSplashScreen();
+  @override
+  State<_PrestataireSplashScreen> createState() =>
+      _PrestataireSplashScreenState();
+}
+
+class _PrestataireSplashScreenState extends State<_PrestataireSplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      duration: const Duration(milliseconds: 1400),
+      vsync: this,
+    );
+    _scale = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: const Interval(0, 0.6, curve: Curves.easeOutBack)),
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: const Interval(0.3, 1.0, curve: Curves.easeOut)),
+    );
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1B34),
+      body: Center(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, child) => Transform.scale(
+            scale: _scale.value,
+            child: Opacity(opacity: _fade.value, child: child),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CC9F0),
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF4CC9F0).withValues(alpha: 0.35),
+                      blurRadius: 32,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.home_repair_service,
+                  size: 58,
+                  color: Color(0xFF0B1B34),
+                ),
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'BABIFIX',
+                style: TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Espace Prestataire',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.white.withValues(alpha: 0.5),
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 36),
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: const Color(0xFF4CC9F0).withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

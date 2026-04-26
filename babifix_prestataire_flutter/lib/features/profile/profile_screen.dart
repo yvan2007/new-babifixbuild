@@ -12,6 +12,7 @@ import '../../shared/app_palette_mode.dart';
 import '../../shared/auth_utils.dart';
 import '../auth/registration_screen.dart';
 import '../availability/availability_screen.dart';
+import 'contrat_screen.dart';
 import '../dashboard/floating_nav_bar.dart';
 import 'edit_profile_screen.dart' show EditProfilePrestataireScreen;
 
@@ -660,276 +661,265 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          if (approved)
+                          // Section : Mon Espace Pro
+                          const SizedBox(height: 20),
+                          _PrestSectionLabel(label: 'MON ESPACE PRO', icon: Icons.work_outline_rounded, color: const Color(0xFF4CC9F0), isLight: isLight),
+                          const SizedBox(height: 8),
+                          if (approved) ...[
                             _PrestProfileActionTile(
                               icon: Icons.person_outline_rounded,
                               title: 'Modifier le profil',
-                              subtitle: 'Photo, sp\u00e9cialit\u00e9, coordonn\u00e9es',
+                              subtitle: 'Photo, spécialité, coordonnées',
                               isLight: isLight,
                               onTap: _openEditRegistration,
                             ),
-                          if (approved) const SizedBox(height: 10),
-                          if (approved)
+                            const SizedBox(height: 8),
                             _PrestProfileActionTile(
                               icon: Icons.schedule_rounded,
                               title: 'Mes disponibilités',
                               subtitle: 'Créneaux hebdomadaires & congés',
                               isLight: isLight,
                               onTap: () => Navigator.of(context).push<void>(
-                                MaterialPageRoute<void>(
-                                  builder: (_) =>
-                                      const AvailabilityScreen(),
+                                MaterialPageRoute<void>(builder: (_) => const AvailabilityScreen()),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          _PrestProfileActionTile(
+                            icon: Icons.account_balance_wallet_outlined,
+                            title: 'Mon Wallet',
+                            subtitle: 'Solde, retraits, historique transactions',
+                            isLight: isLight,
+                            onTap: () => widget.onNavigate('wallet'),
+                          ),
+                          const SizedBox(height: 8),
+                          _PrestProfileActionTile(
+                            icon: Icons.description_outlined,
+                            title: 'Mon Contrat',
+                            subtitle: 'Charte BABIFIX, commission, conditions',
+                            isLight: isLight,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => ContratScreen(
+                                  onBack: () => Navigator.pop(context),
+                                  paletteMode: widget.paletteMode,
                                 ),
                               ),
                             ),
-                          if (approved) const SizedBox(height: 10),
+                          ),
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: () => widget.onNavigate('earnings'),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                gradient: LinearGradient(
+                                  colors: isLight
+                                      ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
+                                      : const [Color(0xFF052010), Color(0xFF073318)],
+                                ),
+                                border: Border.all(color: isLight ? const Color(0xFF86EFAC) : const Color(0x3322C55E)),
+                              ),
+                              child: Row(children: [
+                                Container(
+                                  width: 40, height: 40,
+                                  decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF22C55E).withValues(alpha: 0.15)),
+                                  child: const Icon(Icons.trending_up_rounded, color: Color(0xFF22C55E), size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text('Mes gains', style: TextStyle(fontWeight: FontWeight.w800,
+                                      color: isLight ? const Color(0xFF0F172A) : Colors.white, fontSize: 13)),
+                                  Text('${jsonInt(_stats['reservations_total'])} missions complétées',
+                                      style: const TextStyle(color: Color(0xFF22C55E), fontSize: 12)),
+                                ])),
+                                const Icon(Icons.chevron_right_rounded, color: Color(0xFF22C55E)),
+                              ]),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           _PrestProfileActionTile(
                             icon: Icons.chat_bubble_outline_rounded,
                             title: 'Messages',
-                            subtitle: '\u00c9changer avec vos clients',
+                            subtitle: 'Échanger avec vos clients',
                             isLight: isLight,
                             onTap: () {
                               widget.onMessagesOpened?.call();
                               widget.onNavigate('messages');
                             },
                           ),
-                          const SizedBox(height: 10),
-                          _PrestProfileActionTile(
-                            icon: Icons.support_agent_rounded,
-                            title: 'Contacter l\u2019administrateur',
-                            subtitle: _contactAdminEmail.isEmpty ? 'Email support (serveur)' : _contactAdminEmail,
-                            isLight: isLight,
-                            onTap: _openContactAdmin,
-                          ),
-                          const SizedBox(height: 10),
-                          _PrestProfileActionTile(
-                            icon: Icons.help_center_outlined,
-                            title: 'FAQ & aide',
-                            subtitle: 'Guide missions, gains, avis',
-                            isLight: isLight,
-                            onTap: _showHelpSheet,
-                          ),
-                          const SizedBox(height: 10),
-                          _PrestProfileActionTile(
-                            icon: Icons.palette_outlined,
-                            title: 'Param\u00e8tres',
-                            subtitle: 'Th\u00e8me d\u2019affichage',
-                            isLight: isLight,
-                            onTap: _openSettings,
-                          ),
-                          const SizedBox(height: 10),
-                          _PrestProfileActionTile(
-                            icon: Icons.info_outline_rounded,
-                            title: '\u00c0 propos de BABIFIX',
-                            subtitle: 'Version, mentions et support',
-                            isLight: isLight,
-                            onTap: () {
-                              showAboutDialog(
-                                context: context,
-                                applicationName: 'BABIFIX Prestataire',
-                                applicationVersion: '1.0.0',
-                                applicationIcon: const CircleAvatar(
-                                  backgroundImage: AssetImage(_logoAsset),
-                                ),
-                                children: const [
-                                  Text('Application prestataire BABIFIX \u2014 missions, gains et messagerie.'),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 10),
-                          if (bio.isNotEmpty || ville.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(14)),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Fiche pro', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
-                                  if (bio.isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Text(bio, style: TextStyle(color: textSecondary, height: 1.35)),
-                                  ],
-                                  if (ville.isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Text('Ville : $ville', style: TextStyle(color: textSecondary)),
-                                  ],
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Disponibilit\u00e9 : ${_prov['disponible'] == true ? 'Disponible' : 'Indisponible'}',
-                                    style: TextStyle(color: textSecondary, fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (bio.isNotEmpty || ville.isNotEmpty) const SizedBox(height: 10),
-                          // ── Section avis clients ──────────────────────────
-                          if (_avis.isNotEmpty) ...[
+                          if (bio.isNotEmpty || ville.isNotEmpty) ...[
+                            const SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 color: cardBg,
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.star_rounded, color: Colors.amber, size: 18),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Avis reçus (${_avis.length})',
-                                        style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary, fontSize: 15),
-                                      ),
-                                    ],
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  Container(width: 28, height: 28,
+                                    decoration: BoxDecoration(shape: BoxShape.circle,
+                                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.12)),
+                                    child: const Icon(Icons.badge_outlined, size: 14, color: Color(0xFF4CC9F0)),
                                   ),
-                                  const SizedBox(height: 12),
-                                  for (final r in _avis.take(5)) ...[
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      decoration: BoxDecoration(
-                                        color: isLight ? Colors.white : const Color(0xFF242B38),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: isLight ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 14,
-                                                backgroundColor: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
-                                                child: Text(
-                                                  ((r['client_name'] ?? r['auteur'] ?? 'C') as String)
-                                                      .isNotEmpty
-                                                      ? ((r['client_name'] ?? r['auteur']) as String)[0].toUpperCase()
-                                                      : 'C',
-                                                  style: TextStyle(
-                                                    color: const Color(0xFF4CC9F0),
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  (r['client_name'] ?? r['auteur'] ?? 'Client') as String,
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    color: textPrimary,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ),
-                                              Row(
-                                                children: List.generate(5, (i) => Icon(
-                                                  i < (r['note'] as int? ?? 0)
-                                                      ? Icons.star_rounded
-                                                      : Icons.star_border_rounded,
-                                                  size: 13,
-                                                  color: Colors.amber,
-                                                )),
-                                              ),
-                                            ],
-                                          ),
-                                          if ((r['commentaire'] as String? ?? '').isNotEmpty) ...[
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              r['commentaire'] as String,
-                                              style: TextStyle(color: textSecondary, fontSize: 13, height: 1.4),
-                                            ),
-                                          ],
-                                          // Photos preuve
-                                          if ((r['photo_proof'] as List? ?? []).isNotEmpty) ...[
-                                            const SizedBox(height: 8),
-                                            SizedBox(
-                                              height: 60,
-                                              child: ListView(
-                                                scrollDirection: Axis.horizontal,
-                                                children: [
-                                                  for (final ph in (r['photo_proof'] as List))
-                                                    if ((ph as String).startsWith('http'))
-                                                      Container(
-                                                        width: 60,
-                                                        height: 60,
-                                                        margin: const EdgeInsets.only(right: 6),
-                                                        decoration: BoxDecoration(
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          image: DecorationImage(
-                                                            image: NetworkImage(ph),
-                                                            fit: BoxFit.cover,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            (r['created_at'] ?? r['date'] ?? '') as String,
-                                            style: TextStyle(color: textSecondary, fontSize: 11),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                  const SizedBox(width: 8),
+                                  Text('Fiche pro', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary, fontSize: 14)),
+                                ]),
+                                if (bio.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Text(bio, style: TextStyle(color: textSecondary, height: 1.45, fontSize: 13)),
                                 ],
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                          ],
-                          // ── Gains rapides ─────────────────────────
-                          const SizedBox(height: 10),
-                          GestureDetector(
-                            onTap: () => widget.onNavigate('earnings'),
-                            child: Container(
-                              padding: const EdgeInsets.all(18),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: isLight
-                                      ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
-                                      : const [Color(0xFF052010), Color(0xFF073318)],
-                                ),
-                                border: Border.all(
-                                  color: isLight ? const Color(0xFF86EFAC) : const Color(0x3322C55E),
-                                ),
-                              ),
-                              child: Row(children: [
-                                Container(
-                                  width: 48, height: 48,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xFF22C55E).withValues(alpha: 0.15),
-                                  ),
-                                  child: const Icon(Icons.trending_up_rounded, color: Color(0xFF22C55E), size: 24),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                    Text('Mes gains', style: TextStyle(fontWeight: FontWeight.w800,
-                                        color: isLight ? const Color(0xFF0F172A) : Colors.white, fontSize: 14)),
-                                    Text('${jsonInt(_stats['reservations_total'])} missions complétées',
-                                        style: const TextStyle(color: Color(0xFF22C55E), fontSize: 12)),
+                                if (ville.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Row(children: [
+                                    Icon(Icons.location_on_rounded, size: 14, color: textSecondary),
+                                    const SizedBox(width: 4),
+                                    Text(ville, style: TextStyle(color: textSecondary, fontSize: 13)),
                                   ]),
-                                ),
-                                const Icon(Icons.chevron_right_rounded, color: Color(0xFF22C55E)),
+                                ],
+                                const SizedBox(height: 6),
+                                Row(children: [
+                                  Icon(_prov['disponible'] == true ? Icons.circle : Icons.circle_outlined,
+                                      size: 10,
+                                      color: _prov['disponible'] == true ? const Color(0xFF10B981) : Colors.grey),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _prov['disponible'] == true ? 'Disponible' : 'Indisponible',
+                                    style: TextStyle(
+                                        color: _prov['disponible'] == true ? const Color(0xFF10B981) : textSecondary,
+                                        fontSize: 12, fontWeight: FontWeight.w600),
+                                  ),
+                                ]),
                               ]),
                             ),
+                          ],
+                          if (_avis.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
+                              ),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  Container(width: 28, height: 28,
+                                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.amber.withValues(alpha: 0.15)),
+                                    child: const Icon(Icons.star_rounded, size: 14, color: Colors.amber),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text('Avis reçus (${_avis.length})',
+                                      style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary, fontSize: 14)),
+                                ]),
+                                const SizedBox(height: 12),
+                                for (final r in _avis.take(5)) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: isLight ? Colors.white : const Color(0xFF242B38),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: isLight ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
+                                    ),
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Row(children: [
+                                        CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
+                                          child: Text(
+                                            ((r['client_name'] ?? r['auteur'] ?? 'C') as String).isNotEmpty
+                                                ? ((r['client_name'] ?? r['auteur']) as String)[0].toUpperCase()
+                                                : 'C',
+                                            style: const TextStyle(color: Color(0xFF4CC9F0), fontWeight: FontWeight.w700, fontSize: 12),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(child: Text(
+                                          (r['client_name'] ?? r['auteur'] ?? 'Client') as String,
+                                          style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary, fontSize: 13),
+                                        )),
+                                        Row(children: List.generate(5, (i) => Icon(
+                                          i < (r['note'] as int? ?? 0) ? Icons.star_rounded : Icons.star_border_rounded,
+                                          size: 13, color: Colors.amber,
+                                        ))),
+                                      ]),
+                                      if ((r['commentaire'] as String? ?? '').isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Text(r['commentaire'] as String,
+                                            style: TextStyle(color: textSecondary, fontSize: 13, height: 1.4)),
+                                      ],
+                                      if ((r['photo_proof'] as List? ?? []).isNotEmpty) ...[
+                                        const SizedBox(height: 8),
+                                        SizedBox(
+                                          height: 60,
+                                          child: ListView(scrollDirection: Axis.horizontal, children: [
+                                            for (final ph in (r['photo_proof'] as List))
+                                              if ((ph as String).startsWith('http'))
+                                                Container(
+                                                  width: 60, height: 60,
+                                                  margin: const EdgeInsets.only(right: 6),
+                                                  decoration: BoxDecoration(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    image: DecorationImage(image: NetworkImage(ph), fit: BoxFit.cover),
+                                                  ),
+                                                ),
+                                          ]),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 4),
+                                      Text((r['created_at'] ?? r['date'] ?? '') as String,
+                                          style: TextStyle(color: textSecondary, fontSize: 11)),
+                                    ]),
+                                  ),
+                                ],
+                              ]),
+                            ),
+                          ],
+
+                          // Section : Préférences
+                          const SizedBox(height: 20),
+                          _PrestSectionLabel(label: 'PRÉFÉRENCES', icon: Icons.palette_outlined, color: const Color(0xFFA855F7), isLight: isLight),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF121926),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
+                            ),
+                            child: Row(children: [
+                              Container(
+                                width: 40, height: 40,
+                                decoration: BoxDecoration(shape: BoxShape.circle,
+                                    color: const Color(0xFFA855F7).withValues(alpha: 0.12)),
+                                child: const Icon(Icons.brightness_6_rounded, color: Color(0xFFA855F7), size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text("Thème d'affichage", style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary, fontSize: 14)),
+                                Text(
+                                  widget.paletteMode == AppPaletteMode.light ? 'Mode blanc (actif)' : 'Bleu BABIFIX (actif)',
+                                  style: TextStyle(color: textSecondary, fontSize: 12),
+                                ),
+                              ])),
+                              Switch(
+                                value: widget.paletteMode == AppPaletteMode.blue,
+                                activeColor: const Color(0xFF4CC9F0),
+                                activeTrackColor: const Color(0xFF4CC9F0).withValues(alpha: 0.3),
+                                onChanged: (v) => widget.onPaletteChanged(v ? AppPaletteMode.blue : AppPaletteMode.light),
+                              ),
+                            ]),
                           ),
 
-                          // ── Sécurité & compte ─────────────────────
-                          const SizedBox(height: 10),
+                          // Section : Sécurité
+                          const SizedBox(height: 20),
+                          _PrestSectionLabel(label: 'SÉCURITÉ', icon: Icons.lock_outline_rounded, color: const Color(0xFFF59E0B), isLight: isLight),
+                          const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
@@ -938,13 +928,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                             ),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: Text('Sécurité & compte',
-                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                                        color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                                        letterSpacing: 0.8)),
-                              ),
                               _PrestProfileActionTile(
                                 icon: Icons.fingerprint_rounded,
                                 title: 'Connexion biométrique',
@@ -963,8 +946,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ]),
                           ),
 
-                          // ── Légal & confidentialité ───────────────
-                          const SizedBox(height: 10),
+                          // Section : Support
+                          const SizedBox(height: 20),
+                          _PrestSectionLabel(label: 'SUPPORT & AIDE', icon: Icons.support_agent_rounded, color: const Color(0xFF10B981), isLight: isLight),
+                          const SizedBox(height: 8),
+                          _PrestProfileActionTile(
+                            icon: Icons.support_agent_rounded,
+                            title: 'Contacter l’administrateur',
+                            subtitle: _contactAdminEmail.isEmpty ? 'Email support BABIFIX' : _contactAdminEmail,
+                            isLight: isLight,
+                            onTap: _openContactAdmin,
+                          ),
+                          const SizedBox(height: 8),
+                          _PrestProfileActionTile(
+                            icon: Icons.help_center_outlined,
+                            title: 'FAQ & aide',
+                            subtitle: 'Guide missions, gains, avis',
+                            isLight: isLight,
+                            onTap: _showHelpSheet,
+                          ),
+                          const SizedBox(height: 8),
+                          _PrestProfileActionTile(
+                            icon: Icons.info_outline_rounded,
+                            title: 'À propos de BABIFIX',
+                            subtitle: 'Version, mentions légales et support',
+                            isLight: isLight,
+                            onTap: () => showAboutDialog(
+                              context: context,
+                              applicationName: 'BABIFIX Prestataire',
+                              applicationVersion: '1.0.0',
+                              applicationIcon: const CircleAvatar(backgroundImage: AssetImage(_logoAsset)),
+                              children: const [Text('Application prestataire BABIFIX — missions, gains et messagerie.')],
+                            ),
+                          ),
+
+                          // Section : Légal
+                          const SizedBox(height: 20),
+                          _PrestSectionLabel(label: 'LÉGAL', icon: Icons.description_outlined, color: const Color(0xFF64748B), isLight: isLight),
+                          const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(
@@ -973,19 +992,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                             ),
                             child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                              _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: isLight,
-                                  onTap: () {}),
+                              _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: isLight, onTap: () {}),
                               Container(width: 1, height: 32, color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF)),
-                              _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: isLight,
-                                  onTap: () {}),
+                              _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: isLight, onTap: () {}),
                               Container(width: 1, height: 32, color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF)),
-                              _LegalLink(label: 'Aide', icon: Icons.help_outline_rounded, isLight: isLight,
-                                  onTap: _showHelpSheet),
+                              _LegalLink(label: 'Aide', icon: Icons.help_outline_rounded, isLight: isLight, onTap: _showHelpSheet),
                             ]),
                           ),
 
-                          // ── Badge BABIFIX Protect ─────────────────
-                          const SizedBox(height: 10),
+                          // Badge certifié
+                          const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
@@ -1005,23 +1021,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     style: TextStyle(fontWeight: FontWeight.w800,
                                         color: isLight ? const Color(0xFF0F172A) : Colors.white, fontSize: 13)),
                                 Text('Paiements garantis · Clients vérifiés · Support 7j/7',
-                                    style: TextStyle(
-                                        color: isLight ? const Color(0xFF475569) : const Color(0xFF9CA3AF),
-                                        fontSize: 11)),
+                                    style: TextStyle(color: isLight ? const Color(0xFF475569) : const Color(0xFF9CA3AF), fontSize: 11)),
                               ])),
                             ]),
                           ),
 
-                          // ── Déconnexion ───────────────────────────
-                          const SizedBox(height: 10),
-                          _PrestProfileActionTile(
-                            icon: Icons.logout_rounded,
-                            title: 'Déconnexion',
-                            subtitle: 'Quitter ce compte sur cet appareil',
-                            isLight: isLight,
-                            onTap: widget.onLogout,
+                          // Zone Déconnexion
+                          const SizedBox(height: 20),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                              gradient: LinearGradient(
+                                colors: isLight
+                                    ? const [Color(0xFFFFF5F5), Color(0xFFFFEBEB)]
+                                    : const [Color(0xFF1A0808), Color(0xFF220E0E)],
+                              ),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(18),
+                              child: InkWell(
+                                onTap: widget.onLogout,
+                                borderRadius: BorderRadius.circular(18),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Row(children: [
+                                    Container(
+                                      width: 40, height: 40,
+                                      decoration: BoxDecoration(shape: BoxShape.circle,
+                                          color: const Color(0xFFEF4444).withValues(alpha: 0.12)),
+                                      child: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 20),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      const Text('Déconnexion', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFEF4444), fontSize: 14)),
+                                      Text('Quitter ce compte sur cet appareil',
+                                          style: TextStyle(color: const Color(0xFFEF4444).withValues(alpha: 0.7), fontSize: 12)),
+                                    ])),
+                                    const Icon(Icons.chevron_right_rounded, color: Color(0xFFEF4444)),
+                                  ]),
+                                ),
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
                           Center(child: Text('BABIFIX Prestataire v1.0.0',
                               style: TextStyle(fontSize: 11,
                                   color: isLight ? const Color(0xFF94A3B8) : const Color(0xFF475569)))),
@@ -1113,6 +1157,33 @@ class _PrestProfileActionTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ── Section label avec icône colorée ─────────────────────────────────────────
+class _PrestSectionLabel extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool isLight;
+
+  const _PrestSectionLabel({required this.label, required this.icon, required this.color, required this.isLight});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(
+        width: 28, height: 28,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
+        child: Icon(icon, size: 14, color: color),
+      ),
+      const SizedBox(width: 8),
+      Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0,
+            color: isLight ? const Color(0xFF64748B) : const Color(0xFF9CA3AF)),
+      ),
+    ]);
   }
 }
 

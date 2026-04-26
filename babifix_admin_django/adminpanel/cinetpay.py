@@ -348,6 +348,14 @@ def cinetpay_webhook(request):
         except Exception as exc:
             logger.warning("Erreur envoi reçu PDF pour paiement %s: %s", payment.reference, exc)
 
+        # Créditer le wallet prestataire (net après commission 15 %)
+        try:
+            from adminpanel.services.wallet_service import WalletService
+            wallet_result = WalletService.credit_provider(payment)
+            logger.info("WalletService credit: %s", wallet_result)
+        except Exception as exc:
+            logger.warning("Erreur crédit wallet prestataire pour paiement %s: %s", payment.reference, exc)
+
         logger.info("CinetPay webhook — paiement %s SUCCÈS", payment.reference)
     else:
         # ÉCHEC

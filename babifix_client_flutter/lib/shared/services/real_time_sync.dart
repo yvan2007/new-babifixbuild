@@ -54,9 +54,8 @@ class RealTimeSyncService {
         return;
       }
       final wsBase = babifixWsBaseUrl();
-      final uri = Uri.parse(wsBase);
-      // Connect with Sec-WebSocket-Protocol header for auth
-      _wsChannel = WebSocketChannel.connect(uri);
+      final uri = Uri.parse('$wsBase/ws/client/events/');
+      _wsChannel = WebSocketChannel.connect(uri, protocols: ['BABIFIX $token']);
       _wsSubscription = _wsChannel!.stream.listen(
         _onWsMessage,
         onError: (e) {

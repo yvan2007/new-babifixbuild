@@ -393,11 +393,26 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                   ],
                 ),
                 const SizedBox(height: 10),
-                _QuickAction(
-                  title: 'Actualit\u00e9s BABIFIX',
-                  subtitle: 'Annonces & infos plateforme',
-                  icon: Icons.newspaper_rounded,
-                  onTap: () => widget.onNavigate('actualites'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickAction(
+                        title: 'Mon Wallet',
+                        subtitle: 'Solde & retraits',
+                        icon: Icons.savings_rounded,
+                        onTap: () => widget.onNavigate('wallet'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _QuickAction(
+                        title: 'Actualités',
+                        subtitle: 'Annonces BABIFIX',
+                        icon: Icons.newspaper_rounded,
+                        onTap: () => widget.onNavigate('actualites'),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 90),
               ],

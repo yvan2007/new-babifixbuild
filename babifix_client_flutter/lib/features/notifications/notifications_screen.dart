@@ -185,15 +185,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _notifs.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+              ? RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(24, 60, 24, 120),
                     children: [
                       Icon(Icons.notifications_off_rounded,
-                          size: 64, color: cs.outline.withValues(alpha: 0.3)),
-                      const SizedBox(height: 16),
-                      const Text('Aucune notification',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                          size: 72, color: cs.outline.withValues(alpha: 0.3)),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Aucune notification',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tirez vers le bas pour actualiser.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: cs.outline),
+                      ),
                     ],
                   ),
                 )
