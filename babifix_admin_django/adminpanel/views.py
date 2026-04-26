@@ -215,27 +215,16 @@ def _bootstrap_data():
     if not Provider.objects.exists():
         Provider.objects.bulk_create(
             [
-                Provider(
-                    nom="Konan Jean",
-                    specialite="Menage",
-                    ville="Abidjan - Cocody",
-                    tarif_horaire=5000,
-                    statut="Valide",
-                ),
-                Provider(
-                    nom="Kone Mariam",
-                    specialite="Plomberie",
-                    ville="Abidjan - Plateau",
-                    tarif_horaire=8000,
-                    statut="En attente",
-                ),
-                Provider(
-                    nom="Fofana Ibrahim",
-                    specialite="Electricite",
-                    ville="Abidjan - Yopougon",
-                    tarif_horaire=7500,
-                    statut="Valide",
-                ),
+                Provider(nom="Konan Jean", specialite="Menage & Nettoyage", ville="Abidjan - Cocody", tarif_horaire=5000, statut="Valide", disponible=True, average_rating=4.8, rating_count=34, bio="Professionnel du ménage depuis 6 ans, matériel fourni."),
+                Provider(nom="Kone Mariam", specialite="Menage & Nettoyage", ville="Abidjan - Abobo", tarif_horaire=4000, statut="Valide", disponible=True, average_rating=4.5, rating_count=22, bio="Spécialiste grand ménage et repassage."),
+                Provider(nom="Bamba Seydou", specialite="Plomberie", ville="Abidjan - Plateau", tarif_horaire=8000, statut="Valide", disponible=True, average_rating=4.7, rating_count=19, bio="Plombier certifié, intervention rapide 7j/7."),
+                Provider(nom="Fofana Ibrahim", specialite="Electricite", ville="Abidjan - Yopougon", tarif_horaire=7500, statut="Valide", disponible=True, average_rating=4.9, rating_count=41, bio="Électricien diplômé, installation et dépannage."),
+                Provider(nom="Coulibaly Aminata", specialite="Peinture & Ravalement", ville="Abidjan - Marcory", tarif_horaire=6500, statut="Valide", disponible=False, average_rating=4.6, rating_count=15, bio="Peintre décorateur intérieur et extérieur."),
+                Provider(nom="Diomande Oumar", specialite="Jardinage", ville="Abidjan - Riviera", tarif_horaire=4500, statut="Valide", disponible=True, average_rating=4.4, rating_count=28, bio="Jardinier paysagiste, entretien et création."),
+                Provider(nom="Toure Fatoumata", specialite="Cuisine & Traiteur", ville="Abidjan - Treichville", tarif_horaire=9000, statut="Valide", disponible=True, average_rating=5.0, rating_count=52, bio="Traiteur événementiel, cuisine ivoirienne et internationale."),
+                Provider(nom="Soro Lamine", specialite="Menuiserie", ville="Abidjan - Adjame", tarif_horaire=7000, statut="Valide", disponible=True, average_rating=4.3, rating_count=11, bio="Menuisier ébéniste, fabrication sur mesure."),
+                Provider(nom="Gbagbo Arsene", specialite="Climatisation", ville="Abidjan - Cocody", tarif_horaire=12000, statut="Valide", disponible=True, average_rating=4.7, rating_count=38, bio="Technicien froid, installation et maintenance clim."),
+                Provider(nom="Traore Nassira", specialite="Demenagement", ville="Abidjan - Port-Bouet", tarif_horaire=15000, statut="Valide", disponible=False, average_rating=4.2, rating_count=9, bio="Déménagements résidentiels et professionnels."),
             ]
         )
     if not Reservation.objects.exists():
@@ -350,9 +339,16 @@ def _bootstrap_data():
     if not Category.objects.exists():
         Category.objects.bulk_create(
             [
-                Category(nom="Menage", services=12, reservations=456, actif=True),
-                Category(nom="Plomberie", services=8, reservations=234, actif=True),
-                Category(nom="Peinture", services=5, reservations=78, actif=False),
+                Category(nom="Menage & Nettoyage", icone_slug="nettoyage", services=24, reservations=856, actif=True, ordre_affichage=1),
+                Category(nom="Plomberie", icone_slug="goutte", services=12, reservations=412, actif=True, ordre_affichage=2),
+                Category(nom="Electricite", icone_slug="eclair", services=10, reservations=378, actif=True, ordre_affichage=3),
+                Category(nom="Peinture & Ravalement", icone_slug="pinceau", services=8, reservations=211, actif=True, ordre_affichage=4),
+                Category(nom="Jardinage", icone_slug="tondeuse", services=9, reservations=194, actif=True, ordre_affichage=5),
+                Category(nom="Cuisine & Traiteur", icone_slug="traiteur", services=7, reservations=163, actif=True, ordre_affichage=6),
+                Category(nom="Demenagement", icone_slug="demenagement", services=5, reservations=88, actif=True, ordre_affichage=7),
+                Category(nom="Menuiserie", icone_slug="menuiserie", services=6, reservations=102, actif=True, ordre_affichage=8),
+                Category(nom="Climatisation", icone_slug="climatisation", services=4, reservations=95, actif=True, ordre_affichage=9),
+                Category(nom="Multiservices", icone_slug="multiservices", services=3, reservations=67, actif=True, ordre_affichage=10),
             ]
         )
     if not Notification.objects.exists():
@@ -367,6 +363,7 @@ def _bootstrap_data():
         )
     _bootstrap_users()
     _link_demo_providers()
+    _link_demo_categories()
 
 
 def _bootstrap_users():
@@ -412,6 +409,20 @@ def _link_demo_providers():
         )
         marie.user = u2
         marie.save(update_fields=["user"])
+
+
+def _link_demo_categories():
+    """Lie les prestataires a leur categorie (matching exact nom==specialite) et active is_approved."""
+    # Correspondance exacte specialite → categorie
+    cat_by_nom = {c.nom: c for c in Category.objects.all()}
+    providers_without_cat = Provider.objects.filter(category__isnull=True).exclude(specialite="")
+    for p in providers_without_cat:
+        cat = cat_by_nom.get((p.specialite or "").strip())
+        if cat:
+            p.category = cat
+            p.save(update_fields=["category"])
+    # Synchroniser is_approved avec statut Valide
+    Provider.objects.filter(statut=Provider.Status.VALID).update(is_approved=True)
 
 
 def _static_absolute(request, relative_path: str) -> str:
@@ -1078,7 +1089,11 @@ def dashboard(request):
                 update_fields = ["statut"]
                 if next_status == Provider.Status.VALID:
                     provider.refusal_reason = ""
-                    update_fields.append("refusal_reason")
+                    provider.is_approved = True
+                    update_fields += ["refusal_reason", "is_approved"]
+                elif next_status == Provider.Status.REFUSED:
+                    provider.is_approved = False
+                    update_fields.append("is_approved")
                 provider.save(update_fields=update_fields)
                 Notification.objects.create(
                     title=f"Statut prestataire mis a jour: {provider.nom} ({next_status})"
@@ -3497,12 +3512,32 @@ def api_public_categories(request):
         .annotate(
             providers_count=Count(
                 "providers",
-                filter=Q(
-                    providers__statut=Provider.Status.VALID, providers__is_approved=True
-                ),
+                filter=Q(providers__statut=Provider.Status.VALID, providers__is_deleted=False),
             )
         )
+        .order_by("ordre_affichage", "nom")
     )
+    for cat in cats:
+        icon_url = ""
+        if (cat.icone_url or "").strip().startswith("http"):
+            icon_url = cat.icone_url.strip()
+        elif (cat.icone_slug or "").strip():
+            slug = cat.icone_slug.strip()
+            relative = f"/{settings.STATIC_URL.strip('/')}/category-icons/{slug}.svg"
+            try:
+                icon_url = request.build_absolute_uri(relative)
+            except Exception:
+                icon_url = relative
+        rows.append({
+            "id": cat.id,
+            "nom": cat.nom,
+            "icone_slug": cat.icone_slug or "",
+            "icone_url": icon_url,
+            "icon_emoji": "",
+            "services": cat.services,
+            "reservations": cat.reservations,
+            "providers_count": cat.providers_count,
+        })
     # Mise en cache Redis (5 min TTL)
     try:
         from django.core.cache import cache

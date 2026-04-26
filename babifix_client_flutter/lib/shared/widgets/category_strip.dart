@@ -106,30 +106,33 @@ class CategoryStrip extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Center(
-                        child:
-                            tab.iconNetworkUrl != null &&
+                        child: tab.iconNetworkUrl != null &&
                                 tab.iconNetworkUrl!.isNotEmpty
                             ? SvgPicture.network(
                                 tab.iconNetworkUrl!,
                                 fit: BoxFit.contain,
                                 width: 22,
                                 height: 22,
-                                placeholderBuilder: (_) => Icon(
-                                  tab.icon ?? Icons.category_rounded,
-                                  size: 20,
-                                  color: tab.color ?? BabifixDesign.navy,
+                                placeholderBuilder: (_) => SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: selected
+                                        ? Colors.white70
+                                        : BabifixDesign.ciBlue
+                                              .withValues(alpha: 0.5),
+                                  ),
                                 ),
                               )
                             : Icon(
-                                tab.icon ?? Icons.category_rounded,
+                                tab.icon ?? Icons.grid_view_rounded,
                                 size: 20,
-                                color:
-                                    tab.color ??
-                                    (selected
-                                        ? BabifixDesign.navy
-                                        : (isLight
-                                              ? cs.onSurfaceVariant
-                                              : const Color(0xFFCBD5E1))),
+                                color: selected
+                                    ? BabifixDesign.navy
+                                    : (isLight
+                                          ? cs.onSurfaceVariant
+                                          : const Color(0xFFCBD5E1)),
                               ),
                       ),
                     ),

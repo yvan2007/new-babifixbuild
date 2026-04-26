@@ -138,10 +138,10 @@ class RealTimeSyncService {
   Future<void> _checkProvidersUpdate() async {
     try {
       final base = babifixApiBaseUrl();
-      final res = await http.get(Uri.parse('$base/api/client/prestataires'));
+      final res = await http.get(Uri.parse('$base/api/public/providers/'));
       if (res.statusCode != 200) return;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final providers = (data['items'] as List<dynamic>? ?? [])
+      final providers = (data['providers'] as List<dynamic>? ?? [])
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
       if (_providersChanged(providers)) {
