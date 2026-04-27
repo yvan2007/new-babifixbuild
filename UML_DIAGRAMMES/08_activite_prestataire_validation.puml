@@ -63,7 +63,7 @@ partition "Candidat" {
 partition "Systeme" {
   :Creer le compte via API Django\n(POST /api/auth/register);
   :Uploader la photo CNI vers MEDIA_ROOT;
-  :Creer entree dans provider table (role: prestation%)
+  :Creer entree dans provider table (role: "prestataire")
   
   note right
     user.role = "prestataire"

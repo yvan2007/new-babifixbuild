@@ -117,7 +117,7 @@ Views -down-> Redis
 
 ' WebSocket
 Consumers -down-> Redis : Channel Layer
-Redis <-up-> ChatService : WebSocket State
+Redis <-up-> Consumers : WebSocket State
 Redis <-up-> RateLimiter : Cache
 
 ' External services

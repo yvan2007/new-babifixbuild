@@ -33,7 +33,7 @@ node "Client Devices" {
   artifact "BABIFIX Pro App\n(Flutter iOS)" as iOSPro
   artifact "BABIFIX Pro App\n(Flutter Android)" as AndroidPro
   artifact "BABIFIX Admin Panel\n(Django Templates + HTMX)" as WebAdmin
-  artifact "Browser\n(Vitrine)" as Browser
+  artifact "Browser\n(Vitrine Django)" as Browser
 }
 
 node "CDN / Edge Network" {
@@ -45,60 +45,52 @@ node "CDN / Edge Network" {
 }
 
 node "Load Balancer" {
-  artifact "Nginx\n(sticky sessions)"
+  artifact "Nginx\n(reverse proxy)"
   artifact "Health Checks"
 }
 
 node "Application Servers" {
   node "Server 1 (App)" {
-    artifact "Daphne (ASGI)"
-    artifact "Django API"
+    artifact "Gunicorn / Daphne"
+    artifact "Django API + Admin"
     artifact "Channels (ASGI)"
   }
   
   node "Server 2 (App)" {
-    artifact "Daphne (ASGI)"
-    artifact "Django API"
+    artifact "Gunicorn / Daphne"
+    artifact "Django API + Admin"
     artifact "Channels (ASGI)"
   }
 }
 
 node "WebSocket Server" {
-  artifact "Daphne / Uvicorn"
+  artifact "Daphne"
   artifact "Django Channels\n(Redis Layer)"
 }
 
-node "Database Cluster" {
-  node "Primary" {
-    artifact "PostgreSQL 15\n(Sync)" as PGPrimary
-  }
-  node "Replica 1" {
-    artifact "PostgreSQL 15\n(Async)" as PGReplica1
-  }
-  node "Replica 2" {
-    artifact "PostgreSQL 15\n(Async)" as PGReplica2
+node "Database" {
+  node "PostgreSQL" {
+    artifact "PostgreSQL 16\n(Single/Master-Slave)" as PG
   }
 }
 
 node "Cache / Message Queue" {
-  artifact "Redis Cluster\n(Cache + WS)" as Redis
-  artifact "Celery Workers" as Celery
+  artifact "Redis\n(Cache + WS + Celery)" as Redis
 }
 
 node "Object Storage" {
-  artifact "S3 / R2\n(Multipart)" as S3
+  artifact "Local / S3 / MinIO\n(Media files)" as Storage
 }
 
 node "Monitoring" {
   artifact "Sentry\n(Error Tracking)"
   artifact "Grafana\n(Metrics)"
-  artifact "ELK Stack\n(Logs)"
 }
 
 node "External Services" {
-  artifact "Firebase\n(FCM uniquement)"
-  artifact "CinetPay API"
-  artifact "SMTP Relay"
+  artifact "Firebase FCM\n(Push Notifications)" as FCM
+  artifact "CinetPay API\n(Paiements Mobile Money)"
+  artifact "SMTP / SendGrid\n(Emails)"
 }
 
 ' Connections
@@ -113,50 +105,47 @@ Cloudflare -down-> Nginx
 Nginx -down-> "Server 1 (App)" : HTTP/2
 Nginx -down-> "Server 2 (App)"
 
-"Server 1 (App)" -down-> PGPrimary
-"Server 2 (App)" -down-> PGPrimary
-"Server 1 (App)" -down-> PGReplica1
-"Server 2 (App)" -down-> PGReplica2
+"Server 1 (App)" -down-> PG
+"Server 2 (App)" -down-> PG
 
 "Server 1 (App)" -down-> Redis
 "Server 2 (App)" -down-> Redis
-"Server 1 (App)" -down-> Celery
-"Server 2 (App)" -down-> Celery
-"Server 1 (App)" -down-> S3
-"Server 2 (App)" -down-> S3
+
+"Server 1 (App)" -down-> Storage
+"Server 2 (App)" -down-> Storage
 
 "Server 1 (App)" -left-> "WebSocket Server"
 "Server 2 (App)" -left-> "WebSocket Server"
 "WebSocket Server" -down-> Redis
 
-Celery -down-> Redis : Queue
-Celery -down-> SMTP : Email
+"Server 1 (App)" -down-> FCM : FCM HTTP API (push only)
+"Server 2 (App)" -down-> FCM
 
-"Server 1 (App)" -down-> Firebase
-"Server 2 (App)" -down-> Firebase
-"Server 1 (App)" -down-> CinetPay
+"Server 1 (App)" -down-> CinetPay : API REST
 "Server 2 (App)" -down-> CinetPay
 
+"Server 1 (App)" -down-> SMTP : SendGrid/SMTP
+
 "Server 1 (App)" -down-> Sentry
-"Server 2 (App)" -down-> Grafana
-"Server 1 (App)" -down-> ELK
+"Server 2 (App)" -down-> Sentry
+"Server 1 (App)" -down-> Grafana
 
-note bottom of PGPrimary
-  WAL Streaming Replication
+note bottom of WebAdmin
+  Django Templates + HTMX
+  Pas de Flutter Web
+  Sessions Django + CSRF
+end note
+
+note bottom of FCM
+  Firebase Firebase Cloud Messaging
+  UNIQUEMENT pour les notifications push
+  Pas de Firebase Auth (JWT Django)
+end note
+
+note bottom of PG
+  PostgreSQL 16
+  WAL Streaming Replication (si cluster)
   Automated Backups (daily)
-  Point-in-time Recovery
-end note
-
-note bottom of Redis
-  Sentinel/Cluster Mode
-  99.99% SLA
-  3 replicas minimum
-end note
-
-note bottom of Cloudflare
-  Free Tier / Pro Plan
-  Global PoPs
-  WAF Rules
 end note
 
 @enduml

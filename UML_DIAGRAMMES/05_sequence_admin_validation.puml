@@ -85,7 +85,7 @@ Admin -> Panel : Decision : Valider / Refuser
 
 alt Valider
     Admin -> Panel : Cliquer "Valider"
-    Panel -> API : POST /api/admin/validate_provider\n{provider_id, action: accept}
+    Panel -> API : POST /api/admin/validate_provider/\n{provider_id, action: accept}
     API -> DB : UPDATE provider SET statut='VALIDE', is_approved=True
     API -> DB : UPDATE provider SET date_validation=now()
     API -> FCM : sendPushNotification(prestataire_fcm_token, titre: "Validation reussie", body: "Vous etes maintenant valide !")
@@ -93,7 +93,7 @@ alt Valider
     Panel --> Admin : Message "Prestataire valide avec succes"
 else Refuser
     Admin -> Panel : Cliquer "Refuser" + saisir motif
-    Panel -> API : POST /api/admin/validate_provider\n{provider_id, action: refuse, motif: ...}
+    Panel -> API : POST /api/admin/validate_provider/\n{provider_id, action: refuse, motif: ...}
     API -> DB : UPDATE provider SET statut='REFUSE', refusal_reason=...
     API -> FCM : sendPushNotification(prestataire_fcm_token, titre: "Demande refusee", body: "Motif: " + motif)
     FCM --> Prestataire : Notification push
