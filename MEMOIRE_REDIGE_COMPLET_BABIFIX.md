@@ -202,6 +202,12 @@ Soucieux d'ancrer sa pédagogie dans la réalité professionnelle, l'IIT encoura
 | Figure 19 | Interface Django — Bandeau de consentement aux cookies (RGPD) | [p.] |
 | Figure 20 | Interface Flutter — Écran d'authentification avec boutons Google et Apple Sign-In | [p.] |
 | Figure 21 | Interface Flutter — Écran de vérification d'adresse email post-inscription | [p.] |
+| Figure 22 | Diagramme de séquence — Paiement Mobile Money (flux CinetPay détaillé) | [p.] |
+| Figure 23 | Diagramme de séquence — Chat temps réel (WebSocket + FCM) | [p.] |
+| Figure 24 | Diagramme de séquence — Gestion des litiges | [p.] |
+| Figure 25 | Diagramme d'état — Cycle de vie d'une réservation | [p.] |
+| Figure 26 | Diagramme d'état — Cycle de vie d'un prestataire | [p.] |
+| Figure 27 | Diagramme de déploiement — Infrastructure de production BABIFIX | [p.] |
 
 *Note : insérer les captures d'écran et exports SVG des diagrammes dans Word à l'emplacement indiqué.*
 
@@ -978,6 +984,44 @@ Le diagramme `06_sequence_paiement_especes.puml` décrit le flux de paiement en 
 4. L'administrateur, informé par le prestataire, valide manuellement le paiement depuis le panneau admin.
 5. Le statut passe à `CONFIRME` et les deux parties sont notifiées.
 
+### 5.3.5. Séquence — Paiement Mobile Money (flux CinetPay détaillé)
+
+*[Insérer ici la Figure 22 : SEQUENCE PAIEMENT MOBILE MONEY.svg]*
+
+Le diagramme `17_sequence_paiement_mobile_money.puml` détaille le flux complet de paiement via Mobile Money (Orange Money, MTN Moov Money, Wave) en intégrant la passerelle CinetPay :
+
+1. Le client choisit son opérateur Mobile Money et confirme le montant en FCFA.
+2. L'application Flutter envoie une requête à l'API Django qui initie une transaction auprès de CinetPay.
+3. CinetPay retourne un `transaction_id` et une `redirect_url` ; le paiement est créé en base avec le statut `PENDING`.
+4. Le client est redirigé vers l'interface de paiement opérateur (USSD ou page web Mobile Money).
+5. L'opérateur notifie CinetPay du résultat ; CinetPay envoie un webhook vers l'API Django.
+6. L'API met à jour le statut du paiement (`COMPLETE` ou `DISPUTE`) et notifie les deux parties par FCM.
+
+### 5.3.6. Séquence — Chat temps réel (WebSocket + FCM)
+
+*[Insérer ici la Figure 23 : SEQUENCE CHAT WEBSOCKET.svg]*
+
+Le diagramme `14_sequence_chat_websocket.puml` illustre le protocole de messagerie temps réel entre client et prestataire dans le cadre d'une réservation :
+
+1. Les deux parties se connectent au WebSocket Django Channels via `ws://<serveur>/ws/chat/<reservation_id>/`.
+2. Redis sert de couche de canal (Channel Layer) pour distribuer les messages entre les consumers.
+3. L'envoi d'un message crée un enregistrement `Message` en base et broadcast la donnée à tous les membres du groupe WebSocket.
+4. Si le destinataire est hors-ligne, un signal Django déclenche l'envoi d'une notification FCM.
+5. À la reconnexion, l'historique des messages est chargé via `GET /api/chat/<reservation_id>/messages/`.
+
+### 5.3.7. Séquence — Gestion des litiges
+
+*[Insérer ici la Figure 24 : SEQUENCE LITIGES.svg]*
+
+Le diagramme `15_sequence_litiges.puml` modélise le flux de traitement d'un litige entre un client et un prestataire :
+
+1. Le client ou le prestataire signale un problème via l'application après une prestation terminée.
+2. Un enregistrement `Dispute` est créé en base avec le statut initial.
+3. L'administrateur reçoit une notification et consulte le détail du litige depuis le panneau admin.
+4. L'admin peut consulter l'historique de la réservation, le chat associé et les preuves soumises.
+5. L'admin tranche : remboursement partiel ou total (mise à jour `StatutPaiement`), avertissement ou suspension du prestataire, ou clôture sans suite.
+6. Les deux parties sont notifiées par FCM de la décision.
+
 ---
 
 ## 5.4. Diagrammes d'activité
@@ -1005,6 +1049,44 @@ Le diagramme `09_activite_admin_gestion.puml` présente les activités quotidien
 *[Insérer ici la Figure 11 : ACTIVITE NOTATION AVIS svg.svg]*
 
 Le diagramme `10_activite_notation.puml` décrit le processus de notation d'un prestataire après une prestation : déclenchement par la fin de la mission, saisie de la note et du commentaire par le client, mise à jour de la note moyenne du prestataire, notification optionnelle au prestataire. Ce processus alimente le moteur de recommandation de la plateforme.
+
+---
+
+## 5.5. Diagrammes d'état (State Machines)
+
+### 5.5.1. État — Cycle de vie d'une réservation
+
+*[Insérer ici la Figure 25 : STATE MACHINE RESERVATION.svg]*
+
+Le diagramme `13_state_machine_reservation.puml` modélise les transitions d'état d'une réservation tout au long de son cycle de vie. Il reflète le nouveau flux devis de BABIFIX :
+
+| État | Description |
+|---|---|
+| `DEMANDE_ENVOYEE` | La demande du client vient d'être créée |
+| `DEVIS_EN_COURS` | Le prestataire prépare son devis |
+| `DEVIS_ENVOYE` | Le devis a été soumis au client |
+| `DEVIS_ACCEPTE` | Le client a accepté le devis |
+| `INTERVENTION_EN_COURS` | Le prestataire est sur site |
+| `EN_ATTENTE_CLIENT` | Le prestataire a déclaré la prestation terminée |
+| `TERMINEE` | Le client a confirmé (ou auto-confirmation après 48 h) |
+| `ANNULEE` | Annulation à n'importe quelle étape avant intervention |
+
+Si le client refuse le devis, la réservation repasse à `DEMANDE_ENVOYEE` pour permettre une renégociation.
+
+### 5.5.2. État — Cycle de vie d'un prestataire
+
+*[Insérer ici la Figure 26 : STATE MACHINE PRESTATAIRE.svg]*
+
+Le diagramme `16_state_machine_prestataire.puml` modélise l'évolution du statut d'un compte prestataire depuis son inscription jusqu'à son éventuelle suspension :
+
+| État | Description |
+|---|---|
+| `EN_ATTENTE` | Dossier soumis, en attente de décision admin |
+| `VALIDE` | Prestataire approuvé, visible par les clients |
+| `REFUSE` | Dossier refusé ; le prestataire peut corriger et resoummettre |
+| `SUSPENDU` | Compte temporairement désactivé par l'admin |
+
+La transition `VALIDE → SUSPENDU → VALIDE` permet à l'administrateur de gérer les incidents sans supprimer définitivement le compte.
 
 ---
 
@@ -1160,6 +1242,25 @@ L'application `adminpanel` concentre toute la logique métier : les modèles, le
 
 ---
 
+## 6.3. Diagramme de déploiement — Infrastructure de production
+
+*[Insérer ici la Figure 27 : DEPLOIEMENT INFRASTRUCTURE.svg]*
+
+Le diagramme `12_deploiement_infrastructure.puml` représente l'infrastructure cible de BABIFIX en environnement de production. Il modélise les nœuds physiques et logiques, leurs interconnexions et les artefacts déployés sur chacun :
+
+- **Client mobile** (iOS/Android) : applications Flutter se connectant via HTTPS au serveur Nginx.
+- **Serveur Nginx** : reverse proxy gérant la terminaison SSL/TLS, le routage des requêtes HTTP vers Gunicorn/Daphne, et la distribution des fichiers statiques (`/static/`, `/media/`).
+- **Daphne (ASGI)** : serveur ASGI Django Channels gérant les connexions WebSocket pour le chat temps réel.
+- **Django (WSGI)** : traitement des requêtes HTTP REST via Gunicorn.
+- **PostgreSQL 16** : base de données relationnelle principale hébergeant l'ensemble des données métier.
+- **Redis 7** : broker de messages pour Django Channels (Channel Layer WebSocket) et cache des rate limiters.
+- **Firebase (FCM)** : service externe de notifications push, contacté par le backend Django via l'API FCM.
+- **CinetPay** : passerelle de paiement Mobile Money externe, contactée par webhook bidirectionnel.
+
+Ce diagramme constitue le plan de référence pour le déploiement sur un VPS (Virtual Private Server) avec configuration Docker Compose ou déploiement manuel.
+
+---
+
 # CHAPITRE 7 : RÉALISATION DES MODULES CLÉS
 
 ## 7.1. Développement du moteur de recherche
@@ -1292,6 +1393,8 @@ BABIFIX intègre deux mécanismes d'authentification sociale permettant aux clie
 
 Ce mécanisme améliore le taux de conversion à l'inscription en supprimant la friction liée à la création d'un mot de passe, tout en maintenant la sécurité par vérification cryptographique côté serveur.
 
+*[Insérer ici la Figure 20 : capture d'écran — Écran d'authentification avec boutons Google et Apple Sign-In]*
+
 ### 7.2.5. Vérification d'email et réinitialisation de mot de passe
 
 La plateforme implémente un workflow complet de vérification d'adresse e-mail et de réinitialisation de mot de passe :
@@ -1308,6 +1411,8 @@ La plateforme implémente un workflow complet de vérification d'adresse e-mail 
 - La soumission du nouveau mot de passe via `POST /api/auth/reset-password` invalide le token après usage.
 
 Ces mécanismes garantissent que seules des adresses e-mail valides sont enregistrées sur la plateforme, réduisant les créations de comptes frauduleux.
+
+*[Insérer ici la Figure 21 : capture d'écran — Écran de vérification d'adresse email post-inscription]*
 
 ---
 
@@ -1330,6 +1435,8 @@ Un formulaire guidé permet au client de spécifier la date, le créneau horaire
 
 **Écran de chat** :
 Interface de messagerie liée à la réservation concernée. Les messages sont affichés dans des bulles différenciées (client à droite, prestataire à gauche). L'accès au chat se fait via l'icône de messagerie dans la topbar, avec un badge rouge indiquant les messages non lus.
+
+*[Insérer ici la Figure 15 : capture d'écran — ChatScreen avec badge messages non lus]*
 
 **Écran Actualités** :
 Liste d'articles publiés par l'administration, avec titre, image de couverture et extrait. Un clic ouvre l'article complet.
