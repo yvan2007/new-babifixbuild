@@ -163,16 +163,14 @@ Soucieux d'ancrer sa pédagogie dans la réalité professionnelle, l'IIT encoura
 | Tableau 4 | Comparatif des plateformes internationales de services à domicile | [p.] |
 | Tableau 5 | Positionnement différencié de BABIFIX par rapport aux concurrents | [p.] |
 | Tableau 6 | Analyse SWOT de BABIFIX | [p.] |
-| Tableau 7 | Analyse des risques et mesures d'atténuation | [p.] |
-| Tableau 8 | Composantes fondamentales des algorithmes de matching | [p.] |
-| Tableau 9 | Tableau des besoins fonctionnels (BF-01 à BF-12) | [p.] |
-| Tableau 10 | Tableau des exigences non fonctionnelles | [p.] |
-| Tableau 11 | Description des cas d'utilisation par acteur | [p.] |
-| Tableau 12 | Description des entités du diagramme de classes | [p.] |
-| Tableau 13 | Justification des choix technologiques | [p.] |
-| Tableau 14 | Protocoles de tests et résultats | [p.] |
-| Tableau 15 | Bilan de conformité aux objectifs du projet | [p.] |
-| Tableau 16 | Indicateurs clés de performance post-lancement | [p.] |
+| Tableau 7 | Composantes fondamentales des algorithmes de matching | [p.] |
+| Tableau 8 | Tableau des besoins fonctionnels (BF-01 à BF-12) | [p.] |
+| Tableau 9 | Tableau des exigences non fonctionnelles | [p.] |
+| Tableau 10 | Description des cas d'utilisation par acteur | [p.] |
+| Tableau 11 | Description des entités du diagramme de classes | [p.] |
+| Tableau 12 | Justification des choix technologiques | [p.] |
+| Tableau 13 | Protocoles de tests et résultats | [p.] |
+| Tableau 14 | Bilan de conformité aux objectifs du projet | [p.] |
 
 *Note : les numéros de page seront mis à jour lors de la mise en forme finale dans Word.*
 
@@ -273,7 +271,7 @@ La question de recherche centrale est : *Comment concevoir et implémenter une p
 
 L'hypothèse de travail formulée est qu'une architecture combinant authentification robuste, workflow d'approbation des prestataires (avec motif de refus et parcours de correction), messagerie liée aux réservations et notifications push améliore la confiance perçue et l'opérabilité du service.
 
-Les résultats présentés montrent un système fonctionnel intégrant : le cycle complet de validation des prestataires, le chat lié aux réservations avec badge de messages non lus, la diffusion temps réel des prestataires approuvés, la section actualités et le tableau de bord analytique avec affichage des paiements en FCFA. La plateforme intègre également une **authentification sociale** (Google Sign-In et Sign in with Apple) avec vérification côté serveur par JWT, un système de **vérification d'email** et de réinitialisation de mot de passe, un **mapping visuel des catégories** par icônes Material Design et couleurs de marque (CategoryIconMapper, 80+ slugs), ainsi qu'une section « Notifications intelligentes » et un **bandeau de consentement aux cookies** conforme au RGPD sur le site vitrine. Ce travail constitue une contribution à la documentation des architectures hybrides REST + temps réel en écosystème Django / Flutter appliquées aux marchés émergents d'Afrique de l'Ouest.
+Les résultats présentés montrent un système fonctionnel intégrant : le cycle complet de validation des prestataires, le chat lié aux réservations avec badge de messages non lus, la diffusion temps réel des prestataires approuvés, la section actualités et le tableau de bord analytique avec affichage des paiements en FCFA. La plateforme intègre également une **authentification sociale** (Google Sign-In et Sign in with Apple) avec vérification côté serveur par JWT, un système de **vérification d'email** et de réinitialisation de mot de passe, un **système d'icônes de catégories piloté par le serveur** : chaque catégorie Django stocke un champ `icone_url` retournant l'URL absolue d'un fichier SVG servi statiquement, rendu dans l'application Flutter par `SvgPicture.network()` sans aucun mapping local, ainsi qu'une section « Notifications intelligentes » et un **bandeau de consentement aux cookies** conforme au RGPD sur le site vitrine. Ce travail constitue une contribution à la documentation des architectures hybrides REST + temps réel en écosystème Django / Flutter appliquées aux marchés émergents d'Afrique de l'Ouest.
 
 ---
 ---
@@ -290,7 +288,7 @@ The central research question is: *How can a home services platform be designed 
 
 The working hypothesis states that an architecture combining robust authentication, a provider approval workflow (with refusal reason and correction path), reservation-bound messaging, and push notifications improves perceived trust and service operability.
 
-Results demonstrate a functional system incorporating: the complete provider validation cycle, reservation-linked chat with unread message badges, real-time broadcasting of approved providers, a news section, and an analytical dashboard with FCFA payment display. The platform additionally integrates **social authentication** (Google Sign-In and Sign in with Apple) with server-side verification through JWT tokens, an **email verification** and password reset workflow, a visual **category mapping** system associating 80+ slugs with Material Design icons and brand colors (CategoryIconMapper), an "Intelligent Notifications" showcase section, and a **GDPR-compliant cookie consent banner** on the website. This work contributes to the documentation of hybrid REST + real-time architectures in the Django / Flutter ecosystem applied to West African emerging markets.
+Results demonstrate a functional system incorporating: the complete provider validation cycle, reservation-linked chat with unread message badges, real-time broadcasting of approved providers, a news section, and an analytical dashboard with FCFA payment display. The platform additionally integrates **social authentication** (Google Sign-In and Sign in with Apple) with server-side verification through JWT tokens, an **email verification** and password reset workflow, a **server-driven category icon system** where each Django category stores an `icone_url` field returning the absolute URL of a statically-served SVG file, rendered in the Flutter app via `SvgPicture.network()` without any local mapping, an "Intelligent Notifications" showcase section, and a **GDPR-compliant cookie consent banner** on the website. This work contributes to the documentation of hybrid REST + real-time architectures in the Django / Flutter ecosystem applied to West African emerging markets.
 
 ---
 ---
@@ -316,7 +314,7 @@ Le projet BABIFIX a été développé selon une approche itérative incrémental
 
 | Version | Date | Livrable principal |
 |---------|------|-------------------|
-| v1 | Semaine 1-2 | Modèles de données Django, API REST基础 |
+| v1 | Semaine 1-2 | Modèles de données Django, API REST de base |
 | v2 | Semaine 3-4 | Authentification JWT, inscription client/prestataire |
 | v3 | Semaine 5-6 | Workflow validation prestataire (PENDING → ACCEPTED/REFUSED) |
 | v4 | Semaine 7-8 | Chat temps réel lié aux réservations (Django Channels) |
@@ -347,7 +345,7 @@ Le tableau suivant présente le planning détaillé du projet BABIFIX sur 16 sem
 | Phase | Semaine | Activités | Livrables |
 |-------|---------|-----------|-----------|
 | **Phase 1 : Fondations** | S1-S2 | Analyse des besoins, modélisation UML, configuration Django, modèles de données | Modèles Django, diagrammes UML |
-| | S3-S4 | Authentification JWT, inscription client/prestataire, API REST基础 | API auth, endpoints inscription |
+| | S3-S4 | Authentification JWT, inscription client/prestataire, API REST de base | API auth, endpoints inscription |
 | **Phase 2 : Cœur métier** | S5-S6 | Workflow validation prestataire, modèles PENDING/ACCEPTED/REFUSED | Validation admin, notifications |
 | | S7-S8 | Chat temps réel (Django Channels), WebSocket, badge messages | Chat lié aux réservations |
 | **Phase 3 : Administration** | S9-S10 | Tableau de bord KPI admin, graphiques Chart.js, export CSV | Dashboard admin en FCFA |
@@ -362,9 +360,9 @@ Le tableau suivant présente une estimation des coûts pour le déploiement en p
 
 **Tableau 0.2 — Budget estimatif (en FCFA)**
 
-| Poste | Coût estimé | Notes |
+| Poste | Coût estimatif | Notes |
 |-------|----------|-------|
-| Serveur VPS (1 an) | 300 000 - 600 000 | DigitalOcean, OVH, ou Contabo |
+| Serveur VPS (1 an) | 300 000 - 600 000 | DigitalOcean, OVH, ou Alibaba Cloud |
 | Nom de domaine babifix.ci | 15 000 | .ci registry |
 | Certificat SSL (Let's Encrypt) | 0 | Gratuit |
 | Instance PostgreSQL managé | 100 000 - 200 000 | DigitalOcean Managed DB |
@@ -513,40 +511,7 @@ L'analyse comparative révèle que les lacunes des solutions existantes graviten
 
 BABIFIX s'appuie sur un modèle économique mixte :
 
-- **Commission sur transactions** : un pourcentage de 18% prélevé sur chaque réservation complétée. Cette commission est calculée automatiquement dans la méthode `save()` du modèle Reservation. Le modèle CategoryCommission permet d'ajuster ce taux par catégorie de service pour s'adapter aux différents marchés.
-
-**Projection de revenus (Année 1, scénario conservateur)** :
-
-| Indicateur | Hypothèse | Valeur |
-|---|---|---|
-| Prestataires actifs | 50 prestataires validés | |
-| Réservations/mois/prestataire | 8 réservations | |
-| Réservations totales/mois | 400 | |
-| Montant moyen par réservation | 15 000 FCFA | |
-| Volume transactions/mois | 6 000 000 FCFA | |
-| Commission BABIFIX (18%) | 1 080 000 FCFA/mois | |
-| Revenus annuels (commission) | 12 960 000 FCFA | |
-| Coûts opérationnels annuels | ~1 000 000 FCFA | |
-| **Résultat net estimé** | **~11 960 000 FCFA** | |
-
-Le taux de commission de 18% se situe dans la fourchette du marché international (TaskRabbit : 15%, Thumbtack : 15-20%, Handy : 20%, Uber : 25%). Ce positionnement se justifie par les services inclus dans la commission : validation administrative des prestataires (vérification CNI), infrastructure de messagerie temps réel, notifications push, appels masqués via ZEGOCLOUD, et système de devis structuré. Le modèle CategoryCommission permet d'ajuster ce taux par catégorie — par exemple, un taux réduit à 12% pour les services de ménage (marges plus faibles) et un taux de 20% pour les services d'urgence (valeur perçue plus élevée).
-
-**Projection de croissance BABIFIX sur 5 ans (scénario réaliste)** :
-
-| Indicateur | Année 1 | Année 2 | Année 3 | Année 4 | Année 5 |
-|---|---|---|---|---|---|
-| Prestataires actifs | 50 | 200 | 500 | 1 200 | 3 000 |
-| Clients inscrits | 500 | 3 000 | 12 000 | 35 000 | 80 000 |
-| Réservations/mois | 400 | 2 400 | 8 000 | 24 000 | 60 000 |
-| Montant moyen (FCFA) | 15 000 | 15 000 | 18 000 | 18 000 | 20 000 |
-| Volume transactions/mois | 6 M | 36 M | 144 M | 432 M | 1 200 M |
-| Commission 18%/mois | 1,08 M | 6,48 M | 25,9 M | 77,8 M | 216 M |
-| Revenus annuels | 13 M | 78 M | 311 M | 933 M | 2 592 M |
-| Coûts opérationnels/an | 1 M | 8 M | 30 M | 80 M | 200 M |
-| **Résultat net/an** | **12 M** | **70 M** | **281 M** | **853 M** | **2 392 M** |
-| Villes couvertes | Abidjan | Abidjan + Bouaké | 5 villes CI | CI + Sénégal | 4 pays UEMOA |
-
-Ces projections reposent sur l'hypothèse d'une croissance organique alimentée par le bouche-à-oreille et le marketing digital ciblé, avec un taux de rétention client de 40% et un taux de conversion prestataire (inscription vers validation) de 60%. Le seuil de rentabilité est atteint dès la première année grâce à des coûts opérationnels très faibles en phase de lancement (hébergement cloud, pas de locaux, équipe minimale).
+- **Commission sur transactions** : un pourcentage prélevé sur chaque réservation complétée, alignant les intérêts de la plateforme et des prestataires.
 - **Abonnement prestataire premium** (perspective) : formule d'abonnement mensuel pour des fonctionnalités avancées — mise en avant dans les résultats de recherche, statistiques détaillées, badge de certification.
 - **Publicité et mise en avant** (perspective) : slots sponsorisés pour des catégories ou des prestataires souhaitant augmenter leur visibilité.
 
@@ -568,31 +533,6 @@ La proposition de valeur repose sur trois piliers :
 |---|---|---|
 | **Internes** | **FORCES :** Validation admin unique sur le marché local ; chat lié aux réservations ; paiements FCFA natifs ; architecture solide (Django + Flutter) ; 4 interfaces cohérentes | **FAIBLESSES :** Phase prototype (tests auto à renforcer) ; déploiement production à finaliser ; masse critique d'utilisateurs à constituer |
 | **Externes** | **OPPORTUNITÉS :** Marché sous-digitalisé ; 70 %+ pénétration Mobile Money ; croissance économique soutenue ; absence de concurrent dominant local | **MENACES :** Entrée potentielle de Lynk/SweepSouth ; plateformes internationales évoluant vers l'Afrique ; résistance culturelle à la formalisation |
-
-**Tableau 7 — Analyse des risques et mesures d'atténuation** :
-
-| Risque | Probabilité | Impact | Mesure d'atténuation |
-|---|---|---|---|
-| Masse critique insuffisante (trop peu de prestataires au lancement) | Élevée | Critique | Recrutement terrain + commission réduite + parrainage |
-| Fraude prestataire (fausses CNI) | Moyenne | Élevé | Vérification manuelle admin + signalement client + suspension automatique |
-| Défaillance CinetPay (panne passerelle) | Faible | Élevé | Mode espèces comme fallback + monitoring webhook + alertes |
-| Concurrence d'un acteur international | Moyenne | Moyen | Avantage local (FCFA, validation admin, chat intégré) |
-| Changement réglementaire (ARTCI/BCEAO) | Faible | Élevé | Veille juridique + conformité proactive |
-| Surcharge serveur (pic de demandes) | Moyenne | Moyen | Auto-scaling Docker, CDN Cloudflare, pagination API, cache Redis |
-
-### 1.3.4. Strategie de lancement
-
-Le lancement de BABIFIX s'articulera en trois phases distinctes :
-
-**Phase Bêta (Mois 1-3)** — Amorçage terrain. Recrutement de 20 prestataires pilotes dans les communes de Cocody, Marcory et Yopougon à Abidjan, via un démarchage physique direct dans les quincailleries, les associations d'artisans et les groupes WhatsApp professionnels. La commission standard de 18% s'applique dès la première intervention, ce qui garantit un modèle économique sain dès le départ : le prestataire ne paie que lorsqu'il est effectivement rémunéré, ce qui constitue un risque zéro pour lui. Les premiers clients sont recrutés via les groupes Facebook de quartier et les réseaux WhatsApp résidentiels, en mettant en avant la proposition de valeur unique : prestataires vérifiés par CNI, devis détaillé avant intervention, paiement après validation du travail. Objectif : 50 réservations complétées et premiers avis publiés. C'est exactement ce modèle qu'ont utilisé les plateformes qui réussissent en Afrique : Lynk au Kenya a recruté 1 300 prestataires en allant les chercher dans les marchés informels, sans leur offrir de réduction.
-
-**Phase Lancement (Mois 4-8)** — Preuve sociale. Les avis et témoignages des premiers mois deviennent l'outil marketing principal. Le bouche-à-oreille, premier canal d'acquisition en Côte d'Ivoire, est amplifié par une campagne de contenu digital ciblée (budget : 100 000 FCFA/mois sur Facebook et Instagram) utilisant de vrais témoignages de clients et prestataires satisfaits. Un programme de parrainage basé sur le statut (badge « Membre fondateur », accès prioritaire aux meilleurs prestataires) crée de l'engagement sans coût de subvention. Des partenariats avec les syndics de résidences et les agences immobilières permettent d'accéder aux prescripteurs naturels des services à domicile.
-
-**Phase Croissance (Mois 9-18)** — Effet réseau. Extension à Bouaké puis Yamoussoukro, chaque ville démarrant avec 10 prestataires recrutés en terrain, pas par une campagne digitale. Lancement de l'abonnement prestataire premium optionnel (5 000 FCFA/mois) pour les prestataires souhaitant une visibilité accrue. L'effet réseau (plus de prestataires attire plus de clients, et inversement) alimente une croissance organique auto-entretenue. Présence sur les événements technologiques locaux pour renforcer la crédibilité de la marque.
-
-### 1.3.5. Cadre juridique et fiscal
-
-Sur le plan juridique, le déploiement commercial de BABIFIX nécessite la création d'une structure juridique (SARL ou SAS de droit ivoirien) immatriculée au Registre du Commerce et du Crédit Mobilier (RCCM). En tant que plateforme de mise en relation prélevant une commission sur les transactions, BABIFIX est soumise à l'impôt sur les bénéfices (25% en CI), à la TVA (18% sur la commission, pas sur le montant total de la prestation), et aux obligations déclaratives auprès de la Direction Générale des Impôts (DGI). La déclaration de traitement de données personnelles auprès de l'ARTCI est un préalable réglementaire avant le lancement commercial.
 
 ---
 
@@ -625,7 +565,7 @@ Les systèmes de notation remplissent deux fonctions : réduire l'asymétrie d'i
 
 Dans BABIFIX, après chaque prestation, le client peut noter le prestataire (note + commentaire). La note moyenne est affichée sur le profil et utilisée comme critère de tri dans les résultats de recherche.
 
-**Tableau 8 — Composantes fondamentales des algorithmes de matching dans les plateformes de services**
+**Tableau 7 — Composantes fondamentales des algorithmes de matching dans les plateformes de services**
 
 | Composante | Description | Implémentation BABIFIX |
 |------------|-------------|----------------------|
@@ -748,12 +688,10 @@ Le parcours complet du client sur BABIFIX se décompose en sept étapes :
 1. **Inscription** : le client télécharge l'application Flutter, renseigne ses coordonnées et crée son compte. L'authentification est gérée par JWT.
 2. **Connexion** : le client se connecte avec son email et son mot de passe. Un token JWT est généré et stocké localement pour les requêtes ultérieures.
 3. **Recherche de service** : le client navigue dans les catégories (ménage, plomberie, électricité, jardinage, etc.) via l'interface `CategoryTab`. Il peut consulter les fiches prestataires via `ServiceCard`, affichant la photo, le nom, la spécialité, la note moyenne et le tarif indicatif.
-4. **Demande de devis** : le client décrit son problème (texte + photos), sélectionne une date et une heure, saisit l'adresse d'intervention et envoie la demande. Une réservation est créée en base avec le statut *DEMANDE_ENVOYEE*.
-5. **Réception du devis** : le prestataire analyse la demande et envoie un devis détaillé (diagnostic, lignes de prestations, montant). Le client reçoit une notification et peut consulter le devis via l'écran `DevisDetailScreen`.
-6. **Acceptation du devis** : le client accepte ou refuse le devis. En cas d'acceptation, le statut passe à *DEVIS_ACCEPTE*, puis *INTERVENTION_EN_COURS* lors du démarrage de l'intervention.
-7. **Paiement** : le client procède au paiement via Mobile Money (Orange Money, MTN Moov, Wave) ou en espèces **après validation de la prestation**. Le paiement s'effectue après validation, pas en avance (pas de séquestre/escrow).
-8. **Communication et suivi** : le client peut envoyer des messages au prestataire via le chat intégré. Un badge sur l'icône Message signale les messages non lus. Des notifications push FCM informent le client des mises à jour de sa réservation.
-9. **Évaluation** : après la prestation, le client note le prestataire et laisse un avis qui alimente la note moyenne affichée sur le profil public.
+4. **Sélection et réservation** : le client sélectionne un prestataire, choisit une date et un créneau, précise ses besoins et valide la demande. Une réservation est créée en base de données avec le statut *en attente*.
+5. **Paiement** : le client procède au paiement via Mobile Money (Orange Money, MTN Moov, Wave) ou en espèces. Un webhook confirme la transaction pour les paiements Mobile Money.
+6. **Communication et suivi** : le client peut envoyer des messages au prestataire via le chat intégré. Un badge sur l'icône Message signale les messages non lus. Des notifications push FCM informent le client des mises à jour de sa réservation.
+7. **Évaluation** : après la prestation, le client note le prestataire et laisse un avis qui alimente la note moyenne affichée sur le profil public.
 
 ### 3.2.2. Parcours du prestataire
 
@@ -800,7 +738,7 @@ La gestion des litiges permet de traiter les désaccords entre clients et presta
 
 Le suivi des paiements est centralisé dans le panneau d'administration. Pour chaque transaction, les informations suivantes sont enregistrées : identifiant de réservation, montant en FCFA, opérateur Mobile Money utilisé (Orange Money, MTN Moov, Wave), statut de la transaction (en attente, confirmé, échoué), et date/heure.
 
-**Tableau 9 — Tableau des besoins fonctionnels de BABIFIX (BF-01 à BF-12)**
+**Tableau 8 — Tableau des besoins fonctionnels de BABIFIX (BF-01 à BF-12)**
 
 | ID | Besoin fonctionnel | Acteur concerné | Priorité |
 |---|---|---|---|
@@ -827,7 +765,7 @@ Le suivi des paiements est centralisé dans le panneau d'administration. Pour ch
 
 L'authentification dans BABIFIX repose sur deux mécanismes distincts selon le type d'interface :
 
-- **Applications Flutter (client et prestataire)** : authentification par **JSON Web Tokens (JWT)** via un système custom (auth.py). À la connexion, l'API retourne un *access token* (durée de vie courte, typiquement 5 à 30 minutes) et un *refresh token* (durée de vie longue). L'application Flutter stocke ces tokens de manière sécurisée et les inclut dans l'en-tête `Authorization: Bearer <token>` de chaque requête.
+- **Applications Flutter (client et prestataire)** : authentification par **JSON Web Tokens (JWT)** via la bibliothèque `djangorestframework-simplejwt`. À la connexion, l'API retourne un *access token* (durée de vie courte, typiquement 5 à 30 minutes) et un *refresh token* (durée de vie longue). L'application Flutter stocke ces tokens de manière sécurisée et les inclut dans l'en-tête `Authorization: Bearer <token>` de chaque requête.
 - **Interfaces web Django (panneau admin et vitrine)** : authentification par **sessions Django** avec protection CSRF native. L'accès au panneau d'administration est restreint aux utilisateurs ayant le flag `is_staff=True` ou un groupe de permissions administrateur défini.
 
 L'autorisation est gérée au niveau de chaque endpoint API par des classes de permission Django REST Framework :
@@ -859,7 +797,7 @@ Conformément à la **Loi n°2013-450 du 19 juin 2013** (Côte d'Ivoire) sur la 
 
 ### 4.2.1. Performances attendues
 
-**Tableau 10 — Tableau des exigences non fonctionnelles**
+**Tableau 9 — Tableau des exigences non fonctionnelles**
 
 | Exigence | Métrique | Valeur cible | Justification |
 |---|---|---|---|
@@ -935,7 +873,7 @@ Le diagramme des cas d'utilisation de BABIFIX (`01_use_case_diagramme.puml`) pr�
 
 ### 5.1.2. Description des cas d'utilisation par acteur
 
-**Tableau 11 — Description des cas d'utilisation par acteur**
+**Tableau 10 — Description des cas d'utilisation par acteur**
 
 | Acteur | Cas d'utilisation |
 |---|---|
@@ -960,7 +898,7 @@ Le diagramme de classes (`02_class_diagramme.puml`) présente la structure conce
 - `Prestataire` : attributs spécifiques (statutValidation, motifRefus, cniFichier, specialites, tarif, noteMovenne, disponible).
 - `Admin` : attributs spécifiques (niveauAcces).
 
-**Tableau 12 — Description des entités du diagramme de classes**
+**Tableau 11 — Description des entités du diagramme de classes**
 
 | Entité | Attributs clés | Relations |
 |---|---|---|
@@ -979,28 +917,28 @@ Le diagramme de classes (`02_class_diagramme.puml`) présente la structure conce
 | `Actualite` | id, titre, contenu, image, datePublication, auteur | — |
 
 **Énumérations :**
-- `StatutValidation` : PENDING, ACCEPTED, REFUSED
-- `StatutReservation` : EN_ATTENTE, CONFIRMEE, EN_COURS, TERMINEE, ANNULEE
-- `StatutPaiement` : EN_ATTENTE, CONFIRME, ECHOUE, REMBOURSE
-- `TypePaiement` : ORANGE_MONEY, MTN_MOOV, WAVE, ESPECES
+- `StatutValidation` : PENDING, VALIDE, REFUSE, SUSPENDU
+- `StatutReservation` : DEMANDE_ENVOYEE, DEVIS_EN_COURS, DEVIS_ENVOYE, DEVIS_ACCEPTE, INTERVENTION_EN_COURS, EN_ATTENTE_CLIENT, TERMINEE, ANNULEE
+- `StatutPaiement` : PENDING, COMPLETE, DISPUTE, REFUND
+- `TypePaiement` : MOBILE_MONEY, ESPECES, CARTE
 
 ---
 
 ## 5.3. Diagrammes de séquences
 
-### 5.3.1. Séquence — Réservation client et paiement Mobile Money
+### 5.3.1. Séquence — Nouveau flux demande et devis (client)
 
 *[Insérer ici la Figure 4 : SEQUENCE CLIENT RESERVATION ET PAIEMENT.svg]*
 
-Le diagramme `03_sequence_client_reservation.puml` décrit le flux complet de réservation d'un service et de paiement par Mobile Money :
+Le diagramme `03_sequence_client_reservation.puml` décrit le **nouveau flux devis** de BABIFIX, qui remplace la réservation directe par un processus négocié en deux temps :
 
 1. **Connexion** : le client s'authentifie via l'API Django (JWT). L'application Flutter stocke le token.
-2. **Navigation** : le client envoie une requête `GET /api/categories/` et `GET /api/prestataires/?categorie=X` pour afficher la liste filtrée des prestataires.
-3. **Création de la réservation** : le client envoie `POST /api/reservations/` avec les détails (prestataire_id, service_id, date, créneau). L'API crée l'objet Reservation en base avec le statut EN_ATTENTE.
-4. **Initiation du paiement** : le client choisit son opérateur Mobile Money. L'API contacte la **API paiement** avec le montant en FCFA et les références de la transaction.
-5. **Webhook de confirmation** : la passerelle de paiement envoie un webhook à l'API Django lors de la confirmation du paiement. L'API met à jour le statut de la Reservation à CONFIRMEE et du Paiement à CONFIRME.
-6. **Notification FCM** : l'API envoie une notification push au client (confirmation) et au prestataire (nouvelle mission).
-7. **Alternative — échec de paiement** : si le paiement échoue, l'API met à jour le statut du Paiement à ECHOUE et notifie le client.
+2. **Navigation** : le client envoie `GET /api/public/categories/` puis `GET /api/client/prestataires?category=X` pour afficher la liste filtrée des prestataires validés.
+3. **Création de la demande** : le client décrit son problème (texte + photos), sélectionne une date et une adresse, puis envoie `POST /api/client/reservations`. L'API crée la Reservation avec le statut `DEMANDE_ENVOYEE` et notifie le prestataire par FCM.
+4. **Préparation du devis (prestataire)** : le prestataire analyse la demande, prépare un devis (diagnostic, lignes de devis, montant, date proposée) et envoie `POST /api/prestataire/requests/{ref}/devis`. Le statut passe à `DEVIS_ENVOYE` et le client est notifié par FCM.
+5. **Acceptation ou refus du devis (client)** : le client consulte le devis et l'accepte (`POST /api/client/reservations/{ref}/devis/accept` → statut `DEVIS_ACCEPTE`) ou le refuse (statut rebasculé à `DEMANDE_ENVOYEE` pour permettre un nouveau devis).
+6. **Intervention** : le prestataire démarre l'intervention (`INTERVENTION_EN_COURS`), puis la déclare terminée (`EN_ATTENTE_CLIENT`). Le client confirme la réception (`TERMINEE`). Une auto-confirmation est déclenchée après 48h si le client ne répond pas.
+7. **Notation** : une fois la réservation en statut `TERMINEE`, le client peut noter et commenter le prestataire.
 
 ### 5.3.2. Séquence — Inscription et validation du prestataire
 
@@ -1009,11 +947,11 @@ Le diagramme `03_sequence_client_reservation.puml` décrit le flux complet de r�
 Le diagramme `04_sequence_prestataire_inscription.puml` décrit le workflow d'inscription et de validation :
 
 1. Le prestataire remplit le formulaire d'inscription (OnboardingScreen) et uploade sa CNI.
-2. L'API Django crée le profil prestataire avec `statutValidation = PENDING`.
+2. L'API Django crée le profil prestataire avec `statut = PENDING`.
 3. L'API envoie une notification FCM à l'administrateur signalant un nouveau dossier à traiter.
 4. **Validation** : l'admin, depuis le panneau web, consulte le dossier, vérifie la CNI et prend sa décision.
-5. **Scénario acceptation** : l'admin valide → `statutValidation = ACCEPTED` → notification FCM au prestataire → le prestataire peut se connecter et accéder à son tableau de bord.
-6. **Scénario refus** : l'admin refuse avec motif → `statutValidation = REFUSED`, `motifRefus = "..."` → notification FCM au prestataire avec le motif → le prestataire accède à la page de refus avec le bouton « Modifier ».
+5. **Scénario acceptation** : l'admin valide → `statut = VALIDE` → notification FCM au prestataire → le prestataire peut se connecter et accéder à son tableau de bord.
+6. **Scénario refus** : l'admin refuse avec motif → `statut = REFUSE`, `motifRefus = "..."` → notification FCM au prestataire avec le motif → le prestataire accède à la page de refus avec le bouton « Modifier ».
 
 ### 5.3.3. Séquence — Gestion administrative (validation et modération)
 
@@ -1122,7 +1060,7 @@ BABIFIX adopte une architecture en couches (**layered architecture**) qui sépar
 - **Site Vitrine Django** : interface web publique exposant les informations générales de la plateforme, rendue côté serveur par les templates Django de l'application `vitrine`.
 - **Panneau Admin Django** : interface web privée pour l'administration, construite avec l'application `adminpanel` Django et le système d'administration natif de Django.
 
-**La couche API / métier** centralise toute la logique applicative dans le projet Django (`config`) :
+**La couche API / métier** centralise toute la logique applicative dans le projet Django (`babifix_api`) :
 - **Django REST Framework (DRF)** gère les endpoints REST (serializers, viewsets, permissions, pagination).
 - **Django Channels** gère les connexions WebSocket via un protocole ASGI, organisant les connexions en groupes (un groupe par conversation de réservation).
 - Les **signaux Django** (`post_save`, `pre_delete`) déclenchent des actions automatiques — comme l'envoi d'une notification FCM lors d'un changement de statut de prestataire — sans polluer les vues.
@@ -1134,9 +1072,9 @@ BABIFIX adopte une architecture en couches (**layered architecture**) qui sépar
 Le système de messagerie en temps réel de BABIFIX est implémenté avec **Django Channels**, l'extension officielle de Django pour le protocole WebSocket et le protocole ASGI (Asynchronous Server Gateway Interface).
 
 Le fonctionnement est le suivant :
-1. L'application Flutter établit une connexion WebSocket avec le serveur Django Channels (`wss://api.babifix.ci/ws/client-events/?token=JWT`). Le ClientEventsConsumer gère un groupe global `babifix_client_events` pour tous les clients connectés. Le PrestataireEventsConsumer gère un groupe par prestataire `babifix_prestataire_{uid}`.
-2. Les messages chat sont envoyés via l'API REST (`POST /api/messages`) et les notifications de nouveau message transitent par WebSocket pour la réactivité temps réel.
-3. Lorsqu'un message est persisté en base (modèle `Message`), un signal broadcast发送给相应的 WebSocket 组。
+1. Lors de l'ouverture du chat d'une réservation, l'application Flutter établit une connexion WebSocket avec le serveur Django Channels (`wss://api.babifix.ci/ws/chat/<reservation_id>/`).
+2. Django Channels assigne cette connexion à un **groupe de canal** nommé `chat_<reservation_id>`, stocké dans Redis.
+3. Lorsqu'un message est envoyé par un participant, le `ChatConsumer` persiste le message en base (modèle `Message`) et diffuse (`broadcast`) le message JSON à tous les membres du groupe WebSocket correspondant.
 4. L'autre participant reçoit le message en temps réel dans son application Flutter sans avoir à interroger l'API REST.
 5. Le compteur de messages non lus (`totalNonLus` sur la `Conversation`) est mis à jour en base, et l'API `/api/conversations/unread-count/` permet à l'application de rafraîchir le badge.
 
@@ -1145,7 +1083,7 @@ Le fonctionnement est le suivant :
 Le modèle de données de BABIFIX s'articule autour de la table centrale `Reservation`, qui constitue le pivot entre les interactions client/prestataire :
 
 - Un **Utilisateur** est la classe de base, étendue par un modèle personnalisé Django (`AbstractBaseUser` ou `OneToOneField` vers un profil).
-- Un **Prestataire** possède un champ `statutValidation` (CharField avec choices : PENDING, ACCEPTED, REFUSED) et un champ `motifRefus` (TextField nullable).
+- Un **Prestataire** possède un champ `statut` (CharField avec choices : PENDING, VALIDE, REFUSE, SUSPENDU) et un champ `refusal_reason` (TextField nullable) contenant le motif de refus saisi par l'administrateur.
 - Une **Reservation** lie un `Client` à un `Prestataire` et un `Service`, avec un `statutReservation` et un lien vers un `Paiement`.
 - Une **Conversation** est liée en OneToOne à une `Reservation` (clé étrangère unique). Cette relation garantit qu'il n'existe qu'un seul fil de discussion par réservation.
 - Un **Message** appartient à une `Conversation` et possède un champ booléen `lu` pour le suivi des messages non lus.
@@ -1157,17 +1095,17 @@ Le modèle de données de BABIFIX s'articule autour de la table centrale `Reserv
 
 ### 6.2.1. Tableau des choix technologiques justifiés
 
-**Tableau 13 — Justification des choix technologiques**
+**Tableau 12 — Justification des choix technologiques**
 
 | Composant | Technologie retenue | Alternatives considérées | Justification |
 |---|---|---|---|
-| Backend API + Temps réel | **Django 5.2 + DRF + Django Channels** | Node.js/Express, FastAPI | Productivité (ORM, migrations, admin), écosystème Python mature, Channels natif pour WebSocket |
-| Site vitrine web | **Django + templates HTML/CSS + HTMX** | React, Vue.js | Rendu côté serveur (SEO), rapidité de livraison, cohérence stack |
-| Panneau admin web | **App adminpanel Django + style.css + HTMX** | React Admin, Django Admin natif seul | Personnalisation UI tout en réutilisant la logique Django |
+| Backend API + Temps réel | **Django 4.x + DRF + Django Channels** | Node.js/Express, FastAPI | Productivité (ORM, migrations, admin), écosystème Python mature, Channels natif pour WebSocket |
+| Site vitrine web | **Django + templates HTML/CSS** | React, Vue.js | Rendu côté serveur (SEO), rapidité de livraison, cohérence stack |
+| Panneau admin web | **App adminpanel Django + style.css** | React Admin, Django Admin natif seul | Personnalisation UI tout en réutilisant la logique Django |
 | App client mobile | **Flutter (Dart) + Material 3** | React Native, Kotlin/Swift natif | Cross-platform iOS/Android avec un seul codebase, performance 60 FPS, composants Material 3 |
 | App prestataire mobile | **Flutter (Dart) + Material 3** | — | Partage du codebase et du design system avec l'app client |
 | Notifications push | **Firebase Cloud Messaging (FCM)** | OneSignal, APNs/FCM directement | Standard industrie, gratuit jusqu'à un volume élevé, multi-plateforme, intégration Flutter native |
-| Auth mobile | **JWT custom (auth.py)** | Google Sign-In, Apple Sign-In | Stateless, scalable, système JWT personnalisé sans dépendance externe |
+| Auth mobile | **JWT (djangorestframework-simplejwt)** | Google Sign-In, Apple Sign-In | Stateless, scalable, pas de dépendance Firebase côté backend |
 | Auth web | **Sessions Django + CSRF** | JWT pour web | Mécanisme natif Django, sécurisé pour les interfaces web |
 | Base de données | **SQLite (dev) / PostgreSQL (prod)** | MySQL | SQLite pour la simplicité dev, PostgreSQL pour la robustesse prod |
 | Broker WebSocket | **Redis** | Memcached, In-memory | Requis par Django Channels pour les groupes multi-instances |
@@ -1231,7 +1169,7 @@ L'application `adminpanel` concentre toute la logique métier : les modèles, le
 Le moteur de recherche de BABIFIX permet aux clients de trouver le prestataire le mieux adapté à leur besoin. Il est implémenté en deux parties complémentaires : le composant de filtrage côté Flutter (interface) et les endpoints de recherche côté Django (logique de filtrage).
 
 L'interface Flutter expose deux composants principaux :
-- **`CategoryTab`** : une barre de navigation horizontale affichant les catégories de services sous forme d'onglets avec icônes et couleurs de marque. Chaque onglet est résolu dynamiquement par le **`CategoryIconMapper`**, une classe statique mappant plus de 80 slugs de catégories (ex. `'plomberie'`, `'electricite'`, `'jardinage'`) vers une `IconData` Material Design et une couleur hexadécimale cohérente avec la charte graphique BABIFIX. Une méthode `resolve(slug, emoji)` assure un fallback vers l'emoji de l'API si le slug n'est pas référencé. Le clic sur une catégorie déclenche une requête filtrée vers l'API.
+- **`CategoryTab`** : une barre de navigation horizontale affichant les catégories de services sous forme d'onglets avec icônes SVG et couleurs de marque. Chaque icône est chargée dynamiquement depuis le serveur Django via le champ `icone_url` retourné par l'API (`/api/public/categories/`). Ce champ contient l'URL absolue d'un fichier SVG stocké dans les fichiers statiques Django (`static/category-icons/<slug>.svg`). Le composant `CategoryStrip` (Flutter) affiche chaque icône via `SvgPicture.network()` — sans aucun mapping local codé en dur. Cette architecture garantit que toute icône ajoutée ou modifiée dans le panneau d'administration est immédiatement visible dans les applications mobiles sans mise à jour de code. Le clic sur une catégorie déclenche une requête filtrée vers l'API.
 - **`ServiceCard`** : une carte prestataire affichant la photo, le nom, la spécialité, la note moyenne (étoiles), le tarif indicatif et un bouton de réservation rapide.
 
 ### 7.1.2. Filtrage et tri des résultats
@@ -1240,25 +1178,26 @@ Côté Django, les endpoints de recherche utilisent les capacités de filtrage d
 
 ```python
 # Exemple simplifié d'une vue de recherche de prestataires
-class PrestatairesListView(generics.ListAPIView):
-    serializer_class = PrestatairesSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        queryset = Prestataire.objects.filter(statutValidation='ACCEPTED')
-        categorie_id = self.request.query_params.get('categorie')
-        search = self.request.query_params.get('q')
-        if categorie_id:
-            queryset = queryset.filter(services__categorie_id=categorie_id)
-        if search:
-            queryset = queryset.filter(
-                Q(nom__icontains=search) |
-                Q(specialites__icontains=search) |
-                Q(description__icontains=search)
-            )
-        return queryset.annotate(
-            note_moyenne=Avg('ratings__note')
-        ).order_by('-note_moyenne')
+def api_public_providers(request):
+    queryset = Provider.objects.filter(
+        statut=Provider.Status.VALID,
+        is_approved=True,
+        is_deleted=False,
+    )
+    category = request.GET.get('category', '').strip()
+    search = request.GET.get('q', '').strip()
+    if category:
+        queryset = queryset.filter(
+            Q(category__nom__icontains=category) |
+            Q(specialite__icontains=category)
+        )
+    if search:
+        queryset = queryset.filter(
+            Q(nom__icontains=search) |
+            Q(specialite__icontains=search) |
+            Q(bio__icontains=search)
+        )
+    return queryset.order_by('-average_rating', '-rating_count')
 ```
 
 Les critères de tri disponibles sont :
@@ -1282,13 +1221,13 @@ L'intégration d'algorithmes de filtrage collaboratif ou de Machine Learning pou
 
 ## 7.2. Implémentation du module de sécurité
 
-### 7.2.1. Système d'authentification JWT custom
+### 7.2.1. Système d'authentification JWT
 
-L'authentification JWT est mise en œuvre via un système custom (fichier `auth.py`). Le flux d'authentification complet est le suivant :
+L'authentification JWT est mise en œuvre via la bibliothèque `djangorestframework-simplejwt`. Le flux d'authentification complet est le suivant :
 
-1. **Connexion** : l'application Flutter envoie `POST /api/auth/login/` avec `{"username": "...", "password": "..."}`. L'API retourne `{"token": "<jwt_token>", "role": "...", "username": "..."}`.
-2. **Utilisation** : chaque requête authentifiée inclut l'en-tête `Authorization: Bearer <token>`.
-3. **Rafraîchissement** : quand le token expire, l'app envoie `POST /api/auth/refresh/` avec le token pour obtenir un nouveau token sans redemander les credentials.
+1. **Connexion** : l'application Flutter envoie `POST /api/token/` avec `{"email": "...", "password": "..."}`. L'API retourne `{"access": "<token>", "refresh": "<refresh_token>"}`.
+2. **Utilisation** : chaque requête authentifiée inclut l'en-tête `Authorization: Bearer <access_token>`.
+3. **Rafraîchissement** : quand l'access token expire, l'app envoie `POST /api/token/refresh/` avec le refresh token pour obtenir un nouveau access token sans redemander les credentials.
 4. **Déconnexion** : la déconnexion côté client consiste à supprimer les tokens du stockage local Flutter.
 
 La durée de vie des tokens est configurée dans `settings.py` :
@@ -1302,21 +1241,21 @@ Le système de permissions de BABIFIX est implémenté via des classes de permis
 ```python
 class IsPrestataire(BasePermission):
     """
-    Permission accordée uniquement aux prestataires validés (statut ACCEPTED).
+    Permission accordée uniquement aux prestataires validés (statut VALIDE).
     """
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated and
-            hasattr(request.user, 'prestataire') and
-            request.user.prestataire.statutValidation == 'ACCEPTED'
+            hasattr(request.user, 'provider') and
+            request.user.provider.statut == Provider.Status.VALID
         )
 ```
 
-Chaque viewset ou vue API déclare explicitement les permissions requises :
-- Endpoints publics (liste des catégories, vitrine) : `AllowAny`.
-- Endpoints utilisateur (réservations, profil) : `IsAuthenticated`.
-- Endpoints prestataire (missions, revenus) : `IsPrestataire`.
-- Endpoints administrateur (validation, KPI, statistiques) : `IsAdminUser`.
+Chaque vue API déclare explicitement les permissions requises via le décorateur `@require_api_auth(roles)` :
+- Endpoints publics (liste des catégories, prestataires) : aucune authentification requise.
+- Endpoints client (réservations, profil, chat) : rôle `"client"`.
+- Endpoints prestataire (demandes, revenus, devis) : rôle `"prestataire"` + statut `VALIDE`.
+- Endpoints administrateur (validation, KPI, statistiques) : rôle `"admin"`.
 
 ### 7.2.3. Sécurisation des données sensibles
 
@@ -1358,42 +1297,17 @@ Ce mécanisme améliore le taux de conversion à l'inscription en supprimant la 
 La plateforme implémente un workflow complet de vérification d'adresse e-mail et de réinitialisation de mot de passe :
 
 **Vérification d'email** :
-- À la création du compte, un token aléatoire (`EmailVerificationToken`) est généré et stocké en base.
-- Un e-mail contenant un lien `https://<domaine>/api/auth/verify-email/<token>/` est envoyé à l'utilisateur.
-- La validation du lien active le champ `is_email_verified = True` sur le compte utilisateur.
+- À la création du compte, un token aléatoire est généré et stocké dans le champ `email_verify_token` du profil utilisateur.
+- Un e-mail contenant un lien `https://<domaine>/api/auth/verify-email/<token>` est envoyé à l'utilisateur.
+- La validation du lien (`GET /api/auth/verify-email/<token>`, implémenté dans `views_v2.py`) active le champ `is_email_verified = True` sur le compte utilisateur.
 - Les utilisateurs non vérifiés ne peuvent pas effectuer de réservations.
 
 **Réinitialisation de mot de passe** :
-- L'utilisateur soumet son adresse e-mail via `POST /api/auth/password-reset/`.
-- Un `PasswordResetToken` (UUID, durée de vie 1 heure) est créé et envoyé par e-mail.
-- La soumission du nouveau mot de passe via `POST /api/auth/password-reset/confirm/` invalide le token après usage.
+- L'utilisateur soumet son adresse e-mail via `POST /api/auth/forgot-password`.
+- Un token de réinitialisation est créé (via `AppPasswordResetTokenGenerator` de Django) et envoyé par e-mail.
+- La soumission du nouveau mot de passe via `POST /api/auth/reset-password` invalide le token après usage.
 
 Ces mécanismes garantissent que seules des adresses e-mail valides sont enregistrées sur la plateforme, réduisant les créations de comptes frauduleux.
-
-### 7.2.6. Machine à états stricte pour les réservations
-
-Le changement de statut d'une réservation est contrôlé par une machine à états stricte (`VALID_TRANSITIONS`) qui valide que chaque transition est autorisée. Le dictionnaire définit les transitions autorisées :
-
-```python
-VALID_TRANSITIONS = {
-    "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
-    "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
-    "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
-    "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
-    "INTERVENTION_EN_COURS": {"En attente client", "Annulee"},
-    "En attente client": {"Terminee"},
-    "Confirmee": {"En cours", "INTERVENTION_EN_COURS", "Annulee"},
-    "En cours": {"En attente client", "Annulee"},
-}
-```
-
-**Exemple** : une réservation au statut `DEMANDE_ENVOYEE` ne peut passer qu'à `DEVIS_EN_COURS` (prestataire accepte) ou `Annulee`. Toute transition non autorisée retourne une erreur 400 avec la liste des statuts valides.
-
-Ce mécanisme prévient les incohérences de données et les abus. Un prestataire ne peut pas directement marquer une réservation comme « Terminées » sans passer par l'étape « En attente client » qui permet au client de valider la prestation avant paiement.
-
-### 7.2.7. Idempotence des paiements
-
-Pour prévenir les doubles paiements, l'endpoint d'initiation CinetPay (`cinetpay_initiate`) vérifie l'existence d'un paiement en cours (statut `PENDING`) pour la même réservation avant d'en créer un nouveau. Si un paiement est déjà en cours, l'API retourne les références existantes (`transaction_id`, `payment_id`) sans créer de doublon.
 
 ---
 
@@ -1403,19 +1317,19 @@ Pour prévenir les doubles paiements, l'endpoint d'initiation CinetPay (`cinetpa
 
 *[Insérer ici la Figure 12 : capture d'écran de l'app client — liste services]*
 
-L'application Flutter client est la vitrine principale de BABIFIX pour les utilisateurs finaux. Elle offre une expérience fluide et intuitive, organisée autour d'une navigation par onglets (BottomNav) :
+L'application Flutter client est la vitrine principale de BABIFIX pour les utilisateurs finaux. Elle offre une expérience fluide et intuitive, organisée autour d'une navigation par onglets flottants (BottomNav glassmorphism). La barre de navigation inférieure comprend cinq onglets principaux : **Accueil**, **Services**, **Actus**, **Rendez-vous** et **Profil**. Les fonctions de messagerie et de notifications sont accessibles via des icônes dans la barre supérieure (topbar) :
 
 **Écran d'authentification** :
 L'application propose trois modes de connexion : formulaire e-mail/mot de passe classique, bouton **« Continuer avec Google »** (Google Sign-In) et bouton **« S'identifier avec Apple »** (Sign in with Apple, affiché sur iOS conformément aux directives App Store). Après inscription par e-mail, un écran de confirmation invite l'utilisateur à vérifier sa messagerie avant de pouvoir réserver.
 
 **Écran principal — Liste des services** :
-L'écran d'accueil affiche les catégories de services via le composant `CategoryTab` (barre d'onglets horizontale avec icônes Material Design et couleurs de marque). Chaque icône et couleur est déterminée dynamiquement par le `CategoryIconMapper` en fonction du slug de catégorie retourné par l'API. Sous les catégories, les prestataires de la catégorie sélectionnée sont listés sous forme de `ServiceCard`. Chaque carte affiche : photo du prestataire, nom, spécialité, note moyenne (étoiles dorées), tarif indicatif et un bouton de réservation rapide.
+L'écran d'accueil affiche les catégories de services via le composant `CategoryStrip` (barre d'onglets horizontale défilable). Chaque onglet de catégorie affiche une icône SVG chargée directement depuis le serveur Django : l'API `/api/public/categories/` retourne le champ `icone_url` contenant l'URL absolue du fichier SVG (`http://<serveur>/static/category-icons/<slug>.svg`), rendu par `SvgPicture.network()`. Cette architecture pilotée par le serveur élimine tout mapping local et garantit la cohérence entre le panneau d'administration et les apps mobiles. Sous les catégories, les prestataires de la catégorie sélectionnée sont listés sous forme de `ServiceCard`. Chaque carte affiche : photo du prestataire, nom, spécialité, note moyenne (étoiles dorées), tarif indicatif et un bouton de réservation rapide.
 
 **Écran de réservation** :
 Un formulaire guidé permet au client de spécifier la date, le créneau horaire, l'adresse d'intervention et des instructions particulières. Un récapitulatif est présenté avant la confirmation.
 
 **Écran de chat** :
-Interface de messagerie liée à la réservation concernée. Les messages sont affichés dans des bulles différenciées (client à droite, prestataire à gauche). Le badge de messages non lus est visible sur l'onglet Messages de la BottomNav.
+Interface de messagerie liée à la réservation concernée. Les messages sont affichés dans des bulles différenciées (client à droite, prestataire à gauche). L'accès au chat se fait via l'icône de messagerie dans la topbar, avec un badge rouge indiquant les messages non lus.
 
 **Écran Actualités** :
 Liste d'articles publiés par l'administration, avec titre, image de couverture et extrait. Un clic ouvre l'article complet.
@@ -1427,7 +1341,7 @@ Liste d'articles publiés par l'administration, avec titre, image de couverture 
 *[Insérer ici la Figure 13 : capture d'écran — PendingScreen]*
 *[Insérer ici la Figure 14 : capture d'écran — page refus avec motif]*
 
-L'application Flutter prestataire est conçue pour les artisans et professionnels. Son parcours distinctif inclut les écrans de validation :
+L'application Flutter prestataire est conçue pour les artisans et professionnels. La barre de navigation inférieure (même design glassmorphism que l'app client) comprend cinq onglets : **Accueil**, **Exigences** (demandes et missions en cours), **Gains** (wallet et revenus), **Messages** (chat avec badge non lus) et **Profil**. Son parcours distinctif inclut les écrans de validation :
 
 **OnboardingScreen — Inscription** :
 Formulaire multi-étapes guidant le prestataire : informations personnelles → informations professionnelles (spécialités, zone d'intervention, tarif) → upload de la CNI. Une interface soignée avec indicateur de progression.
@@ -1439,7 +1353,7 @@ Page premium informant le prestataire que son dossier est en cours d'examen. Aff
 Si le dossier est refusé, le prestataire voit s'afficher clairement le motif de refus saisi par l'administrateur, accompagné d'un bouton « Modifier ma demande » qui rouvre le formulaire d'inscription pré-rempli pour correction. Ce flux garantit que le prestataire comprend exactement pourquoi son dossier a été refusé et comment le corriger.
 
 **RequestsScreen — Tableau de bord des missions** :
-Liste des demandes de réservation reçues, avec les statuts du nouveau parcours : DEMANDE_ENVOYEE (demande envoyée), DEVIS_EN_COURS (devis en cours), DEVIS_ENVOYE (devis envoyé), DEVIS_ACCEPTE (devis accepté), INTERVENTION_EN_COURS (intervention en cours), TERMINEE. Le prestataire peut créer un devis pour chaque demande via l'écran `CreateDevisScreen`.
+Liste des demandes de réservation reçues, avec statut (en attente, confirmée, en cours, terminée). Le prestataire peut accepter ou décliner chaque demande.
 
 **MessagesScreen — Chat** :
 Interface de messagerie identique à l'app client, avec le badge de messages non lus visible sur la BottomNav.
@@ -1485,7 +1399,7 @@ Le site est structuré en sections distinctes :
 - **Notifications intelligentes** : section mettant en avant les capacités de push notification de la plateforme via une maquette de téléphone animée affichant des notifications en temps réel (nouvelle mission, réservation confirmée, message client, paiement reçu). Cette section démontre la valeur ajoutée du canal FCM pour les prestataires.
 - **Testimonials** : témoignages de clients et prestataires.
 - **FAQSection** : questions fréquemment posées sur l'utilisation de la plateforme.
-- **ContactSection** : formulaire de contact connecté à l'endpoint `POST /api/contact/`, avec validation côté serveur et envoi par e-mail à l'équipe BABIFIX.
+- **ContactSection** : formulaire de contact soumis par `POST` à la vue Django `home` (URL `/`), avec protection anti-spam (honeypot + rate-limiting par IP), validation côté serveur et envoi par e-mail via SMTP à l'équipe BABIFIX.
 - **Footer** : liens rapides, réseaux sociaux, mentions légales.
 
 **Consentement aux cookies (RGPD)** : lors de la première visite, un bandeau de consentement aux cookies apparaît en bas de page. Il propose trois catégories : cookies essentiels (activés par défaut, non désactivables), analytiques et marketing. Le choix de l'utilisateur est mémorisé dans le `localStorage` du navigateur sous la clé `babifix_cookie_consent`. Un modal détaillé permet d'affiner les préférences. Cette implémentation s'inscrit dans le respect de la vie privée des utilisateurs conformément au Règlement général sur la protection des données (RGPD) et à la Loi ivoirienne n°2013-450 relative à la protection des données à caractère personnel (ARTCI).
@@ -1499,7 +1413,7 @@ Le site est structuré en sections distinctes :
 
 ## 7.4. Modules complémentaires et fonctionnalités transversales
 
-Cette section présente les modules funcionalidad additionnelles qui enrichissent l'expérience utilisateur et la robustesse technique de la plateforme BABIFIX.
+Cette section présente les fonctionnalités additionnelles qui enrichissent l'expérience utilisateur et la robustesse technique de la plateforme BABIFIX.
 
 ### 7.4.1. Carte des prestataires et géolocalisation
 
@@ -1523,15 +1437,15 @@ Pour renforcer la sécurité des communications HTTPS, BABIFIX implémente le ce
 
 ### 7.4.5. Système de favoris
 
-Le modèle `ClientFavorite` permet aux clients de sauvegarder leurs prestataires préférés. L'endpoint `api_client_favorites` expose les opérations CRUD sur les favoris, permettant un accès rapide aux prestataires régulièrement utilisés.
+Le modèle `ClientFavorite` permet aux clients de sauvegarder leurs prestataires préférés. Le backend expose l'endpoint `GET/POST/DELETE /api/client/favorites/` (implémenté dans `views_extra.py`) avec les opérations CRUD complètes. Les chaînes de traduction (`addToFavorites`, `removeFromFavorites`) sont définies dans l'app Flutter client. L'intégration UI (icône cœur sur les fiches prestataires) constitue une évolution prévue à court terme.
 
 ### 7.4.6. Notation bidirectionnelle
 
-Après chaque prestation, le client peut noter le prestataire. Le modèle `ClientRating` (introduit dans `models_v2.py`) permet également au prestataire de noter le client, créant un système de réputation mutuel.
+Après chaque prestation, le client peut noter le prestataire via `RateProviderScreen` (app client), et le prestataire peut noter le client via `RateClientScreen` (app prestataire). Le modèle `ClientRating` (introduit dans `models_v2.py`) supporte les deux directions, créant un système de réputation mutuel qui renforce la confiance sur la plateforme.
 
 ### 7.4.7. Gestion des disponibilités
 
-Les prestataires peuvent définir leurs créneaux de disponibilité via le modèle `PrestataireAvailabilitySlot` et déclarer leurs périodes d'indisponibilité avec `PrestataireUnavailability`. L'écran `AvailabilityScreen` dans l'app prestataire permet une gestion intuitive des planification.
+Les prestataires peuvent définir leurs créneaux de disponibilité via le modèle `PrestataireAvailabilitySlot` et déclarer leurs périodes d'indisponibilité avec `PrestataireUnavailability`. L'écran `AvailabilityScreen` dans l'app prestataire permet une gestion intuitive de la planification.
 
 ### 7.4.8. Écran de paiement Mobile Money
 
@@ -1548,7 +1462,7 @@ Le projet inclut 5 templates d'emails transactionnels dans `templates/emails/` :
 - Notification de nouvelle réservation (prestataire)
 - Confirmation de réservation confirmée (client)
 - Notification de changement de statut de réservation
-- Résumé hebdomadaire des activité
+- Résumé hebdomadaire des activités
 
 ### 7.4.11. Commissions par catégorie
 
@@ -1557,18 +1471,6 @@ Le modèle `CategoryCommission` permet de définir un pourcentage de commission 
 ### 7.4.12. Export CSV et actions bulk
 
 L'administrateur peut exporter les données par section (prestataires, reservations, clients) via l'endpoint `export_csv`. Les actions bulk permettent de valider ou refuser plusieurs prestataires en une seule opération via `api_admin_bulk_provider_action`.
-
-### 7.4.13. Appels vocaux masqués via ZEGOCLOUD
-
-BABIFIX intègre **ZEGOCLOUD** comme solution d'appels vocaux et vidéo avec masquage de numéro. Le client peut appeler le prestataire directement depuis le profil de l'application sans que les numéros de téléphone réels soient échangés. Le modèle Reservation contient les champs `appel_masque` (booléen) et `numero_masque` qui activent cette fonctionnalité. Le service `BabifixZegoService` gère l'initialisation du SDK et le lancement des appels via le widget `ZegoCallBtn`.
-
-### 7.4.14. Modèle Abonnement
-
-Le modèle `Abonnement` permet aux clients de souscrire à des packs d'interventions mensuels (ex: 3 interventions). Chaque abonnement comprend un nombre d'interventions incluses, un prix, une période de validité, et un compteur d'utilisation. La méthode `peut_reserver()` vérifie que l'abonnement est actif et qu'il reste des interventions disponibles.
-
-### 7.4.15. Suppression logique (Soft Delete)
-
-Les modèles Provider et Message implémentent un mécanisme de suppression logique (soft delete). Au lieu de supprimer physiquement les enregistrements, les champs `is_deleted` et `deleted_at` permettent de les masquer des requêtes tout en conservant les données pour l'audit et la conformité légale. L'endpoint `api_public_providers` filtre automatiquement `is_deleted=False`.
 
 ---
 
@@ -1580,7 +1482,7 @@ Les modèles Provider et Message implémentent un mécanisme de suppression logi
 
 Les tests fonctionnels visent à valider que chaque parcours utilisateur identifié dans l'analyse des besoins fonctionne correctement de bout en bout. Ils sont réalisés manuellement selon des scénarios de test définis.
 
-**Tableau 14 — Protocoles de tests et résultats**
+**Tableau 13 — Protocoles de tests et résultats**
 
 | Type de test | Domaine testé | Méthode | Critère de succès | Statut |
 |---|---|---|---|---|
@@ -1601,7 +1503,7 @@ Les tests fonctionnels visent à valider que chaque parcours utilisateur identif
 | Test fonctionnel | Vérification d'email | Manuel — parcours inscription | Lien reçu par e-mail, validation active is_email_verified | ✅ Validé |
 | Test fonctionnel | Réinitialisation de mot de passe | Manuel — formulaire oubli | Token envoyé, nouveau MDP enregistré, ancien invalide | ✅ Validé |
 | Test fonctionnel | Bandeau cookie RGPD | Manuel — navigateur vitrine | Bannière affichée 1ère visite, masquée si déjà accepté, consentement mémorisé localStorage | ✅ Validé |
-| Test fonctionnel | Formulaire de contact vitrine | Manuel — site vitrine | POST /api/contact/ → e-mail reçu, réponse 200 JSON | ✅ Validé |
+| Test fonctionnel | Formulaire de contact vitrine | Manuel — site vitrine | POST / → e-mail reçu, message de confirmation affiché | ✅ Validé |
 | Test de charge | API + WebSocket (100 utilisateurs concurrents) | Locust / k6 (prévu) | Latence < 200ms, pas de crash | 📋 Prévu |
 | Audit sécurité | Endpoints sensibles (OWASP ZAP) | Scan automatisé (prévu) | Pas de vulnérabilité critique (A01-A10) | 📋 Prévu |
 
@@ -1631,33 +1533,16 @@ Les tests de sécurité vérifient que les mécanismes de protection implément�
 
 ## 8.2. Bilan du projet face aux objectifs initiaux
 
-### 8.2.1. Indicateurs de succes (KPIs de lancement)
+### 8.2.1. Conformité aux objectifs fonctionnels
 
-Le tableau ci-dessous definit les metriques pour mesurer le succes de BABIFIX apres de ploiement :
+À l'issue des versions 1 à 8 du cahier fonctionnel, BABIFIX répond à l'ensemble des objectifs fixés au démarrage du projet.
 
-**Tableau 16 — Indicateurs clés de performance post-lancement** :
-
-| KPI | Cible Mois 3 | Cible Mois 6 | Cible Annee 1 |
-|---|---|---|---|
-| Prestataires valides | 20 | 50 | 100 |
-| Clients inscrits | 100 | 300 | 500 |
-| Taux de conversion (inscription vers 1ere reservation) | 30% | 35% | 40% |
-| Taux de retention client (reservation recurrente) | 20% | 30% | 40% |
-| Note moyenne prestataires | >= 4.0/5 | >= 4.2/5 | >= 4.3/5 |
-| Delai moyen de reponse prestataire | < 4h | < 2h | < 1h |
-| Taux de litiges | < 5% | < 3% | < 2% |
-| NPS (Net Promoter Score) | >= 30 | >= 40 | >= 50 |
-
-### 8.2.2. Conformite aux objectifs fonctionnels
-
-A l'issue des versions 1 a 8 du cahier fonctionnel, BABIFIX repond a l'ensemble des objectifs fixes au demarrage du projet.
-
-**Tableau 15 — Bilan de conformité aux objectifs du projet**
+**Tableau 14 — Bilan de conformité aux objectifs du projet**
 
 | Objectif fixé | Statut | Preuve / Élément de vérification |
 |---|---|---|
 | 4 interfaces distinctes et cohérentes | ✅ Atteint | App Flutter client, App Flutter prestataire, Site vitrine Django, Panneau admin Django |
-| Workflow validation prestataire (3 états) | ✅ Atteint | PENDING → ACCEPTED / REFUSED ; champ motifRefus ; resoumission sans recréation de compte |
+| Workflow validation prestataire (3 états) | ✅ Atteint | PENDING → VALIDE / REFUSE ; champ `refusal_reason` ; resoumission sans recréation de compte |
 | Refus avec motif explicite et parcours de correction | ✅ Atteint | Page refus avec motif affiché + bouton « Modifier ma demande » |
 | Chat lié aux réservations avec badge non-lus | ✅ Atteint | Conversation FK Reservation ; compteur totalNonLus ; badge BottomNav |
 | Broadcast temps réel des prestataires approuvés | ✅ Atteint | Django Channels + groupes WebSocket ; FCM notification |
@@ -1667,14 +1552,14 @@ A l'issue des versions 1 a 8 du cahier fonctionnel, BABIFIX repond a l'ensemble 
 | Persistance des identifiants après refus | ✅ Atteint | Le prestataire réutilise son compte existant pour corriger et resoummettre |
 | Notifications push FCM | ✅ Atteint | Intégration FCM pour validation, réservation, messages |
 | Authentification sociale Google / Apple | ✅ Atteint | google_sign_in + sign_in_with_apple Flutter ; vérification JWT côté Django |
-| Vérification d'email et réinitialisation MDP | ✅ Atteint | EmailVerificationToken + PasswordResetToken (migration 0005) ; endpoints /auth/verify-email/ et /auth/password-reset/ |
-| Mapping visuel des catégories (icônes + couleurs) | ✅ Atteint | CategoryIconMapper : 80+ slugs → Material IconData + couleur marque |
+| Vérification d'email et réinitialisation MDP | ✅ Atteint | Token `email_verify_token` + `AppPasswordResetTokenGenerator` ; endpoints `GET /api/auth/verify-email/<token>` et `POST /api/auth/forgot-password` / `reset-password` |
+| Icônes de catégories pilotées par le serveur | ✅ Atteint | API retourne `icone_url` (SVG statique Django) → `SvgPicture.network()` Flutter, sans mapping local |
 | Section « Notifications intelligentes » vitrine | ✅ Atteint | Section CSS/HTML animée avec maquette téléphone et 4 types de notifications |
 | Bandeau consentement cookies RGPD (vitrine) | ✅ Atteint | localStorage babifix_cookie_consent ; 3 catégories ; modal de préférences |
 | Tests automatisés densifiés | 🔄 En cours | Base Django TestCase existante ; à étendre (couverture < 100 %) |
-| Deploiement production | ✅ Atteint | Configuration PostgreSQL + Redis + Daphne + Nginx operationnelle (Docker Compose) |
+| Déploiement production | 📋 Prévu | Configuration PostgreSQL + Redis + Daphne + Nginx prévue |
 
-### 8.2.3. Discussion de l'hypothese de travail
+### 8.2.2. Discussion de l'hypothèse de travail
 
 L'hypothèse de travail formulée en introduction était la suivante :
 
@@ -1688,7 +1573,7 @@ Au terme de ce travail, cette hypothèse est **corroborée au niveau de la conce
 
 La **généralisation** de l'hypothèse — notamment la mesure de l'impact réel sur la confiance perçue par les utilisateurs — dépend du déploiement en production et d'une étude empirique ultérieure (enquête utilisateurs, métriques comportementales), qui sort du périmètre de ce mémoire.
 
-### 8.2.4. Limites du travail
+### 8.2.3. Limites du travail
 
 Trois limites principales doivent être explicitement reconnues :
 
@@ -1720,64 +1605,43 @@ Un algorithme de tarification dynamique — inspiré des modèles de surge prici
 
 ### 8.3.3. Intégration Mobile Money en production
 
-La prochaine etape immediate est l'integration complete de la **passerelle de paiement Mobile Money** en production pour les paiements en FCFA :
+La prochaine étape immédiate est l'intégration complète de la **passerelle de paiement Mobile Money** en production pour les paiements en FCFA :
 
-- Authentification API paiement avec cle de production.
-- Gestion des webhooks de confirmation de paiement (endpoint securise cote Django).
-- Reconciliation des transactions en cas d'echec partiel.
+- Authentification API paiement avec clé de production.
+- Gestion des webhooks de confirmation de paiement (endpoint sécurisé côté Django).
+- Réconciliation des transactions en cas d'échec partiel.
 - Gestion des remboursements via l'API.
-- Support des quatre operateurs principaux : Orange Money, MTN Moov Money, Wave, et Moov Africa.
+- Support des quatre opérateurs principaux : Orange Money, MTN Moov Money, Wave, et Moov Africa.
 
-### 8.3.4. Plan de déploiement technique
+### 8.3.4. CI/CD et pratiques DevOps
 
-Le déploiement en production de BABIFIX suivra un plan en quatre étapes :
+L'adoption d'un pipeline CI/CD (Continuous Integration / Continuous Deployment) permettra d'automatiser les tests et les déploiements :
 
-**Étape 1 — Infrastructure** : provisionnement d'un serveur VPS chez DigitalOcean ou Contabo (4 vCPU, 8 GB RAM, 160 GB SSD, datacenter Europe), configuration du DNS pour babifix.ci, obtention du certificat SSL via Let's Encrypt, mise en place du reverse proxy Nginx.
-
-**Étape 2 — Déploiement backend** : exécution du docker-compose.yml incluant PostgreSQL 16, Redis 7, Daphne (ASGI), Gunicorn (vitrine), et Nginx. Migration de la base de données, création du superutilisateur admin, import des catégories de services initiales.
-
-**Étape 3 — Publication mobile** : build APK release avec obfuscation du code Dart (pipeline GitHub Actions existant), soumission sur Google Play Store, soumission sur Apple App Store via TestFlight puis publication. Configuration des clés CinetPay de production et des credentials Firebase FCM de production.
-
-**Étape 4 — Monitoring et itération** : activation de Sentry pour le tracking d'erreurs en production, configuration des alertes email pour les erreurs critiques, mise en place d'un backup automatique PostgreSQL quotidien, monitoring des performances via les logs Nginx.
-
-### 8.3.5. Stratégie de contenu et SEO
-
-Le site vitrine intègre déjà le rendu côté serveur (SSR) favorable au référencement. En perspective, l'ajout d'une section blog avec des articles cibles ('Comment trouver un bon plombier à Abidjan', 'Tarifs électricien Côte d'Ivoire 2026', 'Guide : que faire en cas de fuite d'eau') permettrait de capter du trafic organique sur les requêtes fréquentes des ménages ivoiriens. Cette stratégie de contenu SEO, combinée à la section Actualités déjà en place, positionnerait BABIFIX comme référence informationnelle en plus de sa fonction transactionnelle.
-
-### 8.3.6. CI/CD et pratiques DevOps
-
-Le projet dispose d'un pipeline CI/CD opérationnel via **GitHub Actions** déclenché à chaque push sur la branche principale :
-
-- **Jobs définis** : tests Django, tests Flutter, build APK, vérifications de sécurité.
-- **Docker** : fichier `docker-compose.yml` complet avec PostgreSQL, Redis, Daphne, Nginx.
+- **GitHub Actions** : pipeline automatisé déclenché à chaque push sur la branche principale — exécution des tests Django, vérification du linting Python (flake8), build Flutter.
+- **Docker** : conteneurisation de l'application Django pour garantir la reproductibilité de l'environnement de déploiement.
 - **Serveur de production** : Nginx (reverse proxy) + Daphne (serveur ASGI pour Django Channels) + PostgreSQL + Redis.
-- **Monitoring** : intégration de Sentry configurée pour la gestion des erreurs en production.
+- **Monitoring** : intégration de Sentry pour la gestion des erreurs en production et de Prometheus/Grafana pour les métriques applicatives.
 
-### 8.3.7. Sécurité renforcée (OWASP Mobile)
+### 8.3.5. Sécurité renforcée (OWASP Mobile)
 
-Le renforcement de la sécurité mobile suivra les recommandations de l'**OWASP Mobile Application Security Verification Standard (MASVS)** :
+Le renforcement de la sécurité mobile se poursuit selon les recommandations de l'**OWASP Mobile Application Security Verification Standard (MASVS)**. Le certificate pinning est déjà implémenté dans la version courante (section 7.4.4) via `CertificatePinningConfig`, ce qui prévient les attaques man-in-the-middle. Les deux axes restants à déployer avant un lancement commercial sont :
 
-- **Certificate pinning** : l'application Flutter vérifie que le certificat TLS du serveur correspond exactement au certificat attendu, prévenant les attaques man-in-the-middle même avec un certificat frauduleux signé par une CA compromise.
-- **Chiffrement du stockage local** : les tokens JWT stockés localement sur l'appareil Flutter seront chiffrés via `flutter_secure_storage`.
-- **Obfuscation du code** : le code Dart compilé en production sera obfusqué pour compliquer la rétro-ingénierie.
+- **Chiffrement du stockage local** : les tokens JWT stockés localement sur l'appareil Flutter seront chiffrés via `flutter_secure_storage`, remplaçant le stockage en clair actuel.
+- **Obfuscation du code** : le code Dart compilé en production sera obfusqué (`flutter build apk --obfuscate --split-debug-info`) pour compliquer la rétro-ingénierie.
 
-### 8.3.8. Amélioration de la biométrie
+### 8.3.6. Approfondissement de l'authentification biométrique
 
-L'authentification biométrique (documentée en §7.4.3) est implémentée. Une perspective d'amélioration consisterait à ajouter la **reconnaissance vocale** comme méthode d'authentification alternatif pour les utilisateurs ne disposant pas d'un appareil avec biométrie matérielle.
+L'authentification biométrique est déjà intégrée dans la version courante (section 7.4.3) via `BiometricAuthService` et le package `local_auth`, permettant le déverrouillage de l'application par empreinte digitale ou Face ID sans ressaisir le mot de passe. La perspective à court terme est d'en approfondir la couverture :
 
-### 8.3.9. Agrément BCEAO et service de séquestre (escrow)
+- **Couplage avec `flutter_secure_storage`** : conditionner l'accès biométrique au déchiffrement du token JWT stocké localement en zone sécurisée matérielle (Keychain iOS / Keystore Android).
+- **Fallback gracieux** : améliorer la gestion des appareils sans biométrie (PIN de secours) et des changements d'empreintes (révocation automatique du token biométrique).
+- **Audit de session** : journaliser côté serveur les connexions par biométrie distinctement des connexions par mot de passe, pour détecter les accès anormaux.
 
-L'intégration d'un mécanisme de séquestre (escrow) constitue une perspective structurante pour renforcer la confiance lors des transactions. Sa mise en œuvre nécessiterait un agrément d'Établissement de Monnaie Électronique (EME) auprès de la BCEAO ou un partenariat formel avec un opérateur agréé. Le modèle actuel de paiement post-prestation (le client paie après confirmation de la qualité de la prestation via le bouton « Confirmer la prestation ») constitue une alternative viable en phase de lancement, évitant les contraintes réglementaires liées au séquestre tout en garantissant que le prestataire est payé pour un travail validé.
-
-### 8.3.10. Analytics et optimisation basée sur les données
-
-L'accumulation de données transactionnelles (prestataires, réservations, paiements, avis) permet d'alimenter un tableau de bord analytique destiné à l'équipe BABIFIX. L'analyse des données permettrait d'identifier les tendances (prestations les plus demandées, zones géographiques sous-couvertes, heures creuses vs heures pleines) pour orienter les décisions marketing et opérationnelles. L'intégration d'un outil de business intelligence (Metabase, Grafana, ou Power BI) connecté à la base PostgreSQL constituerait le premier niveau d'analyse.
-
-### 8.3.11. Intégration d'une newsletter et d'un CRM léger
+### 8.3.7. Intégration d'une newsletter et d'un CRM léger
 
 Le formulaire de contact du site vitrine constitue le premier point d'entrée pour les utilisateurs potentiels. À terme, il pourrait alimenter une liste de diffusion segmentée (clients / prestataires) gérée par un service d'emailing transactionnel (Mailchimp, Brevo). Des campagnes d'activation ciblées (rappel de première réservation, offres promotionnelles saisonnières, actualités plateforme) permettraient d'améliorer la rétention et le taux de conversion. Côté backend Django, un modèle `NewsletterSubscription` et un endpoint d'inscription (`POST /api/newsletter/subscribe/`) constitueraient les fondations de ce CRM léger.
 
-### 8.3.12. Expansion géographique dans l'espace UEMOA
+### 8.3.8. Expansion géographique dans l'espace UEMOA
 
 À moyen terme, BABIFIX pourrait s'étendre aux autres marchés de l'Union Économique et Monétaire Ouest-Africaine (UEMOA) partageant le FCFA :
 
@@ -1803,7 +1667,7 @@ L'hypothèse de travail formulée en réponse était que la combinaison de trois
 
 L'ensemble du travail présenté dans ce mémoire vient confirmer cette hypothèse à l'échelle d'un prototype fonctionnel. La **Première Partie** a établi le cadre contextuel et théorique : l'analyse de marché a montré que 70 % des adultes ivoiriens utilisent le Mobile Money et que 90 % des petits prestataires de services opèrent hors de tout cadre formel, créant un besoin objectif de numérisation et de confiance que les plateformes existantes — locales (Yako Services, Gombo, OnDjossi), africaines (Lynk, SweepSouth) ou internationales (TaskRabbit, Thumbtack, Bark.com) — ne satisfont pas pour le marché ivoirien. La **Deuxième Partie** a formalisé les besoins fonctionnels et non fonctionnels : douze besoins fonctionnels (BF-01 à BF-12), cinq exigences non-fonctionnelles mesurables, et dix diagrammes UML couvrant les cas d'utilisation, les classes, les séquences et les activités. La **Troisième Partie** a présenté la réalisation concrète : une architecture Django (API REST + WebSocket Channels + Redis) servant deux interfaces web en templates Django (vitrine et panneau admin) et deux applications mobiles Flutter (client et prestataire), le tout intégrant Firebase Cloud Messaging pour les notifications push et une gestion des paiements en FCFA.
 
-Les huit versions livrées (v1 à v8) ont implémenté progressivement l'ensemble des fonctionnalités : workflow prestataire (soumission → attente → acceptation/refus motivé → resoumission sans recréation de compte), chat temps réel lié aux réservations avec badge de messages non lus, diffusion en temps réel des prestataires approuvés via WebSocket, tableau de bord administrateur avec KPI, intégration des logos Mobile Money et section Actualités. Des modules complémentaires ont également été réalisés : authentification sociale Google et Apple avec vérification JWT côté serveur, vérification d'adresse e-mail, mapping visuel des 80+ catégories de services (CategoryIconMapper), et enrichissement du site vitrine avec une section « Notifications intelligentes » et un bandeau de consentement aux cookies conforme au RGPD.
+Les huit versions livrées (v1 à v8) ont implémenté progressivement l'ensemble des fonctionnalités : workflow prestataire (soumission → attente → acceptation/refus motivé → resoumission sans recréation de compte), chat temps réel lié aux réservations avec badge de messages non lus, diffusion en temps réel des prestataires approuvés via WebSocket, tableau de bord administrateur avec KPI, intégration des logos Mobile Money et section Actualités. Des modules complémentaires ont également été réalisés : authentification sociale Google et Apple avec vérification JWT côté serveur, vérification d'adresse e-mail, système d'icônes de catégories piloté par le serveur (champ `icone_url` Django → `SvgPicture.network()` Flutter, sans mapping local codé en dur), et enrichissement du site vitrine avec une section « Notifications intelligentes » et un bandeau de consentement aux cookies conforme au RGPD.
 
 ### Revendication et limites explicites
 
@@ -1886,13 +1750,13 @@ World Bank. 2022. *Financial Inclusion in Sub-Saharan Africa: Closing the Gap.* 
 | **API** (*Application Programming Interface*) | Interface de programmation permettant la communication entre applications via des requêtes HTTP standardisées. Dans BABIFIX, l'API REST expose les endpoints du backend Django aux applications Flutter. |
 | **ARTCI** | Autorité de Régulation des Télécommunications et des TIC de Côte d'Ivoire. Organisme régulateur ivoirien auquel fait référence la Loi n°2013-450 sur la protection des données personnelles. |
 | **ASGI** (*Asynchronous Server Gateway Interface*) | Interface de serveur asynchrone Python, successeur de WSGI, supportant les WebSockets. Django Channels repose sur ASGI via Daphne. |
-| **CI/CD** (*Continuous Integration / Continuous Deployment*) | Pipeline automatisé qui teste et déploie le code à chaque commit. Implémenté dans BABIFIX via GitHub Actions (2 workflows, 7 jobs). |
+| **CI/CD** (*Continuous Integration / Continuous Deployment*) | Pipeline automatisé qui teste et déploie le code à chaque commit. Prévu dans les perspectives d'évolution de BABIFIX (GitHub Actions). |
 | **DRF** (*Django REST Framework*) | Boîte à outils Python pour construire des API RESTful au-dessus de Django, utilisée pour tous les endpoints BABIFIX. |
 | **FCFA** (*Franc CFA*) | Franc de la Communauté Financière Africaine. Monnaie officielle de la Côte d'Ivoire et des pays de l'UEMOA, utilisée nativement dans les transactions BABIFIX. |
 | **FCM** (*Firebase Cloud Messaging*) | Service Google de notifications push multiplateformes (iOS, Android), utilisé dans BABIFIX pour notifier clients et prestataires. |
 | **Flutter** | Framework Google open-source basé sur le langage Dart, permettant le développement d'applications mobiles cross-platform (iOS/Android) à partir d'une seule base de code. |
 | **HTTP/HTTPS** (*HyperText Transfer Protocol / Secure*) | Protocole de communication web. HTTPS chiffre les échanges via TLS/SSL, obligatoire pour toutes les communications BABIFIX en production. |
-| **JWT** (*JSON Web Token*) | Standard de jeton d'authentification stateless. BABIFIX utilise un module JWT personnalisé (auth.py) pour authentifier les requêtes des applications Flutter. |
+| **JWT** (*JSON Web Token*) | Standard de jeton d'authentification stateless. BABIFIX utilise SimpleJWT (Django) pour authentifier les requêtes des applications Flutter. |
 | **KPI** (*Key Performance Indicator*) | Indicateur clé de performance. Le tableau de bord administrateur BABIFIX affiche plusieurs KPI : nombre de réservations, taux de validation, revenus, utilisateurs actifs. |
 | **MVP** (*Minimum Viable Product*) | Version minimale d'un produit permettant de valider les hypothèses clés avec des utilisateurs réels, avant un développement complet. |
 | **MVVM** (*Model-View-ViewModel*) | Pattern d'architecture UI séparant logique métier (ViewModel) et interface (View), recommandé pour les applications Flutter. |
@@ -1917,15 +1781,15 @@ BABIFIX_BUILD/
 │
 ├── babifix_admin_django/           # Backend Django principal
 │   ├── config/
-│   │   ├── settings.py             # Django 5.2, JWT custom (auth.py), Channels, FCM
+│   │   ├── settings.py             # Django 5.2, JWT (SimpleJWT), Channels, FCM
 │   │   ├── urls.py                 # Routage API REST + WebSocket
 │   │   ├── asgi.py                 # Point d'entrée ASGI (Django Channels)
-│   │   └── settings.py            # Pagination (PAGE_SIZE=20), security headers
+│   │   └── routing.py             # WebSocket URL routing (Django Channels)
 │   ├── adminpanel/                 # Application unique contenant tout
-│   │   ├── models.py               # User, Client, Prestataire, Service, Reservation, Devis, LigneDevis, Paiement, etc.
+│   │   ├── models.py               # User, Client, Prestataire, Service, Reservation, Paiement, etc.
 │   │   ├── views.py                # API REST (ViewSets DRF)
 │   │   ├── serializers.py          # Sérialisation DRF
-│   │   ├── consumers.py            # WebSocket : ClientEventsConsumer, PrestataireEventsConsumer
+│   │   ├── consumers.py            # WebSocket : ChatConsumer, ClientEventsConsumer, PrestataireEventsConsumer
 │   │   ├── routing.py              # WebSocket URL routing
 │   │   ├── admin.py                # Admin Django intégré
 │   │   ├── migrations/            # Migrations Django (SQLite dev / PostgreSQL prod)
@@ -1935,7 +1799,7 @@ BABIFIX_BUILD/
 │   │           ├── prestataires_liste.html
 │   │           └── validation_form.html
 │   ├── manage.py
-│   └── requirements.txt            # Django 5.2, DRF, channels, firebase-admin, cryptography, pyjwt
+│   └── requirements.txt            # Django 5.2, DRF, djangorestframework-simplejwt, channels, firebase-admin, cryptography
 │
 ├── babifix_vitrine_django/         # Site web vitrine public
 │   ├── config/
@@ -1956,7 +1820,7 @@ BABIFIX_BUILD/
 │   │   ├── main.dart               # 5745 lignes — ClientHomePage, navigation, state
 │   │   ├── babifix_*.dart          # Design system, API config, FCM, money, user store
 │   │   ├── json_utils.dart
-│   │   ├── category_icon_mapper.dart  # 80+ catégories avec icônes Material
+│   │   ├── category_icon_mapper.dart  # Fichier conservé (non utilisé pour l'affichage — icônes servies via icone_url Django)
 │   │   ├── features/                # Écrans par fonctionnalité
 │   │   │   ├── auth/               # Onboarding (Lottie), Auth, ForgotPassword, Biometric
 │   │   │   ├── home/                # ActualiteDetailScreen
