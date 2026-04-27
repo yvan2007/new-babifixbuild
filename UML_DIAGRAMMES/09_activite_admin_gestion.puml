@@ -1,4 +1,4 @@
-@startuml BABIFIX Admin - Diagramme d'Activité - Gestion du Système
+@startuml BABIFIX Admin - Diagramme d'Activité - Gestion du Système (Django)
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -37,7 +37,7 @@ skinparam titleFontColor #01579B
 skinparam defaultFontName Segoe UI
 skinparam defaultFontSize 11
 
-title **BABIFIX Admin** - Diagramme d'Activité : Gestion Complète du Système
+title **BABIFIX Admin** - Diagramme d'Activité : Gestion Complète du Système (Django + HTMX)
 
 |Admin|
 start
@@ -67,19 +67,19 @@ fork
     if (Décision ?) then (Valider)
       :Cliquer "Approuver";
       |Système|
-      :Mettre à jour role = "prestataire";
-      :Mettre à jour statutValidation = "VALIDE";
-      :Migrer vers collection "prestataires";
+      :Mettre à jour provider.statut = "VALIDE";
+      :Mettre à jour provider.is_approved = true;
       :Envoyer notification FCM "Compte validé";
     else (Refuser)
       :Saisir motif de refus obligatoire;
       :Cliquer "Refuser";
       |Système|
-      :Mettre à jour statutValidation = "REFUSE";
-      :Enregistrer motifRefus;
+      :Mettre à jour provider.statut = "REFUSE";
+      :Enregistrer refusal_reason;
       :Envoyer notification FCM "Demande refusée : [motif]";
     endif
   }
+end fork
 
 fork again
   partition "Gestion Catégories" {
@@ -89,33 +89,35 @@ fork again
       :Ouvrir formulaire création;
       :Remplir nom, description, icône, ordre d'affichage;
       |Système|
-      :Ajouter document dans "categories" (actif = true);
+      :INSERT INTO category (nom, description, icone_slug, ordre_affichage, actif);
     elseif (Modifier existante)
       :Sélectionner catégorie;
       :Modifier nom / description / icône / ordre;
       |Système|
-      :Mettre à jour via ORM Django (PostgreSQL);
+      :UPDATE category SET ...;
     else (Désactiver / Supprimer)
       :Sélectionner catégorie;
       :Cliquer "Désactiver";
       |Système|
-      :Mettre à jour actif = false;
+      :UPDATE category SET actif = false;
       :Catégorie devient invisible pour les clients;
     endif
   }
+end fork
 
 fork again
   partition "Statistiques & Rapports" {
     :Menu "Statistiques";
     |Système|
-    :Récupérer et agréger données (réservations, paiements, utilisateurs);
+    :Requêtes SQL agrégées (réservations, paiements, utilisateurs);
     :Calculer revenus totaux, commissions BABIFIX, CA;
     :Calculer nombre de réservations (par statut, par période);
     :Calculer utilisateurs actifs, prestataires validés;
-    :Générer graphiques et KPIs;
+    :Générer graphiques et KPIs avec HTMX;
     |Admin|
-    :Consulter / exporter rapports;
+    :Consulter / exporter rapports CSV;
   }
+end fork
 
 fork again
   partition "Validation Paiements Espèces" {
@@ -126,17 +128,19 @@ fork again
     if (Valider paiement ?) then (oui)
       :Cliquer "Valider";
       |Système|
-      :Mettre à jour statutPaiement = PAYE;
+      :UPDATE payment SET etat = "Complete", valide_par_admin = true;
       :Enregistrer commission + montant prestataire;
-      :Créer document paiement validé;
+      :Créer enregistrement paiement validé;
       :Notifier prestataire "Paiement validé - Gains disponibles";
     else (non - litige)
       :Saisir motif / ouvrir ticket support;
       |Système|
-      :Mettre à jour statutPaiement = REFUSE ou EN_LITIGE;
+      :UPDATE payment SET etat = "Litige";
+      :Créer enregistrement Dispute;
       :Notifier client et prestataire;
     endif
   }
+end fork
 
 fork again
   partition "Envoi Notifications Globales" {
@@ -145,8 +149,8 @@ fork again
     :Sélectionner destinataires (tous clients, tous prestataires, segment spécifique, tous utilisateurs);
     :Option : planifier envoi / envoyer immédiatement;
     |Système|
-    :Envoyer via Firebase Cloud Messaging (FCM);
-    :Enregistrer trace d'envoi;
+    :Envoyer via Firebase Cloud Messaging (FCM) uniquement;
+    :Enregistrer trace dans table Notification;
   }
 end fork
 

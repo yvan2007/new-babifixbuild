@@ -129,17 +129,17 @@ Contenu :
 **Fichier :** `13_state_machine_reservation.puml`
 
 États :
-- DRAFT → REQUESTED → ACCEPTED → IN_PROGRESS → WAITING_CLIENT → DONE → COMPLETED
-- Chemins d'annulation et litige
-- Flux paiement : PENDING_PAYMENT → PAYMENT_CONFIRMED → COMPLETED
+- DEMANDE_ENVOYEE → DEVIS_EN_COURS → DEVIS_ENVOYE → DEVIS_ACCEPTE → INTERVENTION_EN_COURS → EN_ATTENTE_CLIENT → TERMINEE
+- Chemins d'annulation : ANNULEE
+- Flux paiement : PENDING → COMPLETE (StatutPaiement)
 
 #### 6.2 State Machine Prestataire
 **Fichier :** `16_state_machine_prestataire.puml`
 
 États :
-- REGISTRATION → PENDING → UNDER_REVIEW → APPROVED → ACTIVE
-- Chemins de suspension et refus
-- Règles métier : visible client uniquement si ACTIVE
+- EN_ATTENTE → VALIDE (prestataire actif) ou REFUSE (dossier refusé)
+- VALIDE → SUSPENDU → VALIDE (cycle suspension/réactivation admin)
+- Règles métier : visible client uniquement si VALIDE
 
 ---
 
@@ -237,16 +237,8 @@ Le code source de production est dans **`BABIFIX_BUILD`** (Django admin + API, v
 | Élément UML | Implémentation |
 |-------------|----------------|
 | **Prestataire** (validation, tarif, notes, CNI, disponibilité) | Modèle `Provider` : `tarif_horaire`, `average_rating`, `rating_count`, `disponible`, `cni_url`, statuts alignés |
-| **Prestataire certifié** | `Provider.is_certified`, `Provider.certified_at` - Badge "Certifié" |
-| **Géolocation** | `Provider.latitude`, `Provider.longitude` - Filtrage par ville |
-| **Validation identité** | `Provider.selfie_url`, `Provider.video_intro_url` |
-| **Photos avant/après** | `Provider.before_photos`, `Provider.after_photos` |
-| **Soft delete** | `Provider.is_deleted`, `Provider.deleted_at` |
-| **Réservation** + statuts | `Reservation` : nouveau flux Demande → Devis → Intervention |
+| **Réservation** + statuts | `Reservation` : statuts *En attente*, *Confirmée*, *En cours*, *Terminée*, *Annulée* ; type de paiement ; flux espèces |
 | **Paiement espèces** (séquence triple validation) | Champs `cash_*` sur `Reservation` ; API `cash-declare` (client), `cash-confirm` (prestataire), `cash-validate` (admin) |
-| **Idempotence paiement** | `Payment.idempotency_key`, `Payment.idempotency_used_at` - Évite doubles paiements |
-| **Commission automatique** | `Devis.commission_rate` (défaut 18%) |
-| **Abonnement mensuel** | Modèle `Abonnement` - Pack 3 interventions/mois |
 | **Rating / avis** | Modèle `Rating` (1–5, commentaire) ; recalcul `average_rating` / `rating_count` sur le prestataire ; API `POST .../rating` |
 | **Catégorie** | `Category` : `description`, `icone_url`, `ordre_affichage` ; API publique `GET /api/public/categories/` |
 | **Paiement** | `Payment` : lien optionnel `reservation`, `type_paiement`, `valide_par_admin`, `reference_externe` |

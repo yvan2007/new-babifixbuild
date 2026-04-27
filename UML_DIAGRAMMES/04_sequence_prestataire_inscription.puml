@@ -57,7 +57,7 @@ Prestataire -> App : Remplir formulaire\n(nom, email, telephone, specialite, des
 Prestataire -> App : Upload photo CNI (piece d'identite)
 
 ' Creation du compte Django
-App -> API : POST /api/auth/register\n{email, password, role: prestaire%}
+App -> API : POST /api/auth/register\n{email, password, role: "prestataire"}
 API -> DB : CREATE USER + USERPROFILE
 API --> App : {access: JWT..., refresh: JWT...}
 
@@ -84,7 +84,7 @@ Admin -> AdminPanel : POST /login/ + CSRF token
 AdminPanel --> AdminPanel : Session auth
 
 Admin -> AdminPanel : Consulter liste prestataires PENDING
-AdminPanel -> API : GET /?section=prestataires\n(filter: statut=EN_ATTENTE)
+AdminPanel -> API : GET /api/admin/prestataires/?statut=EN_ATTENTE
 API -> DB : SELECT * FROM provider WHERE statut='EN_ATTENTE'
 DB --> API : List<Prestataire>
 API --> AdminPanel : List<Prestataire>
@@ -92,22 +92,21 @@ AdminPanel --> Admin : Afficher liste avec CNI, infos
 
 alt Admin valide
     Admin -> AdminPanel : Cliquer "Valider" + Verifier CNI
-    AdminPanel -> API : POST /admin/validate_provider\n{provider_id, action: accept}
-    API -> DB : UPDATE provider SET statut=VALIDE
-    API -> DB : UPDATE provider SET is_approved=True
+    AdminPanel -> API : POST /api/admin/validate_provider/\n{provider_id, action: accept}
+    API -> DB : UPDATE provider SET statut=VALIDE, is_approved=True
     API -> FCM : Push "Felicitations ! Vous etes valide. Connectez-vous."
     AdminPanel --> Admin : "Prestataire valide"
-    
+
     Prestataire -> App : Se connecter
     App -> API : POST /api/auth/login/\n{email, password}
     API --> App : {access: JWT...}
     API -> DB : SELECT * FROM provider WHERE user=...
-    DB --> API : role: prestaire%
+    DB --> API : provider data (statut: VALIDE)
     API --> App : Acces complet BABIFIX Pro
 
 else Admin refuse
     Admin -> AdminPanel : Cliquer "Refuser" + motif
-    AdminPanel -> API : POST /admin/validate_provider\n{provider_id, action: refuse, motif: ...}
+    AdminPanel -> API : POST /api/admin/validate_provider/\n{provider_id, action: refuse, motif: ...}
     API -> DB : UPDATE provider SET statut=REFUSE, refusal_reason=...
     API -> FCM : "Dossier refuse - Motif: ..."
     AdminPanel --> Admin : "Prestataire refuse"
