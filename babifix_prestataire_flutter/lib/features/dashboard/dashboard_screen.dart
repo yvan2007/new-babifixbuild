@@ -218,15 +218,20 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                       children: [
                         Row(
                           children: [
-                            if (_photoUrl != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 12),
-                                child: CircleAvatar(
-                                  radius: 24,
-                                  backgroundImage: NetworkImage(_photoUrl!),
-                                  backgroundColor: const Color(0xFF1E3A5F),
-                                ),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: CircleAvatar(
+                                radius: 24,
+                                backgroundImage: _photoUrl != null ? NetworkImage(_photoUrl!) : null,
+                                backgroundColor: const Color(0xFF1E3A5F),
+                                child: _photoUrl == null
+                                    ? Text(
+                                        _greetingName.isNotEmpty ? _greetingName[0].toUpperCase() : 'P',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
+                                      )
+                                    : null,
                               ),
+                            ),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -486,15 +491,20 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (photoUrl != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: CircleAvatar(
-                    radius: 26,
-                    backgroundImage: NetworkImage(photoUrl!),
-                    backgroundColor: const Color(0xFF006DAE),
-                  ),
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: CircleAvatar(
+                  radius: 26,
+                  backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
+                  backgroundColor: const Color(0xFF006DAE),
+                  child: photoUrl == null
+                      ? Text(
+                          greetingName.isNotEmpty ? greetingName[0].toUpperCase() : 'P',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20),
+                        )
+                      : null,
                 ),
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

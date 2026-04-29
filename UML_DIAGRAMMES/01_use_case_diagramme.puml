@@ -64,8 +64,11 @@ rectangle "BABIFIX - Application Client" as AppClient {
 }
 
 rectangle "BABIFIX Pro - Application Prestataire" as AppPro {
-  usecase "S'inscrire (formulaire CNI)" as UC20
+  usecase "S'inscrire" as UC20
   usecase "Se connecter" as UC21
+  usecase "Soumettre dossier KYC\n(CNI recto/verso + selfie)" as UC20B
+  usecase "Consulter statut KYC" as UC20C
+  usecase "Consulter et signer le contrat" as UC20D
   usecase "Gérer son profil" as UC22
   usecase "Consulter demandes clients" as UC23A
   usecase "Consulter rendez-vous" as UC23
@@ -85,6 +88,8 @@ rectangle "BABIFIX Pro - Application Prestataire" as AppPro {
 }
 
 rectangle "BABIFIX Admin - Panel Gestionnaire" as AppAdmin {
+  usecase "Examiner dossier KYC\n(score auto + images + checks)" as UC39
+  usecase "Approuver / Rejeter KYC" as UC39B
   usecase "Valider prestataires" as UC40
   usecase "Visualiser statistiques" as UC41
   usecase "Gérer catégories" as UC42
@@ -127,6 +132,9 @@ Client --> UC18
 
 Prestataire --> UC20
 Prestataire --> UC21
+Prestataire --> UC20B
+Prestataire --> UC20C
+Prestataire --> UC20D
 Prestataire --> UC22
 Prestataire --> UC23A
 Prestataire --> UC23
@@ -144,6 +152,8 @@ Prestataire --> UC31
 Prestataire --> UC32
 Prestataire --> UC33
 
+Admin --> UC39
+Admin --> UC39B
 Admin --> UC40
 Admin --> UC41
 Admin --> UC42

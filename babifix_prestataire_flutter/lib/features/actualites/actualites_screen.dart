@@ -7,6 +7,7 @@ import '../../babifix_api_config.dart';
 import '../../json_utils.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import 'actualite_detail_screen.dart';
 
 class PrestataireActuItem {
@@ -73,7 +74,7 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
         return;
       }
       final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/client/actualites'),
+        Uri.parse('${babifixApiBaseUrl()}/api/client/actualites?cible=prestataire'),
         headers: {'Authorization': 'Bearer $t'},
       );
       if (res.statusCode != 200) {
@@ -124,8 +125,8 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
       );
       if (!mounted) return;
       await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (ctx) => PrestataireActuDetailScreen(
+        babifixRoute(
+          (ctx) => PrestataireActuDetailScreen(
             item: full,
             isLight: widget.paletteMode == AppPaletteMode.light,
           ),
@@ -149,7 +150,7 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
         title: const Text('Actualit\u00e9s'),
       ),
       body: loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF4CC9F0)))
+          ? const _ActualitesShimmer()
           : RefreshIndicator(
               color: const Color(0xFF4CC9F0),
               onRefresh: () => _load(),
@@ -244,6 +245,55 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
                       },
                     ),
             ),
+    );
+  }
+}
+
+class _ActualitesShimmer extends StatefulWidget {
+  const _ActualitesShimmer();
+  @override
+  State<_ActualitesShimmer> createState() => _ActualitesShimmerState();
+}
+
+class _ActualitesShimmerState extends State<_ActualitesShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(duration: const Duration(milliseconds: 1300), vsync: this)..repeat();
+    _anim = Tween<double>(begin: -1.5, end: 1.5).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) {
+        final grad = LinearGradient(
+          begin: Alignment(_anim.value - 1, 0),
+          end: Alignment(_anim.value + 1, 0),
+          colors: const [Color(0xFFE2E8F0), Color(0xFFF8FAFC), Color(0xFFE2E8F0)],
+        );
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: List.generate(5, (_) => Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            height: 110,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: grad,
+            ),
+          )),
+        );
+      },
     );
   }
 }

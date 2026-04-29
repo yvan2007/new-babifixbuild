@@ -238,7 +238,7 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
@@ -466,5 +466,10 @@ CELERY_BEAT_SCHEDULE = {
     "expire-stale-disputes": {
         "task": "adminpanel.tasks.expire_stale_disputes",
         "schedule": crontab(hour=2, minute=0),
+    },
+    # Désactiver les abonnements premium expirés (toutes les heures à H:15)
+    "expire-premium-subscriptions": {
+        "task": "adminpanel.tasks.expire_premium_subscriptions",
+        "schedule": crontab(minute=15),
     },
 }

@@ -29,6 +29,9 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   late final AnimationController _anim;
   late final Animation<double> _fadeIn;
 
+  final _loginFormKey = GlobalKey<FormState>();
+  final _registerFormKey = GlobalKey<FormState>();
+
   final emailCtrl = TextEditingController();
   final passCtrl = TextEditingController();
   final pass2Ctrl = TextEditingController();
@@ -99,6 +102,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
 
   Future<void> _doLogin() async {
     if (_loading) return;
+    if (!(_loginFormKey.currentState?.validate() ?? false)) return;
     setState(() => _loading = true);
     final err = await BabifixUserStore.login(
       emailCtrl.text.trim(),
@@ -120,10 +124,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
 
   Future<void> _doRegister() async {
     if (_loading) return;
-    if (passCtrl.text != pass2Ctrl.text) {
-      _snack('Les mots de passe ne correspondent pas.');
-      return;
-    }
+    if (!(_registerFormKey.currentState?.validate() ?? false)) return;
     setState(() => _loading = true);
     final err = await BabifixUserStore.register(
       email: emailCtrl.text.trim(),
@@ -600,133 +601,168 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildLoginForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _PremiumField(
-          controller: emailCtrl,
-          label: 'Adresse email',
-          icon: Icons.email_outlined,
-          inputType: TextInputType.emailAddress,
-        ),
-        const SizedBox(height: 14),
-        _PremiumField(
-          controller: passCtrl,
-          label: 'Mot de passe',
-          icon: Icons.lock_outline_rounded,
-          obscure: hidden,
-          onToggleObscure: () => setState(() => hidden = !hidden),
-          onSubmitted: (_) => _doLogin(),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: _showForgotPasswordDialog,
-            style: TextButton.styleFrom(
-              foregroundColor: _blue,
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            ),
-            child: const Text(
-              'Mot de passe oublié ?',
-              style: TextStyle(fontSize: 13),
+    return Form(
+      key: _loginFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PremiumField(
+            controller: emailCtrl,
+            label: 'Adresse email',
+            icon: Icons.email_outlined,
+            inputType: TextInputType.emailAddress,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Email requis';
+              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim())) return 'Email invalide';
+              return null;
+            },
+          ),
+          const SizedBox(height: 14),
+          _PremiumField(
+            controller: passCtrl,
+            label: 'Mot de passe',
+            icon: Icons.lock_outline_rounded,
+            obscure: hidden,
+            onToggleObscure: () => setState(() => hidden = !hidden),
+            onSubmitted: (_) => _doLogin(),
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Mot de passe requis';
+              return null;
+            },
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _showForgotPasswordDialog,
+              style: TextButton.styleFrom(
+                foregroundColor: _blue,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              ),
+              child: const Text(
+                'Mot de passe oublié ?',
+                style: TextStyle(fontSize: 13),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
-        _GradientButton(
-          label: 'Se connecter',
-          loading: _loading,
-          onPressed: _doLogin,
-        ),
-      ],
+          const SizedBox(height: 6),
+          _GradientButton(
+            label: 'Se connecter',
+            loading: _loading,
+            onPressed: _doLogin,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildRegisterForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _PremiumField(
-          controller: nameCtrl,
-          label: 'Nom complet',
-          icon: Icons.person_outline_rounded,
-          capWords: true,
-        ),
-        const SizedBox(height: 14),
-        // Téléphone avec drapeau
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: IntlPhoneField(
-            initialCountryCode: 'CI',
-            style: const TextStyle(color: Colors.white, fontSize: 15),
-            dropdownTextStyle: const TextStyle(color: Colors.white),
-            dropdownIconPosition: IconPosition.trailing,
-            dropdownIcon: Icon(
-              Icons.arrow_drop_down,
-              color: Colors.white.withValues(alpha: 0.4),
-            ),
-            decoration: InputDecoration(
-              labelText: 'Téléphone',
-              labelStyle: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 14,
-              ),
-              floatingLabelStyle: const TextStyle(color: _blue, fontSize: 12),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onChanged: (phone) {
-              _regPhoneE164 = phone.completeNumber;
-              _regCountry = phone.countryISOCode;
+    return Form(
+      key: _registerFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PremiumField(
+            controller: nameCtrl,
+            label: 'Nom complet',
+            icon: Icons.person_outline_rounded,
+            capWords: true,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Nom requis';
+              if (v.trim().length < 3) return 'Au moins 3 caractères';
+              return null;
             },
           ),
-        ),
-        const SizedBox(height: 14),
-        _PremiumField(
-          controller: emailCtrl,
-          label: 'Adresse email',
-          icon: Icons.email_outlined,
-          inputType: TextInputType.emailAddress,
-        ),
-        const SizedBox(height: 14),
-        _PremiumField(
-          controller: passCtrl,
-          label: 'Mot de passe',
-          icon: Icons.lock_outline_rounded,
-          obscure: hidden,
-          onToggleObscure: () => setState(() => hidden = !hidden),
-        ),
-        const SizedBox(height: 14),
-        _PremiumField(
-          controller: pass2Ctrl,
-          label: 'Confirmer le mot de passe',
-          icon: Icons.lock_outline_rounded,
-          obscure: hidden2,
-          onToggleObscure: () => setState(() => hidden2 = !hidden2),
-          onSubmitted: (_) => _doRegister(),
-        ),
-        const SizedBox(height: 20),
-        _GradientButton(
-          label: 'Créer mon compte',
-          loading: _loading,
-          onPressed: _doRegister,
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'En créant un compte, vous acceptez nos Conditions d\'utilisation et notre Politique de confidentialité.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.white.withValues(alpha: 0.3),
-            height: 1.5,
+          const SizedBox(height: 14),
+          // Téléphone avec drapeau
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: IntlPhoneField(
+              initialCountryCode: 'CI',
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              dropdownTextStyle: const TextStyle(color: Colors.white),
+              dropdownIconPosition: IconPosition.trailing,
+              dropdownIcon: Icon(
+                Icons.arrow_drop_down,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
+              decoration: InputDecoration(
+                labelText: 'Téléphone',
+                labelStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 14,
+                ),
+                floatingLabelStyle: const TextStyle(color: _blue, fontSize: 12),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onChanged: (phone) {
+                _regPhoneE164 = phone.completeNumber;
+                _regCountry = phone.countryISOCode;
+              },
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 14),
+          _PremiumField(
+            controller: emailCtrl,
+            label: 'Adresse email',
+            icon: Icons.email_outlined,
+            inputType: TextInputType.emailAddress,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Email requis';
+              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim())) return 'Email invalide';
+              return null;
+            },
+          ),
+          const SizedBox(height: 14),
+          _PremiumField(
+            controller: passCtrl,
+            label: 'Mot de passe',
+            icon: Icons.lock_outline_rounded,
+            obscure: hidden,
+            onToggleObscure: () => setState(() => hidden = !hidden),
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Mot de passe requis';
+              if (v.length < 8) return 'Au moins 8 caractères';
+              return null;
+            },
+          ),
+          const SizedBox(height: 14),
+          _PremiumField(
+            controller: pass2Ctrl,
+            label: 'Confirmer le mot de passe',
+            icon: Icons.lock_outline_rounded,
+            obscure: hidden2,
+            onToggleObscure: () => setState(() => hidden2 = !hidden2),
+            onSubmitted: (_) => _doRegister(),
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Confirmation requise';
+              if (v != passCtrl.text) return 'Les mots de passe ne correspondent pas';
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+          _GradientButton(
+            label: 'Créer mon compte',
+            loading: _loading,
+            onPressed: _doRegister,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'En créant un compte, vous acceptez nos Conditions d\'utilisation et notre Politique de confidentialité.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white.withValues(alpha: 0.3),
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -744,6 +780,7 @@ class _PremiumField extends StatelessWidget {
     this.textInputAction,
     this.onSubmitted,
     this.capWords = false,
+    this.validator,
   });
 
   final TextEditingController controller;
@@ -755,6 +792,7 @@ class _PremiumField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
   final bool capWords;
+  final String? Function(String?)? validator;
 
   @override
   Widget build(BuildContext context) {
@@ -764,15 +802,17 @@ class _PremiumField extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
-      child: TextField(
+      child: TextFormField(
         controller: controller,
         obscureText: obscure,
         keyboardType: inputType,
         textInputAction: textInputAction,
-        onSubmitted: onSubmitted,
+        onFieldSubmitted: onSubmitted,
         textCapitalization: capWords
             ? TextCapitalization.words
             : TextCapitalization.none,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        validator: validator,
         style: const TextStyle(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           labelText: label,
@@ -783,6 +823,10 @@ class _PremiumField extends StatelessWidget {
           floatingLabelStyle: const TextStyle(
             color: Color(0xFF2563EB),
             fontSize: 12,
+          ),
+          errorStyle: const TextStyle(
+            color: Color(0xFFFF8A80),
+            fontSize: 11,
           ),
           prefixIcon: Icon(
             icon,

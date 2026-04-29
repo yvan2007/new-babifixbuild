@@ -92,11 +92,17 @@ def on_reservation_change(
 
     if created:
         uids = _reservation_prestataire_user_ids(instance)
+        is_urgent = getattr(instance, "is_urgent", False)
         _schedule(
             uids,
-            "BABIFIX — Nouvelle réservation",
+            "🚨 BABIFIX — Demande urgente !" if is_urgent else "BABIFIX — Nouvelle réservation",
             f"Demande {instance.reference} — {instance.statut}",
-            {"type": "reservation.created", "reference": instance.reference},
+            {
+                "type": "reservation.created",
+                "reference": instance.reference,
+                "is_urgent": "true" if is_urgent else "false",
+                "route": f"/prestataire/requests/{instance.reference}",
+            },
         )
         return
 
@@ -111,6 +117,7 @@ def on_reservation_change(
             "reference": instance.reference,
             "statut": instance.statut,
             "cash_flow": instance.cash_flow_status or "",
+            "route": f"/reservation/{instance.reference}",
         },
     )
 
@@ -170,6 +177,7 @@ def on_provider_change(
         "provider_id": str(instance.pk),
         "statut": instance.statut,
         "refusal_reason": reason,
+        "route": "/prestataire/profile",
     }
     _schedule([instance.user_id], title, body, data)
 
@@ -246,6 +254,8 @@ def on_chat_message_created(instance: Message) -> None:
         "type": "chat.message",
         "conversation_id": str(conv.pk),
         "sender_id": str(instance.sender_id),
+        "reservation_reference": ref,
+        "route": f"/messages/{ref}" if ref else "/messages",
     }
     _schedule([recipient_id], title, body, data)
     try:
@@ -276,7 +286,11 @@ def on_rating_change(instance, created: bool) -> None:
         [uid],
         "BABIFIX — Nouvel avis",
         f"Note {instance.note}/5 sur une prestation",
-        {"type": "rating.created", "reservation_id": str(instance.reservation_id)},
+        {
+            "type": "rating.created",
+            "reservation_id": str(instance.reservation_id),
+            "route": "/prestataire/ratings",
+        },
     )
 
 
@@ -298,9 +312,15 @@ def on_payment_change(
         if res:
             uids.append(res.client_user_id)
             uids.append(res.prestataire_user_id)
+    ref = instance.reservation.reference if instance.reservation_id else ""
     _schedule(
         uids,
         "BABIFIX — Paiement",
         f"{instance.reference} — {instance.etat}",
-        {"type": "payment.updated", "reference": instance.reference},
+        {
+            "type": "payment.updated",
+            "reference": instance.reference,
+            "reservation_reference": ref,
+            "route": f"/reservation/{ref}" if ref else "/client/payments",
+        },
     )

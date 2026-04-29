@@ -141,10 +141,11 @@ note bottom of Redis
 end note
 
 note bottom of Media
-  - Provider photos (CNI)
   - Chat attachments
   - Rating photos
   - Category icons
+  Note: images KYC (CNI recto/verso, selfie)
+  stockees en BDD (base64) — pas dans MEDIA_ROOT
 end note
 
 @enduml

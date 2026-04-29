@@ -62,7 +62,8 @@ fork
     :Menu "Prestataires en attente";
     :Charger liste des prestataires avec statut PENDING;
     :Sélectionner un dossier;
-    :Examiner photo CNI + informations saisies;
+    :Consulter score KYC automatique (0-100) + détail des checks;
+    :Visualiser les 3 images protégées (CNI recto/verso, selfie);
     
     if (Décision ?) then (Valider)
       :Cliquer "Approuver";

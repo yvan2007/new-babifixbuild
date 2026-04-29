@@ -3,10 +3,11 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/forgot_password_screen.dart';
 import '../features/booking/devis_detail_screen.dart';
+import '../features/home/actualite_detail_screen.dart';
 import '../features/map/providers_map_screen.dart';
 import '../features/reservations/rate_provider_screen.dart';
 import '../features/reservations/reservations_history_screen.dart';
-import '../theme/app_theme.dart';
+import '../models/client_models.dart';
 
 Widget _fadeSlideTransition(
   BuildContext context,
@@ -74,8 +75,6 @@ GoRouter createBabifixClientRouter({
         path: '/',
         redirect: (_, __) => hasSeenOnboarding ? '/home' : '/onboarding',
       ),
-      GoRoute(path: '/home', builder: (ctx, _) => homeBuilder(ctx)),
-      GoRoute(path: '/onboarding', builder: (ctx, _) => onboardingBuilder(ctx)),
       GoRoute(
         path: BabifixRoutes.bookingFlow,
         pageBuilder: (ctx, state) => CustomTransitionPage(
@@ -105,9 +104,19 @@ GoRouter createBabifixClientRouter({
         builder: (ctx, _) => notificationsBuilder(ctx),
       ),
       GoRoute(
-        path: BabifixRoutes.payment,
-        builder: (ctx, state) =>
-            paymentBuilder(ctx, state.pathParameters['reservationId'] ?? '0'),
+        path: BabifixRoutes.actualiteDetail,
+        pageBuilder: (ctx, state) {
+          final item = state.extra as ClientActualiteItem?;
+          final isLight = Theme.of(ctx).brightness == Brightness.light;
+          return CustomTransitionPage(
+            child: item != null
+                ? ActualiteDetailScreen(item: item, isLight: isLight)
+                : const Scaffold(
+                    body: Center(child: Text('Actualité introuvable')),
+                  ),
+            transitionsBuilder: _fadeSlideTransition,
+          );
+        },
       ),
       GoRoute(
         path: BabifixRoutes.chat,

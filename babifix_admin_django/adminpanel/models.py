@@ -39,35 +39,47 @@ class Provider(models.Model):
     average_rating = models.FloatField(default=0.0)
     rating_count = models.PositiveIntegerField(default=0)
     disponible = models.BooleanField(default=True)
-    cni_url = models.CharField(max_length=500, blank=True, default="")
-    cni_recto_url = models.CharField(
-        max_length=500, blank=True, default="", help_text="CNI face avant"
+    cni_url = models.TextField(blank=True, default="")
+    cni_recto_url = models.TextField(
+        blank=True, default="", help_text="CNI face avant"
     )
-    cni_verso_url = models.CharField(
-        max_length=500, blank=True, default="", help_text="CNI face arrière"
+    cni_verso_url = models.TextField(
+        blank=True, default="", help_text="CNI face arrière"
     )
-    selfie_url = models.CharField(
-        max_length=500,
+    selfie_url = models.TextField(
         blank=True,
         default="",
         help_text="Selfie avec CNI - validation identité",
     )
-    video_intro_url = models.CharField(
-        max_length=500,
+    video_intro_url = models.TextField(
         blank=True,
         default="",
         help_text="Vidéo intro 30-60s - filtre qualité",
     )
-    photo_portrait_url = models.CharField(
-        max_length=500,
+    photo_portrait_url = models.TextField(
         blank=True,
         default="",
-        help_text="Photo de profil (URL) — visible apres validation admin",
+        help_text="Photo de profil (URL) — visible après validation admin",
     )
     refusal_reason = models.TextField(
         blank=True,
         default="",
         help_text="Motif affiche au prestataire si dossier refuse",
+    )
+    # Moteur KYC automatique — score 0-100 calculé à la soumission du dossier
+    auto_check_score = models.IntegerField(
+        default=0,
+        help_text="Score de vérification automatique 0–100 (moteur KYC engine)",
+    )
+    auto_check_result = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Résultat détaillé du moteur KYC (checks, confiance, visages)",
+    )
+    auto_check_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date/heure du dernier passage du moteur de vérification automatique",
     )
     category = models.ForeignKey(
         "Category",
@@ -161,6 +173,18 @@ class Provider(models.Model):
             ("moov", "Moov Money"),
         ],
         help_text="Opérateur Mobile Money préféré",
+    )
+    # Signature numérique du contrat BABIFIX (serveur)
+    contrat_accepte_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Horodatage de l'acceptation du contrat BABIFIX",
+    )
+    contrat_version = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        help_text="Version du contrat signé (ex: '1.0', '1.1')",
     )
 
     def __str__(self):
@@ -315,6 +339,10 @@ class Reservation(models.Model):
     )
     is_urgent = models.BooleanField(
         default=False, help_text="Intervention urgente demandée par le client"
+    )
+    urgence_surcharge_pct = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Surcharge urgence appliquée en % (ex: 20 = +20%)",
     )
     motif_refus_demande = models.TextField(
         blank=True,
@@ -711,6 +739,10 @@ class UserProfile(models.Model):
         default=False,
         help_text="Bonus premiere reservation applique"
     )
+    whatsapp_opt_in = models.BooleanField(
+        default=True,
+        help_text="Accepte de recevoir des notifications WhatsApp",
+    )
 
     def __str__(self):
         return f"{self.user.username} ({self.role})"
@@ -816,6 +848,12 @@ class Rating(models.Model):
     commentaire = models.TextField(blank=True, default="")
     # Photos jointes à l’avis (data URLs base64 image/*, liste courte — MVP)
     photo_attachments = models.JSONField(default=list, blank=True)
+    voice_note_url = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="URL de la note vocale (fichier audio uploadé)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -835,6 +873,11 @@ class Actualite(models.Model):
         MAINTENANCE = "maintenance", "Maintenance"
         GENERAL = "general", "Général"
 
+    class Cible(models.TextChoices):
+        CLIENT = "client", "Client uniquement"
+        PRESTATAIRE = "prestataire", "Prestataire uniquement"
+        TOUS = "tous", "Tous les utilisateurs"
+
     titre = models.CharField(max_length=150)
     description = models.TextField()
     image = models.ImageField(upload_to="actualites/", blank=True)
@@ -850,6 +893,13 @@ class Actualite(models.Model):
         blank=True,
         default="",
         help_text="Clé simple (ex. megaphone) pour UI",
+    )
+    cible = models.CharField(
+        max_length=20,
+        choices=Cible.choices,
+        default=Cible.TOUS,
+        db_index=True,
+        help_text="Audience : client uniquement, prestataire uniquement, ou tous",
     )
     created_by = models.ForeignKey(
         User,
@@ -1112,3 +1162,32 @@ class Abonnement(models.Model):
 
     def __str__(self):
         return f"Abonnement {self.client.username} - {self.interventions_restantes}/{self.pack_interventions} restants"
+
+
+class PlatformRevenue(models.Model):
+    """Revenus de la plateforme BABIFIX (commission, abonnements premium, pénalités)."""
+
+    class Source(models.TextChoices):
+        COMMISSION = "commission", "Commission prestation"
+        PREMIUM = "premium", "Abonnement premium"
+        PENALITE = "penalite", "Pénalité"
+        AUTRE = "autre", "Autre"
+
+    amount_fcfa = models.DecimalField(max_digits=14, decimal_places=2)
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.COMMISSION)
+    reference = models.CharField(max_length=100, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="platform_revenues",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Revenu {self.source} {self.amount_fcfa} FCFA"

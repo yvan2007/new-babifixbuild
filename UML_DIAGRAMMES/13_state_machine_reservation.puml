@@ -17,7 +17,12 @@ skinparam arrow {
   FontColor #01579B
 }
 
-title **BABIFIX** - Diagramme d'Etat\nCycle de Vie d'une Reservation (Nouveau Flux Devis)
+title **BABIFIX** - Diagramme d'Etat\nCycle de Vie d'une Reservation\n(Architecture cible — flux devis)
+
+note top
+  Version courante implementee : EN_ATTENTE → CONFIRMEE → EN_COURS → EN_ATTENTE_CLIENT → TERMINEE/ANNULEE
+  Ce diagramme represente l'architecture cible avec le flux de devis prevu en evolution.
+end note
 
 [*] --> DEMANDE_ENVOYEE : Client cree\nla demande
 

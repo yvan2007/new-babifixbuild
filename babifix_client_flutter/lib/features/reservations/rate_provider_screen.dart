@@ -463,11 +463,11 @@ class _AnimatedStarState extends State<_AnimatedStar>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
     _scaleAnim = Tween<double>(begin: 1.0, end: 1.4).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
     );
   }
 

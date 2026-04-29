@@ -74,26 +74,28 @@ DB --> API : List<Prestataire>
 API --> Panel : HTML table (nom, specialite, CNI, date demande)
 Panel --> Admin : Afficher tableau (nom, specialite, CNI, date demande)
 
-Admin -> Panel : Cliquer sur un prestataire pour voir detalles
+Admin -> Panel : Cliquer sur un prestataire pour voir details
 Panel -> API : GET /api/admin/prestataire/{id}
 API -> DB : SELECT * FROM provider WHERE id=...
 API -> DB : SELECT * FROM user WHERE id=provider.user_id
-API --> Panel : Modal avec photo CNI + informations completes
-Panel --> Admin : Afficher modal avec photo CNI + informations completes
+API --> Panel : Panneau KYC (score auto 0-100, checks detailles, images protegees)
+Panel --> Admin : Afficher panneau KYC + score automatique + images CNI (recto/verso, selfie)
+
+Admin -> Panel : Consulter score auto, coherence images, verifier authenticite
 
 Admin -> Panel : Decision : Valider / Refuser
 
 alt Valider
-    Admin -> Panel : Cliquer "Valider"
-    Panel -> API : POST /api/admin/validate_provider/\n{provider_id, action: accept}
+    Admin -> Panel : Cliquer "Approuver KYC"
+    Panel -> API : POST /admin/kyc/{provider_id}/review/\n{kyc_action: approve}
     API -> DB : UPDATE provider SET statut='VALIDE', is_approved=True
     API -> DB : UPDATE provider SET date_validation=now()
     API -> FCM : sendPushNotification(prestataire_fcm_token, titre: "Validation reussie", body: "Vous etes maintenant valide !")
     FCM --> Prestataire : Notification push
     Panel --> Admin : Message "Prestataire valide avec succes"
 else Refuser
-    Admin -> Panel : Cliquer "Refuser" + saisir motif
-    Panel -> API : POST /api/admin/validate_provider/\n{provider_id, action: refuse, motif: ...}
+    Admin -> Panel : Cliquer "Rejeter KYC" + choisir motif
+    Panel -> API : POST /admin/kyc/{provider_id}/review/\n{kyc_action: reject, reason: ...}
     API -> DB : UPDATE provider SET statut='REFUSE', refusal_reason=...
     API -> FCM : sendPushNotification(prestataire_fcm_token, titre: "Demande refusee", body: "Motif: " + motif)
     FCM --> Prestataire : Notification push

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
+import '../parrainage/parrainage_screen.dart';
 
 class FideliteScreen extends StatefulWidget {
   const FideliteScreen({super.key, required this.isLight});
@@ -707,6 +708,23 @@ class _ParrainageCardState extends State<_ParrainageCard> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ClientParrainageScreen()),
+              ),
+              icon: const Icon(Icons.card_giftcard_rounded, size: 18),
+              label: const Text('Gérer mon parrainage'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: purple,
+                side: BorderSide(color: purple.withValues(alpha: 0.5)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
           ),
         ],
       ),

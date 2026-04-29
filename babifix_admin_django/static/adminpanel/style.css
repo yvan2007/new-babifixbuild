@@ -2232,3 +2232,85 @@ html[data-theme="dark"] table tbody tr:hover {
 [data-theme="dark"] .kanban-card {
   background: #0f172a;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   KYC Score Block — panneau résultat vérification automatique
+   ═══════════════════════════════════════════════════════════════ */
+.kyc-score-block {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-top: 4px;
+}
+.kyc-score-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.kyc-score-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+.kyc-score-badge {
+  font-size: 22px;
+  font-weight: 800;
+  padding: 4px 14px;
+  border-radius: 20px;
+  letter-spacing: -.5px;
+}
+.kyc-score-high  { background: #dcfce7; color: #15803d; }
+.kyc-score-med   { background: #fef9c3; color: #a16207; }
+.kyc-score-low   { background: #ffedd5; color: #c2410c; }
+.kyc-score-fail  { background: #fee2e2; color: #dc2626; }
+.kyc-score-conf {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+.kyc-score-date {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: auto;
+}
+.kyc-checks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.kyc-checks-table th {
+  text-align: left;
+  padding: 6px 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.kyc-checks-table td {
+  padding: 6px 10px;
+  border-top: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+.check-pass td:first-child { color: #15803d; font-weight: 600; }
+.check-fail td:first-child { color: #dc2626; font-weight: 600; }
+.kyc-face-match {
+  color: #475569;
+  padding: 8px 0 0;
+  border-top: 1px solid #e2e8f0;
+}
+[data-theme="dark"] .kyc-score-block {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme="dark"] .kyc-checks-table th {
+  background: #0f172a;
+  color: #94a3b8;
+}
+[data-theme="dark"] .kyc-checks-table td {
+  border-top-color: #1e293b;
+}

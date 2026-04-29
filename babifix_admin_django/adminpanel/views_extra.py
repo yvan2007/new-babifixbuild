@@ -1327,4 +1327,42 @@ def api_prestataire_contrat(request):
                 "contenu": "Le prestataire peut résilier son compte à tout moment depuis les paramètres de l'app. BABIFIX se réserve le droit de suspendre un compte en cas de non-respect de la charte.",
             },
         ],
+        "contrat_version": "1.0",
+        "contrat_accepte_at": provider.contrat_accepte_at.isoformat() if provider.contrat_accepte_at else None,
+        "contrat_signe": provider.contrat_accepte_at is not None,
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_contrat_sign(request):
+    """
+    POST /api/prestataire/contrat/sign/
+    Enregistre l'acceptation du contrat BABIFIX côté serveur.
+    Body JSON : {"version": "1.0"}
+    """
+    from django.utils import timezone
+
+    user_id = request.api_user_id
+    try:
+        provider = Provider.objects.get(user_id=user_id)
+    except Provider.DoesNotExist:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        payload = {}
+
+    version = str(payload.get("version") or "1.0")[:10]
+    now = timezone.now()
+    provider.contrat_accepte_at = now
+    provider.contrat_version = version
+    provider.save(update_fields=["contrat_accepte_at", "contrat_version"])
+
+    return JsonResponse({
+        "ok": True,
+        "contrat_accepte_at": now.isoformat(),
+        "contrat_version": version,
     })

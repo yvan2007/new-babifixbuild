@@ -50,12 +50,22 @@ class _ContratScreenState extends State<ContratScreen>
   }
 
   Future<void> _loadAll() async {
+    // Charger d'abord depuis local (affichage immédiat)
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(_kAcceptedKey);
     if (stored != null) {
       _acceptedAt = DateTime.tryParse(stored);
     }
     await _load();
+    // Après la réponse serveur, utiliser la date de signature serveur si disponible
+    if (_data != null && _data!['contrat_accepte_at'] != null) {
+      final serverDate = DateTime.tryParse('${_data!['contrat_accepte_at']}');
+      if (serverDate != null && mounted) {
+        setState(() => _acceptedAt = serverDate);
+        // Synchroniser le cache local avec la date serveur
+        await prefs.setString(_kAcceptedKey, serverDate.toIso8601String());
+      }
+    }
   }
 
   Future<void> _load() async {
@@ -90,18 +100,51 @@ class _ContratScreenState extends State<ContratScreen>
   }
 
   Future<void> _acceptContrat() async {
-    final now = DateTime.now();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kAcceptedKey, now.toIso8601String());
-    setState(() => _acceptedAt = now);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Contrat accepté. Merci !'),
-          backgroundColor: Color(0xFF22C55E),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    final token = await readStoredApiToken();
+    if (token == null || token.isEmpty) return;
+    try {
+      final res = await http.post(
+        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/contrat/sign/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: '{"version":"${_data?['contrat_version'] ?? '1.0'}"}',
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final now = DateTime.now();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_kAcceptedKey, now.toIso8601String());
+        if (mounted) {
+          setState(() => _acceptedAt = now);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Contrat signé et enregistré. Merci !'),
+              backgroundColor: Color(0xFF22C55E),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Erreur lors de la signature. Réessayez.'),
+              backgroundColor: Color(0xFFDC2626),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erreur réseau. Vérifiez votre connexion.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 

@@ -471,11 +471,13 @@ def api_prestataire_profile_update(request):
                 val = val.strip()[:500]
             setattr(provider, field, val)
             update_fields.append(field)
-    # Photo portrait (data URL base64)
-    portrait = payload.get("photo_portrait_url", "")
+    # Photo portrait — base64 → fichier sur disque
+    portrait = payload.get("photo_portrait_url", "") or payload.get("photo_portrait_b64", "")
     if portrait and isinstance(portrait, str) and portrait.startswith("data:image/"):
-        if len(portrait) <= 600_000:
-            provider.photo_portrait_url = portrait
+        from .views import _decode_and_save_media
+        saved = _decode_and_save_media(portrait, "portraits", "portrait")
+        if saved:
+            provider.photo_portrait_url = saved
             update_fields.append("photo_portrait_url")
     if update_fields:
         provider.save(update_fields=update_fields)
@@ -517,11 +519,16 @@ def api_prestataire_portfolio(request):
     photos = list(provider.portfolio_photos or [])
     if len(photos) >= 12:
         return JsonResponse({"error": "max_12_photos"}, status=400)
-    entry = {"photo": photo, "caption": caption, "added_at": timezone.now().isoformat()}
+    # Sauvegarder l'image sur disque plutôt qu'en base64 en DB
+    from .views import _decode_and_save_media
+    photo_url = _decode_and_save_media(photo, f"portfolio/{provider.id}", "realisation")
+    if not photo_url:
+        photo_url = photo  # fallback base64 si échec
+    entry = {"photo": photo_url, "caption": caption, "added_at": timezone.now().isoformat()}
     photos.append(entry)
     provider.portfolio_photos = photos
     provider.save(update_fields=["portfolio_photos"])
-    return JsonResponse({"ok": True, "count": len(photos)})
+    return JsonResponse({"ok": True, "count": len(photos), "photo_url": photo_url})
 
 
 @csrf_exempt
