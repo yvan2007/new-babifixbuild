@@ -1,4 +1,4 @@
-# 🏠 BABIFIX — Plateforme de Services à Domicile
+# 🏠 BABIFIX  Plateforme de Services à Domicile
 
 > **Plateforme full-stack de réservation de prestataires de services en Côte d'Ivoire**  
 > Architecture microservices : Django REST API + Flutter (Client & Prestataire)
