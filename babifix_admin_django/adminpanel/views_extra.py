@@ -20,6 +20,7 @@ import logging
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
@@ -1366,3 +1367,103 @@ def api_prestataire_contrat_sign(request):
         "contrat_accepte_at": now.isoformat(),
         "contrat_version": version,
     })
+
+
+# =============================================================================
+# KYC — Vérification identité prestataire
+# =============================================================================
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["prestataire"])
+def api_prestataire_kyc_status(request):
+    """
+    GET /api/prestataire/kyc/status/
+    Retourne le statut KYC du prestataire connecté.
+    Réponse : { "status": "...", "rejection_reason": "..." }
+    """
+    try:
+        provider = Provider.objects.get(user=request.babifix_user)
+    except Provider.DoesNotExist:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    return JsonResponse({
+        "status": provider.kyc_status,
+        "rejection_reason": provider.kyc_rejection_reason or None,
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_kyc_submit(request):
+    """
+    POST /api/prestataire/kyc/submit/
+    Soumet le dossier KYC du prestataire.
+    Body JSON : {
+        "cni_number": "...",
+        "cni_expiry": "YYYY-MM-DD",
+        "cni_recto_b64": "data:image/jpeg;base64,...",
+        "cni_verso_b64": "...",
+        "selfie_b64": "..."
+    }
+    """
+    from datetime import datetime
+    from django.utils import timezone
+
+    try:
+        provider = Provider.objects.get(user=request.babifix_user)
+    except Provider.DoesNotExist:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"error": "invalid_json", "message": "Corps JSON invalide"}, status=400)
+
+    # Extraction et validation
+    cni_number = (payload.get("cni_number") or "").strip()
+    cni_expiry = (payload.get("cni_expiry") or "").strip()
+    cni_recto = (payload.get("cni_recto_b64") or "").strip()
+    cni_verso = (payload.get("cni_verso_b64") or "").strip()
+    selfie = (payload.get("selfie_b64") or "").strip()
+
+    errors = {}
+    if not cni_number:
+        errors["cni_number"] = ["Ce champ est requis."]
+    if not cni_expiry:
+        errors["cni_expiry"] = ["Cette date est requise."]
+    if not cni_recto:
+        errors["cni_recto_b64"] = ["Photo recto requise."]
+    if not cni_verso:
+        errors["cni_verso_b64"] = ["Photo verso requise."]
+    if not selfie:
+        errors["selfie_b64"] = ["Selfie requis."]
+
+    if errors:
+        return JsonResponse({"error": "validation_failed", "fields": errors}, status=400)
+
+    # Mise à jour fournisseur
+    provider.kyc_cni_number = cni_number
+    provider.kyc_cni_recto_url = cni_recto
+    provider.kyc_cni_verso_url = cni_verso
+    provider.kyc_selfie_url = selfie
+    provider.kyc_status = "pending"
+    provider.kyc_submitted_at = timezone.now()
+
+    # Date d'expiration
+    if cni_expiry:
+        try:
+            provider.kyc_cni_expiry = datetime.strptime(cni_expiry, "%Y-%m-%d").date()
+        except ValueError:
+            pass  # ignore, garde null
+
+    provider.save(update_fields=[
+        "kyc_cni_number", "kyc_cni_recto_url", "kyc_cni_verso_url",
+        "kyc_selfie_url", "kyc_status", "kyc_submitted_at", "kyc_cni_expiry"
+    ])
+
+    return JsonResponse({
+        "status": "pending",
+        "message": "Dossier KYC soumis avec succès. Vérification sous 24-48h.",
+    }, status=200)
+

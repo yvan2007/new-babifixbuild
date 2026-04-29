@@ -12,7 +12,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from ..models import (
-    Categorie,
+    Category,
     Devis,
     Notification,
     Provider,
@@ -95,7 +95,7 @@ class ReservationService:
                 )
             
             # Verifier la categorie
-            category = Categorie.objects.filter(id=input_data.category_id).first()
+            category = Category.objects.filter(id=input_data.category_id).first()
             if not category:
                 return ReservationResult(
                     success=False,
