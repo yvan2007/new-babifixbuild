@@ -476,16 +476,63 @@ def _normalize_category_key(s: str) -> str:
     return s[:24]
 
 
-def _safe_photo_url(url: str) -> str:
-    """Retourne l'URL si c'est une URL HTTP/HTTPS ou une data URL base64 valide."""
+def _safe_photo_url(url: str, request=None) -> str:
+    """
+    Retourne l'URL normalisée.
+    - Si HTTP/HTTPS → tel quel
+    - Si /media/... → absolu si request fourni, sinon relatif
+    - Si data:image (legacy) → tel quel
+    """
     if not url:
         return ""
     s = url.strip()
     if s.startswith("http://") or s.startswith("https://"):
         return s
+    if s.startswith("/media/") or s.startswith("media/"):
+        if request is not None:
+            return request.build_absolute_uri(s if s.startswith("/") else f"/{s}")
+        return s
     if s.startswith("data:image"):
         return s
     return ""
+
+
+def _decode_and_save_media(b64_data: str, subfolder: str, prefix: str) -> str:
+    """
+    Décode une data URL base64 et sauvegarde le fichier dans MEDIA_ROOT.
+    Retourne l'URL relative (ex: /media/providers/portraits/uuid.jpg).
+    Retourne '' si données invalides.
+    """
+    import base64 as _b64
+    import re as _re
+
+    if not b64_data or not b64_data.startswith("data:"):
+        return ""
+    # Extraire le MIME type et les données
+    match = _re.match(r"data:(image/\w+|video/\w+);base64,(.+)", b64_data, _re.DOTALL)
+    if not match:
+        return ""
+    mime_type = match.group(1)
+    raw_b64 = match.group(2).strip()
+    # Déterminer l'extension
+    ext_map = {
+        "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png",
+        "image/gif": "gif", "image/webp": "webp",
+        "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
+    }
+    ext = ext_map.get(mime_type, "bin")
+    try:
+        file_bytes = _b64.b64decode(raw_b64)
+    except Exception:
+        return ""
+    # Créer le répertoire si nécessaire
+    save_dir = os.path.join(settings.MEDIA_ROOT, "providers", subfolder)
+    os.makedirs(save_dir, exist_ok=True)
+    filename = f"{prefix}_{uuid.uuid4().hex[:12]}.{ext}"
+    filepath = os.path.join(save_dir, filename)
+    with open(filepath, "wb") as f:
+        f.write(file_bytes)
+    return f"{settings.MEDIA_URL}providers/{subfolder}/{filename}"
 
 
 def _services_from_db(request=None):
@@ -526,7 +573,7 @@ def _services_from_db(request=None):
                 "verified": True,
                 "color": colors[p.id % len(colors)],
                 "provider_id": int(p.id),
-                "image_url": _safe_photo_url(p.photo_portrait_url or ""),
+                "image_url": _safe_photo_url(p.photo_portrait_url or "", request),
                 "disponible": p.disponible,
                 "category_nom": (p.category.nom if p.category_id else "") or "",
                 "category_icone_slug": (p.category.icone_slug or "").strip()
@@ -618,6 +665,7 @@ def _actualite_to_json(request, a: Actualite, summary: bool = False) -> dict:
         "categorie_tag": a.categorie_tag,
         "icone_key": a.icone_key or "",
         "date_publication": a.date_publication.isoformat(),
+        "cible": a.cible,
     }
     return out
 
@@ -1489,9 +1537,9 @@ def api_client_home(request):
     ]
     actualites = [
         _actualite_to_json(request, a, summary=True)
-        for a in Actualite.objects.filter(publie=True).order_by("-date_publication")[
-            :12
-        ]
+        for a in Actualite.objects.filter(
+            publie=True, cible__in=["client", "tous"]
+        ).order_by("-date_publication")[:12]
     ]
     payment_methods = [
         {"id": mid, "label": label, "logo_url": _static_absolute(request, path)}
@@ -1509,7 +1557,7 @@ def api_client_home(request):
                 "nom": p.nom,
                 "specialite": p.specialite,
                 "ville": p.ville,
-                "image_url": _safe_photo_url(p.photo_portrait_url or ""),
+                "image_url": _safe_photo_url(p.photo_portrait_url or "", request),
                 "category_nom": (p.category.nom if p.category_id else "") or "",
                 "category_icone_url": _category_icon_url(
                     request, p.category if p.category_id else None
@@ -1541,9 +1589,15 @@ def api_client_home(request):
 @require_api_auth(["client", "prestataire", "admin"])
 def api_client_actualites(request):
     _bootstrap_data()
+    audience = (request.GET.get("cible") or "").strip().lower()
+    qs = Actualite.objects.filter(publie=True)
+    if audience == "client":
+        qs = qs.filter(cible__in=["client", "tous"])
+    elif audience == "prestataire":
+        qs = qs.filter(cible__in=["prestataire", "tous"])
     rows = [
         _actualite_to_json(request, a, summary=True)
-        for a in Actualite.objects.filter(publie=True).order_by("-date_publication")
+        for a in qs.order_by("-date_publication")
     ]
     return JsonResponse({"items": rows})
 
@@ -1670,8 +1724,8 @@ def api_public_providers(request):
                 if p.category_id
                 else "",
                 "has_portfolio": bool(p.portfolio_photos),
-                "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or ""),
-                "image_url": _safe_photo_url(p.photo_portrait_url or ""),
+                "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or "", request),
+                "image_url": _safe_photo_url(p.photo_portrait_url or "", request),
             }
         )
 
@@ -1849,7 +1903,7 @@ def api_client_prestataires(request):
                 else "",
                 "has_portfolio": bool(p.portfolio_photos),
                 "is_certified": p.is_certified,
-                "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or ""),
+                "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or "", request),
             }
         )
     return JsonResponse({
@@ -1920,7 +1974,7 @@ def api_client_prestataire_detail(request, pk):
             "is_certified": p.is_certified,
             "latitude": p.latitude,
             "longitude": p.longitude,
-            "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or ""),
+            "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or "", request),
             "portfolio_photos": p.portfolio_photos or [],
             "category": {"id": p.category.id, "nom": p.category.nom}
             if p.category
@@ -2345,6 +2399,13 @@ def api_client_create_reservation(request):
     # Générer clé d'idempotence pour éviter double paiement
     idem_key = str(uuid.uuid4())
 
+    # Surcharge urgence +20%
+    is_urgent = bool(payload.get("is_urgent", False))
+    urgence_surcharge_pct = 0
+    if is_urgent and amount_numeric > 0:
+        urgence_surcharge_pct = 20
+        amount_numeric = round(amount_numeric * 1.20, 2)
+
     res_obj = Reservation.objects.create(
         reference=reference,
         title=title or "Demande de service",
@@ -2366,7 +2427,8 @@ def api_client_create_reservation(request):
         prix_propose=prix_propose,
         description_probleme=str(payload.get("description_probleme", "") or "")[:2000],
         disponibilites_client=str(payload.get("disponibilites_client", "") or "")[:255],
-        is_urgent=bool(payload.get("is_urgent", False)),
+        is_urgent=is_urgent,
+        urgence_surcharge_pct=urgence_surcharge_pct,
         idempotency_key=idem_key,
         appel_masque=True,  # Activer masquage par défaut
     )
@@ -2379,7 +2441,32 @@ def api_client_create_reservation(request):
             },
         )
     Notification.objects.create(title=f"Nouvelle reservation creee: {title}")
-    return JsonResponse({"ok": True, "reference": reference}, status=201)
+
+    # Notification WhatsApp urgence au prestataire
+    if is_urgent and prov and prov.user_id:
+        try:
+            from adminpanel.services.whatsapp_service import notify_user_if_opted_in, send_urgent_request
+            from django.contrib.auth.models import User as DjUser
+            prest_user = DjUser.objects.filter(pk=prov.user_id).first()
+            if prest_user:
+                notify_user_if_opted_in(
+                    prest_user,
+                    message="",
+                    template_fn=send_urgent_request,
+                    nom_prestataire=prov.nom,
+                    reference=reference,
+                    adresse=address_label or "Non précisée",
+                )
+        except Exception:
+            pass
+
+    return JsonResponse({
+        "ok": True,
+        "reference": reference,
+        "montant_final": float(amount_numeric),
+        "urgence_surcharge_pct": urgence_surcharge_pct,
+        "is_urgent": is_urgent,
+    }, status=201)
 
 
 @csrf_exempt
@@ -2428,19 +2515,40 @@ def api_prestataire_register(request):
     bio = str(payload.get("bio", "") or "")[:2000]
     phone_e164 = str(payload.get("phone_e164", "") or "")[:24]
     email = str(payload.get("email", "") or "").strip()[:254]
-    photo_portrait_url = str(payload.get("photo_portrait_url", "") or "").strip()[:500]
-    # Support base64 (data:image/...;base64,...)
+    # Photo portrait — base64 → fichier sur disque
+    photo_portrait_url = str(payload.get("photo_portrait_url", "") or "").strip()
     if not photo_portrait_url:
-        photo_portrait_b64 = payload.get("photo_portrait_b64") or ""
-        if isinstance(photo_portrait_b64, str) and photo_portrait_b64.startswith(
-            "data:"
-        ):
-            photo_portrait_url = photo_portrait_b64[:500]
+        b64 = payload.get("photo_portrait_b64") or ""
+        if isinstance(b64, str) and b64.startswith("data:"):
+            photo_portrait_url = _decode_and_save_media(b64, "portraits", "portrait")
+    # CNI — base64 → fichier sur disque
     cni_url = str(
         payload.get("cni_url", "") or payload.get("kyc_document_url", "") or ""
-    ).strip()[:500]
-    cni_recto_url = str(payload.get("cni_recto_url", "") or "").strip()[:500]
-    cni_verso_url = str(payload.get("cni_verso_url", "") or "").strip()[:500]
+    ).strip()
+    if not cni_url:
+        b64 = payload.get("cni_b64") or ""
+        if isinstance(b64, str) and b64.startswith("data:"):
+            cni_url = _decode_and_save_media(b64, "cni", "cni")
+    cni_recto_url = str(payload.get("cni_recto_url", "") or "").strip()
+    if not cni_recto_url:
+        b64 = payload.get("cni_recto_b64") or ""
+        if isinstance(b64, str) and b64.startswith("data:"):
+            cni_recto_url = _decode_and_save_media(b64, "cni", "cni_recto")
+    cni_verso_url = str(payload.get("cni_verso_url", "") or "").strip()
+    if not cni_verso_url:
+        b64 = payload.get("cni_verso_b64") or ""
+        if isinstance(b64, str) and b64.startswith("data:"):
+            cni_verso_url = _decode_and_save_media(b64, "cni", "cni_verso")
+    selfie_url = str(payload.get("selfie_url", "") or "").strip()
+    if not selfie_url:
+        b64 = payload.get("selfie_b64") or ""
+        if isinstance(b64, str) and b64.startswith("data:"):
+            selfie_url = _decode_and_save_media(b64, "selfies", "selfie")
+    video_intro_url = str(payload.get("video_intro_url", "") or "").strip()
+    if not video_intro_url:
+        b64 = payload.get("video_intro_b64") or ""
+        if isinstance(b64, str) and b64.startswith("data:"):
+            video_intro_url = _decode_and_save_media(b64, "videos", "video_intro")
     # Si recto fourni, on l'utilise aussi comme cni_url pour rétrocompatibilité
     if cni_recto_url and not cni_url:
         cni_url = cni_recto_url
@@ -2473,6 +2581,10 @@ def api_prestataire_register(request):
                     provider.cni_recto_url = cni_recto_url
                 if cni_verso_url:
                     provider.cni_verso_url = cni_verso_url
+                if selfie_url:
+                    provider.selfie_url = selfie_url
+                if video_intro_url:
+                    provider.video_intro_url = video_intro_url
             if provider.statut == Provider.Status.REFUSED:
                 provider.statut = Provider.Status.PENDING
                 provider.refusal_reason = ""
@@ -2490,6 +2602,8 @@ def api_prestataire_register(request):
                 cni_url=cni_url,
                 cni_recto_url=cni_recto_url,
                 cni_verso_url=cni_verso_url,
+                selfie_url=selfie_url,
+                video_intro_url=video_intro_url,
                 category=cat_obj,
             )
         prof = UserProfile.objects.filter(user_id=user_id).first()
@@ -2508,15 +2622,93 @@ def api_prestataire_register(request):
             cni_url=cni_url,
             cni_recto_url=cni_recto_url,
             cni_verso_url=cni_verso_url,
+            selfie_url=selfie_url,
+            video_intro_url=video_intro_url,
             category=cat_obj,
         )
 
-    Notification.objects.create(title=f"Nouveau prestataire en attente: {provider.nom}")
+    # ── Moteur KYC automatique ────────────────────────────────────────────────
+    # On utilise les b64 bruts du payload (avant conversion en fichier disque)
+    # pour alimenter le moteur sans re-lire le fichier sauvegardé.
+    _cni_recto_b64  = payload.get("cni_recto_b64") or payload.get("cni_b64") or ""
+    _cni_verso_b64  = payload.get("cni_verso_b64") or ""
+    _selfie_b64     = payload.get("selfie_b64") or ""
+    _cni_number     = str(payload.get("cni_number") or "").strip()
+
+    if _cni_recto_b64 or _selfie_b64:
+        try:
+            import hashlib as _hashlib
+            import base64 as _b64mod
+
+            def _sha256_b64(s: str) -> str:
+                raw = s.split(",", 1)[-1].strip()
+                try:
+                    return _hashlib.sha256(_b64mod.b64decode(raw)).hexdigest()
+                except Exception:
+                    return _hashlib.sha256(s.encode()).hexdigest()
+
+            from .kyc_engine import run_kyc_verification
+            verification = run_kyc_verification(
+                cni_number=_cni_number or "NON_FOURNI",
+                cni_recto_b64=_cni_recto_b64,
+                cni_verso_b64=_cni_verso_b64,
+                selfie_b64=_selfie_b64,
+                hash_recto=_sha256_b64(_cni_recto_b64) if _cni_recto_b64 else "",
+                hash_verso=_sha256_b64(_cni_verso_b64) if _cni_verso_b64 else "",
+                hash_selfie=_sha256_b64(_selfie_b64) if _selfie_b64 else "",
+            )
+            provider.auto_check_score  = verification.score
+            provider.auto_check_result = verification.to_dict()
+            provider.auto_check_at     = timezone.now()
+
+            if verification.auto_decision == "rejected":
+                blocking_reasons = [
+                    c.detail for c in verification.checks
+                    if c.is_blocking and not c.passed
+                ]
+                provider.statut = Provider.Status.REFUSED
+                provider.refusal_reason = (
+                    " | ".join(blocking_reasons)
+                    or "Vérification automatique échouée (score insuffisant)."
+                )
+                provider.save(update_fields=[
+                    "auto_check_score", "auto_check_result", "auto_check_at",
+                    "statut", "refusal_reason",
+                ])
+                # Notifier le prestataire du rejet automatique
+                if user_id:
+                    from .push_dispatch import _schedule as _push_schedule
+                    _push_schedule(
+                        [user_id],
+                        "Dossier KYC refusé",
+                        f"Votre dossier n'a pas passé la vérification automatique. "
+                        f"Motif : {provider.refusal_reason[:200]}",
+                    )
+            else:
+                provider.save(update_fields=[
+                    "auto_check_score", "auto_check_result", "auto_check_at",
+                ])
+                score_label = f"score auto : {verification.score}/100"
+                Notification.objects.create(
+                    title=f"Nouveau prestataire en attente: {provider.nom} ({score_label})"
+                )
+        except Exception as _kyc_err:
+            import logging as _log
+            _log.getLogger(__name__).error(
+                f"KYC engine error for provider {provider.id}: {_kyc_err}"
+            )
+            Notification.objects.create(
+                title=f"Nouveau prestataire en attente: {provider.nom}"
+            )
+    else:
+        Notification.objects.create(title=f"Nouveau prestataire en attente: {provider.nom}")
+
     return JsonResponse(
         {
             "ok": True,
             "provider_id": int(provider.id),
             "status": provider.statut,
+            "kyc_score": provider.auto_check_score,
             "linked_user": bool(user_id),
             "email_hint": email[:80] if email else "",
         },
@@ -2939,7 +3131,7 @@ def api_prestataire_me(request):
                 "statut": prov.statut,
                 "refusal_reason": prov.refusal_reason,
                 "photo_url": _safe_photo_url(
-                    prov.photo_portrait_url or prov.cni_url or ""
+                    prov.photo_portrait_url or prov.cni_url or "", request
                 ),
                 "bio": prov.bio,
                 "average_rating": float(prov.average_rating or 0),
@@ -3460,18 +3652,51 @@ def api_admin_validate_cash(request, reference):
         res.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
         res.save(update_fields=["cash_admin_validated_at", "cash_flow_status"])
         ref_pay = f"PAY-CASH-{res.reference}"
-        if not Payment.objects.filter(reference=ref_pay).exists():
-            Payment.objects.create(
-                reference=ref_pay,
-                client=res.client,
-                prestataire=res.prestataire,
-                montant=res.montant,
-                commission="0",
-                etat=Payment.State.COMPLETE,
-                reservation=res,
-                type_paiement=Payment.TypePaiement.ESPECES,
-                valide_par_admin=True,
-            )
+        payment, created = Payment.objects.get_or_create(
+            reference=ref_pay,
+            defaults={
+                "client": res.client,
+                "prestataire": res.prestataire,
+                "montant": res.montant,
+                "commission": res.commission or 0,
+                "etat": Payment.State.COMPLETE,
+                "reservation": res,
+                "type_paiement": Payment.TypePaiement.ESPECES,
+                "valide_par_admin": True,
+            },
+        )
+        if not created:
+            payment.etat = Payment.State.COMPLETE
+            payment.valide_par_admin = True
+            payment.save(update_fields=["etat", "valide_par_admin"])
+
+        # Créditer le wallet prestataire (net après commission)
+        try:
+            from adminpanel.services.wallet_service import WalletService
+            wallet_result = WalletService.credit_provider(payment)
+            logger.info("WalletService cash credit: %s", wallet_result)
+        except Exception as exc:
+            logger.warning("Erreur crédit wallet (cash) pour %s: %s", reference, exc)
+
+        # WhatsApp prestataire
+        try:
+            from adminpanel.services.whatsapp_service import notify_user_if_opted_in, send_payment_received
+            if res.assigned_provider and res.assigned_provider.user_id:
+                from django.contrib.auth.models import User as DjUser
+                prest_user = DjUser.objects.filter(pk=res.assigned_provider.user_id).first()
+                if prest_user:
+                    net = float(payment.montant) * 0.85
+                    notify_user_if_opted_in(
+                        prest_user,
+                        message="",
+                        template_fn=send_payment_received,
+                        nom_prestataire=res.assigned_provider.nom,
+                        reference=res.reference,
+                        montant_net=net,
+                    )
+        except Exception:
+            pass
+
         Notification.objects.create(title=f"Paiement especes valide admin: {reference}")
         return JsonResponse({"ok": True, "cash_flow_status": res.cash_flow_status})
     if action == "refuse":

@@ -46,8 +46,10 @@ import 'features/providers/provider_profile_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/payment/payment_screen.dart';
 import 'features/fidelite/fidelite_screen.dart';
+import 'package:go_router/go_router.dart';
 import 'theme/app_theme.dart';
 import 'router/babifix_client_router.dart';
+import 'splash_screen.dart';
 
 /// Aligne sur [adminpanel.views._normalize_category_key] : espaces → underscores, max 24.
 String babifixCategoryFilterKey(String nom) {
@@ -155,43 +157,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
   @override
   Widget build(BuildContext context) {
     if (!_prefsLoaded) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: _themeForMode(paletteMode),
-        home: Scaffold(
-          backgroundColor: const Color(0xFF0D1F3C),
-          body: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4CC9F0),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: const Icon(
-                    Icons.home_repair_service,
-                    size: 64,
-                    color: Color(0xFF0D1F3C),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'BABIFIX',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      return const BabifixSplashScreen();
     }
     final router = createBabifixClientRouter(
       hasSeenOnboarding: hasSeenOnboarding,
@@ -3670,12 +3636,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         dateLabel: '${item['date_publication'] ?? ''}'.split('T').first,
       );
       if (!mounted) return;
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (ctx) =>
-              ActualiteDetailScreen(item: full, isLight: _isLight),
-        ),
-      );
+      context.go('/actualite/${full.id}', extra: full);
     } catch (_) {}
   }
 
@@ -4235,11 +4196,31 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
   }
 
-  /// Charge les prestataires publics sans authentification
+  /// Charge les prestataires publics sans authentification.
+  /// Si la permission GPS est déjà accordée, filtre par position en temps réel.
   Future<void> _loadPublicProviders() async {
     try {
       final base = babifixApiBaseUrl();
-      final url = '$base/api/public/providers/';
+      String url = '$base/api/public/providers/';
+
+      // Ajouter les coordonnées GPS si la permission est déjà accordée
+      try {
+        final perm = await Permission.locationWhenInUse.status;
+        if (perm.isGranted || perm.isLimited) {
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+            ),
+          );
+          final lat = pos.latitude.toStringAsFixed(6);
+          final lon = pos.longitude.toStringAsFixed(6);
+          url = '$base/api/public/providers/?lat=$lat&lon=$lon&radius=15';
+          debugPrint('BABIFIX: Filtering providers near ($lat, $lon) radius=15km');
+        }
+      } catch (_) {
+        // GPS non disponible — on charge sans filtre géo
+      }
+
       debugPrint('BABIFIX: Fetching providers from: $url');
       final pres = await http.get(Uri.parse(url));
       if (pres.statusCode == 200) {
@@ -4785,12 +4766,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
         if (addressLabel.isNotEmpty) 'address_label': addressLabel,
         if (photoAttachments.isNotEmpty) 'photo_attachments': photoAttachments,
       };
-      final res = await http.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-        },
+      final res = await BabifixUserStore.authPost(
+        uri.toString(),
         body: jsonEncode(body),
       );
       if (res.statusCode == 201) {

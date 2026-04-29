@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../services/zego_call_service.dart';
 import 'forgot_password_screen.dart';
 
@@ -21,6 +22,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
+  final _formKey = GlobalKey<FormState>();
   final _user = TextEditingController();
   final _pass = TextEditingController();
   bool _loading = false;
@@ -53,12 +55,9 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     final email = _user.text.trim();
     final pass = _pass.text;
-    if (email.isEmpty || pass.isEmpty) {
-      _snack('Veuillez remplir tous les champs.');
-      return;
-    }
     setState(() => _loading = true);
     try {
       final res = await http.post(
@@ -282,7 +281,9 @@ class _LoginScreenState extends State<LoginScreen>
                                     width: 1.5,
                                   ),
                                 ),
-                                child: Column(
+                                child: Form(
+                                  key: _formKey,
+                                  child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const Text(
@@ -313,6 +314,10 @@ class _LoginScreenState extends State<LoginScreen>
                                       icon: Icons.person_outline_rounded,
                                       inputType: TextInputType.emailAddress,
                                       textInputAction: TextInputAction.next,
+                                      validator: (v) {
+                                        if (v == null || v.trim().isEmpty) return 'Email requis';
+                                        return null;
+                                      },
                                     ),
                                     const SizedBox(height: 14),
 
@@ -326,6 +331,10 @@ class _LoginScreenState extends State<LoginScreen>
                                           setState(() => _obscure = !_obscure),
                                       textInputAction: TextInputAction.done,
                                       onSubmitted: (_) => _submit(),
+                                      validator: (v) {
+                                        if (v == null || v.isEmpty) return 'Mot de passe requis';
+                                        return null;
+                                      },
                                     ),
 
                                     // Mot de passe oublié
@@ -334,9 +343,8 @@ class _LoginScreenState extends State<LoginScreen>
                                       child: TextButton(
                                         onPressed: () =>
                                             Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const ForgotPasswordScreen(),
+                                              babifixRoute(
+                                                (_) => const ForgotPasswordScreen(),
                                               ),
                                             ),
                                         style: TextButton.styleFrom(
@@ -368,6 +376,7 @@ class _LoginScreenState extends State<LoginScreen>
                                       ),
                                     ),
                                   ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -430,6 +439,7 @@ class _PremiumField extends StatelessWidget {
     this.inputType,
     this.textInputAction,
     this.onSubmitted,
+    this.validator,
   });
 
   final TextEditingController controller;
@@ -440,6 +450,7 @@ class _PremiumField extends StatelessWidget {
   final TextInputType? inputType;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
+  final String? Function(String?)? validator;
 
   @override
   Widget build(BuildContext context) {
@@ -449,12 +460,14 @@ class _PremiumField extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
-      child: TextField(
+      child: TextFormField(
         controller: controller,
         obscureText: obscure,
         keyboardType: inputType,
         textInputAction: textInputAction,
-        onSubmitted: onSubmitted,
+        onFieldSubmitted: onSubmitted,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        validator: validator,
         style: const TextStyle(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           labelText: label,
@@ -465,6 +478,10 @@ class _PremiumField extends StatelessWidget {
           floatingLabelStyle: const TextStyle(
             color: Color(0xFF4CC9F0),
             fontSize: 12,
+          ),
+          errorStyle: const TextStyle(
+            color: Color(0xFFFF8A80),
+            fontSize: 11,
           ),
           prefixIcon: Icon(
             icon,

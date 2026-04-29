@@ -33,7 +33,7 @@ skinparam arrow {
   Color #64B5F6
 }
 
-title **BABIFIX** - Diagramme de Classes - Modèle de Domaine (Nouveau Flux)
+title **BABIFIX** - Diagramme de Classes - Modèle de Domaine
 
 ' ==================== CLASSE UTILISATEUR (ABSTRACT) ====================
 abstract class Utilisateur {
@@ -84,9 +84,10 @@ class Prestataire {
   - prestataireId: String
   - specialite: String
   - description: String
-  - cniUrl: String
   - statutValidation: StatutValidation
-  - dateValidation: DateTime
+  - motifRefus: String
+  - contratAccepteAt: DateTime
+  - contratVersion: String
   - tarifHoraire: double
   - disponible: Boolean
   - noteMoyenne: double
@@ -95,15 +96,11 @@ class Prestataire {
   --
   + getSpecialite(): String
   + setSpecialite(spec: String): void
-  + getDescription(): String
-  + getCniUrl(): String
   + getStatutValidation(): StatutValidation
   + setStatutValidation(statut: StatutValidation): void
   + getTarifHoraire(): double
-  + setTarifHoraire(tarif: double): void
   + isDisponible(): Boolean
   + getNoteMoyenne(): double
-  + creerDevis(reservation: Reservation): Devis
   + accepterReservation(reservation: Reservation): void
   + refuserReservation(reservation: Reservation): void
   + confirmerPaiementEspeces(reservation: Reservation): void
@@ -132,14 +129,18 @@ enum StatutValidation {
 }
 
 enum StatutReservation {
-  DEMANDE_ENVOYEE
-  DEVIS_EN_COURS
-  DEVIS_ENVOYE
-  DEVIS_ACCEPTE
-  INTERVENTION_EN_COURS
+  EN_ATTENTE
+  CONFIRMEE
+  EN_COURS
   EN_ATTENTE_CLIENT
   TERMINEE
   ANNULEE
+  ' --- Evolution prevue : flux devis ---
+  ' DEMANDE_ENVOYEE
+  ' DEVIS_EN_COURS
+  ' DEVIS_ENVOYE
+  ' DEVIS_ACCEPTE
+  ' INTERVENTION_EN_COURS
 }
 
 enum StatutPaiement {
@@ -169,6 +170,51 @@ enum TypeLigneDevis {
   MAIN_OEUVRE
   DEPLACEMENT
   AUTRE
+}
+
+' ==================== KYC ====================
+enum StatutKYC {
+  NOT_SUBMITTED
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+class KYCSubmission {
+  - id: String
+  - cniNumber: String
+  - cniExpiry: Date
+  - hashRecto: String
+  - hashVerso: String
+  - hashSelfie: String
+  - autoCheckScore: int
+  - autoCheckResult: JSON
+  - autoCheckAt: DateTime
+  - status: StatutKYC
+  - rejectionReason: String
+  - reviewNotes: String
+  - submittedAt: DateTime
+  - reviewedAt: DateTime
+  --
+  + computeHashes(): void
+  + isComplete(): Boolean
+  + cniIsExpired(): Boolean
+}
+
+note bottom of KYCSubmission
+  Images CNI stockees en base64 BDD — jamais exposees par URL publique
+  Score auto : Pillow (qualite) + OpenCV (visages) + Smile Identity (BDD gov CI)
+  Rejet auto si score < 40
+end note
+
+' ==================== CONVERSATION ====================
+class Conversation {
+  - id: String
+  - updatedAt: DateTime
+  --
+  + getMessages(): List<Message>
+  + getTotalNonLus(): int
 }
 
 ' ==================== AUTRES CLASSES ====================
@@ -341,9 +387,21 @@ Utilisateur <|-- Admin
 
 Client "1" -- "*" Reservation : effectue
 Prestataire "1" -- "*" Reservation : reçoit
+Reservation "1" -- "0..1" Conversation : génère
+Conversation "1" -- "*" Message : contient
+
+Prestataire "1" -- "0..1" KYCSubmission : soumet
+KYCSubmission ..> StatutKYC
+
+' Devis et LigneDevis : evolution prevue (pas encore implementee)
 Prestataire "1" -- "*" Devis : crée
 Reservation "1" -- "0..1" Devis : génère
 Devis "1" -- "*" LigneDevis : contient
+
+note top of Devis
+  EVOLUTION PREVUE
+  Non implementee dans la version courante
+end note
 
 Prestataire ..> StatutValidation
 Prestataire "1" -- "*" Rating : reçoit

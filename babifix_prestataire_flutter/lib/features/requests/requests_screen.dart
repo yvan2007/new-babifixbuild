@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import 'create_devis_screen.dart';
 import 'rate_client_screen.dart';
@@ -545,8 +546,8 @@ const SizedBox(height: 8),
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => CreateDevisScreen(
+                    babifixRoute(
+                      (_) => CreateDevisScreen(
                         reservationReference: it.reference,
                         reservationDetails: {
                           'client': it.client,
@@ -638,8 +639,8 @@ const SizedBox(height: 8),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => RateClientScreen(
+                babifixRoute(
+                  (_) => RateClientScreen(
                     reservationRef: it.reference,
                     clientName: it.client,
                   ),
@@ -851,8 +852,8 @@ const SizedBox(height: 8),
 
   void _navigateToWaitingPayment(_RequestItem item) {
     Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => WaitingPaymentScreen(
+      babifixRoute(
+        (_) => WaitingPaymentScreen(
           reservationReference: item.reference,
           onBack: () {
             Navigator.pop(context);
@@ -873,8 +874,8 @@ const SizedBox(height: 8),
 
   void _showWaitingPaymentDialog(_RequestItem item) {
     Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => WaitingPaymentScreen(
+      babifixRoute(
+        (_) => WaitingPaymentScreen(
           reservationReference: item.reference,
           onBack: () => Navigator.pop(context),
           onPaymentReceived: () {

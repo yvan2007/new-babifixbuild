@@ -142,8 +142,10 @@ class ActualiteForm(forms.ModelForm):
             "publie",
             "categorie_tag",
             "icone_key",
+            "cible",
         ]
         widgets = {
             "description": forms.Textarea(attrs={"rows": 6}),
             "titre": forms.TextInput(attrs={"placeholder": "Titre visible dans l’app"}),
+            "cible": forms.Select(attrs={"class": "form-select"}),
         }

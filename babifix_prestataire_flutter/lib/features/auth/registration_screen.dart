@@ -1295,21 +1295,33 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       'email': email,
     });
 
-    // Envoi photo en base64 si exists
-    if (_profilePhotoPath != null && _profilePhotoPath!.isNotEmpty) {
-      var photoData = jsonDecode(body) as Map<String, dynamic>;
-      final ext = _profilePhotoPath!.split('.').last.toLowerCase();
-      final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+    // Encode et attache toutes les images en base64
+    Future<String?> _encodeImage(String? path) async {
+      if (path == null || path.isEmpty || path == 'locked') return null;
       try {
-        final bytes = await File(_profilePhotoPath!).readAsBytes();
-        final b64 = base64Encode(bytes);
-        photoData['photo_portrait_b64'] = 'data:$mime;base64,$b64';
-        photoData.remove('photo_portrait_url');
-      } catch (e) {
-        debugPrint('Could not read photo: $e');
+        final bytes = await File(path).readAsBytes();
+        final ext = path.split('.').last.toLowerCase();
+        final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+        return 'data:$mime;base64,${base64Encode(bytes)}';
+      } catch (_) {
+        return null;
       }
-      body = jsonEncode(photoData);
     }
+
+    final photoMap = jsonDecode(body) as Map<String, dynamic>;
+
+    final portraitB64 = await _encodeImage(_profilePhotoPath);
+    if (portraitB64 != null) {
+      photoMap['photo_portrait_b64'] = portraitB64;
+      photoMap.remove('photo_portrait_url');
+    }
+    final cniRectoB64 = await _encodeImage(_cniRectoPath);
+    if (cniRectoB64 != null) photoMap['cni_recto_b64'] = cniRectoB64;
+
+    final cniVersoB64 = await _encodeImage(_cniVersoPath);
+    if (cniVersoB64 != null) photoMap['cni_verso_b64'] = cniVersoB64;
+
+    body = jsonEncode(photoMap);
 
     try {
       Future<String?> obtainJwt() async {

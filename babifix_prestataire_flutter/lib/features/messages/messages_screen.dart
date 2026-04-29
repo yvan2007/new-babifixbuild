@@ -8,6 +8,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import 'chat_room_screen.dart';
 
 /// Liste des conversations prestataire — design premium avec badges, timestamps et recherche.
@@ -200,8 +201,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 onTap: () async {
                                   final name = '${_filtered[i]['client_username'] ?? 'Client'}';
                                   final cid = jsonInt(_filtered[i]['client_id']);
-                                  await Navigator.of(context).push(MaterialPageRoute<void>(
-                                    builder: (_) => PrestChatRoomPage(
+                                  await Navigator.of(context).push(babifixRoute(
+                                    (_) => PrestChatRoomPage(
                                       name: name,
                                       clientUserId: cid,
                                       authToken: authToken,

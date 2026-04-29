@@ -575,6 +575,28 @@
                         </div>
                       </a>
                       {% endif %}
+                      {% if p.selfie_url %}
+                      <a href="{{ p.selfie_url }}" target="_blank" rel="noopener" class="dossier-doc-card dossier-doc-card--selfie">
+                        <img src="{{ p.selfie_url }}" alt="Selfie avec CNI" class="dossier-doc-img">
+                        <div class="dossier-doc-label" style="background:rgba(16,185,129,0.12);color:#065F46">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                          Selfie + CNI ✓
+                          <span class="dossier-doc-open">↗</span>
+                        </div>
+                      </a>
+                      {% endif %}
+                      {% if p.video_intro_url %}
+                      <a href="{{ p.video_intro_url }}" target="_blank" rel="noopener" class="dossier-doc-card dossier-doc-card--video" style="border:2px solid #F59E0B">
+                        <div style="background:#FEF3C7;height:80px;display:flex;align-items:center;justify-content:center;border-radius:8px 8px 0 0">
+                          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        </div>
+                        <div class="dossier-doc-label" style="background:rgba(245,158,11,0.12);color:#92400E">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                          Vidéo présentation ▶
+                          <span class="dossier-doc-open">↗</span>
+                        </div>
+                      </a>
+                      {% endif %}
                       {% if not p.photo_portrait_url and not p.cni_url and not p.cni_recto_url %}
                       <div class="dossier-no-docs">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="14 2 14 9 21 9"/></svg>
@@ -584,6 +606,57 @@
                       {% endif %}
                     </div>
                   </div>
+
+                  <!-- ══ SCORE KYC AUTOMATIQUE ══ -->
+                  {% if p.auto_check_at %}
+                  <div class="dossier-section">
+                    <h4 class="dossier-section-title">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                      Vérification KYC automatique
+                    </h4>
+                    <div class="kyc-score-block">
+                      <div class="kyc-score-header">
+                        <span class="kyc-score-label">Score global</span>
+                        <span class="kyc-score-badge {% if p.auto_check_score >= 80 %}kyc-score-high{% elif p.auto_check_score >= 60 %}kyc-score-med{% elif p.auto_check_score >= 40 %}kyc-score-low{% else %}kyc-score-fail{% endif %}">
+                          {{ p.auto_check_score }}/100
+                        </span>
+                        <span class="kyc-score-conf">
+                          {% if p.auto_check_score >= 80 %}Haute confiance
+                          {% elif p.auto_check_score >= 60 %}Confiance moyenne
+                          {% elif p.auto_check_score >= 40 %}Faible confiance
+                          {% else %}Rejet automatique
+                          {% endif %}
+                        </span>
+                        <span class="kyc-score-date">Analysé le {{ p.auto_check_at|date:"d/m/Y à H:i" }}</span>
+                      </div>
+                      {% if p.auto_check_result.checks %}
+                      <table class="kyc-checks-table">
+                        <thead><tr><th>Contrôle</th><th>Résultat</th><th>Détail</th></tr></thead>
+                        <tbody>
+                          {% for chk in p.auto_check_result.checks %}
+                          <tr class="{% if chk.passed %}check-pass{% else %}check-fail{% endif %}">
+                            <td>{{ chk.label }}</td>
+                            <td>{% if chk.passed %}✅{% else %}{% if chk.blocking %}🚫{% else %}⚠️{% endif %}{% endif %}</td>
+                            <td style="font-size:12px;opacity:.8;">{{ chk.detail }}</td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                      {% endif %}
+                      {% if p.auto_check_result.face_detected_selfie is not None %}
+                      <div class="kyc-face-match" style="margin-top:10px;font-size:13px;">
+                        <span>Visage selfie : {% if p.auto_check_result.face_detected_selfie %}✅ détecté{% else %}❌ non détecté{% endif %}</span>
+                        &nbsp;|&nbsp;
+                        <span>Visage CNI : {% if p.auto_check_result.face_detected_cni %}✅ détecté{% else %}❌ non détecté{% endif %}</span>
+                        {% if p.auto_check_result.faces_match is not None %}
+                        &nbsp;|&nbsp;
+                        <span>Correspondance : {{ p.auto_check_result.faces_match|floatformat:2 }}</span>
+                        {% endif %}
+                      </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  {% endif %}
 
                   <!-- ══ SECTION INFOS ══ -->
                   <div class="dossier-section">
@@ -650,6 +723,31 @@
                       <div class="dossier-info-item">
                         <span class="dossier-info-label">Date d'inscription</span>
                         <span class="dossier-info-value">{{ p.user.date_joined|date:"d/m/Y à H:i" }}</span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">Contrat BABIFIX</span>
+                        <span class="dossier-info-value">
+                          {% if p.contrat_accepte_at %}
+                          <span style="color:#065F46;font-weight:600;">✓ Signé v{{ p.contrat_version|default:"1.0" }}</span>
+                          <span style="opacity:.6;font-size:11px;display:block;">{{ p.contrat_accepte_at|date:"d/m/Y à H:i" }}</span>
+                          {% else %}
+                          <span style="color:#DC2626;font-weight:600;">✗ Non signé</span>
+                          {% endif %}
+                        </span>
+                      </div>
+                      <div class="dossier-info-item">
+                        <span class="dossier-info-label">KYC complet</span>
+                        <span class="dossier-info-value">
+                          {% if p.selfie_url and p.video_intro_url %}
+                          <span style="color:#065F46;font-weight:600;">✓ Selfie + Vidéo</span>
+                          {% elif p.selfie_url %}
+                          <span style="color:#D97706;font-weight:600;">⚠ Selfie seul (vidéo manquante)</span>
+                          {% elif p.video_intro_url %}
+                          <span style="color:#D97706;font-weight:600;">⚠ Vidéo seule (selfie manquant)</span>
+                          {% else %}
+                          <span style="color:#DC2626;font-weight:600;">✗ Aucun KYC avancé</span>
+                          {% endif %}
+                        </span>
                       </div>
                       <div class="dossier-info-item">
                         <span class="dossier-info-label">Statut dossier</span>
@@ -1116,13 +1214,18 @@
         <h3>Liste des actualités</h3>
         <table class="data-table">
           <thead>
-            <tr><th>Titre</th><th>Tag</th><th>Statut</th><th>Date</th><th></th></tr>
+            <tr><th>Titre</th><th>Tag</th><th>Cible</th><th>Statut</th><th>Date</th><th></th></tr>
           </thead>
           <tbody>
             {% for a in actualites %}
             <tr>
               <td>{{ a.titre }}</td>
               <td>{{ a.get_categorie_tag_display }}</td>
+              <td>
+                {% if a.cible == 'client' %}<span class="pill" style="background:#DBEAFE;color:#1D4ED8;font-weight:600">📱 Client</span>
+                {% elif a.cible == 'prestataire' %}<span class="pill" style="background:#D1FAE5;color:#065F46;font-weight:600">🔧 Prestataire</span>
+                {% else %}<span class="pill" style="background:#F1F5F9;color:#475569">👥 Tous</span>{% endif %}
+              </td>
               <td>{% if a.publie %}<span class="pill pill-ok">Publié</span>{% else %}<span class="pill">Brouillon</span>{% endif %}</td>
               <td>{{ a.date_publication|date:"d/m/Y H:i" }}</td>
               <td class="cell-actions">
@@ -1136,7 +1239,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5">Aucune actualité — la liste commence vide.</td></tr>
+            <tr><td colspan="6">Aucune actualité — la liste commence vide.</td></tr>
             {% endfor %}
           </tbody>
         </table>

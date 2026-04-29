@@ -90,6 +90,19 @@ def auto_confirm_interventions():
     return {"confirmed": count}
 
 
+@shared_task(name="adminpanel.tasks.expire_premium_subscriptions")
+def expire_premium_subscriptions():
+    """Désactive les abonnements premium expirés (toutes les heures à H:15)."""
+    try:
+        from adminpanel.services.provider_subscription_service import ProviderSubscriptionService
+        count = ProviderSubscriptionService.check_and_update_expired()
+        logger.info("expire_premium_subscriptions: %d abonnement(s) désactivé(s)", count)
+        return {"expired": count}
+    except Exception as exc:
+        logger.error("expire_premium_subscriptions erreur: %s", exc)
+        return {"error": str(exc)}
+
+
 @shared_task(name="adminpanel.tasks.expire_stale_disputes")
 def expire_stale_disputes():
     """

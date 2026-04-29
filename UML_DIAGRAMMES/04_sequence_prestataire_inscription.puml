@@ -61,8 +61,13 @@ App -> API : POST /api/auth/register\n{email, password, role: "prestataire"}
 API -> DB : CREATE USER + USERPROFILE
 API --> App : {access: JWT..., refresh: JWT...}
 
-' Upload CNI en multipart avec le meme POST
-App -> DB : Store uploaded files in MEDIA_ROOT\n(cni_recto, cni_verso, photo)
+' Soumission KYC separee (base64 en BDD — pas de stockage fichier)
+note over App,DB
+  Les images CNI sont envoyees en base64 via /api/prestataire/kyc/submit/
+  Stockage direct en BDD (champs TextField base64) — aucun fichier MEDIA_ROOT
+  Hash SHA-256 calcule et stocke pour chaque image
+  Moteur de verification automatique (Pillow + OpenCV) score 0-100
+end note
 
 App -> API : POST /api/prestataire/register\n(nom, specialite, ville, tarif)
 API -> DB : INSERT INTO provider (statut: EN_ATTENTE)
@@ -83,16 +88,17 @@ AdminPanel -> Admin : Login form
 Admin -> AdminPanel : POST /login/ + CSRF token
 AdminPanel --> AdminPanel : Session auth
 
-Admin -> AdminPanel : Consulter liste prestataires PENDING
-AdminPanel -> API : GET /api/admin/prestataires/?statut=EN_ATTENTE
+Admin -> AdminPanel : Consulter liste prestataires en attente
+AdminPanel -> API : GET / (dashboard — section prestataires)
 API -> DB : SELECT * FROM provider WHERE statut='EN_ATTENTE'
 DB --> API : List<Prestataire>
 API --> AdminPanel : List<Prestataire>
 AdminPanel --> Admin : Afficher liste avec CNI, infos
 
 alt Admin valide
-    Admin -> AdminPanel : Cliquer "Valider" + Verifier CNI
-    AdminPanel -> API : POST /api/admin/validate_provider/\n{provider_id, action: accept}
+    Admin -> AdminPanel : Consulter panneau KYC (score auto, images protegees, checks)
+    Admin -> AdminPanel : Cliquer "Approuver KYC" ou "Valider prestataire"
+    AdminPanel -> API : POST /admin/kyc/{provider_id}/review/ {kyc_action: approve}
     API -> DB : UPDATE provider SET statut=VALIDE, is_approved=True
     API -> FCM : Push "Felicitations ! Vous etes valide. Connectez-vous."
     AdminPanel --> Admin : "Prestataire valide"
@@ -105,8 +111,8 @@ alt Admin valide
     API --> App : Acces complet BABIFIX Pro
 
 else Admin refuse
-    Admin -> AdminPanel : Cliquer "Refuser" + motif
-    AdminPanel -> API : POST /api/admin/validate_provider/\n{provider_id, action: refuse, motif: ...}
+    Admin -> AdminPanel : Cliquer "Rejeter KYC" + choisir motif
+    AdminPanel -> API : POST /admin/kyc/{provider_id}/review/ {kyc_action: reject, reason: ...}
     API -> DB : UPDATE provider SET statut=REFUSE, refusal_reason=...
     API -> FCM : "Dossier refuse - Motif: ..."
     AdminPanel --> Admin : "Prestataire refuse"

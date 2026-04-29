@@ -31,7 +31,12 @@ skinparam titleFontColor #01579B
 skinparam defaultFontName Segoe UI
 skinparam defaultFontSize 11
 
-title **BABIFIX** - Diagramme d'Activite : Flux Reservation Client (Nouveau Parcours Devis)
+title **BABIFIX** - Diagramme d'Activite : Flux Reservation Client (Architecture Cible — Evolution Prevue)
+
+note top
+  Version courante implementee : EN_ATTENTE → CONFIRMEE → EN_COURS → EN_ATTENTE_CLIENT → TERMINEE/ANNULEE
+  Ce diagramme represente l'architecture cible avec le flux de devis prevu en evolution.
+end note
 
 partition "Client" {
   start

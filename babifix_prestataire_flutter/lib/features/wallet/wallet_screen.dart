@@ -213,7 +213,7 @@ class _WalletScreenState extends State<WalletScreen>
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const _WalletShimmer()
           : _error != null
               ? _ErrorView(message: _error!, onRetry: _load)
               : FadeTransition(
@@ -805,6 +805,97 @@ class _EmptyTransactions extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shimmer loader
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WalletShimmer extends StatefulWidget {
+  const _WalletShimmer();
+  @override
+  State<_WalletShimmer> createState() => _WalletShimmerState();
+}
+
+class _WalletShimmerState extends State<_WalletShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(duration: const Duration(milliseconds: 1300), vsync: this)..repeat();
+    _anim = Tween<double>(begin: -1.5, end: 1.5).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  Widget _box(double w, double h, {double r = 8}) => Container(
+    width: w == double.infinity ? null : w,
+    height: h,
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.65),
+      borderRadius: BorderRadius.circular(r),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) {
+        final grad = LinearGradient(
+          begin: Alignment(_anim.value - 1, 0),
+          end: Alignment(_anim.value + 1, 0),
+          colors: const [Color(0xFFE2E8F0), Color(0xFFF8FAFC), Color(0xFFE2E8F0)],
+        );
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Balance card shimmer
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: grad,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _box(140, 16, r: 6),
+            const SizedBox(height: 12),
+            ...List.generate(5, (_) => Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: grad,
+              ),
+              child: Row(
+                children: [
+                  _box(40, 40, r: 20),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _box(double.infinity, 13, r: 6),
+                      const SizedBox(height: 6),
+                      _box(100, 11, r: 6),
+                    ],
+                  )),
+                  const SizedBox(width: 12),
+                  _box(64, 18, r: 6),
+                ],
+              ),
+            )),
+          ],
+        );
+      },
     );
   }
 }

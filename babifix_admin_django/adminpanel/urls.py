@@ -1,6 +1,16 @@
 from django.urls import path
 
 from .cinetpay import cinetpay_initiate, cinetpay_status, cinetpay_webhook
+from .views_finance import (
+    api_referral,
+    api_premium_tiers,
+    api_premium_subscribe,
+    api_rating_voice_upload,
+    api_admin_platform_revenue,
+    api_admin_validate_withdrawal,
+    api_client_devis_compare,
+    api_urgence_preview,
+)
 from .views_extra import (
     api_admin_audit_log,
     api_admin_bulk_provider_action,
@@ -14,6 +24,7 @@ from .views_extra import (
     api_prestataire_availability,
     api_prestataire_availability_crud,
     api_prestataire_contrat,
+    api_prestataire_contrat_sign,
     api_prestataire_disputes,
     api_prestataire_invoice_pdf,
     api_prestataire_stats,
@@ -459,5 +470,38 @@ urlpatterns = [
     path("api/prestataire/wallet/info/", api_prestataire_wallet_update_info, name="api-prestataire-wallet-info"),
     # ── Contrat prestataire & Fidélité client ─────────────────────────────────
     path("api/prestataire/contrat/", api_prestataire_contrat, name="api-prestataire-contrat"),
+    path("api/prestataire/contrat/sign/", api_prestataire_contrat_sign, name="api-prestataire-contrat-sign"),
     path("api/client/fidelite/", api_client_fidelite, name="api-client-fidelite"),
+
+    # ── Parrainage ────────────────────────────────────────────────────────────
+    path("api/auth/referral/", api_referral, name="api-referral"),
+
+    # ── Premium prestataire ───────────────────────────────────────────────────
+    path("api/prestataire/premium/tiers/", api_premium_tiers, name="api-premium-tiers"),
+    path("api/prestataire/premium/subscribe/", api_premium_subscribe, name="api-premium-subscribe"),
+
+    # ── Voice note avis ───────────────────────────────────────────────────────
+    path(
+        "api/client/reservations/<str:reference>/rating-voice/",
+        api_rating_voice_upload,
+        name="api-rating-voice",
+    ),
+
+    # ── Analytics plateforme (admin) ──────────────────────────────────────────
+    path("api/admin/platform-revenue/", api_admin_platform_revenue, name="api-platform-revenue"),
+    path(
+        "api/admin/wallet/withdrawals/<int:tx_id>/validate/",
+        api_admin_validate_withdrawal,
+        name="api-admin-validate-withdrawal",
+    ),
+
+    # ── Multi-devis comparaison ───────────────────────────────────────────────
+    path(
+        "api/client/reservations/<str:reference>/devis/compare/",
+        api_client_devis_compare,
+        name="api-client-devis-compare",
+    ),
+
+    # ── Urgence preview ───────────────────────────────────────────────────────
+    path("api/client/reservations/urgence-preview/", api_urgence_preview, name="api-urgence-preview"),
 ]

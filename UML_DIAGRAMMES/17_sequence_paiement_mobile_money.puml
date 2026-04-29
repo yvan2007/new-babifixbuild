@@ -45,32 +45,33 @@ note top of Client
   apres service rendu.
 end note
 
-== 1. Demande et Devis (Avant paiement) ==
+== 1. Reservation et Intervention (Flux simplifie — version actuelle) ==
 
-Client -> App : Cree une demande\n(description + photos)
+note over Client, Prestataire
+  EVOLUTION PREVUE : Le flux devis complet (DEMANDE_ENVOYEE → DEVIS_ENVOYE → DEVIS_ACCEPTE)
+  n'est pas encore implemente. Version actuelle : EN_ATTENTE → CONFIRMEE → EN_COURS → EN_ATTENTE_CLIENT.
+end note
+
+Client -> App : Cree une reservation\n(description, adresse, date)
 App -> API : POST /api/client/reservations\n{provider_id, description, ...}
-API -> DB : Reservation creee\n(statut: DEMANDE_ENVOYEE)
+API -> DB : Reservation creee\n(statut: EN_ATTENTE)
 API -> FCM : Notification au prestataire
-App --> Client : Demande envoyee
+App --> Client : Reservation envoyee
 
-Prestataire -> App : Prepare le devis
-App -> API : POST /api/prestataire/requests/{ref}/devis\n{diagnostic, lignes, montant}
-API -> DB : Devis cree\n(statut: DEVIS_ENVOYE)
+Prestataire -> App : Accepte la demande
+App -> API : POST /api/prestataire/requests/{ref}/accept
+API -> DB : Reservation mise a jour\n(statut: CONFIRMEE)
 API -> FCM : Notification au client
-
-Client -> App : Consulte et accepte le devis
-App -> API : POST /api/client/reservations/{ref}/devis/accept
-API -> DB : Reservation mise a jour\n(statut: DEVIS_ACCEPTE)
 
 == 2. Intervention ==
 
 Prestataire -> App : Demarre intervention
-App -> API : POST /api/prestataire/reservations/{ref}/start
-API -> DB : Update statut INTERVENTION_EN_COURS
+App -> API : POST /api/prestataire/requests/{ref}/start
+API -> DB : Update statut EN_COURS
 API -> FCM : "Intervention demarree"
 
 Prestataire -> App : Termine intervention
-App -> API : POST /api/prestataire/reservations/{ref}/complete
+App -> API : POST /api/prestataire/requests/{ref}/complete
 API -> DB : Update statut EN_ATTENTE_CLIENT
 API -> FCM : "Prestation terminee - Merci de valider"
 

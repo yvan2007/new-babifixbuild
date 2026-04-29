@@ -55,24 +55,38 @@ partition "Formulaire" {
 }
 
 partition "Candidat" {
-  :Photographier ou uploader la CNI (recto-verso);
+  :Photographier CNI recto, verso et prendre selfie\ntenant la CNI (3 documents obligatoires);
+  :Saisir numero CNI et date d'expiration;
   :Cocher "J'accepte les conditions generales";
   :Valider le formulaire d'inscription;
 }
 
 partition "Systeme" {
   :Creer le compte via API Django\n(POST /api/auth/register);
-  :Uploader la photo CNI vers MEDIA_ROOT;
-  :Creer entree dans provider table (role: "prestataire")
-  
+  :Creer entree prestataire (statut: EN_ATTENTE);
+
   note right
     user.role = "prestataire"
     provider.statut = "EN_ATTENTE"
-    provider.date_inscription = now()
   end note
-  
-  :Creer entree dans provider (statut: EN_ATTENTE);
-  :Notifier les administrateurs (WebSocket/HTMX dashboard);
+
+  :Valider format CNI + date expiration;
+  :Stocker images base64 en BDD (KYCSubmission)\nCalculer hash SHA-256 sur chaque image;
+
+  note right
+    Aucun fichier MEDIA_ROOT — stockage BDD uniquement
+    Images protegees — jamais exposees par URL publique
+  end note
+
+  :Executer moteur KYC automatique\n(Pillow qualite + OpenCV visage + score 0-100);
+
+  if (Score < 40 ?) then (oui)
+    :Rejet automatique + notification prestataire;
+    stop
+  else (non)
+    :Statut KYC = PENDING ou UNDER_REVIEW selon score;
+    :Notifier les administrateurs (dashboard HTMX);
+  endif
 }
 
 partition "Candidat" {
@@ -87,8 +101,9 @@ partition "Admin" {
 }
 
 partition "Admin" {
-  :Ouvrir le dossier du candidat;
-  :Visualiser photo CNI + informations saisies;
+  :Ouvrir le panneau KYC du prestataire;
+  :Consulter score auto (0-100) et detail des checks;
+  :Visualiser les 3 images protegees (CNI recto/verso, selfie);
   :Verifier coherence et authenticite;
 }
 

@@ -21,6 +21,7 @@ import 'shared/in_app_notifications.dart';
 
 import 'features/earnings/earnings_screen.dart' as earnings_feature;
 import 'features/auth/landing_screen.dart';
+import 'splash_screen.dart';
 import 'features/auth/onboarding_screen.dart';
 import 'features/auth/registration_screen.dart';
 import 'features/auth/login_screen.dart';
@@ -186,14 +187,7 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
   @override
   Widget build(BuildContext context) {
     if (!_loadedPrefs) {
-      return const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(color: Color(0xFF4CC9F0)),
-          ),
-        ),
-      );
+      return const BabifixPrestataireSplashScreen();
     }
     return MaterialApp(
       debugShowCheckedModeBanner: false,

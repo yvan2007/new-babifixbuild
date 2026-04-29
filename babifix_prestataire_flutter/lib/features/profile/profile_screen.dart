@@ -10,11 +10,15 @@ import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../auth/registration_screen.dart';
 import '../availability/availability_screen.dart';
 import 'contrat_screen.dart';
+import '../kyc/kyc_screen.dart';
 import '../dashboard/floating_nav_bar.dart';
 import 'edit_profile_screen.dart' show EditProfilePrestataireScreen;
+import '../parrainage/parrainage_screen.dart';
+import '../premium/premium_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -149,8 +153,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final token = await readStoredApiToken();
     if (!mounted) return;
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => EditProfilePrestataireScreen(
+      babifixRoute(
+        (_) => EditProfilePrestataireScreen(
           apiBase: babifixApiBaseUrl(),
           authToken: token,
         ),
@@ -680,7 +684,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               subtitle: 'Créneaux hebdomadaires & congés',
                               isLight: isLight,
                               onTap: () => Navigator.of(context).push<void>(
-                                MaterialPageRoute<void>(builder: (_) => const AvailabilityScreen()),
+                                babifixRoute((_) => const AvailabilityScreen()),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -693,6 +697,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () => widget.onNavigate('wallet'),
                           ),
                           const SizedBox(height: 8),
+                          _KycStatusTile(
+                            isLight: isLight,
+                            paletteMode: widget.paletteMode,
+                          ),
+                          const SizedBox(height: 8),
                           _PrestProfileActionTile(
                             icon: Icons.description_outlined,
                             title: 'Mon Contrat',
@@ -700,13 +709,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             isLight: isLight,
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => ContratScreen(
+                              babifixRoute(
+                                (_) => ContratScreen(
                                   onBack: () => Navigator.pop(context),
                                   paletteMode: widget.paletteMode,
                                 ),
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 8),
+                          _PrestProfileActionTile(
+                            icon: Icons.workspace_premium_rounded,
+                            title: 'BABIFIX Premium',
+                            subtitle: 'Réduire ma commission, booster ma visibilité',
+                            isLight: isLight,
+                            onTap: () => Navigator.push(context, babifixRoute((_) => const PremiumScreen())),
+                          ),
+                          const SizedBox(height: 8),
+                          _PrestProfileActionTile(
+                            icon: Icons.card_giftcard_rounded,
+                            title: 'Parrainage',
+                            subtitle: 'Invitez des collègues, gagnez des crédits',
+                            isLight: isLight,
+                            onTap: () => Navigator.push(context, babifixRoute((_) => const ParrainageScreen())),
                           ),
                           const SizedBox(height: 8),
                           GestureDetector(
@@ -1096,6 +1121,8 @@ class _PrestProfileActionTile extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     required this.isLight,
+    this.iconColor,
+    this.trailing,
   });
 
   final IconData icon;
@@ -1103,6 +1130,8 @@ class _PrestProfileActionTile extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final bool isLight;
+  final Color? iconColor;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1126,8 +1155,8 @@ class _PrestProfileActionTile extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 20,
-              backgroundColor: isLight ? const Color(0x1A0284C7) : const Color(0x337EC8E3),
-              child: Icon(icon, color: isLight ? const Color(0xFF0369A1) : const Color(0xFF9FE6FF)),
+              backgroundColor: (iconColor ?? (isLight ? const Color(0xFF0284C7) : const Color(0xFF7EC8E3))).withValues(alpha: 0.12),
+              child: Icon(icon, color: iconColor ?? (isLight ? const Color(0xFF0369A1) : const Color(0xFF9FE6FF))),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1152,6 +1181,10 @@ class _PrestProfileActionTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (trailing != null) ...[
+              trailing!,
+              const SizedBox(width: 4),
+            ],
             Icon(Icons.chevron_right_rounded, color: isLight ? const Color(0xFF334155) : Colors.white70),
           ],
         ),
@@ -1276,4 +1309,92 @@ class _StatChip extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── KYC Status Tile ─────────────────────────────────────────────────────────
+
+class _KycStatusTile extends StatefulWidget {
+  const _KycStatusTile({required this.isLight, required this.paletteMode});
+  final bool isLight;
+  final AppPaletteMode paletteMode;
+
+  @override
+  State<_KycStatusTile> createState() => _KycStatusTileState();
+}
+
+class _KycStatusTileState extends State<_KycStatusTile> {
+  String _status = 'loading';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final t = await readStoredApiToken();
+      if (t == null) { setState(() => _status = 'not_submitted'); return; }
+      final res = await http.get(
+        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/kyc/status/'),
+        headers: {'Authorization': 'Bearer $t'},
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final d = jsonDecode(res.body) as Map<String, dynamic>;
+        setState(() => _status = (d['status'] as String?) ?? 'not_submitted');
+      }
+    } catch (_) {
+      setState(() => _status = 'not_submitted');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<String, _KycMeta> meta = {
+      'loading':       _KycMeta(Icons.hourglass_empty_rounded, const Color(0xFF94A3B8), 'Vérification KYC', 'Chargement…'),
+      'not_submitted': _KycMeta(Icons.shield_outlined, const Color(0xFFF59E0B), 'Vérification KYC', 'Non soumis — requis pour activer votre profil'),
+      'pending':       _KycMeta(Icons.hourglass_top_rounded, const Color(0xFF4CC9F0), 'KYC en attente', 'Votre dossier est en cours de vérification'),
+      'under_review':  _KycMeta(Icons.manage_search_rounded, const Color(0xFFF59E0B), 'KYC en examen', 'Notre équipe examine votre dossier'),
+      'approved':      _KycMeta(Icons.verified_rounded, const Color(0xFF22C55E), 'Identité vérifiée ✓', 'Votre KYC a été approuvé'),
+      'rejected':      _KycMeta(Icons.warning_amber_rounded, const Color(0xFFDC2626), 'KYC rejeté', 'Resoumettez votre dossier'),
+    };
+    final m = meta[_status] ?? meta['not_submitted']!;
+    final bool canSubmit = _status == 'not_submitted' || _status == 'rejected';
+
+    return _PrestProfileActionTile(
+      icon: m.icon,
+      title: m.title,
+      subtitle: m.subtitle,
+      iconColor: m.color,
+      isLight: widget.isLight,
+      trailing: canSubmit
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text('Action requise',
+                  style: TextStyle(fontSize: 10, color: Color(0xFFF59E0B), fontWeight: FontWeight.w700)),
+            )
+          : null,
+      onTap: () async {
+        await Navigator.push(
+          context,
+          babifixRoute((_) => KYCScreen(
+            onBack: () => Navigator.pop(context),
+            paletteMode: widget.paletteMode,
+          )),
+        );
+        _load(); // Recharger le statut au retour
+      },
+    );
+  }
+}
+
+class _KycMeta {
+  const _KycMeta(this.icon, this.color, this.title, this.subtitle);
+  final IconData icon;
+  final Color color;
+  final String title, subtitle;
 }
