@@ -83,12 +83,12 @@
 | flutter_secure_storage | ^9.2 | Stockage sécurisé tokens |
 
 ### DevOps & Outils
-- **Git** — Versioning
-- **Makefile** — Orchestration des commandes
-- **Docker & docker-compose** — Conteneurisation (optionnel)
-- **Gunicorn + Daphne** — Serveurs de production
-- **Nginx** — Reverse proxy + static files
-- **Sentry** — Monitoring erreurs
+- **Git** - Versioning
+- **Makefile** - Orchestration des commandes
+- **Docker & docker-compose** - Conteneurisation (optionnel)
+- **Gunicorn + Daphne** - Serveurs de production
+- **Nginx** - Reverse proxy + static files
+- **Sentry** - Monitoring erreurs
 
 ---
 
@@ -562,8 +562,8 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ## 👥 Contributeurs
 
-- **[Votre Nom]** — Lead Developer Fullstack
-- **Equipe BABIFIX** — Product Owner, Design, Tests
+- **[Votre Nom]** - Lead Developer Fullstack
+- **Equipe BABIFIX** - Product Owner, Design, Tests
 
 ---
 
