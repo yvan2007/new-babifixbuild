@@ -47,6 +47,7 @@ class BabifixFcm {
     }
   }
 
+  /// À appeler après un login API réussi (JWT).
   static Future<void> registerTokenWithBackend(String apiBearerToken) async {
     if (apiBearerToken.isEmpty || kIsWeb) return;
     try {

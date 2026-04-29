@@ -27,6 +27,8 @@ from .views_extra import (
     api_prestataire_contrat_sign,
     api_prestataire_disputes,
     api_prestataire_invoice_pdf,
+    api_prestataire_kyc_status,
+    api_prestataire_kyc_submit,
     api_prestataire_stats,
     api_prestataire_unavailability_crud,
     api_prestataire_wallet,
@@ -257,6 +259,12 @@ urlpatterns = [
         api_prestataire_availability_crud,
         name="api-prestataire-availability-crud",
     ),
+    # Alias pour compatibilité Flutter (attendu par availability_screen.dart)
+    path(
+        "api/prestataire/availability/unavailability/",
+        api_prestataire_unavailability_crud,
+        name="api-prestataire-availability-unavailability-crud",
+    ),
     path(
         "api/prestataire/unavailability/",
         api_prestataire_unavailability_crud,
@@ -479,6 +487,10 @@ urlpatterns = [
     # ── Premium prestataire ───────────────────────────────────────────────────
     path("api/prestataire/premium/tiers/", api_premium_tiers, name="api-premium-tiers"),
     path("api/prestataire/premium/subscribe/", api_premium_subscribe, name="api-premium-subscribe"),
+
+    # ── KYC prestataire ───────────────────────────────────────────────────────
+    path("api/prestataire/kyc/status/", api_prestataire_kyc_status, name="api-prestataire-kyc-status"),
+    path("api/prestataire/kyc/submit/", api_prestataire_kyc_submit, name="api-prestataire-kyc-submit"),
 
     # ── Voice note avis ───────────────────────────────────────────────────────
     path(

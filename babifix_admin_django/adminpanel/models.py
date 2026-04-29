@@ -187,6 +187,68 @@ class Provider(models.Model):
         help_text="Version du contrat signé (ex: '1.0', '1.1')",
     )
 
+    # KYC — Vérification identité prestataire
+    kyc_status = models.CharField(
+        max_length=20,
+        choices=[
+            ("not_submitted", "Non soumis"),
+            ("pending", "En attente"),
+            ("under_review", "En examen"),
+            ("approved", "Approuvé"),
+            ("rejected", "Rejeté"),
+        ],
+        default="not_submitted",
+    )
+    kyc_rejection_reason = models.TextField(
+        blank=True,
+        default="",
+        help_text="Motif de rejet du dossier KYC",
+    )
+    kyc_cni_number = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Numéro de la CNI",
+    )
+    kyc_cni_expiry = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date d'expiration de la CNI",
+    )
+    kyc_cni_recto_url = models.TextField(
+        blank=True,
+        default="",
+        help_text="URL recto CNI (base64 ou fichier)",
+    )
+    kyc_cni_verso_url = models.TextField(
+        blank=True,
+        default="",
+        help_text="URL verso CNI (base64 ou fichier)",
+    )
+    kyc_selfie_url = models.TextField(
+        blank=True,
+        default="",
+        help_text="URL selfie avec CNI",
+    )
+    kyc_submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date/heure de soumission du dossier KYC",
+    )
+    kyc_reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date/heure de validation/rejet par admin",
+    )
+    kyc_reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="kyc_reviews",
+        help_text="Admin qui a examiné le dossier",
+    )
+
     def __str__(self):
         return self.nom
 
