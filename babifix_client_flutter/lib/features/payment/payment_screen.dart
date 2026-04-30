@@ -10,10 +10,11 @@ import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../babifix_money.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../../shared/services/geniuspay_service.dart';
 import '../auth/biometric_login_screen.dart';
 
 // ---------------------------------------------------------------------------
-// Opérateurs Mobile Money disponibles via CinetPay (Côte d'Ivoire)
+// Opérateurs Mobile Money disponibles via GeniusPay (Côte d'Ivoire)
 // ---------------------------------------------------------------------------
 const _kOperators = [
   _OpDef(
@@ -77,7 +78,6 @@ class _PaymentScreenState extends State<PaymentScreen>
   bool _polling = false;
   int _pollCount = 0;
   String? _error;
-  String? _transactionId;
   Timer? _pollTimer;
 
   // ── données réservation ───────────────────────────────────────────────────
@@ -141,11 +141,12 @@ class _PaymentScreenState extends State<PaymentScreen>
         return;
       }
     } catch (_) {}
-    if (mounted)
+    if (mounted) {
       setState(() {
         _reservation = null;
         _fetching = false;
       });
+    }
   }
 
   // ── getters utilitaires ───────────────────────────────────────────────────
@@ -167,8 +168,8 @@ class _PaymentScreenState extends State<PaymentScreen>
     orElse: () => _kOperators.first,
   );
 
-  // ── PAIEMENT MOBILE MONEY (CinetPay) ─────────────────────────────────────
-  Future<void> _payCinetPay() async {
+  // ── PAIEMENT MOBILE MONEY (GeniusPay) ────────────────────────────────────
+  Future<void> _payGeniusPay() async {
     final phone = _phoneCtrl.text.trim();
     if (phone.length < 8) {
       setState(
@@ -183,54 +184,35 @@ class _PaymentScreenState extends State<PaymentScreen>
     });
 
     try {
-      final token = await BabifixUserStore.getApiToken();
-      if (token == null) throw Exception('Non connecté');
-
-      final res = await http.post(
-        Uri.parse(
-          '${babifixApiBaseUrl()}/api/bookings/${widget.reservationId}/pay/',
-        ),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'mode_paiement': 'MOBILE_MONEY',
-          'operator': _operator,
-          'phone': phone,
-        }),
+      final result = await GeniusPayService.initiatePayment(
+        reservationId: widget.reservationId,
+        montant:       _amount,
+        paymentMethod: _operator,
+        phone:         phone,
+        customerName:  _providerName,
       );
 
       if (!mounted) return;
 
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final txId = (data['transaction_id'] as String?)?.trim() ?? '';
-        if (txId.isNotEmpty) {
-          setState(() {
-            _loading = false;
-            _polling = true;
-            _transactionId = txId;
-            _pollCount = 0;
-          });
-          _startPolling(txId, token);
-        } else {
-          // Paiement initié — le serveur va traiter la transaction
-          setState(() {
-            _loading = false;
-            _done = true;
-          });
-        }
-      } else {
-        String msg = 'Erreur de paiement.';
-        try {
-          final d = jsonDecode(res.body) as Map<String, dynamic>;
-          final raw = d['detail'] ?? d['error'] ?? d['message'];
-          if (raw != null) msg = '$raw';
-        } catch (_) {}
+      if (result == null) {
         setState(() {
           _loading = false;
-          _error = msg;
+          _error = 'Erreur de connexion à GeniusPay. Vérifiez votre réseau et réessayez.';
+        });
+        return;
+      }
+
+      if (result.transactionId.isNotEmpty) {
+        setState(() {
+          _loading = false;
+          _polling = true;
+          _pollCount = 0;
+        });
+        _startPolling(result.transactionId);
+      } else {
+        setState(() {
+          _loading = false;
+          _done = true;
         });
       }
     } catch (e) {
@@ -242,50 +224,34 @@ class _PaymentScreenState extends State<PaymentScreen>
     }
   }
 
-  // ── Polling statut CinetPay (toutes les 5 s, max 2 min) ──────────────────
-  void _startPolling(String txId, String token) {
+  // ── Polling statut GeniusPay (toutes les 5 s, max 2 min) ─────────────────
+  void _startPolling(String reference) {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (t) async {
-      if (!mounted) {
-        t.cancel();
-        return;
-      }
+      if (!mounted) { t.cancel(); return; }
       if (_pollCount >= 24) {
         t.cancel();
         if (mounted) {
           setState(() {
             _polling = false;
-            _error =
-                'Délai de 2 minutes dépassé. Vérifiez votre téléphone ou relancez le paiement.';
+            _error = 'Délai de 2 minutes dépassé. Vérifiez votre téléphone ou relancez le paiement.';
           });
         }
         return;
       }
       setState(() => _pollCount++);
       try {
-        final res = await http.get(
-          Uri.parse(
-            '${babifixApiBaseUrl()}/api/reservations/${widget.reservationId}/',
-          ),
-          headers: {'Authorization': 'Bearer $token'},
-        );
-        if (!mounted) {
+        final status = await GeniusPayService.checkStatus(reference);
+        if (!mounted) { t.cancel(); return; }
+        if (status != null && status.isCompleted) {
           t.cancel();
-          return;
-        }
-        if (res.statusCode == 200) {
-          final d = jsonDecode(res.body) as Map<String, dynamic>;
-          final bookingStatus = '${d['status'] ?? ''}'.toUpperCase();
-          if (bookingStatus == 'PAID' ||
-              bookingStatus == 'DONE' ||
-              bookingStatus == 'COMPLETED') {
-            t.cancel();
-            setState(() {
-              _polling = false;
-              _done = true;
-            });
-          }
-          // Autres statuts → continuer à poller
+          setState(() { _polling = false; _done = true; });
+        } else if (status != null && status.isFailed) {
+          t.cancel();
+          setState(() {
+            _polling = false;
+            _error = 'Paiement échoué ou annulé. Vous pouvez réessayer.';
+          });
         }
       } catch (_) {}
     });
@@ -340,7 +306,7 @@ class _PaymentScreenState extends State<PaymentScreen>
   void _pay() {
     _error = null;
     if (_method == 'MOBILE_MONEY') {
-      _payCinetPay();
+      _payGeniusPay();
     } else {
       _payEspeces();
     }
@@ -351,7 +317,6 @@ class _PaymentScreenState extends State<PaymentScreen>
     setState(() {
       _polling = false;
       _pollCount = 0;
-      _transactionId = null;
     });
   }
 
@@ -777,8 +742,8 @@ class _PaymentScreenState extends State<PaymentScreen>
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Votre paiement est sécurisé via CinetPay. '
-              'Transférer directement au prestataire après validation de la prestation.',
+              'Votre paiement est sécurisé via GeniusPay. '
+              'Le prestataire est réglé après validation de la prestation.',
               style: TextStyle(
                 color: BabifixDesign.ciBlue,
                 fontSize: 12.5,
@@ -937,7 +902,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                'Vérification ${_pollCount}/24 · ${seconds}s écoulées',
+                'Vérification $_pollCount/24 · ${seconds}s écoulées',
                 style: TextStyle(fontSize: 12, color: sub),
               ),
               const SizedBox(height: 24),
@@ -975,7 +940,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                 duration: const Duration(milliseconds: 800),
                 tween: Tween(begin: 0, end: 1),
                 curve: Curves.elasticOut,
-                builder: (_, v, __) => Transform.scale(
+                builder: (_, v, _) => Transform.scale(
                   scale: v,
                   child: Container(
                     width: 110,
