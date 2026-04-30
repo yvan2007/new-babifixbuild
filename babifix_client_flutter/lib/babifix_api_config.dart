@@ -47,19 +47,15 @@ String babifixApiBaseUrl() {
     if (kDebugMode) {
       return 'http://localhost:$kBabifixApiPort';
     }
-    // En prod iOS, utiliser l'IP du réseau local
-    return 'http://192.168.1.100:$kBabifixApiPort';
+    return 'https://new-babifixbuild.onrender.com';
   }
 
-  // Android emulator (AVD) → 10.0.2.2 host loopback
+  // Android
   if (defaultTargetPlatform == TargetPlatform.android) {
-    // Détection émulateur vs device réel
-    if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
-      // Flutter desktop ciblant Android (rare)
+    if (kDebugMode) {
       return 'http://10.0.2.2:$kBabifixApiPort';
     }
-    // Device Android émulateur
-    return 'http://10.0.2.2:$kBabifixApiPort';
+    return 'https://new-babifixbuild.onrender.com';
   }
 
   // Desktop Windows/Mac/Linux
@@ -67,8 +63,8 @@ String babifixApiBaseUrl() {
     return 'http://127.0.0.1:$kBabifixApiPort';
   }
 
-  // Fallback par défaut
-  return 'http://127.0.0.1:$kBabifixApiPort';
+  // Fallback production
+  return 'https://new-babifixbuild.onrender.com';
 }
 
 /// WebSocket Django Channels.
