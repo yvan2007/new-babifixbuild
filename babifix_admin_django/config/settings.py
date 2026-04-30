@@ -70,7 +70,7 @@ if _allowed_hosts_env:
 elif _env == "production":
     ALLOWED_HOSTS = ["babifix.ci", "www.babifix.ci", "localhost", "127.0.0.1"]
 else:
-    ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1", "10.0.2.2"]
+    ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1", "10.0.2.2", ".ngrok-free.dev", ".ngrok.io", ".ngrok-free.app"]
 
 # En production, il faut au moins un host configured
 if (
@@ -102,6 +102,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -236,7 +237,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -301,6 +304,18 @@ CINETPAY_APIKEY = os.getenv("CINETPAY_APIKEY", "")
 CINETPAY_SITE_ID = os.getenv("CINETPAY_SITE_ID", "")
 CINETPAY_NOTIFY_URL = os.getenv("CINETPAY_NOTIFY_URL", "")
 CINETPAY_RETURN_URL = os.getenv("CINETPAY_RETURN_URL", "")
+
+# =============================================================================
+# GENIUSPAY (Mobile Money CI — Wave, Orange, MTN, PawaPay)
+# Sandbox  : pk_sandbox_y9bnqHQIcY93otIL7HLWCDXFcBOzJQfr
+# Live     : pk_live_RuhR13Fw4ETRmbjmONk2ZGBWeObzSet2
+# Base URL : https://pay.genius.ci/api/v1/merchant
+# =============================================================================
+GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  "pk_sandbox_y9bnqHQIcY93otIL7HLWCDXFcBOzJQfr")
+GENIUSPAY_SECRET_KEY  = os.getenv("GENIUSPAY_SECRET_KEY",  "sk_sandbox_908436f4937be4839ffc824e05dbf4307770f3eb2aa3e459faafa96f166b717d")
+GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", "")   # ex: https://api.babifix.ci/api/paiements/geniuspay/webhook/
+GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", "")   # ex: https://app.babifix.ci/payment-success
+GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   "")   # ex: https://app.babifix.ci/payment-error
 
 # =============================================================================
 # SENTRY (monitoring erreurs en production)

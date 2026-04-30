@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .cinetpay import cinetpay_initiate, cinetpay_status, cinetpay_webhook
+from .geniuspay import geniuspay_initiate, geniuspay_status, geniuspay_webhook
 from .views_finance import (
     api_referral,
     api_premium_tiers,
@@ -281,6 +282,16 @@ urlpatterns = [
         name="cinetpay-status",
     ),
     path("api/paiements/cinetpay/webhook/", cinetpay_webhook, name="cinetpay-webhook"),
+    # ── GeniusPay Mobile Money (Wave, Orange, MTN, PawaPay) ─────────────────
+    path(
+        "api/paiements/geniuspay/initiate/", geniuspay_initiate, name="geniuspay-initiate"
+    ),
+    path(
+        "api/paiements/geniuspay/status/<str:reference>/",
+        geniuspay_status,
+        name="geniuspay-status",
+    ),
+    path("api/paiements/geniuspay/webhook/", geniuspay_webhook, name="geniuspay-webhook"),
     # ── Admin — Actions bulk, audit log, export CSV ──────────────────────────
     path(
         "api/admin/prestataires/bulk-action/",
