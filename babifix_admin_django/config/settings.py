@@ -420,26 +420,21 @@ LOGGING = {
     },
 }
 
-# En production, ajouter les fichiers de log
-if os.getenv("DJANGO_ENV") == "production":
-    LOGGING["handlers"]["file"] = {
-        "class": "logging.handlers.RotatingFileHandler",
-        "filename": BASE_DIR / "logs" / "babifix.log",
-        "maxBytes": 10 * 1024 * 1024,
-        "backupCount": 5,
-        "formatter": "verbose",
-    }
-    LOGGING["handlers"]["error_file"] = {
-        "class": "logging.handlers.RotatingFileHandler",
-        "filename": BASE_DIR / "logs" / "error.log",
-        "maxBytes": 10 * 1024 * 1024,
-        "backupCount": 5,
-        "level": "ERROR",
-        "formatter": "verbose",
-    }
-    LOGGING["root"]["handlers"] = ["console", "file"]
-    LOGGING["loggers"]["django"]["handlers"] = ["console", "file"]
-    LOGGING["loggers"]["adminpanel"]["handlers"] = ["console", "file", "error_file"]
+# En production (Render/cloud) : console uniquement — la plateforme capture stdout/stderr.
+# Les fichiers de log locaux sont inutiles sur un filesystem éphémère.
+if _env != "development":
+    LOG_DIR = BASE_DIR / "logs"
+    if LOG_DIR.exists():
+        LOGGING["handlers"]["file"] = {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "babifix.log",
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
+            "formatter": "verbose",
+        }
+        LOGGING["root"]["handlers"] = ["console", "file"]
+        LOGGING["loggers"]["django"]["handlers"] = ["console", "file"]
+        LOGGING["loggers"]["adminpanel"]["handlers"] = ["console", "file"]
 
 # =============================================================================
 # Security headers en production (ajoutés selon les recommandations de sécurité)
