@@ -72,6 +72,11 @@ elif _env == "production":
 else:
     ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1", "10.0.2.2", ".ngrok-free.dev", ".ngrok.io", ".ngrok-free.app"]
 
+# Render injecte automatiquement RENDER_EXTERNAL_HOSTNAME — l'ajouter toujours
+_render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if _render_host and _render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_render_host)
+
 # En production, il faut au moins un host configured
 if (
     _env == "production"
