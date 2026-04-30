@@ -31,40 +31,22 @@ const int kBabifixApiPort = 8002;
 /// - Android Device/Emulator : 10.0.2.2 (émulateur) ou IP locale
 /// - iOS Simulator/Device : localhost ou IP
 /// - Windows/Mac/Linux : localhost
+const String kBabifixProdUrl = 'https://new-babifixbuild.onrender.com';
+
 String babifixApiBaseUrl() {
+  // Priorité 1 : variable dart-define (CI/CD, builds custom)
   const fromEnv = String.fromEnvironment('BABIFIX_API_BASE', defaultValue: '');
-  if (fromEnv.isNotEmpty) {
-    return fromEnv.replaceAll(RegExp(r'/$'), '');
+  if (fromEnv.isNotEmpty) return fromEnv.replaceAll(RegExp(r'/$'), '');
+
+  // Priorité 2 : debug local → localhost:8002
+  if (kDebugMode) {
+    if (kIsWeb) return 'http://127.0.0.1:$kBabifixApiPort';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:$kBabifixApiPort';
+    return 'http://localhost:$kBabifixApiPort';
   }
 
-  // Web browser
-  if (kIsWeb) {
-    return 'http://127.0.0.1:$kBabifixApiPort';
-  }
-
-  // iOS Simulator
-  if (defaultTargetPlatform == TargetPlatform.iOS) {
-    if (kDebugMode) {
-      return 'http://localhost:$kBabifixApiPort';
-    }
-    return 'https://new-babifixbuild.onrender.com';
-  }
-
-  // Android
-  if (defaultTargetPlatform == TargetPlatform.android) {
-    if (kDebugMode) {
-      return 'http://10.0.2.2:$kBabifixApiPort';
-    }
-    return 'https://new-babifixbuild.onrender.com';
-  }
-
-  // Desktop Windows/Mac/Linux
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-    return 'http://127.0.0.1:$kBabifixApiPort';
-  }
-
-  // Fallback production
-  return 'https://new-babifixbuild.onrender.com';
+  // Priorité 3 : release → serveur Render
+  return kBabifixProdUrl;
 }
 
 /// WebSocket Django Channels.
