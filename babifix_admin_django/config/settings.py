@@ -445,8 +445,11 @@ if _env != "development":
 # Security headers en production (ajoutés selon les recommandations de sécurité)
 # =============================================================================
 if _env == "production":
-    SECURE_SSL_REDIRECT = True
-    SECURE_HSTS_SECONDS = 31536000  # 1 an
+    # Render termine le SSL lui-même (load balancer) — ne pas rediriger vers HTTPS
+    # sinon boucle infinie. On fait confiance au header X-Forwarded-Proto de Render.
+    SECURE_SSL_REDIRECT = False
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
