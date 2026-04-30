@@ -1104,6 +1104,9 @@ def export_dashboard_csv(request, kind):
 
 @login_required(login_url="/admin/login/")
 def dashboard(request):
+    if not (request.user.is_staff or request.user.is_superuser):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Accès réservé aux administrateurs BABIFIX.")
     section = request.GET.get("section", "dashboard")
     allowed_sections = {
         "dashboard",

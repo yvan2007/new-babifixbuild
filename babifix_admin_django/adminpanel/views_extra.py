@@ -427,7 +427,7 @@ def api_admin_export_csv(request, kind):
 def api_prestataire_availability_crud(request):
     """CRUD des créneaux de disponibilité."""
     try:
-        provider = Provider.objects.get(user=request.babifix_user)
+        provider = Provider.objects.get(user_id=request.api_user_id)
     except Provider.DoesNotExist:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
@@ -498,7 +498,7 @@ def api_prestataire_availability_crud(request):
 def api_prestataire_unavailability_crud(request):
     """CRUD des périodes d'indisponibilité."""
     try:
-        provider = Provider.objects.get(user=request.babifix_user)
+        provider = Provider.objects.get(user_id=request.api_user_id)
     except Provider.DoesNotExist:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
@@ -564,7 +564,7 @@ def api_prestataire_unavailability_crud(request):
 def api_prestataire_stats(request):
     """Statistiques détaillées du prestataire connecté."""
     try:
-        provider = Provider.objects.get(user=request.babifix_user)
+        provider = Provider.objects.get(user_id=request.api_user_id)
     except Provider.DoesNotExist:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
@@ -1381,9 +1381,12 @@ def api_prestataire_kyc_status(request):
     Retourne le statut KYC du prestataire connecté.
     Réponse : { "status": "...", "rejection_reason": "..." }
     """
+    from django.contrib.auth.models import User
+
     try:
-        provider = Provider.objects.get(user=request.babifix_user)
-    except Provider.DoesNotExist:
+        user = User.objects.get(id=request.api_user_id)
+        provider = Provider.objects.get(user=user)
+    except (User.DoesNotExist, Provider.DoesNotExist):
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
     return JsonResponse({
@@ -1409,10 +1412,12 @@ def api_prestataire_kyc_submit(request):
     """
     from datetime import datetime
     from django.utils import timezone
+    from django.contrib.auth.models import User
 
     try:
-        provider = Provider.objects.get(user=request.babifix_user)
-    except Provider.DoesNotExist:
+        user = User.objects.get(id=request.api_user_id)
+        provider = Provider.objects.get(user=user)
+    except (User.DoesNotExist, Provider.DoesNotExist):
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
     try:

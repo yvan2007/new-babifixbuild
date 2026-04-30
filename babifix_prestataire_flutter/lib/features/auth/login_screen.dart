@@ -209,12 +209,6 @@ class _LoginScreenState extends State<LoginScreen>
                                   height: 80,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF4CC9F0),
-                                        Color(0xFF0284C7),
-                                      ],
-                                    ),
                                     boxShadow: [
                                       BoxShadow(
                                         color: _cyan.withValues(alpha: 0.45),
@@ -223,15 +217,12 @@ class _LoginScreenState extends State<LoginScreen>
                                       ),
                                     ],
                                   ),
-                                  child: const Center(
-                                    child: Text(
-                                      'B',
-                                      style: TextStyle(
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w900,
-                                        color: Colors.white,
-                                        height: 1,
-                                      ),
+                                  child: ClipOval(
+                                    child: Image.asset(
+                                      'assets/images/logo_babifix.png',
+                                      fit: BoxFit.cover,
+                                      width: 80,
+                                      height: 80,
                                     ),
                                   ),
                                 ),

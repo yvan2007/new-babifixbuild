@@ -405,32 +405,24 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                       child: Column(
                         children: [
                           Container(
-                            width: 88,
-                            height: 88,
+                            width: 80,
+                            height: 80,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [_blue, _blueDeep],
-                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: _blue.withValues(alpha: 0.5),
-                                  blurRadius: 32,
-                                  offset: const Offset(0, 10),
+                                  color: _cyan.withValues(alpha: 0.45),
+                                  blurRadius: 28,
+                                  offset: const Offset(0, 8),
                                 ),
                               ],
                             ),
-                            child: const Center(
-                              child: Text(
-                                'B',
-                                style: TextStyle(
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  height: 1,
-                                ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/logo_babifix.png',
+                                fit: BoxFit.cover,
+                                width: 80,
+                                height: 80,
                               ),
                             ),
                           ),

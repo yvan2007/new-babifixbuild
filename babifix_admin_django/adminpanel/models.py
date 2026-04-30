@@ -520,6 +520,45 @@ class Reservation(models.Model):
         super().save(*args, **kwargs)
 
 
+class ReservationStatusHistory(models.Model):
+    """Historique des changements de statut d'une réservation."""
+    reservation = models.ForeignKey(
+        Reservation,
+        on_delete=models.CASCADE,
+        related_name="status_history",
+    )
+    old_status = models.CharField(
+        max_length=40,
+        blank=True,
+        default="",
+        help_text="Ancien statut (vide si création)",
+    )
+    new_status = models.CharField(
+        max_length=40,
+        help_text="Nouveau statut",
+    )
+    changed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Utilisateur ayant effectué le changement",
+    )
+    comment = models.TextField(
+        blank=True,
+        default="",
+        help_text="Commentaire optionnel",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["reservation", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.reservation.reference}: {self.old_status} → {self.new_status}"
+
+
 class Dispute(models.Model):
     class Priority(models.TextChoices):
         HIGH = "Haute", "Haute"
