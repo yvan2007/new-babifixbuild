@@ -163,10 +163,14 @@ else:
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Priorité : PostgreSQL (POSTGRES_DB) > MySQL (MYSQL_DATABASE) > SQLite
+# Priorité : DATABASE_URL (Render) > PostgreSQL > MySQL > SQLite
+_database_url = os.getenv("DATABASE_URL", "").strip()
 _pg_db = os.getenv("POSTGRES_DB", "").strip()
 _mysql_db = (os.getenv("MYSQL_DATABASE") or os.getenv("MYSQL_NAME") or "").strip()
-if _pg_db:
+if _database_url:
+    import dj_database_url
+    DATABASES = {"default": dj_database_url.config(default=_database_url, conn_max_age=600)}
+elif _pg_db:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
