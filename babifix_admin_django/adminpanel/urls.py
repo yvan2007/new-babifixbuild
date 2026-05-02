@@ -30,6 +30,7 @@ from .views_extra import (
     api_prestataire_invoice_pdf,
     api_prestataire_kyc_status,
     api_prestataire_kyc_submit,
+    api_prestataire_ratings,
     api_prestataire_stats,
     api_prestataire_unavailability_crud,
     api_prestataire_wallet,
@@ -237,6 +238,11 @@ urlpatterns = [
         "api/prestataire/earnings",
         api_prestataire_earnings,
         name="api-prestataire-earnings",
+    ),
+    path(
+        "api/prestataire/earnings/monthly/",
+        api_prestataire_earnings,
+        name="api-prestataire-earnings-monthly",
     ),
     path(
         "api/prestataire/ratings",
