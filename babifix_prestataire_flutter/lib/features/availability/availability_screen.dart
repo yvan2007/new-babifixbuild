@@ -32,9 +32,9 @@ class _Slot {
   }
 
   Map<String, dynamic> toJson() => {
-        'weekday': weekday,
-        'start_time': '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}:00',
-        'end_time': '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}:00',
+        'jour_semaine': weekday,
+        'heure_debut': '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}:00',
+        'heure_fin': '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}:00',
       };
 }
 

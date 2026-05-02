@@ -1472,3 +1472,74 @@ def api_prestataire_kyc_submit(request):
         "message": "Dossier KYC soumis avec succès. Vérification sous 24-48h.",
     }, status=200)
 
+
+# =============================================================================
+# RATINGS — Avis clients sur prestataire
+# =============================================================================
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["prestataire"])
+def api_prestataire_ratings(request):
+    """
+    GET /api/prestataire/ratings/
+    Retourne la liste des avis/notes laissés par les clients pour ce prestataire.
+    Réponse : { "ratings": [ { "reference", "rating", "comment", "date", "client_name" } ] }
+    """
+    try:
+        provider = Provider.objects.get(user_id=request.api_user_id)
+    except Provider.DoesNotExist:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    # Récupérer tous les ratings du prestataire (via related_name='ratings' sur Rating.provider)
+    ratings_qs = provider.ratings.select_related('reservation', 'client').order_by('-created_at')
+
+    ratings_list = []
+    for r in ratings_qs:
+        ratings_list.append({
+            "reference": r.reservation.reference if r.reservation else "",
+            "rating": r.note,
+            "comment": r.commentaire or "",
+            "date": r.created_at.isoformat() if r.created_at else None,
+            "client_name": r.client.get_full_name() if r.client else "Client",
+        })
+
+    return JsonResponse({"ratings": ratings_list})
+
+
+# =============================================================================
+# RATINGS — Avis clients sur prestataire
+# =============================================================================
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["prestataire"])
+def api_prestataire_ratings(request):
+    """
+    GET /api/prestataire/ratings/
+    Retourne la liste des avis/notes laissés par les clients pour ce prestataire.
+    Réponse : { "ratings": [ { "reference", "rating", "comment", "date", "client_name" } ] }
+    """
+    try:
+        provider = Provider.objects.get(user_id=request.api_user_id)
+    except Provider.DoesNotExist:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    # Réservations terminées avec notation client
+    from ..models import Reservation
+    reservations = Reservation.objects.filter(
+        assigned_provider=provider,
+        statut=Reservation.Status.DONE,
+    ).exclude(client_note__isnull=True).exclude(client_note="").order_by("-created_at")
+
+    ratings = []
+    for r in reservations:
+        ratings.append({
+            "reference": r.reference,
+            "rating": r.client_rating if hasattr(r, 'client_rating') else None,  # à adapter selon le modèle
+            "comment": r.client_note or "",
+            "date": r.created_at.isoformat() if r.created_at else None,
+            "client_name": r.client_user.nom if r.client_user else "Client",
+        })
+
+    return JsonResponse({"ratings": ratings})
+
+
