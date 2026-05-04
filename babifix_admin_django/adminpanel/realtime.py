@@ -148,5 +148,23 @@ def serialize_category(c) -> dict[str, Any]:
     return {'id': c.pk, 'nom': c.nom, 'actif': c.actif}
 
 
+def invalidate_categories_cache() -> None:
+    """Invalidates the public categories cache so next request fetches fresh data."""
+    try:
+        from django.core.cache import cache
+        cache.delete('babifix:public:categories')
+    except Exception:
+        pass
+
+
+def invalidate_providers_cache() -> None:
+    """Invalidates the public providers cache so next request fetches fresh data."""
+    try:
+        from django.core.cache import cache
+        cache.delete('babifix:public:providers')
+    except Exception:
+        pass
+
+
 def serialize_notification(n) -> dict[str, Any]:
     return {'id': n.pk, 'title': n.title}

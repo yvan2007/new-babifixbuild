@@ -1,7 +1,5 @@
-"""
-Flutter Shared — Code partage entre les apps client et prestataire
-Package a publier pour eviter la duplication de code.
-"""
+// Flutter Shared — Code partage entre les apps client et prestataire
+// Package a publier pour eviter la duplication de code.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -138,7 +136,7 @@ class DateUtils {
 }
 
 class MoneyUtils {
-  static String format CFA(int amount) {
+  static String formatCFA(int amount) {
     if (amount >= 1000) {
       return '${(amount / 1000).toStringAsFixed(0)}K CFA';
     }

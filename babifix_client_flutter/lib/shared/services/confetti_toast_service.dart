@@ -192,7 +192,7 @@ class _ConfettiWidgetState extends State<_ConfettiWidget>
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -283,14 +283,14 @@ class ToastService {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
+color: Colors.black.withValues(alpha: 0.1),
+                     blurRadius: 10,
+                     offset: const Offset(0, 4),
+                   ),
+                 ],
+               ),
+               child: Row(
+                 children: [
                   Icon(
                     isError ? Icons.error_outline : Icons.check_circle_outline,
                     color: isError

@@ -11,7 +11,7 @@ import '../../services/zego_call_service.dart';
 import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.onBack, required this.onSuccess});
+  const LoginScreen({super.key, required this.onBack, required this.onSuccess,});
 
   final VoidCallback onBack;
   final VoidCallback onSuccess;
@@ -30,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen>
   late final AnimationController _anim;
   late final Animation<double> _fadeIn;
 
-  static const _navy = Color(0xFF0B1B34);
   static const _navyDeep = Color(0xFF060E1C);
   static const _cyan = Color(0xFF4CC9F0);
   static const _blue = Color(0xFF2563EB);
@@ -110,7 +109,6 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
     return Theme(
       data: ThemeData.dark().copyWith(
         colorScheme: const ColorScheme.dark(
@@ -180,75 +178,58 @@ class _LoginScreenState extends State<LoginScreen>
             SafeArea(
               child: FadeTransition(
                 opacity: _fadeIn,
-                child: Column(
-                  children: [
-                    // Bouton retour
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        onPressed: widget.onBack,
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white70,
-                          size: 20,
-                        ),
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      ),
-                    ),
-
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+                child: Center(
+                  child: Column(
+                    children: [
+                    // ── Logo + titre ─────────────────────────────────
+                    Center(
+                      child: Column(
                         children: [
-                          // ── Logo + titre ─────────────────────────────────
-                          Center(
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 80,
-                                  height: 80,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: _cyan.withValues(alpha: 0.45),
-                                        blurRadius: 28,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipOval(
-                                    child: Image.asset(
-                                      'assets/images/logo_babifix.png',
-                                      fit: BoxFit.cover,
-                                      width: 80,
-                                      height: 80,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'BABIFIX',
-                                  style: TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                    letterSpacing: 4,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Espace Prestataire',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: _cyan.withValues(alpha: 0.85),
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1.5,
-                                  ),
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _cyan.withValues(alpha: 0.45),
+                                  blurRadius: 28,
+                                  offset: const Offset(0, 8),
                                 ),
                               ],
                             ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/logo_babifix.png',
+                                fit: BoxFit.cover,
+                                width: 80,
+                                height: 80,
+                              ),
+                            ),
                           ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'BABIFIX',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 4,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Espace Prestataire',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: _cyan.withValues(alpha: 0.85),
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                           const SizedBox(height: 36),
 
@@ -274,9 +255,10 @@ class _LoginScreenState extends State<LoginScreen>
                                 ),
                                 child: Form(
                                   key: _formKey,
-                                  child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
+                                  child: Center(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
                                     const Text(
                                       'Connexion',
                                       style: TextStyle(
@@ -366,14 +348,15 @@ class _LoginScreenState extends State<LoginScreen>
                                         ],
                                       ),
                                     ),
-                                  ],
-                                  ),
-                                ),
-                              ),
+                                   ],
+                                 ),
+                               ),
+                             ),
                             ),
                           ),
+                        ),
 
-                          const SizedBox(height: 28),
+                            const SizedBox(height: 28),
 
                           // ── Lien inscription ─────────────────────────────
                           Center(
@@ -407,14 +390,12 @@ class _LoginScreenState extends State<LoginScreen>
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
   }
 }
 

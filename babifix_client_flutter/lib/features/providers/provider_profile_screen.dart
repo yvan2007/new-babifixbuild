@@ -130,6 +130,54 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
         providerRating: (p['average_rating'] as num?)?.toDouble(),
         providerSpecialite: p['specialite'] as String?,
         providerId: widget.providerId,
+        onConfirm: (data) async {
+          final token = await BabifixUserStore.getApiToken();
+          if (token == null || token.isEmpty) {
+            return {'ok': false};
+          }
+          try {
+            final uri = Uri.parse(
+              '${babifixApiBaseUrl()}/api/client/reservations',
+            );
+            final body = <String, dynamic>{
+              'title': data['title'],
+              'amount': formatFcfa(service.price),
+              'price_fcfa': service.price,
+              'payment_type': data['payment_type'] ?? 'ESPECES',
+              if (data['mobile_money_operator'] != null)
+                'mobile_money_operator': data['mobile_money_operator'],
+              if (data['client_message'] != null &&
+                  (data['client_message'] as String).isNotEmpty)
+                'message': data['client_message'],
+              if (data['disponibilites_client'] != null &&
+                  (data['disponibilites_client'] as String).isNotEmpty)
+                'when_label': data['disponibilites_client'],
+              if (widget.providerId > 0) 'provider_id': widget.providerId,
+              if (data['latitude'] != null) 'latitude': data['latitude'],
+              if (data['longitude'] != null) 'longitude': data['longitude'],
+              if (data['address_label'] != null &&
+                  (data['address_label'] as String).isNotEmpty)
+                'address_label': data['address_label'],
+              if (data['photo_attachments'] != null)
+                'photo_attachments': data['photo_attachments'],
+              if (data['is_urgent'] == true) 'is_urgent': true,
+            };
+            final res = await BabifixUserStore.authPost(
+              uri.toString(),
+              body: jsonEncode(body),
+            );
+            if (res.statusCode == 201) {
+              final respJson = jsonDecode(res.body) as Map<String, dynamic>;
+              return {
+                'ok': true,
+                'reference': respJson['reference'] as String?,
+              };
+            }
+            return {'ok': false};
+          } catch (_) {
+            return {'ok': false};
+          }
+        },
       ),
     ));
   }

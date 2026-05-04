@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'dart:convert';
-import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -24,14 +23,12 @@ import 'user_store.dart';
 import 'models/client_models.dart';
 import 'shared/in_app_notifications.dart';
 import 'shared/offline_cache.dart';
-import 'shared/connectivity_banner.dart';
 import 'shared/widgets/status_pill.dart';
 import 'shared/widgets/category_strip.dart';
 import 'shared/services/real_time_sync.dart';
 import 'features/auth/onboarding_screen.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/auth/forgot_password_screen.dart';
-import 'features/home/actualite_detail_screen.dart';
 import 'features/profile/edit_profile_screen.dart';
 import 'features/chat/messages_screen.dart';
 import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
@@ -74,25 +71,9 @@ String reservationWhenLabelFromFlowData(Map<String, dynamic> flowData) {
 }
 
 Future<void> main() async {
-  const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
-  if (sentryDsn.isNotEmpty) {
-    await SentryFlutter.init(
-      (options) {
-        options.dsn = sentryDsn;
-        options.tracesSampleRate = 0.2;
-        options.environment = kReleaseMode ? 'production' : 'development';
-      },
-      appRunner: () async {
-        WidgetsFlutterBinding.ensureInitialized();
-        await BabifixFcm.ensureInitialized();
-        runApp(const BabifixClientApp());
-      },
-    );
-  } else {
-    WidgetsFlutterBinding.ensureInitialized();
-    await BabifixFcm.ensureInitialized();
-    runApp(const BabifixClientApp());
-  }
+  WidgetsFlutterBinding.ensureInitialized();
+  await BabifixFcm.ensureInitialized();
+  runApp(const BabifixClientApp());
 }
 
 // AppPaletteMode is defined in theme/app_theme.dart
@@ -279,6 +260,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
     ),
   ];
 
+  /// Raw categories data from API for ID lookup
+  List<Map<String, dynamic>> _publicCategories = [];
+
   /// Donnees 100 % issues de l'API — aucune liste locale fictive.
   List<ClientService> services = <ClientService>[];
 
@@ -332,6 +316,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
       if (mounted) {
         // Auto-refresh sans afficher de banniere
         _loadRemoteData();
+      }
+    });
+    RealTimeSyncService.instance.providersStream.listen((_) {
+      if (mounted) {
+        // Recharger les prestataires en temps réel (force update)
+        _loadPublicProviders(forceUpdate: true);
       }
     });
   }
@@ -694,9 +684,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
         try {
           final m = jsonDecode(raw as String) as Map<String, dynamic>;
           final typ = '${m['type'] ?? ''}';
-          if (typ == 'provider.approved' || typ == 'actualite.published') {
+          if (typ == 'provider.approved' ||
+              typ == 'provider.updated' ||
+              typ == 'providers.updated' ||
+              typ == 'actualite.published') {
             _loadRemoteData();
-            if (typ == 'provider.approved') {
+            if (typ == 'provider.approved' ||
+                typ == 'provider.updated' ||
+                typ == 'providers.updated') {
               _pushClientNotif(
                 category: 'actu',
                 title: 'Catalogue mis a jour',
@@ -777,9 +772,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
     _clientFcmSub = FirebaseMessaging.onMessage.listen((msg) {
       final d = msg.data;
       final ty = '${d['type'] ?? ''}';
-      if (ty == 'provider.approved' || ty == 'actualite.published') {
+      if (ty == 'provider.approved' ||
+          ty == 'provider.updated' ||
+          ty == 'actualite.published') {
         _loadRemoteData();
-        if (ty == 'provider.approved') {
+        if (ty == 'provider.approved' || ty == 'provider.updated') {
           _pushClientNotif(
             category: 'actu',
             title: 'Nouveau prestataire',
@@ -1884,115 +1881,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
-  // ── ACCUEIL : Categories en acces rapide ─────────────────────────────────
-  Widget _buildCategoriesSection() {
-    if (categoryTabs.length <= 1) return const SizedBox.shrink();
-    final cats = categoryTabs.skip(1).toList(); // skip "Tous"
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: BabifixDesign.ciOrange,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Nos services',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: _textPrimary,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => setState(() => navIndex = 1),
-                child: Text(
-                  'Voir tout',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: BabifixDesign.cyan,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: 90,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: cats.length,
-            itemBuilder: (_, i) {
-              final cat = cats[i];
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    categoryIndex = i + 1;
-                    navIndex = 1;
-                  });
-                },
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _cardBg,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: _isLight
-                          ? const Color(0x140F172A)
-                          : const Color(0x15FFFFFF),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _isLight
-                            ? const Color(0x0A0F172A)
-                            : const Color(0x20000000),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(cat.icon, color: BabifixDesign.cyan, size: 28),
-                      const SizedBox(height: 6),
-                      Text(
-                        cat.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: _textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
   // ── ACCUEIL : Comment ca marche (3 etapes) ───────────────────────────────
   Widget _buildHowItWorksSection() {
     const steps = [
@@ -2408,7 +2296,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
               CategoryStrip(
                 categories: categoryTabs,
                 active: categoryIndex.clamp(0, categoryTabs.length - 1),
-                onTap: (index) => setState(() => categoryIndex = index),
+                onTap: (index) {
+                  setState(() => categoryIndex = index);
+                  // Reload all providers with force update
+                  _loadPublicProviders(forceUpdate: true);
+                },
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
@@ -2691,32 +2583,32 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ? 'Toutes'
                     : '${tempMinRating.toStringAsFixed(1)} ★',
                 activeColor: BabifixDesign.ciOrange,
-                onChanged: (v) => setSheetState(() => tempMinRating = v),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text(
-                    'Prix max (FCFA) : ',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                  ),
-                  Text(
-                    tempMaxPrice == 0
-                        ? 'Sans limite'
-                        : '${tempMaxPrice.toStringAsFixed(0)} FCFA',
-                  ),
-                ],
-              ),
-              Slider(
-                value: tempMaxPrice.toDouble(),
-                min: 0,
-                max: 100000,
-                divisions: 20,
-                label: tempMaxPrice == 0
-                    ? 'Sans limite'
-                    : '${tempMaxPrice.toStringAsFixed(0)} FCFA',
-                activeColor: BabifixDesign.ciOrange,
-                onChanged: (v) => setSheetState(() => tempMaxPrice = v.round()),
+                 onChanged: (v) => setSheetState(() => tempMinRating = v),
+               ),
+               const SizedBox(height: 8),
+               Row(
+                 children: [
+                   const Text(
+                     'Prix max (FCFA) : ',
+                     style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                   ),
+                   Text(
+                     tempMaxPrice == 0
+                         ? 'Sans limite'
+                         : '${tempMaxPrice.toStringAsFixed(0)} FCFA',
+                   ),
+                 ],
+               ),
+               Slider(
+                 value: tempMaxPrice.toDouble(),
+                 min: 0,
+                 max: 100000,
+                 divisions: 20,
+                 label: tempMaxPrice == 0
+                     ? 'Sans limite'
+                     : '${tempMaxPrice.toStringAsFixed(0)} FCFA',
+                 activeColor: BabifixDesign.ciOrange,
+                 onChanged: (v) => setSheetState(() => tempMaxPrice = v.round()),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -3937,7 +3829,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ])),
                     Switch(
                       value: widget.paletteMode == AppPaletteMode.blue,
-                      activeColor: const Color(0xFF4CC9F0),
+                      activeThumbColor: const Color(0xFF4CC9F0),
                       activeTrackColor: const Color(0xFF4CC9F0).withValues(alpha: 0.3),
                       onChanged: (v) => widget.onPaletteChanged(v ? AppPaletteMode.blue : AppPaletteMode.light),
                     ),
@@ -4179,8 +4071,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
     // Charger les categories publiques (sans authentification)
     await _loadPublicCategories();
 
-    // Charger les prestataires sans authentification
-    await _loadPublicProviders();
+    // Charger les prestataires sans authentification (force pour refresh)
+    await _loadPublicProviders(forceUpdate: true);
 
     // Charger les donnees utilisateur (si connecte)
     if (authToken != null) {
@@ -4198,10 +4090,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   /// Charge les prestataires publics sans authentification.
   /// Si la permission GPS est déjà accordée, filtre par position en temps réel.
-  Future<void> _loadPublicProviders() async {
+  /// Si [forceUpdate] est true, met à jour services même si déjà chargés.
+  Future<void> _loadPublicProviders({int? categoryId, bool forceUpdate = false}) async {
     try {
       final base = babifixApiBaseUrl();
-      String url = '$base/api/public/providers/';
+      final params = <String, String>{};
+
+      // Filtrer par catégorie si spécifié
+      if (categoryId != null) {
+        params['category'] = categoryId.toString();
+      }
 
       // Ajouter les coordonnées GPS si la permission est déjà accordée
       try {
@@ -4212,17 +4110,18 @@ class _ClientHomePageState extends State<ClientHomePage> {
               accuracy: LocationAccuracy.medium,
             ),
           );
-          final lat = pos.latitude.toStringAsFixed(6);
-          final lon = pos.longitude.toStringAsFixed(6);
-          url = '$base/api/public/providers/?lat=$lat&lon=$lon&radius=15';
-          debugPrint('BABIFIX: Filtering providers near ($lat, $lon) radius=15km');
+          params['lat'] = pos.latitude.toStringAsFixed(6);
+          params['lon'] = pos.longitude.toStringAsFixed(6);
+          params['radius'] = '15';
+          debugPrint('BABIFIX: Filtering providers near (${params['lat']}, ${params['lon']}) radius=15km');
         }
       } catch (_) {
         // GPS non disponible — on charge sans filtre géo
       }
 
-      debugPrint('BABIFIX: Fetching providers from: $url');
-      final pres = await http.get(Uri.parse(url));
+      final uri = Uri.parse('$base/api/public/providers/').replace(queryParameters: params);
+      debugPrint('BABIFIX: Fetching providers from: $uri');
+      final pres = await http.get(uri);
       if (pres.statusCode == 200) {
         final pdata = jsonDecode(pres.body) as Map<String, dynamic>;
         final rows = (pdata['providers'] as List<dynamic>? ?? []);
@@ -4249,10 +4148,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
         // Convertir aussi en ClientService pour l'onglet Services (fallback sans auth)
         final publicServices = rp.map((p) {
-          final catName = p.specialite.isNotEmpty ? p.specialite : 'Service';
+          // Use category_nom from API for proper category filtering
+          final raw = rows.firstWhere(
+            (r) => jsonInt(r['id']) == p.id,
+            orElse: () => <String, dynamic>{},
+          );
+          final catName = '${raw['category_nom'] ?? ''}'.trim();
           return ClientService(
             title: p.nom,
-            category: catName,
+            category: catName.isNotEmpty ? catName : p.specialite,
             duration: 'Disponible',
             price: p.tarif?.toInt() ?? 0,
             rating: 0.0,
@@ -4269,8 +4173,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
         if (mounted) {
           setState(() {
             recentProviders = rp;
-            // Peupler services seulement si pas encore charges (avant auth)
-            if (services.isEmpty) {
+            // Met à jour services si forceUpdate (refresh/realtime) ou si pas encore chargés
+            if (forceUpdate || services.isEmpty) {
               services = publicServices;
             }
           });
@@ -4319,6 +4223,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
         if (mounted) {
           setState(() {
+            _publicCategories = rows.cast<Map<String, dynamic>>();
             categoryTabs = nextTabs;
             if (categoryIndex >= categoryTabs.length) {
               categoryIndex = 0;
@@ -4367,13 +4272,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
       ];
       try {
         final url = '$base/api/public/categories/';
-        debugPrint('BABIFIX: Fetching categories from: $url');
         final cres = await http.get(Uri.parse(url));
-        debugPrint('BABIFIX: Categories response status: ${cres.statusCode}');
         if (cres.statusCode == 200) {
           final cdata = jsonDecode(cres.body) as Map<String, dynamic>;
           final rows = (cdata['categories'] as List<dynamic>? ?? []);
-          debugPrint('BABIFIX: Found ${rows.length} categories');
           for (final raw in rows) {
             final m = raw as Map<String, dynamic>;
             final nom = '${m['nom'] ?? m['name'] ?? ''}'.trim();
@@ -4389,9 +4291,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
               ),
             ];
           }
+          if (mounted) {
+            _publicCategories = rows.cast<Map<String, dynamic>>();
+          }
         }
       } catch (e) {}
-
       final remoteServices = (data['services'] as List<dynamic>? ?? [])
           .map(
             (item) => ClientService(

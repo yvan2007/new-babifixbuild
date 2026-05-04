@@ -1673,13 +1673,19 @@ def api_public_providers(request):
             lat_delta = radius_km / 111.0  # ~111km par degré
             lon_delta = radius_km / (111.0 * abs(math.cos(math.radians(lat_f))))
 
+            # Inclure les prestataires dans la zone GEO OU sans coordonnées
+            from django.db.models import Q
             qs = qs.filter(
-                latitude__isnull=False,
-                longitude__isnull=False,
-                latitude__gte=lat_f - lat_delta,
-                latitude__lte=lat_f + lat_delta,
-                longitude__gte=lon_f - lon_delta,
-                longitude__lte=lon_f + lon_delta,
+                Q(
+                    latitude__isnull=False,
+                    longitude__isnull=False,
+                    latitude__gte=lat_f - lat_delta,
+                    latitude__lte=lat_f + lat_delta,
+                    longitude__gte=lon_f - lon_delta,
+                    longitude__lte=lon_f + lon_delta,
+                )
+                | Q(latitude__isnull=True)
+                | Q(longitude__isnull=True)
             )
         except (ValueError, TypeError):
             pass
@@ -1767,20 +1773,24 @@ def api_client_prestataires(request):
             client_lat = float(lat)
             client_lon = float(lon)
             max_radius = float(radius_km)
-            # Get all providers with coordinates
-            qs_with_coords = qs.filter(latitude__isnull=False, longitude__isnull=False)
-            # Filter manually after fetching (since Django doesn't support Haversine natively)
-            from django.db.models.functions import ACos, Cos, Sin, Radians
 
             # Simple bounding box pre-filter
             lat_float = float(lat)
             lon_float = float(lon)
             approx_deg = max_radius / 111.0  # 1 degree ≈ 111km
-            qs = qs_with_coords.filter(
-                latitude__gte=lat_float - approx_deg,
-                latitude__lte=lat_float + approx_deg,
-                longitude__gte=lon_float - approx_deg,
-                longitude__lte=lon_float + approx_deg,
+            # Inclure les prestataires dans la zone GEO OU sans coordonnées
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(
+                    latitude__isnull=False,
+                    longitude__isnull=False,
+                    latitude__gte=lat_float - approx_deg,
+                    latitude__lte=lat_float + approx_deg,
+                    longitude__gte=lon_float - approx_deg,
+                    longitude__lte=lon_float + approx_deg,
+                )
+                | Q(latitude__isnull=True)
+                | Q(longitude__isnull=True)
             )
         except ValueError:
             pass
@@ -3736,7 +3746,7 @@ def api_public_categories(request):
         pass  # Pas de Redis = degrade gracieusement
     rows = []
     cats = (
-        Category.objects.filter(actif=True)
+        Category.objects.filter(actif=True, is_deleted=False)
         .annotate(
             providers_count=Count(
                 "providers",

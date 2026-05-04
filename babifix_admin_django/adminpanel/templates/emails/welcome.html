@@ -1,0 +1,21 @@
+{% extends "emails/base_email.html" %}
+
+{% block header_title %}Bienvenue sur BABIFIX{% endblock %}
+
+{% block content %}
+<p>Bonjour <span class="highlight">{{ username }}</span>,</p>
+
+<p>Votre compte a été créé avec succès ! Vous rejoignez désormais la plus grande plateforme de services à domicile en Côte d'Ivoire.</p>
+
+<div class="card">
+    <p><strong>Votre rôle :</strong><br><span style="font-size:18px;color:var(--cyan)">{{ role_description }}</span></p>
+</div>
+
+<p style="text-align:center">
+    <a href="{{ app_url }}" class="btn">Ouvrir l'application</a>
+</p>
+
+<p style="font-size:13px;text-align:center;margin-top:30px">
+    Besoin d'aide ? Contactez-nous à <a href="mailto:support@babifix.ci" style="color:var(--cyan)">support@babifix.ci</a>
+</p>
+{% endblock %}

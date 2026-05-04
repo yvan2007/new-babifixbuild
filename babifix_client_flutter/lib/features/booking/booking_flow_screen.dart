@@ -10,7 +10,6 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
-import '../../shared/widgets/message_with_photos_field.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 
 /// Flow de réservation en 4 étapes :
@@ -49,10 +48,10 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   final _addressCtrl = TextEditingController();
   final _msgCtrl = TextEditingController();
   final _prixProposeCtrl = TextEditingController();
-  String _paymentType = 'ESPECES';
-  String _mmOperator = 'ORANGE_MONEY';
   bool _submitting = false;
   bool _confirmed = false;
+  String _paymentType = 'ESPECES';
+  String _mmOperator = 'ORANGE_MONEY';
   bool _isUrgent = false;
   String _disponibilites = '';
   bool _checkingAvailability = false;
@@ -134,6 +133,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       'client_message': _msgCtrl.text.trim(),
       'disponibilites_client': _disponibilites,
       'is_urgent': _isUrgent,
+      'payment_type': _paymentType,
+      if (_paymentType == 'MOBILE_MONEY')
+        'mobile_money_operator': _mmOperator,
       if (widget.providerId != null) 'provider_id': widget.providerId,
       if (widget.providerName != null) 'prestataire_name': widget.providerName,
     };
@@ -220,6 +222,10 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           onDisponibilitesChanged: (v) => setState(() => _disponibilites = v),
           isUrgent: _isUrgent,
           onUrgentChanged: (v) => setState(() => _isUrgent = v),
+          paymentType: _paymentType,
+          onPaymentTypeChanged: (v) => setState(() => _paymentType = v),
+          mmOperator: _mmOperator,
+          onMmOperatorChanged: (v) => setState(() => _mmOperator = v),
           onConfirm: _submit,
           onBack: () => _goTo(1),
           submitting: _submitting,
@@ -1242,6 +1248,10 @@ class _StepDisponibilite extends StatelessWidget {
     required this.onDisponibilitesChanged,
     required this.isUrgent,
     required this.onUrgentChanged,
+    required this.paymentType,
+    required this.onPaymentTypeChanged,
+    required this.mmOperator,
+    required this.onMmOperatorChanged,
     required this.onConfirm,
     required this.onBack,
     required this.submitting,
@@ -1258,6 +1268,10 @@ class _StepDisponibilite extends StatelessWidget {
   final ValueChanged<String> onDisponibilitesChanged;
   final bool isUrgent;
   final ValueChanged<bool> onUrgentChanged;
+  final String paymentType;
+  final ValueChanged<String> onPaymentTypeChanged;
+  final String mmOperator;
+  final ValueChanged<String> onMmOperatorChanged;
   final Future<void> Function() onConfirm;
   final VoidCallback onBack;
   final bool submitting;
@@ -1433,6 +1447,80 @@ class _StepDisponibilite extends StatelessWidget {
               ],
             ],
             const SizedBox(height: 24),
+            // ── Mode de paiement ──────────────────────────────────────────
+            const Text(
+              'Mode de paiement',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _PaymentOption(
+                    icon: Icons.payments_rounded,
+                    label: 'Espèces',
+                    selected: paymentType == 'ESPECES',
+                    onTap: () => onPaymentTypeChanged('ESPECES'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _PaymentOption(
+                    icon: Icons.phone_android_rounded,
+                    label: 'Mobile Money',
+                    selected: paymentType == 'MOBILE_MONEY',
+                    onTap: () => onPaymentTypeChanged('MOBILE_MONEY'),
+                  ),
+                ),
+              ],
+            ),
+            if (paymentType == 'MOBILE_MONEY') ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MmOperatorChip(
+                      label: 'Orange',
+                      color: const Color(0xFFFF6600),
+                      selected: mmOperator == 'ORANGE_MONEY',
+                      onTap: () => onMmOperatorChanged('ORANGE_MONEY'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MmOperatorChip(
+                      label: 'MTN',
+                      color: const Color(0xFFFFCC00),
+                      selected: mmOperator == 'MTN_MOMO',
+                      onTap: () => onMmOperatorChanged('MTN_MOMO'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MmOperatorChip(
+                      label: 'Wave',
+                      color: const Color(0xFF1A9BFC),
+                      selected: mmOperator == 'WAVE',
+                      onTap: () => onMmOperatorChanged('WAVE'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MmOperatorChip(
+                      label: 'Moov',
+                      color: const Color(0xFF007AC1),
+                      selected: mmOperator == 'MOOV',
+                      onTap: () => onMmOperatorChanged('MOOV'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 24),
             GestureDetector(
               onTap: () => onUrgentChanged(!isUrgent),
               child: Container(
@@ -1479,7 +1567,7 @@ class _StepDisponibilite extends StatelessWidget {
                     Switch(
                       value: isUrgent,
                       onChanged: onUrgentChanged,
-                      activeColor: _kRed,
+                      activeThumbColor: _kRed,
                     ),
                   ],
                 ),
@@ -2511,6 +2599,97 @@ class _StepDone extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PaymentOption extends StatelessWidget {
+  const _PaymentOption({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF2563EB).withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF4CC9F0)
+                : Colors.white.withValues(alpha: 0.1),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: selected ? const Color(0xFF4CC9F0) : Colors.white54, size: 22),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: selected ? const Color(0xFF4CC9F0) : Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MmOperatorChip extends StatelessWidget {
+  const _MmOperatorChip({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? color : Colors.white.withValues(alpha: 0.1), width: selected ? 2 : 1),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: selected ? color : Colors.white70,
+            ),
+          ),
+        ),
       ),
     );
   }

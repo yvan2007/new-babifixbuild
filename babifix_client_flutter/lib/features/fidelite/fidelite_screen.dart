@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
-import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../parrainage/parrainage_screen.dart';
 

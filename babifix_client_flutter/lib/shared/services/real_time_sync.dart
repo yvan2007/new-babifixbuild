@@ -79,9 +79,19 @@ class RealTimeSyncService {
       if (data is! String) return;
       final msg = jsonDecode(data) as Map<String, dynamic>;
       final eventType = msg['type'] as String?;
-      if (eventType == 'categories.updated') {
+      if (eventType == 'categories.updated' ||
+          eventType == 'category.created' ||
+          eventType == 'category.updated' ||
+          eventType == 'category.deleted') {
         _checkCategoriesUpdate();
-      } else if (eventType == 'prestataire.new' || eventType == 'prestataire.updated') {
+      } else if (eventType == 'prestataire.new' ||
+          eventType == 'prestataire.updated' ||
+          eventType == 'provider.created' ||
+          eventType == 'provider.updated' ||
+          eventType == 'provider.deleted' ||
+          eventType == 'providers.updated') {
+        _checkProvidersUpdate();
+      } else if (eventType == 'provider.availability_changed') {
         _checkProvidersUpdate();
       }
     } catch (e) {
@@ -178,7 +188,17 @@ class RealTimeSyncService {
     if (newProviders.length != _lastProviders.length) return true;
     final newIds = newProviders.map((p) => p['id']).toSet();
     final oldIds = _lastProviders.map((p) => p['id']).toSet();
-    return !newIds.containsAll(oldIds) || !oldIds.containsAll(newIds);
+    if (!newIds.containsAll(oldIds) || !oldIds.containsAll(newIds)) return true;
+    for (final np in newProviders) {
+      final op = _lastProviders.where((p) => p['id'] == np['id']).firstOrNull;
+      if (op != null &&
+          (np['disponible'] != op['disponible'] ||
+              np['average_rating'] != op['average_rating'] ||
+              np['tarif_horaire'] != op['tarif_horaire'])) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void dispose() {

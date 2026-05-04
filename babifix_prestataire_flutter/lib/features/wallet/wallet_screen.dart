@@ -69,6 +69,14 @@ IconData _txIcon(String type) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Premium Colors
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _premiumGold = Color(0xFFFFD700);
+const _deepNavy = Color(0xFF0A0E27);
+const _charcoal = Color(0xFF1A1F3A);
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key, this.onBack, this.paletteMode});
@@ -87,6 +95,7 @@ class _WalletScreenState extends State<WalletScreen>
   double _solde = 0;
   String _walletPhone = '';
   String _walletOperator = '';
+  String _prestataireName = '';
   List<Map<String, dynamic>> _transactions = [];
 
   late AnimationController _fadeCtrl;
@@ -97,7 +106,7 @@ class _WalletScreenState extends State<WalletScreen>
     super.initState();
     _fadeCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 800),
     );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _load();
@@ -126,6 +135,7 @@ class _WalletScreenState extends State<WalletScreen>
           _solde = (data['solde_fcfa'] as num?)?.toDouble() ?? 0;
           _walletPhone = data['wallet_phone'] as String? ?? '';
           _walletOperator = data['wallet_operator'] as String? ?? '';
+          _prestataireName = data['prestataire_nom'] as String? ?? 'PRESTATAIRE';
           _transactions = List<Map<String, dynamic>>.from(
             (data['transactions'] as List?) ?? [],
           );
@@ -180,80 +190,118 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
+  String _getMaskedCardNumber() {
+    if (_walletPhone.length >= 4) {
+      final last4 = _walletPhone.substring(_walletPhone.length - 4);
+      return '**** **** **** $last4';
+    }
+    return '**** **** **** 5432';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D1117) : const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: widget.onBack != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                onPressed: widget.onBack,
-              )
-            : null,
-        title: const Text(
-          'Mon Wallet',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_deepNavy, Color(0xFF0D1117), Color(0xFF0A0E27)],
+          stops: [0.0, 0.5, 1.0],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_rounded),
-            tooltip: 'Gérer mon Mobile Money',
-            onPressed: _openInfoSheet,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _load,
-          ),
-        ],
       ),
-      body: _loading
-          ? const _WalletShimmer()
-          : _error != null
-              ? _ErrorView(message: _error!, onRetry: _load)
-              : FadeTransition(
-                  opacity: _fadeAnim,
-                  child: RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        _BalanceCard(
-                          solde: _solde,
-                          phone: _walletPhone,
-                          operator: _walletOperator,
-                          onWithdraw: _solde >= 1000 ? _openWithdrawSheet : null,
-                        ),
-                        const SizedBox(height: 24),
-                        if (_transactions.isEmpty)
-                          const _EmptyTransactions()
-                        else ...[
-                          Text(
-                            'Historique des transactions',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: cs.onSurface,
-                            ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: widget.onBack != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
+                  onPressed: widget.onBack,
+                )
+              : null,
+          title: const Text(
+            'Mon Wallet',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit_rounded, color: _premiumGold),
+              tooltip: 'Gérer mon Mobile Money',
+              onPressed: _openInfoSheet,
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+              onPressed: _load,
+            ),
+          ],
+        ),
+        body: _loading
+            ? const _WalletShimmer()
+            : _error != null
+                ? _ErrorView(message: _error!, onRetry: _load)
+                : FadeTransition(
+                    opacity: _fadeAnim,
+                    child: RefreshIndicator(
+                      onRefresh: _load,
+                      color: _premiumGold,
+                      backgroundColor: _charcoal,
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          _BalanceCard(
+                            solde: _solde,
+                            phone: _walletPhone,
+                            operator: _walletOperator,
+                            prestataireName: _prestataireName,
+                            maskedCardNumber: _getMaskedCardNumber(),
+                            onWithdraw: _solde >= 1000 ? _openWithdrawSheet : null,
                           ),
-                          const SizedBox(height: 12),
-                          ..._transactions.map(_TxTile.new),
+                          const SizedBox(height: 28),
+                          if (_transactions.isEmpty)
+                            const _EmptyTransactions()
+                          else ...[
+                            Row(
+                              children: [
+                                Container(
+                                  width: 4,
+                                  height: 18,
+                                  decoration: BoxDecoration(
+                                    color: _premiumGold,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Historique des transactions',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            ..._transactions.map(_TxTile.new),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Balance Card
+// Premium Balance Card
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BalanceCard extends StatelessWidget {
@@ -261,12 +309,16 @@ class _BalanceCard extends StatelessWidget {
     required this.solde,
     required this.phone,
     required this.operator,
+    required this.prestataireName,
+    required this.maskedCardNumber,
     this.onWithdraw,
   });
 
   final double solde;
   final String phone;
   final String operator;
+  final String prestataireName;
+  final String maskedCardNumber;
   final VoidCallback? onWithdraw;
 
   @override
@@ -274,78 +326,321 @@ class _BalanceCard extends StatelessWidget {
     final opColor = _operatorColors[operator] ?? BabifixDesign.cyan;
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [BabifixDesign.ciBlue, opColor.withValues(alpha: 0.7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: BabifixDesign.ciBlue.withValues(alpha: 0.3),
+            color: _premiumGold.withValues(alpha: 0.15),
+            blurRadius: 30,
+            offset: const Offset(0, 12),
+            spreadRadius: 2,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Solde disponible',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _fcfa.format(solde),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (phone.isNotEmpty) ...[
-            Row(
-              children: [
-                const Icon(Icons.phone_android_rounded, color: Colors.white70, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  '$phone · ${_operatorNames[operator] ?? operator}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cardWidth = constraints.maxWidth;
+          final cardHeight = cardWidth * 0.6;
+          final vPad = cardHeight < 160 ? 14.0 : 20.0;
+          return SizedBox(
+            width: cardWidth,
+            height: cardHeight,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF1A1F3A),
+                    Color(0xFF0A0E27),
+                    Color(0xFF1A1F3A),
+                  ],
+                  stops: [0.0, 0.5, 1.0],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onWithdraw,
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: BabifixDesign.ciBlue,
-                disabledBackgroundColor: Colors.white30,
-                disabledForegroundColor: Colors.white60,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: _premiumGold.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
               ),
-              icon: const Icon(Icons.account_balance_wallet_rounded),
-              label: Text(
-                onWithdraw == null
-                    ? 'Solde minimum 1 000 FCFA'
-                    : 'Demander un retrait',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              child: Stack(
+                children: [
+                  // Geometric pattern overlay
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: CustomPaint(
+                        painter: _CardPatternPainter(),
+                      ),
+                    ),
+                  ),
+                  // Content
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: vPad + 4, vertical: vPad),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Top row: Chip + Brand
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Chip
+                            Container(
+                              width: cardHeight < 160 ? 36 : 42,
+                              height: cardHeight < 160 ? 26 : 30,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFFFD700),
+                                    Color(0xFFFFF4B0),
+                                    Color(0xFFFFD700),
+                                  ],
+                                  stops: [0.0, 0.5, 1.0],
+                                ),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: cardHeight < 160 ? 28 : 34,
+                                  height: cardHeight < 160 ? 20 : 23,
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      left: BorderSide(color: Colors.black.withValues(alpha: 0.15), width: 1),
+                                      right: BorderSide(color: Colors.black.withValues(alpha: 0.15), width: 1),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // BABIFIX PREMIUM branding
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _premiumGold.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: _premiumGold.withValues(alpha: 0.4),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'BABIFIX',
+                                    style: TextStyle(
+                                      color: _premiumGold,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'PREMIUM',
+                                    style: TextStyle(
+                                      color: Color(0xFFFFF4B0),
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Masked card number
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.credit_card_rounded,
+                              color: _premiumGold,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                maskedCardNumber,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        // Balance
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                _fcfa.format(solde),
+                                style: TextStyle(
+                                  color: _premiumGold,
+                                  fontSize: cardHeight < 160 ? 24 : 30,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.0,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Holder name and operator
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'TITULAIRE',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.35),
+                                      fontSize: 8,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    prestataireName.toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (phone.isNotEmpty) ...[
+                              Container(
+                                width: 1,
+                                height: 24,
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                              const SizedBox(width: 8),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.phone_android_rounded,
+                                    color: opColor,
+                                    size: 12,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Flexible(
+                                    child: Text(
+                                      phone,
+                                      style: TextStyle(
+                                        color: opColor.withValues(alpha: 0.9),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // Withdraw button
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: onWithdraw,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _premiumGold,
+                              foregroundColor: _deepNavy,
+                              disabledBackgroundColor: Colors.white.withValues(alpha: 0.1),
+                              disabledForegroundColor: Colors.white38,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              padding: EdgeInsets.symmetric(
+                                vertical: cardHeight < 160 ? 10 : 12,
+                              ),
+                              elevation: 2,
+                              shadowColor: _premiumGold.withValues(alpha: 0.3),
+                            ),
+                            icon: const Icon(Icons.account_balance_wallet_rounded, size: 16),
+                            label: Text(
+                              onWithdraw == null
+                                  ? 'Min. 1 000 FCFA'
+                                  : 'Demander un retrait',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Card Pattern Painter (geometric circles)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CardPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _premiumGold.withValues(alpha: 0.04)
+      ..style = PaintingStyle.fill;
+
+    // Large circle top right
+    canvas.drawCircle(
+      Offset(size.width * 0.85, -size.height * 0.1),
+      size.width * 0.4,
+      paint,
+    );
+
+    // Medium circle bottom left
+    canvas.drawCircle(
+      Offset(-size.width * 0.1, size.height * 0.9),
+      size.width * 0.3,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -366,42 +661,72 @@ class _TxTile extends StatelessWidget {
     final color = _txColor(type);
     final isDebit = type == 'debit' || type == 'commission';
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      elevation: 0,
+      decoration: BoxDecoration(
+        color: _charcoal.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.06),
+          width: 1,
+        ),
+      ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         leading: Container(
-          width: 42,
-          height: 42,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
+            gradient: RadialGradient(
+              colors: [
+                color.withValues(alpha: 0.2),
+                color.withValues(alpha: 0.05),
+              ],
+            ),
             shape: BoxShape.circle,
+            border: Border.all(
+              color: color.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
           ),
           child: Icon(_txIcon(type), color: color, size: 20),
         ),
         title: Text(
           _txLabel(type),
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: Colors.white,
+          ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (desc.isNotEmpty)
-              Text(desc, style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(date, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(
+                desc,
+                style: const TextStyle(fontSize: 12, color: Colors.white54),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            Text(
+              date,
+              style: const TextStyle(fontSize: 11, color: Colors.white38),
+            ),
             if (status == 'pending')
               Container(
                 margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.12),
+                  color: Colors.orange.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: const Text(
                   'En attente',
-                  style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600),
                 ),
               ),
           ],
@@ -514,44 +839,54 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Container(
-      margin: EdgeInsets.only(bottom: bottom),
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        color: Color(0xFF1A1F2E),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
+    return Theme(
+      data: ThemeData.dark(),
+      child: Container(
+        margin: EdgeInsets.only(bottom: bottom),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A1F3A), Color(0xFF0A0E27)],
+          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(
+            color: _premiumGold.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _premiumGold.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Demande de retrait',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+            const SizedBox(height: 20),
+            const Text(
+              'Demande de retrait',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Solde disponible : ${_fcfa.format(widget.currentBalance)}',
-            style: const TextStyle(color: Colors.white60, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          // Opérateur
-          const Text('Opérateur', style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 4),
+            Text(
+              'Solde disponible : ${_fcfa.format(widget.currentBalance)}',
+              style: const TextStyle(color: Colors.white60, fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+          const Text('Opérateur', style: TextStyle(color: _premiumGold, fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -561,18 +896,20 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
               return ChoiceChip(
                 label: Text(_operatorNames[op] ?? op),
                 selected: selected,
-                selectedColor: color,
                 labelStyle: TextStyle(
-                  color: selected ? Colors.white : Colors.white70,
-                  fontWeight: FontWeight.w600,
+                  color: selected ? color : Colors.white,
+                  fontWeight: FontWeight.w700,
                 ),
-                backgroundColor: Colors.white12,
+                backgroundColor: Colors.white.withValues(alpha: 0.06),
+                side: BorderSide(
+                  color: selected ? color : Colors.white.withValues(alpha: 0.2),
+                  width: selected ? 2 : 1,
+                ),
                 onSelected: (_) => setState(() => _operator = op),
               );
             }).toList(),
           ),
           const SizedBox(height: 16),
-          // Numéro
           TextField(
             controller: _phoneCtrl,
             style: const TextStyle(color: Colors.white),
@@ -580,17 +917,20 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
             decoration: InputDecoration(
               labelText: 'Numéro Mobile Money',
               labelStyle: const TextStyle(color: Colors.white60),
-              prefixIcon: const Icon(Icons.phone_android_rounded, color: Colors.white54),
+              prefixIcon: const Icon(Icons.phone_android_rounded, color: _premiumGold),
               filled: true,
-              fillColor: Colors.white12,
+              fillColor: Colors.white.withValues(alpha: 0.06),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
               ),
             ),
           ),
           const SizedBox(height: 12),
-          // Montant
           TextField(
             controller: _amountCtrl,
             style: const TextStyle(color: Colors.white),
@@ -598,12 +938,16 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
             decoration: InputDecoration(
               labelText: 'Montant (FCFA)',
               labelStyle: const TextStyle(color: Colors.white60),
-              prefixIcon: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white54),
+              prefixIcon: const Icon(Icons.account_balance_wallet_rounded, color: _premiumGold),
               filled: true,
-              fillColor: Colors.white12,
+              fillColor: Colors.white.withValues(alpha: 0.06),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
               ),
               hintText: 'Min. 1 000 FCFA',
               hintStyle: const TextStyle(color: Colors.white30),
@@ -619,24 +963,27 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
             child: FilledButton(
               onPressed: _sending ? null : _submit,
               style: FilledButton.styleFrom(
-                backgroundColor: BabifixDesign.cyan,
-                foregroundColor: Colors.white,
+                backgroundColor: _premiumGold,
+                foregroundColor: _deepNavy,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 4,
+                shadowColor: _premiumGold.withValues(alpha: 0.4),
               ),
               child: _sending
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: _deepNavy),
                     )
                   : const Text(
                       'Confirmer le retrait',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                     ),
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -703,40 +1050,60 @@ class _MoMoInfoSheetState extends State<_MoMoInfoSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Container(
-      margin: EdgeInsets.only(bottom: bottom),
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        color: Color(0xFF1A1F2E),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+    return Theme(
+      data: ThemeData.dark(),
+      child: Container(
+        margin: EdgeInsets.only(bottom: bottom),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A1F3A), Color(0xFF0A0E27)],
+          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(
+            color: _premiumGold.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _premiumGold.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Informations Mobile Money',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 8,
-            children: ['mtn', 'orange', 'wave', 'moov'].map((op) {
-              final selected = _operator == op;
-              final color = _operatorColors[op] ?? BabifixDesign.cyan;
-              return ChoiceChip(
-                label: Text(_operatorNames[op] ?? op),
-                selected: selected,
-                selectedColor: color,
-                labelStyle: TextStyle(color: selected ? Colors.white : Colors.white70, fontWeight: FontWeight.w600),
-                backgroundColor: Colors.white12,
+            const SizedBox(height: 20),
+            const Text(
+              'Informations Mobile Money',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 8,
+              children: ['mtn', 'orange', 'wave', 'moov'].map((op) {
+                final selected = _operator == op;
+                final color = _operatorColors[op] ?? BabifixDesign.cyan;
+                return ChoiceChip(
+                  label: Text(_operatorNames[op] ?? op),
+                  selected: selected,
+                  labelStyle: TextStyle(
+                    color: selected ? color : Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  backgroundColor: Colors.white.withValues(alpha: 0.06),
+                  side: BorderSide(
+                    color: selected ? color : Colors.white.withValues(alpha: 0.2),
+                    width: selected ? 2 : 1,
+                  ),
                 onSelected: (_) => setState(() => _operator = op),
               );
             }).toList(),
@@ -749,10 +1116,17 @@ class _MoMoInfoSheetState extends State<_MoMoInfoSheet> {
             decoration: InputDecoration(
               labelText: 'Numéro Mobile Money',
               labelStyle: const TextStyle(color: Colors.white60),
-              prefixIcon: const Icon(Icons.phone_android_rounded, color: Colors.white54),
+              prefixIcon: const Icon(Icons.phone_android_rounded, color: _premiumGold),
               filled: true,
-              fillColor: Colors.white12,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              fillColor: Colors.white.withValues(alpha: 0.06),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -761,16 +1135,20 @@ class _MoMoInfoSheetState extends State<_MoMoInfoSheet> {
             child: FilledButton(
               onPressed: _saving ? null : _save,
               style: FilledButton.styleFrom(
-                backgroundColor: BabifixDesign.cyan,
+                backgroundColor: _premiumGold,
+                foregroundColor: _deepNavy,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 4,
+                shadowColor: _premiumGold.withValues(alpha: 0.4),
               ),
               child: _saving
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Enregistrer', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _deepNavy))
+                  : const Text('Enregistrer', style: TextStyle(fontWeight: FontWeight.w800)),
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -790,17 +1168,29 @@ class _EmptyTransactions extends StatelessWidget {
         padding: const EdgeInsets.all(32),
         child: Column(
           children: [
-            Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _premiumGold.withValues(alpha: 0.1),
+                border: Border.all(
+                  color: _premiumGold.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: const Icon(Icons.receipt_long_outlined, size: 48, color: _premiumGold),
+            ),
+            const SizedBox(height: 20),
+            const Text(
               'Aucune transaction',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Vos paiements reçus apparaîtront ici.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+              style: TextStyle(color: Colors.white54, fontSize: 14),
             ),
           ],
         ),
@@ -840,7 +1230,7 @@ class _WalletShimmerState extends State<_WalletShimmer>
     width: w == double.infinity ? null : w,
     height: h,
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.65),
+      color: Colors.white.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(r),
     ),
   );
@@ -849,36 +1239,39 @@ class _WalletShimmerState extends State<_WalletShimmer>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) {
+      builder: (context, _) {
         final grad = LinearGradient(
           begin: Alignment(_anim.value - 1, 0),
           end: Alignment(_anim.value + 1, 0),
-          colors: const [Color(0xFFE2E8F0), Color(0xFFF8FAFC), Color(0xFFE2E8F0)],
+          colors: const [Color(0xFF1A1F3A), Color(0xFF2A2F4A), Color(0xFF1A1F3A)],
         );
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
             // Balance card shimmer
-            Container(
-              height: 160,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: grad,
+            AspectRatio(
+              aspectRatio: 16 / 10,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: grad,
+                  border: Border.all(color: _premiumGold.withValues(alpha: 0.2)),
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             _box(140, 16, r: 6),
             const SizedBox(height: 12),
             ...List.generate(5, (_) => Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 gradient: grad,
               ),
               child: Row(
                 children: [
-                  _box(40, 40, r: 20),
+                  _box(44, 44, r: 22),
                   const SizedBox(width: 12),
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -911,11 +1304,26 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 56, color: Colors.grey),
-          const SizedBox(height: 12),
-          Text(message, style: const TextStyle(color: Colors.grey)),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.red.withValues(alpha: 0.1),
+            ),
+            child: const Icon(Icons.cloud_off_rounded, size: 40, color: Colors.white54),
+          ),
           const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
+          Text(message, style: const TextStyle(color: Colors.white70)),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: onRetry,
+            style: FilledButton.styleFrom(
+              backgroundColor: _premiumGold,
+              foregroundColor: _deepNavy,
+            ),
+            child: const Text('Réessayer'),
+          ),
         ],
       ),
     );

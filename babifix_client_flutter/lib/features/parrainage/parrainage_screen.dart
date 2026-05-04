@@ -164,7 +164,7 @@ class _ClientParrainageScreenState extends State<ClientParrainageScreen> {
                       decoration: BoxDecoration(
                         color: cardBg,
                         borderRadius: BorderRadius.circular(16),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12)],
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12)],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,9 +177,9 @@ class _ClientParrainageScreenState extends State<ClientParrainageScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1565C0).withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFF1565C0).withOpacity(0.3)),
+color: const Color(0xFF1565C0).withValues(alpha: 0.08),
+                                     borderRadius: BorderRadius.circular(12),
+                                     border: Border.all(color: const Color(0xFF1565C0).withValues(alpha: 0.3)),
                                   ),
                                   child: Text(
                                     _code.isEmpty ? '—' : _code,
@@ -221,7 +221,7 @@ class _ClientParrainageScreenState extends State<ClientParrainageScreen> {
                       decoration: BoxDecoration(
                         color: cardBg,
                         borderRadius: BorderRadius.circular(16),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12)],
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12)],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,7 +295,7 @@ class _MiniStat extends StatelessWidget {
     decoration: BoxDecoration(
       color: cardBg,
       borderRadius: BorderRadius.circular(16),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12)],
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12)],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

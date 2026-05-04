@@ -62,8 +62,11 @@ class _PendingScreenState extends State<PendingScreen>
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() {
-        if (_refreshSeconds > 0) _refreshSeconds--;
-        else _refreshSeconds = 60;
+        if (_refreshSeconds > 0) {
+          _refreshSeconds--;
+        } else {
+          _refreshSeconds = 60;
+        }
       });
     });
   }
@@ -167,7 +170,7 @@ class _PendingScreenState extends State<PendingScreen>
                         // Aiguille tournante
                         AnimatedBuilder(
                           animation: _rotCtrl,
-                          builder: (_, __) => Transform.rotate(
+                          builder: (context, _) => Transform.rotate(
                             angle: _rotCtrl.value * 2 * math.pi,
                             child: const Icon(
                               Icons.refresh_rounded,
@@ -496,7 +499,6 @@ class _Step {
 class _TipsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF0084D1);
     const navy = Color(0xFF0B1B34);
 
     final tips = [

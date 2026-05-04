@@ -4,8 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
-import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+
+// ─── Premium Colors ────────────────────────────────────────────────────────
+
+const _premiumGold = Color(0xFFFFD700);
+const _deepNavy = Color(0xFF0A0E27);
+const _charcoal = Color(0xFF1A1F3A);
+const _darkSurface = Color(0xFF0D1117);
+const _cardBg = Color(0xFF151B30);
 
 // ─── Modèle local ────────────────────────────────────────────────────────────
 
@@ -18,16 +25,16 @@ class _Slot {
   const _Slot({this.id, required this.weekday, required this.start, required this.end});
 
   factory _Slot.fromJson(Map<String, dynamic> j) {
-    TimeOfDay _parseTime(String s) {
+    TimeOfDay parseTime(String s) {
       final parts = s.split(':');
       return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
     }
 
     return _Slot(
       id: j['id'] as int?,
-      weekday: j['weekday'] as int,
-      start: _parseTime(j['start_time'] as String),
-      end: _parseTime(j['end_time'] as String),
+      weekday: (j['jour_semaine'] ?? j['weekday']) as int,
+      start: parseTime((j['heure_debut'] ?? j['start_time']) as String),
+      end: parseTime((j['heure_fin'] ?? j['end_time']) as String),
     );
   }
 
@@ -53,9 +60,13 @@ class _Unavailability {
 
   factory _Unavailability.fromJson(Map<String, dynamic> j) => _Unavailability(
         id: j['id'] as int?,
-        dateFrom: DateTime.parse(j['date_from'] as String),
-        dateTo: DateTime.parse(j['date_to'] as String),
-        reason: j['reason'] as String? ?? '',
+        dateFrom: DateTime.parse(
+          (j['date_debut'] ?? j['date_from']) as String,
+        ),
+        dateTo: DateTime.parse(
+          (j['date_fin'] ?? j['date_to']) as String,
+        ),
+        reason: (j['motif'] ?? j['reason']) as String? ?? '',
       );
 }
 
@@ -123,17 +134,21 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
         headers: headers,
       );
 
-      final slots = slotsRes.statusCode == 200
-          ? (jsonDecode(slotsRes.body) as List)
-              .map((e) => _Slot.fromJson(e as Map<String, dynamic>))
-              .toList()
-          : <_Slot>[];
+      final slotsResJson = jsonDecode(slotsRes.body);
+      final slotsData = slotsResJson is List
+          ? slotsResJson
+          : (slotsResJson as Map<String, dynamic>)['slots'] as List? ?? [];
+      final slots = slotsData
+          .map((e) => _Slot.fromJson(e as Map<String, dynamic>))
+          .toList();
 
-      final unavs = unavRes.statusCode == 200
-          ? (jsonDecode(unavRes.body) as List)
-              .map((e) => _Unavailability.fromJson(e as Map<String, dynamic>))
-              .toList()
-          : <_Unavailability>[];
+      final unavResJson = jsonDecode(unavRes.body);
+      final unavData = unavResJson is List
+          ? unavResJson
+          : (unavResJson as Map<String, dynamic>)['periods'] as List? ?? [];
+      final unavs = unavData
+          .map((e) => _Unavailability.fromJson(e as Map<String, dynamic>))
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -147,49 +162,157 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     }
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFC62828),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   Future<void> _addSlot() async {
     int? weekday;
     TimeOfDay? start;
     TimeOfDay? end;
 
-    // Sélection du jour
     weekday = await showDialog<int>(
       context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Choisir le jour'),
-        children: List.generate(
-          7,
-          (i) => SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, i),
-            child: Text(_weekdaysFull[i]),
+      builder: (ctx) => Dialog(
+        backgroundColor: _charcoal,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: _premiumGold.withValues(alpha: 0.3)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Choisir le jour',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...List.generate(
+                7,
+                (i) => ListTile(
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          _premiumGold.withValues(alpha: 0.2),
+                          _premiumGold.withValues(alpha: 0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _weekdays[i],
+                        style: const TextStyle(
+                          color: _premiumGold,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    _weekdaysFull[i],
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                  onTap: () => Navigator.pop(ctx, i),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
     if (weekday == null || !mounted) return;
 
-    // Sélection de l'heure de début
     start = await showTimePicker(
       context: context,
       initialTime: const TimeOfDay(hour: 8, minute: 0),
       helpText: 'Heure de début',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: _charcoal,
+              hourMinuteTextColor: Colors.white,
+              hourMinuteColor: _premiumGold.withValues(alpha: 0.2),
+              dayPeriodTextColor: Colors.white,
+              dayPeriodColor: _premiumGold.withValues(alpha: 0.2),
+              dialHandColor: _premiumGold,
+              dialBackgroundColor: _cardBg,
+              entryModeIconColor: _premiumGold,
+              confirmButtonStyle: ButtonStyle(
+                foregroundColor: WidgetStateProperty.all(_premiumGold),
+              ),
+              cancelButtonStyle: ButtonStyle(
+                foregroundColor: WidgetStateProperty.all(Colors.white70),
+              ),
+            ),
+            colorScheme: const ColorScheme.dark(
+              primary: _premiumGold,
+              surface: _charcoal,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (start == null || !mounted) return;
 
-    // Sélection de l'heure de fin
     end = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: start.hour + 1, minute: start.minute),
       helpText: 'Heure de fin',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: _charcoal,
+              hourMinuteTextColor: Colors.white,
+              hourMinuteColor: _premiumGold.withValues(alpha: 0.2),
+              dayPeriodTextColor: Colors.white,
+              dayPeriodColor: _premiumGold.withValues(alpha: 0.2),
+              dialHandColor: _premiumGold,
+              dialBackgroundColor: _cardBg,
+              entryModeIconColor: _premiumGold,
+              confirmButtonStyle: ButtonStyle(
+                foregroundColor: WidgetStateProperty.all(_premiumGold),
+              ),
+              cancelButtonStyle: ButtonStyle(
+                foregroundColor: WidgetStateProperty.all(Colors.white70),
+              ),
+            ),
+            colorScheme: const ColorScheme.dark(
+              primary: _premiumGold,
+              surface: _charcoal,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (end == null || !mounted) return;
 
     if (end.hour < start.hour ||
         (end.hour == start.hour && end.minute <= start.minute)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('L\'heure de fin doit être après l\'heure de début.')),
-      );
+      _showError('L\'heure de fin doit être après l\'heure de début.');
       return;
     }
 
@@ -207,21 +330,77 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
       if (res.statusCode == 201 || res.statusCode == 200) {
         _loadAll();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : ${res.body}')),
-        );
+        _showError('Erreur lors de l\'ajout du créneau (${res.statusCode}).');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur réseau.')),
-        );
+        _showError('Erreur réseau.');
       }
     }
   }
 
   Future<void> _deleteSlot(_Slot slot) async {
     if (slot.id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: _charcoal,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 30),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Supprimer ce créneau ?',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Annuler'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Supprimer'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return;
     final tok = await _token();
     try {
       await http.delete(
@@ -239,6 +418,74 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
       helpText: 'Période d\'indisponibilité',
+      cancelText: 'Annuler',
+      confirmText: 'Confirmer',
+      saveText: 'Sauvegarder',
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFFFF6B6B),
+              onPrimary: Colors.white,
+              surface: _charcoal,
+              onSurface: Colors.white,
+              onSurfaceVariant: Colors.white70,
+            ),
+            dialogTheme: const DialogThemeData(backgroundColor: _charcoal),
+            datePickerTheme: DatePickerThemeData(
+              backgroundColor: _charcoal,
+              headerBackgroundColor: _deepNavy,
+              headerForegroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              rangePickerBackgroundColor: _charcoal,
+              rangePickerHeaderBackgroundColor: _deepNavy,
+              rangePickerHeaderForegroundColor: Colors.white,
+              rangeSelectionBackgroundColor: const Color(0xFFFF6B6B).withValues(alpha: 0.2),
+              rangeSelectionOverlayColor: WidgetStateProperty.all(
+                const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+              ),
+              dayStyle: const TextStyle(color: Colors.white, fontSize: 13),
+              dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) return Colors.white;
+                if (states.contains(WidgetState.disabled)) return Colors.white24;
+                return Colors.white;
+              }),
+              dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) return const Color(0xFFFF6B6B);
+                return null;
+              }),
+              todayBorder: BorderSide(color: _premiumGold),
+              yearStyle: const TextStyle(color: Colors.white),
+              yearForegroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) return const Color(0xFFFF6B6B);
+                return Colors.white;
+              }),
+              weekdayStyle: const TextStyle(color: _premiumGold, fontWeight: FontWeight.w700),
+              dividerColor: _premiumGold.withValues(alpha: 0.2),
+              inputDecorationTheme: const InputDecorationTheme(
+                filled: true,
+                fillColor: _cardBg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  borderSide: BorderSide(color: _premiumGold, width: 1),
+                ),
+                labelStyle: TextStyle(color: Colors.white70),
+                hintStyle: TextStyle(color: Colors.white38),
+              ),
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: Colors.white70),
+            ),
+            filledButtonTheme: FilledButtonThemeData(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6B6B),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (range == null || !mounted) return;
 
@@ -246,22 +493,69 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     final reasonCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Motif (optionnel)'),
-        content: TextField(
-          controller: reasonCtrl,
-          decoration:
-              const InputDecoration(hintText: 'Congés, voyage, etc.'),
-          maxLength: 100,
+      builder: (ctx) => Dialog(
+        backgroundColor: _charcoal,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: const Color(0xFFFF6B6B).withValues(alpha: 0.3)),
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confirmer')),
-        ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Motif (optionnel)',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonCtrl,
+                style: const TextStyle(color: Colors.white),
+                maxLength: 100,
+                decoration: InputDecoration(
+                  hintText: 'Congés, voyage, etc.',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.06),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  counterStyle: const TextStyle(color: Colors.white54),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Annuler'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF6B6B),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Confirmer'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
     reasonCtrl.dispose();
@@ -286,26 +580,81 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
       if (res.statusCode == 201 || res.statusCode == 200) {
         _loadAll();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : ${res.body}')),
-        );
+        _showError('Erreur lors de l\'ajout du congé (${res.statusCode}).');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur réseau.')),
-        );
+        _showError('Erreur réseau.');
       }
     }
   }
 
   Future<void> _deleteUnavailability(_Unavailability u) async {
     if (u.id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: _charcoal,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 30),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Supprimer cette période ?',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Annuler'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Supprimer'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return;
     final tok = await _token();
     try {
       await http.delete(
-        Uri.parse(
-            '$_base/api/prestataire/availability/unavailability/${u.id}/'),
+        Uri.parse('$_base/api/prestataire/availability/unavailability/${u.id}/'),
         headers: {'Authorization': 'Bearer $tok'},
       );
       _loadAll();
@@ -316,41 +665,72 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      backgroundColor: cs.surface,
-      appBar: AppBar(
-        title: const Text('Mes disponibilités'),
-        backgroundColor: cs.surface,
-        surfaceTintColor: Colors.transparent,
-        bottom: TabBar(
-          controller: _tab,
-          indicatorColor: BabifixDesign.cyan,
-          labelColor: BabifixDesign.cyan,
-          unselectedLabelColor: cs.onSurfaceVariant,
-          tabs: const [
-            Tab(icon: Icon(Icons.schedule_rounded), text: 'Créneaux'),
-            Tab(icon: Icon(Icons.event_busy_rounded), text: 'Congés'),
-          ],
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_deepNavy, _darkSurface, _deepNavy],
+          stops: [0.0, 0.5, 1.0],
         ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tab,
-              children: [
-                _SlotsTab(
-                  slots: _slots,
-                  onAdd: _addSlot,
-                  onDelete: _deleteSlot,
-                ),
-                _UnavailabilityTab(
-                  unavailabilities: _unavailabilities,
-                  onAdd: _addUnavailability,
-                  onDelete: _deleteUnavailability,
-                ),
-              ],
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text(
+            'Mes disponibilités',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              letterSpacing: 0.3,
             ),
+          ),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          bottom: TabBar(
+            controller: _tab,
+            indicatorColor: _premiumGold,
+            indicatorWeight: 3,
+            labelColor: _premiumGold,
+            unselectedLabelColor: Colors.white54,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            dividerColor: Colors.white.withValues(alpha: 0.1),
+            tabs: const [
+              Tab(icon: Icon(Icons.schedule_rounded, size: 20), text: 'Créneaux'),
+              Tab(icon: Icon(Icons.event_busy_rounded, size: 20), text: 'Congés'),
+            ],
+          ),
+        ),
+        body: _loading
+            ? Center(
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(
+                    color: _premiumGold,
+                    strokeWidth: 3,
+                  ),
+                ),
+              )
+            : TabBarView(
+                controller: _tab,
+                children: [
+                  _SlotsTab(
+                    slots: _slots,
+                    onAdd: _addSlot,
+                    onDelete: _deleteSlot,
+                  ),
+                  _UnavailabilityTab(
+                    unavailabilities: _unavailabilities,
+                    onAdd: _addUnavailability,
+                    onDelete: _deleteUnavailability,
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }
@@ -362,16 +742,14 @@ class _SlotsTab extends StatelessWidget {
   final VoidCallback onAdd;
   final void Function(_Slot) onDelete;
 
-  const _SlotsTab(
-      {required this.slots, required this.onAdd, required this.onDelete});
-
-  String _fmt(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}h${t.minute.toString().padLeft(2, '0')}';
+  const _SlotsTab({
+    required this.slots,
+    required this.onAdd,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    // Group by weekday
     final grouped = <int, List<_Slot>>{};
     for (final s in slots) {
       grouped.putIfAbsent(s.weekday, () => []).add(s);
@@ -380,46 +758,59 @@ class _SlotsTab extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Row(
             children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _premiumGold.withValues(alpha: 0.2),
+                      _premiumGold.withValues(alpha: 0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.info_outline_rounded, color: _premiumGold, size: 18),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'Définissez vos créneaux de travail hebdomadaires.',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
                 ),
-              ),
-              FilledButton.icon(
-                onPressed: onAdd,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Ajouter'),
-                style: FilledButton.styleFrom(
-                    backgroundColor: BabifixDesign.cyan),
               ),
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text('Ajouter un créneau'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _premiumGold,
+                foregroundColor: _deepNavy,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 4,
+                shadowColor: _premiumGold.withValues(alpha: 0.4),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Expanded(
           child: slots.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.schedule_rounded,
-                          size: 64,
-                          color: cs.outline.withValues(alpha: 0.35)),
-                      const SizedBox(height: 16),
-                      const Text('Aucun créneau défini',
-                          style: TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      Text('Ajoutez vos horaires de disponibilité.',
-                          style: TextStyle(color: cs.onSurfaceVariant)),
-                    ],
-                  ),
-                )
+              ? _EmptyStateSlots()
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                   itemCount: 7,
                   itemBuilder: (_, dayIndex) {
                     final daySlots = grouped[dayIndex] ?? [];
@@ -428,56 +819,48 @@ class _SlotsTab extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.only(top: 12, bottom: 6),
-                          child: Text(
-                            _weekdaysFull[dayIndex],
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14),
-                          ),
-                        ),
-                        ...daySlots.map(
-                          (s) => Card(
-                            elevation: 0,
-                            margin: const EdgeInsets.only(bottom: 6),
-                            shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(BabifixDesign.radiusMD),
-                              side: BorderSide(
-                                  color: cs.outlineVariant, width: 1),
-                            ),
-                            child: ListTile(
-                              leading: Container(
-                                width: 40,
-                                height: 40,
+                          padding: const EdgeInsets.only(top: 16, bottom: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 4,
+                                height: 16,
                                 decoration: BoxDecoration(
-                                  color: BabifixDesign.cyan
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
+                                  color: _premiumGold,
+                                  borderRadius: BorderRadius.circular(2),
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    _weekdays[s.weekday],
-                                    style: TextStyle(
-                                      color: BabifixDesign.cyan,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 11,
-                                    ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _weekdaysFull[dayIndex],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _premiumGold.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${daySlots.length} créneau${daySlots.length > 1 ? 'x' : ''}',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: _premiumGold,
                                   ),
                                 ),
                               ),
-                              title: Text(
-                                '${_fmt(s.start)} – ${_fmt(s.end)}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline_rounded,
-                                    color: Colors.red),
-                                onPressed: () => onDelete(s),
-                              ),
-                            ),
+                            ],
                           ),
+                        ),
+                        ...daySlots.map(
+                          (s) => _SlotCard(slot: s, onDelete: () => onDelete(s)),
                         ),
                       ],
                     );
@@ -485,6 +868,146 @@ class _SlotsTab extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _SlotCard extends StatelessWidget {
+  final _Slot slot;
+  final VoidCallback onDelete;
+
+  const _SlotCard({required this.slot, required this.onDelete});
+
+  String _fmt(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}h${t.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _cardBg,
+            _cardBg.withValues(alpha: 0.7),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _premiumGold.withValues(alpha: 0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _premiumGold.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                _premiumGold.withValues(alpha: 0.2),
+                _premiumGold.withValues(alpha: 0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _premiumGold.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              _weekdays[slot.weekday],
+              style: const TextStyle(
+                color: _premiumGold,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+        title: Text(
+          '${_fmt(slot.start)} – ${_fmt(slot.end)}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
+        ),
+        subtitle: Text(
+          '${slot.end.hour - slot.start.hour}h de disponibilité',
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.white54,
+          ),
+        ),
+        trailing: IconButton(
+          icon: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.red.withValues(alpha: 0.3),
+              ),
+            ),
+            child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 18),
+          ),
+          onPressed: onDelete,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyStateSlots extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _premiumGold.withValues(alpha: 0.1),
+              border: Border.all(
+                color: _premiumGold.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+            ),
+            child: const Icon(Icons.schedule_rounded, size: 48, color: _premiumGold),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Aucun créneau défini',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ajoutez vos horaires de disponibilité.',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -502,103 +1025,219 @@ class _UnavailabilityTab extends StatelessWidget {
     required this.onDelete,
   });
 
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.event_busy_rounded, color: Color(0xFFFF6B6B), size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Bloquez des périodes où vous n\'êtes pas disponible.',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text('Bloquer une période'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6B6B),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 4,
+                shadowColor: const Color(0xFFFF6B6B).withValues(alpha: 0.4),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: unavailabilities.isEmpty
+              ? _EmptyStateUnavailability()
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  itemCount: unavailabilities.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) {
+                    final u = unavailabilities[i];
+                    return _UnavailabilityCard(u: u, onDelete: () => onDelete(u));
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _UnavailabilityCard extends StatelessWidget {
+  final _Unavailability u;
+  final VoidCallback onDelete;
+
+  const _UnavailabilityCard({required this.u, required this.onDelete});
+
   String _fmt(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Bloquez des périodes où vous n\'êtes pas disponible.',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: onAdd,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Bloquer'),
-                style: FilledButton.styleFrom(
-                    backgroundColor: BabifixDesign.ciOrange),
-              ),
-            ],
+    final duration = u.dateTo.difference(u.dateFrom).inDays + 1;
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2A1A1A),
+            const Color(0xFF1A1515),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF6B6B).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: const Icon(Icons.event_busy_rounded, color: Color(0xFFFF6B6B), size: 22),
+        ),
+        title: Text(
+          '${_fmt(u.dateFrom)} → ${_fmt(u.dateTo)}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: Colors.white,
           ),
         ),
-        Expanded(
-          child: unavailabilities.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.event_available_rounded,
-                          size: 64,
-                          color: cs.outline.withValues(alpha: 0.35)),
-                      const SizedBox(height: 16),
-                      const Text('Aucune période bloquée',
-                          style: TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      Text(
-                          'Ajoutez vos congés ou indisponibilités ponctuelles.',
-                          style: TextStyle(color: cs.onSurfaceVariant),
-                          textAlign: TextAlign.center),
-                    ],
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (u.reason.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  u.reason,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
                   ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  itemCount: unavailabilities.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) {
-                    final u = unavailabilities[i];
-                    return Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(BabifixDesign.radiusMD),
-                        side:
-                            BorderSide(color: cs.outlineVariant, width: 1),
-                      ),
-                      child: ListTile(
-                        leading: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: BabifixDesign.ciOrange
-                                .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(Icons.event_busy_rounded,
-                              color: BabifixDesign.ciOrange, size: 22),
-                        ),
-                        title: Text(
-                          '${_fmt(u.dateFrom)} → ${_fmt(u.dateTo)}',
-                          style:
-                              const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: u.reason.isNotEmpty
-                            ? Text(u.reason,
-                                style: TextStyle(
-                                    color: cs.onSurfaceVariant,
-                                    fontSize: 12))
-                            : null,
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded,
-                              color: Colors.red),
-                          onPressed: () => onDelete(u),
-                        ),
-                      ),
-                    );
-                  },
                 ),
+              ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '$duration jour${duration > 1 ? 's' : ''}',
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFFF6B6B),
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+        trailing: IconButton(
+          icon: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.red.withValues(alpha: 0.3),
+              ),
+            ),
+            child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 18),
+          ),
+          onPressed: onDelete,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyStateUnavailability extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+              border: Border.all(
+                color: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+            ),
+            child: const Icon(Icons.event_available_rounded, size: 48, color: Color(0xFFFF6B6B)),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Aucune période bloquée',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ajoutez vos congés ou indisponibilités ponctuelles.',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }
