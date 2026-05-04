@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -6,12 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:lottie/lottie.dart';
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
 import '../../shared/services/websocket_push_service.dart';
-import '../../shared/services/lottie_service.dart';
 import '../../shared/services/confetti_toast_service.dart';
 import '../../shared/services/haptic_service.dart';
 
@@ -859,7 +855,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 4,
                 offset: const Offset(0, -2),
               ),

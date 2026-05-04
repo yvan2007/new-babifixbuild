@@ -75,15 +75,14 @@ class BabifixUserStore {
     return null;
   }
 
-  /// Makes an authenticated HTTP GET, auto-refreshing the token on 401.
-  /// Returns the response, with the updated token used if a refresh occurred.
   static Future<http.Response> authGet(
     String url, {
     Map<String, String> extraHeaders = const {},
   }) async {
     var token = await getApiToken();
+    final fullUrl = url.startsWith('http') ? url : '${babifixApiBaseUrl()}$url';
     var res = await http.get(
-      Uri.parse(url),
+      Uri.parse(fullUrl),
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
         ...extraHeaders,
@@ -93,7 +92,7 @@ class BabifixUserStore {
       final fresh = await refreshAccessToken();
       if (fresh != null) {
         res = await http.get(
-          Uri.parse(url),
+          Uri.parse(fullUrl),
           headers: {'Authorization': 'Bearer $fresh', ...extraHeaders},
         );
       }
@@ -101,19 +100,19 @@ class BabifixUserStore {
     return res;
   }
 
-  /// Makes an authenticated HTTP POST, auto-refreshing the token on 401.
   static Future<http.Response> authPost(
     String url, {
     Map<String, String> extraHeaders = const {},
     Object? body,
   }) async {
     var token = await getApiToken();
+    final fullUrl = url.startsWith('http') ? url : '${babifixApiBaseUrl()}$url';
     final headers = {
       if (token != null) 'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
       ...extraHeaders,
     };
-    var res = await http.post(Uri.parse(url), headers: headers, body: body);
+    var res = await http.post(Uri.parse(fullUrl), headers: headers, body: body);
     if (res.statusCode == 401) {
       final fresh = await refreshAccessToken();
       if (fresh != null) {
@@ -122,7 +121,7 @@ class BabifixUserStore {
           'Content-Type': 'application/json',
           ...extraHeaders,
         };
-        res = await http.post(Uri.parse(url), headers: h2, body: body);
+        res = await http.post(Uri.parse(fullUrl), headers: h2, body: body);
       }
     }
     return res;

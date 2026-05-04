@@ -46,6 +46,11 @@ def on_reservation_saved(sender, instance, created, **kwargs):
     event = 'reservation.created' if created else 'reservation.updated'
     realtime.broadcast_admin_event(event, realtime.serialize_reservation(instance))
     push_dispatch.on_reservation_change(instance, created, _update_fields_frozen(**kwargs))
+    # Notify client and prestataire apps
+    if instance.client_id:
+        realtime.broadcast_prestataire_user(
+            instance.client_id, event, realtime.serialize_reservation(instance),
+        )
 
     # ── Emails : nouvelle réservation → prestataire ; mission terminée → client ──
     try:
@@ -77,6 +82,9 @@ def on_provider_saved(sender, instance, created, **kwargs):
         return
     event = 'provider.created' if created else 'provider.updated'
     realtime.broadcast_admin_event(event, realtime.serialize_provider(instance))
+    # Broadcast to client apps for real-time provider list sync
+    realtime.broadcast_client_event('providers.updated', {})
+    realtime.invalidate_providers_cache()
     push_dispatch.on_provider_change(instance, created, _update_fields_frozen(**kwargs))
 
     # ── Emails transactionnels sur changement de statut ──────────────────────
@@ -100,6 +108,8 @@ def on_actualite_saved(sender, instance, created, **kwargs):
         return
     event = 'actualite.created' if created else 'actualite.updated'
     realtime.broadcast_admin_event(event, realtime.serialize_actualite(instance))
+    # Broadcast to client apps so they see new news immediately
+    realtime.broadcast_client_event('actualite.updated', {})
     push_dispatch.on_actualite_published(instance, created, _update_fields_frozen(**kwargs))
 
 
@@ -109,6 +119,9 @@ def on_provider_deleted(sender, instance, **kwargs):
         'provider.deleted',
         {'id': instance.pk, 'nom': instance.nom},
     )
+    # Broadcast to client apps for real-time provider list sync
+    realtime.broadcast_client_event('providers.updated', {})
+    realtime.invalidate_providers_cache()
 
 
 @receiver(post_save, sender=Dispute)
@@ -150,6 +163,10 @@ def on_category_saved(sender, instance, created, **kwargs):
         return
     event = 'category.created' if created else 'category.updated'
     realtime.broadcast_admin_event(event, realtime.serialize_category(instance))
+    # Broadcast to client/prestataire apps for real-time sync
+    realtime.broadcast_client_event('categories.updated', {})
+    # Invalidate public categories cache
+    realtime.invalidate_categories_cache()
 
 
 @receiver(post_delete, sender=Category)
@@ -158,6 +175,10 @@ def on_category_deleted(sender, instance, **kwargs):
         'category.deleted',
         {'id': instance.pk, 'nom': instance.nom},
     )
+    # Broadcast to client/prestataire apps for real-time sync
+    realtime.broadcast_client_event('categories.updated', {})
+    # Invalidate public categories cache
+    realtime.invalidate_categories_cache()
 
 
 @receiver(post_save, sender=Notification)

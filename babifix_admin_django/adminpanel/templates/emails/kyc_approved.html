@@ -1,0 +1,22 @@
+{% extends "emails/base_email.html" %}
+
+{% block header_title %}Profil Vérifié ✅{% endblock %}
+
+{% block content %}
+<p>Bonjour <span class="highlight">{{ provider_name }}</span>,</p>
+
+<p>Félicitations ! Votre dossier d'identification a été <span class="highlight">vérifié et approuvé</span> par notre équipe.</p>
+
+<div class="card">
+    <p style="margin:0">
+        <strong>📄 Statut du compte :</strong><br>
+        <span style="color:var(--cyan);font-size:18px">Certifié BABIFIX</span>
+    </p>
+</div>
+
+<p>Vous pouvez désormais accepter des réservations et recevoir des paiements en toute sécurité.</p>
+
+<p style="text-align:center">
+    <a href="{{ app_url }}" class="btn">Commencer à travailler</a>
+</p>
+{% endblock %}

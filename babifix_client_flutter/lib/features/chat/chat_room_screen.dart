@@ -131,18 +131,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
     super.dispose();
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
   /// Connects (or reconnects) the chat-room WebSocket once [_conversationId] is known.
   Future<void> _connectChatWs() async {
     final convId = _conversationId;

@@ -695,16 +695,16 @@ class _KYCScreenState extends State<KYCScreen> {
       style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w800,
-          color: _text));
+          color: _text)); // Texte Titre : Clair et visible
 
   Widget _infoRow(String label, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(
           children: [
             Text('$label : ',
-                style: TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w600)),
+                style: TextStyle(fontSize: 13, color: const Color(0xFF1B1B34), fontWeight: FontWeight.w600)), // Label foncé
             Text(value,
-                style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 13, color: _text, fontWeight: FontWeight.w700)), // Valeur claire
           ],
         ),
       );

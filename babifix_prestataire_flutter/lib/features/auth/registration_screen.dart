@@ -12,7 +12,6 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../babifix_api_config.dart';
-import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/address_search_field.dart';
@@ -97,7 +96,6 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
   // ── Documents étape 2 ────────────────────────────────────────────────────
   String? _profilePhotoPath;
-  List<int>? _profilePhotoBytes; // pour envoi base64
   String? _cniRectoPath;
   String? _cniVersoPath;
 
@@ -203,17 +201,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         maxWidth: 1600,
       );
       if (x == null || !mounted) return;
-      // Stocker le chemin et les bytes pour envoi base64
-      final bytes = await x.readAsBytes();
       setState(() {
         onPicked(x.path);
-        // Stocker les bytes pour envoi base64
-        if (onPicked ==
-            (p) {
-              _profilePhotoPath = p;
-            }) {
-          _profilePhotoBytes = bytes;
-        }
       });
     } catch (e) {
       debugPrint('Image picker error: $e');
@@ -290,8 +279,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   void _nextStep() {
     if (_step == 0) {
       if (!widget.credentialLock &&
-          !(_formStep0.currentState?.validate() ?? false))
+          !(_formStep0.currentState?.validate() ?? false)) {
         return;
+      }
     } else if (_step == 1) {
       if (!(_formStep1.currentState?.validate() ?? false)) return;
       if (_villeCtrl.text.trim().length < 3) {
@@ -481,7 +471,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         tween: Tween(begin: 0, end: (_step + 1) / _kSteps),
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
-        builder: (_, v, __) => ClipRRect(
+        builder: (context, v, _) => ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: SizedBox(
             height: 4,
@@ -1032,7 +1022,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           ),
         ),
         child: DropdownButtonFormField<int>(
-          value: _categoryId,
+          key: ValueKey(_categoryId),
+          initialValue: _categoryId,
           dropdownColor: const Color(0xFF0D1F3C),
           items: [
             for (final c in _publicCategories)
@@ -1296,7 +1287,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     });
 
     // Encode et attache toutes les images en base64
-    Future<String?> _encodeImage(String? path) async {
+    Future<String?> encodeImage(String? path) async {
       if (path == null || path.isEmpty || path == 'locked') return null;
       try {
         final bytes = await File(path).readAsBytes();
@@ -1310,15 +1301,15 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
     final photoMap = jsonDecode(body) as Map<String, dynamic>;
 
-    final portraitB64 = await _encodeImage(_profilePhotoPath);
+    final portraitB64 = await encodeImage(_profilePhotoPath);
     if (portraitB64 != null) {
       photoMap['photo_portrait_b64'] = portraitB64;
       photoMap.remove('photo_portrait_url');
     }
-    final cniRectoB64 = await _encodeImage(_cniRectoPath);
+    final cniRectoB64 = await encodeImage(_cniRectoPath);
     if (cniRectoB64 != null) photoMap['cni_recto_b64'] = cniRectoB64;
 
-    final cniVersoB64 = await _encodeImage(_cniVersoPath);
+    final cniVersoB64 = await encodeImage(_cniVersoPath);
     if (cniVersoB64 != null) photoMap['cni_verso_b64'] = cniVersoB64;
 
     body = jsonEncode(photoMap);
@@ -1419,8 +1410,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           try {
             final err = jsonDecode(response.body) as Map<String, dynamic>;
             final code = '${err['error'] ?? ''}'.trim();
-            if (code.isNotEmpty)
+            if (code.isNotEmpty) {
               return _SubmitResult(false, _mapApiError(code));
+            }
           } catch (_) {}
         }
         return _SubmitResult(
@@ -1887,7 +1879,7 @@ class _DarkDocPickerCard extends StatelessWidget {
                       width: 72,
                       height: 72,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (context, error, stackTrace) => Container(
                         width: 72,
                         height: 72,
                         color: accentColor.withValues(alpha: 0.10),

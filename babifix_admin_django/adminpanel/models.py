@@ -419,6 +419,27 @@ class Reservation(models.Model):
         blank=True,
         help_text="Prix proposé par le client (optionnel — si différent du tarif catalogue)",
     )
+    # Champs de gestion de paiement sécurisé (Acompte / Solde)
+    montant_verse = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Montant déjà versé / bloqué (acompte)",
+    )
+    montant_restant = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Montant restant dû à la fin de l'intervention",
+    )
+    acompte_valide = models.BooleanField(
+        default=False,
+        help_text="L'acompte a été payé et bloqué, le prestataire peut commencer",
+    )
+    solde_valide = models.BooleanField(
+        default=False,
+        help_text="Le solde a été payé, le prestataire peut être rémunéré",
+    )
     cash_client_declared_at = models.DateTimeField(null=True, blank=True)
     cash_prestataire_confirmed_at = models.DateTimeField(null=True, blank=True)
     cash_admin_validated_at = models.DateTimeField(null=True, blank=True)
@@ -517,6 +538,8 @@ class Reservation(models.Model):
             if montant_decimal > 0:
                 self.montant = montant_decimal
                 self.commission = montant_decimal * Decimal("0.18")
+        # Calcul des montants restants pour la sécurisation
+        self.montant_restant = (self.montant or 0) - (self.montant_verse or 0)
         super().save(*args, **kwargs)
 
 
@@ -675,7 +698,8 @@ class Category(models.Model):
     ordre_affichage = models.PositiveSmallIntegerField(default=0)
     services = models.PositiveIntegerField(default=0)
     reservations = models.PositiveIntegerField(default=0)
-    actif = models.BooleanField(default=True)
+    is_deleted = models.BooleanField(default=False, db_index=True, help_text="Soft delete: l'admin a masqué cette catégorie, elle ne s'affiche plus mais les anciennes données sont conservées.")
+    actif = models.BooleanField(default=True, help_text="Visible sur les apps (désactivable temporairement)")
 
     class Meta:
         ordering = ["ordre_affichage", "nom"]

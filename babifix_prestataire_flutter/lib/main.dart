@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,25 +34,9 @@ import 'features/actualites/actualites_screen.dart';
 import 'features/wallet/wallet_screen.dart' as wallet_feature;
 
 Future<void> main() async {
-  const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
-  if (sentryDsn.isNotEmpty) {
-    await SentryFlutter.init(
-      (options) {
-        options.dsn = sentryDsn;
-        options.tracesSampleRate = 0.2;
-        options.environment = kReleaseMode ? 'production' : 'development';
-      },
-      appRunner: () async {
-        WidgetsFlutterBinding.ensureInitialized();
-        await BabifixFcm.ensureInitialized();
-        runApp(const BabifixPrestataireApp());
-      },
-    );
-  } else {
-    WidgetsFlutterBinding.ensureInitialized();
-    await BabifixFcm.ensureInitialized();
-    runApp(const BabifixPrestataireApp());
-  }
+  WidgetsFlutterBinding.ensureInitialized();
+  await BabifixFcm.ensureInitialized();
+  runApp(const BabifixPrestataireApp());
 }
 
 class BabifixPrestataireApp extends StatefulWidget {
@@ -232,9 +215,12 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
 
   /// Catégories publiques chargées au démarrage (sans authentification)
   List<Map<String, dynamic>> _publicCategories = [];
+  Timer? _categorySyncTimer;
+  List<Map<String, dynamic>> _lastCategories = [];
 
   @override
   void dispose() {
+    _categorySyncTimer?.cancel();
     _wsSub?.cancel();
     _clientEventsWsSub?.cancel();
     _fcmSub?.cancel();
@@ -252,6 +238,53 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
     _restoreInAppNotifsThenBootstrap();
     // Chargement immédiat des catégories (sans authentification)
     _loadPublicCategories();
+    // Polling fallback for real-time category sync
+    _startCategoryPolling();
+  }
+
+  void _startCategoryPolling() {
+    _categorySyncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _checkCategoriesUpdate();
+    });
+  }
+
+  Future<void> _checkCategoriesUpdate() async {
+    try {
+      final base = babifixApiBaseUrl();
+      final res = await http.get(Uri.parse('$base/api/public/categories/'));
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final categories = (data['categories'] as List<dynamic>? ?? [])
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      if (_categoriesChanged(categories)) {
+        debugPrint('Prestataire: Categories updated via polling');
+        _lastCategories = categories;
+        if (mounted) {
+          setState(() => _publicCategories = categories);
+        }
+      }
+    } catch (e) {
+      debugPrint('Prestataire: Categories polling error: $e');
+    }
+  }
+
+  bool _categoriesChanged(List<Map<String, dynamic>> newCategories) {
+    if (_lastCategories.isEmpty) {
+      _lastCategories = newCategories;
+      return false;
+    }
+    if (newCategories.length != _lastCategories.length) return true;
+    for (int i = 0; i < newCategories.length; i++) {
+      final newCat = newCategories[i];
+      final oldCat = i < _lastCategories.length ? _lastCategories[i] : {};
+      if (newCat['id'] != oldCat['id'] ||
+          newCat['nom'] != oldCat['nom'] ||
+          newCat['actif'] != oldCat['actif']) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Charge les catégories publiques au démarrage sans authentification
@@ -589,6 +622,11 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
                 const SnackBar(content: Text('Nouvelle actualité BABIFIX.')),
               );
             }
+          } else if (typ == 'categories.updated' ||
+              typ == 'category.created' ||
+              typ == 'category.updated' ||
+              typ == 'category.deleted') {
+            _loadPublicCategories();
           } else if (typ == 'chat.message') {
             _refreshUnreadChat();
             _pushPrestataireNotif(

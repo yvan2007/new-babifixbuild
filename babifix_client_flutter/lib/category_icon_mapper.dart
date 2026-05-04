@@ -135,8 +135,8 @@ class CategoryIconMapper {
     'rangement': _CatMeta(Icons.inventory_2_rounded, Color(0xFF7C3AED)),
     'elagation': _CatMeta(Icons.forest_rounded, Color(0xFF92400E)),
     'elamage': _CatMeta(Icons.forest_rounded, Color(0xFF92400E)),
-    'tonte-pelouse': _CatMeta(Icons.grass_rounded, Color(0xFF16A34A)),
-    'engazonnement': _CatMeta(Icons.grass_rounded, Color(0xFF22C55E)),
+     'tonte-pelouse': _CatMeta(Icons.grass_rounded, Color(0xFF16A34A)),
+     'engazonnement': _CatMeta(Icons.yard_rounded, Color(0xFF22C55E)),
   };
 
   static IconData icon(String slug) => _map[slug]?.icon ?? _defaultIcon;

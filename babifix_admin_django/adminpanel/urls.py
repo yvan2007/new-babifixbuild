@@ -13,6 +13,10 @@ from .views_finance import (
     api_urgence_preview,
 )
 from .views_extra import (
+    api_reservation_paiement_acompte,
+    api_reservation_paiement_solde,
+)
+from .views_extra import (
     api_admin_audit_log,
     api_admin_bulk_provider_action,
     api_admin_export_csv,
@@ -249,6 +253,16 @@ urlpatterns = [
         api_prestataire_ratings,
         name="api-prestataire-ratings",
     ),
+    path(
+        "api/reservation/paiement-acompte/",
+        api_reservation_paiement_acompte,
+        name="api-reservation-paiement-acompte",
+    ),
+    path(
+        "api/reservation/paiement-solde/",
+        api_reservation_paiement_solde,
+        name="api-reservation-paiement-solde",
+    ),
     path("api/prestataire/me", api_prestataire_me, name="api-prestataire-me"),
     path(
         "api/prestataire/conversations",
@@ -266,11 +280,21 @@ urlpatterns = [
         api_prestataire_availability_crud,
         name="api-prestataire-availability-crud",
     ),
+    path(
+        "api/prestataire/availability/slots/<int:id>/",
+        api_prestataire_availability_crud,
+        name="api-prestataire-availability-crud-delete",
+    ),
     # Alias pour compatibilité Flutter (attendu par availability_screen.dart)
     path(
         "api/prestataire/availability/unavailability/",
         api_prestataire_unavailability_crud,
         name="api-prestataire-availability-unavailability-crud",
+    ),
+    path(
+        "api/prestataire/availability/unavailability/<int:id>/",
+        api_prestataire_unavailability_crud,
+        name="api-prestataire-availability-unavailability-crud-delete",
     ),
     path(
         "api/prestataire/unavailability/",

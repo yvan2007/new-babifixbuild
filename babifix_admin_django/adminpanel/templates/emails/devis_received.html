@@ -1,0 +1,23 @@
+{% extends "emails/base_email.html" %}
+
+{% block header_title %}Nouveau Devis Reçu 💼{% endblock %}
+
+{% block content %}
+<p>Bonjour <span class="highlight">{{ client_name }}</span>,</p>
+
+<p>Le prestataire <strong>{{ provider_name }}</strong> a envoyé un devis pour votre demande : <em>{{ reservation_title }}</em>.</p>
+
+<div class="card">
+    <p style="margin:0">
+        <strong>💰 Montant proposé :</strong><br>
+        <span style="font-size:24px;color:var(--cyan)">{{ amount }} FCFA</span>
+    </p>
+    <p style="margin:10px 0 0 0;font-size:13px">{{ description }}</p>
+</div>
+
+<p>Pour consulter le détail et accepter le devis, cliquez sur le bouton ci-dessous.</p>
+
+<p style="text-align:center">
+    <a href="{{ app_url }}" class="btn">Voir et Accepter le Devis</a>
+</p>
+{% endblock %}

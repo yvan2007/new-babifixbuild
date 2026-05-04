@@ -49,8 +49,10 @@ def _safe_print(*args, **kwargs):
 print = _safe_print
 
 
+from django.template.loader import render_to_string
+
 def email_welcome(user, role: str) -> None:
-    """Email de bienvenue lors de l'inscription."""
+    """Email de bienvenue Premium lors de l'inscription."""
     print(f"[EMAIL] email_welcome called: {user.email}, role={role}")
     if not user.email:
         print("[WARN] No user email, skipping")
@@ -58,29 +60,18 @@ def email_welcome(user, role: str) -> None:
 
     is_prestataire = role == "prestataire"
     role_description = (
-        "Rejoignez des milliers de prestataires certifies"
+        "Rejoignez des milliers de prestataires certifiés"
         if is_prestataire
-        else "Trouvez le prestataire ideal pres de chez vous"
-    )
-    cta_text = (
-        "Gerer mon espace prestataire" if is_prestataire else "Explorer les services"
+        else "Trouvez le prestataire idéal près de chez vous"
     )
 
-    context = {
+    html_content = render_to_string('emails/welcome.html', {
         "username": user.username,
         "role_description": role_description,
-        "is_prestataire": is_prestataire,
-        "cta_text": cta_text,
         "app_url": "https://babifix.ci/app",
-    }
+    })
 
     try:
-        html_content = _render_email_template("welcome.html", context)
-        print(f"[EMAIL] Template rendered: {len(html_content) if html_content else 0} chars")
-        if not html_content:
-            print("[ERROR] Template welcome.html empty or not found")
-            return
-
         send_babifix_email_html(
             to_email=user.email,
             subject=f"Bienvenue sur BABIFIX !",
@@ -419,12 +410,31 @@ def api_admin_export_csv(request, kind):
     return response
 
 
+# Exemple d'appel pour notifier la validation KYC (à intégrer dans la vue de validation admin)
+def email_provider_kyc_approved(provider: Provider) -> None:
+    if not (provider.user and provider.user.email):
+        return
+
+    html_content = render_to_string('emails/kyc_approved.html', {
+        "provider_name": provider.nom,
+        "app_url": "https://babifix.ci/app",
+    })
+
+    try:
+        send_babifix_email_html(
+            to_email=provider.user.email,
+            subject="Profil Vérifié - Vous pouvez recevoir des clients !",
+            html_content=html_content,
+        )
+    except Exception as exc:
+        logger.warning("Email KYC non envoyé (%s) : %s", provider.user.email, exc)
+
 # =============================================================================
 # CRUD DISPONIBILITÉS — GET/POST /api/prestataire/availability/
 # =============================================================================
 @csrf_exempt
 @require_api_auth(["prestataire", "admin"])
-def api_prestataire_availability_crud(request):
+def api_prestataire_availability_crud(request, id=None):
     """CRUD des créneaux de disponibilité."""
     try:
         provider = Provider.objects.get(user_id=request.api_user_id)
@@ -479,7 +489,7 @@ def api_prestataire_availability_crud(request):
         return JsonResponse({"id": slot.id, "ok": True}, status=201)
 
     elif request.method == "DELETE":
-        slot_id = request.GET.get("id")
+        slot_id = id or request.GET.get("id")
         if slot_id:
             PrestataireAvailabilitySlot.objects.filter(
                 pk=int(slot_id), provider=provider
@@ -495,7 +505,7 @@ def api_prestataire_availability_crud(request):
 # =============================================================================
 @csrf_exempt
 @require_api_auth(["prestataire", "admin"])
-def api_prestataire_unavailability_crud(request):
+def api_prestataire_unavailability_crud(request, id=None):
     """CRUD des périodes d'indisponibilité."""
     try:
         provider = Provider.objects.get(user_id=request.api_user_id)
@@ -521,12 +531,13 @@ def api_prestataire_unavailability_crud(request):
         except (json.JSONDecodeError, ValueError):
             return JsonResponse({"error": "invalid_json"}, status=400)
 
-        debut = payload.get("date_debut")
-        fin = payload.get("date_fin")
-        motif = payload.get("motif", "")
+        # Accept both French and English key names
+        debut = payload.get("date_debut") or payload.get("date_from")
+        fin = payload.get("date_fin") or payload.get("date_to")
+        motif = payload.get("motif") or payload.get("reason", "")
 
         if not all([debut, fin]):
-            return JsonResponse({"error": "date_debut, date_fin required"}, status=400)
+            return JsonResponse({"error": "date_debut/date_from, date_fin/date_to required"}, status=400)
 
         from datetime import date
 
@@ -545,7 +556,7 @@ def api_prestataire_unavailability_crud(request):
         return JsonResponse({"id": period.id, "ok": True}, status=201)
 
     elif request.method == "DELETE":
-        period_id = request.GET.get("id")
+        period_id = id or request.GET.get("id")
         if period_id:
             PrestataireUnavailability.objects.filter(
                 pk=int(period_id), provider=provider
@@ -956,20 +967,18 @@ def api_health_check(request):
 # Reçus / Factures PDF
 # ---------------------------------------------------------------------------
 
-@csrf_exempt
+@require_api_auth(["client", "admin"])
 @require_GET
 def api_client_invoice_pdf(request, reference):
     """GET /api/client/invoices/<reference>/pdf/ — Télécharger le reçu PDF."""
-    user, err = require_api_auth(request)
-    if err:
-        return err
+    user_id = request.api_user_id
 
     try:
         payment = (
             Payment.objects.select_related("reservation__client_user")
             .filter(
                 reservation__reference=reference,
-                reservation__client_user=user,
+                reservation__client_user_id=user_id,
                 etat=Payment.State.COMPLETE,
             )
             .first()
@@ -994,21 +1003,18 @@ def api_client_invoice_pdf(request, reference):
     return response
 
 
-@csrf_exempt
+@require_api_auth(["prestataire", "admin"])
 @require_GET
 def api_prestataire_invoice_pdf(request, reference):
     """GET /api/prestataire/invoices/<reference>/pdf/ — Télécharger le reçu PDF."""
-    user, err = require_api_auth(request)
-    if err:
-        return err
+    user_id = request.api_user_id
 
     try:
-        provider = Provider.objects.filter(user=user).first()
         payment = (
             Payment.objects.select_related("reservation__prestataire_user")
             .filter(
                 reservation__reference=reference,
-                reservation__prestataire_user=user,
+                reservation__prestataire_user_id=user_id,
                 etat=Payment.State.COMPLETE,
             )
             .first()
@@ -1033,13 +1039,16 @@ def api_prestataire_invoice_pdf(request, reference):
     return response
 
 
-@csrf_exempt
+@require_api_auth(["client", "admin"])
 @require_GET
 def api_client_invoices_list(request):
     """GET /api/client/invoices/ — Liste des reçus du client."""
-    user, err = require_api_auth(request)
-    if err:
-        return err
+    from django.contrib.auth.models import User
+    user_id = request.api_user_id
+
+    user = User.objects.filter(pk=user_id).first()
+    if not user:
+        return JsonResponse({"error": "user_not_found"}, status=404)
 
     try:
         from adminpanel.services.invoice_service import InvoiceService
@@ -1056,14 +1065,13 @@ def api_client_invoices_list(request):
 # =============================================================================
 
 @csrf_exempt
+@require_api_auth(["prestataire", "admin"])
 @require_GET
 def api_prestataire_wallet(request):
     """GET /api/prestataire/wallet/ — Solde + historique transactions."""
-    user, err = require_api_auth(request)
-    if err:
-        return err
+    user_id = request.api_user_id
 
-    provider = Provider.objects.filter(user=user).first()
+    provider = Provider.objects.filter(user_id=user_id).first()
     if not provider:
         return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
 
@@ -1074,16 +1082,15 @@ def api_prestataire_wallet(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@require_api_auth(["prestataire", "admin"])
 def api_prestataire_wallet_withdraw(request):
     """
     POST /api/prestataire/wallet/withdraw/
     Body JSON : {amount_fcfa, phone, operator}
     """
-    user, err = require_api_auth(request)
-    if err:
-        return err
+    user_id = request.api_user_id
 
-    provider = Provider.objects.filter(user=user).first()
+    provider = Provider.objects.filter(user_id=user_id).first()
     if not provider:
         return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
 
@@ -1114,17 +1121,16 @@ def api_prestataire_wallet_withdraw(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@require_api_auth(["prestataire", "admin"])
 def api_prestataire_wallet_update_info(request):
     """
     POST /api/prestataire/wallet/info/
     Body JSON : {phone, operator}
     Met à jour les infos Mobile Money du prestataire.
     """
-    user, err = require_api_auth(request)
-    if err:
-        return err
+    user_id = request.api_user_id
 
-    provider = Provider.objects.filter(user=user).first()
+    provider = Provider.objects.filter(user_id=user_id).first()
     if not provider:
         return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
 
@@ -1269,7 +1275,7 @@ def api_prestataire_contrat(request):
     if provider.category:
         from .services.referral_service import CATEGORY_COMMISSIONS
         commission_rate = CATEGORY_COMMISSIONS.get(
-            (provider.category.slug or provider.category.nom or "").lower(),
+            (provider.category.icone_slug or provider.category.nom or "").lower(),
             CATEGORY_COMMISSIONS["default"],
         )
 
@@ -1471,6 +1477,126 @@ def api_prestataire_kyc_submit(request):
         "status": "pending",
         "message": "Dossier KYC soumis avec succès. Vérification sous 24-48h.",
     }, status=200)
+
+
+# =============================================================================
+# PAIEMENTS SÉCURISÉS (Acompte / Solde)
+# =============================================================================
+from django.utils import timezone
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_reservation_paiement_acompte(request):
+    """
+    POST /api/reservation/paiement-acompte/
+    Le client paie l'acompte (ex: 30%). L'argent est bloqué.
+    Body: { "reservation_id": 123 }
+    """
+    try:
+        data = json.loads(request.body)
+        reservation = Reservation.objects.get(
+            id=data['reservation_id'],
+            client_user__id=request.api_user_id,
+            statut=Reservation.Status.DEVIS_ACCEPTE  # Doit être accepté
+        )
+    except (Reservation.DoesNotExist, KeyError):
+        return JsonResponse({"error": "reservation_invalide"}, status=404)
+
+    if reservation.acompte_valide:
+        return JsonResponse({"error": "acompte_deja_verse"}, status=400)
+
+    # Calcul de l'acompte (30% ici, ajustable selon le métier)
+    taux_acompte = Decimal('0.30')
+    acompte = (reservation.montant * taux_acompte).quantize(Decimal('0.01'))
+
+    # --- SIMULATION PAIEMENT (CinetPay / GeniusPay) ---
+    # Ici, vous appelez votre fournisseur de paiement.
+    # Ex: succes = genius_pay.debiter(acompte, reservation.client_user)
+    succes_paiement = True  # Simulé pour MVP/Démo
+
+    if succes_paiement:
+        reservation.montant_verse = acompte
+        reservation.montant_restant = reservation.montant - acompte
+        reservation.acompte_valide = True
+        reservation.statut = Reservation.Status.DEVIS_ACCEPTE  # On garde le nommage mais logique métier OK
+        reservation.save()
+
+        # Notification au Prestataire : il peut commencer
+        if reservation.assigned_provider and reservation.assigned_provider.user:
+            send_push_notification(
+                reservation.assigned_provider.user.id,
+                "Acompte reçu - Travail autorisé",
+                f"L'acompte de {acompte} FCFA est bloqué. Vous pouvez démarrer l'intervention.",
+                "success"
+            )
+
+        return JsonResponse({
+            "ok": True,
+            "acompte": str(acompte),
+            "restant": str(reservation.montant_restant),
+            "statut": reservation.statut
+        })
+    else:
+        return JsonResponse({"error": "echec_paiement"}, status=402)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_reservation_paiement_solde(request):
+    """
+    POST /api/reservation/paiement-solde/
+    Le client paie le solde après validation des travaux.
+    Body: { "reservation_id": 123 }
+    """
+    try:
+        data = json.loads(request.body)
+        reservation = Reservation.objects.get(
+            id=data['reservation_id'],
+            client_user__id=request.api_user_id,
+            statut=Reservation.Status.EN_ATTENTE_CLIENT  # Le presta a terminé
+        )
+    except (Reservation.DoesNotExist, KeyError):
+        return JsonResponse({"error": "reservation_invalide"}, status=404)
+
+    if not reservation.acompte_valide:
+        return JsonResponse({"error": "versez_acompte_dabord"}, status=400)
+
+    if reservation.solde_valide:
+        return JsonResponse({"error": "deja_regle"}, status=400)
+
+    montant_solde = reservation.montant_restant
+
+    # --- SIMULATION PAIEMENT SOLDE ---
+    succes_paiement = True  # Simulé
+
+    if succes_paiement:
+        reservation.montant_verse = reservation.montant
+        reservation.montant_restant = 0
+        reservation.solde_valide = True
+        reservation.statut = Reservation.Status.TERMINEE
+        reservation.save()
+
+        # ICI : VRAI TRANSFERT VERS LE PRESTATAIRE (Banque/Génius/CinetPay)
+        # transferer_fonds(reservation.assigned_provider, reservation.montant)
+
+        # Notifier le Prestataire : il reçoit son argent
+        if reservation.assigned_provider and reservation.assigned_provider.user:
+            send_push_notification(
+                reservation.assigned_provider.user.id,
+                "Paiement final reçu",
+                f"Félicitations ! Le solde de {montant_solde} FCFA a été payé. Fonds transférés.",
+                "success"
+            )
+
+        return JsonResponse({
+            "ok": True,
+            "message": "Transaction totalement finalisée.",
+            "statut": reservation.statut
+        })
+    else:
+        return JsonResponse({"error": "echec_paiement_solde"}, status=402)
 
 
 # =============================================================================

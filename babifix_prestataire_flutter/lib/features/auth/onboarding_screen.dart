@@ -77,7 +77,7 @@ class _PrestataireOnboardingScreenState
           // Fond animé
           AnimatedBuilder(
             animation: _bgCtrl,
-            builder: (_, __) {
+            builder: (context, _) {
               return Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(

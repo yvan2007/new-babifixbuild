@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +9,15 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/app_palette_mode.dart';
+
+// ─── Premium Colors ────────────────────────────────────────────────────────
+
+const _premiumGold = Color(0xFFFFD700);
+const _premiumGoldLight = Color(0xFFFFF4B0);
+const _deepNavy = Color(0xFF0B1B34);
+const _charcoal = Color(0xFF1A2744);
+const _darkSurface = Color(0xFF0A0E27);
+const _cardBg = Color(0xFF151B30);
 
 class ContratScreen extends StatefulWidget {
   const ContratScreen({
@@ -36,7 +47,7 @@ class _ContratScreenState extends State<ContratScreen>
   void initState() {
     super.initState();
     _fadeCtrl = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
     _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
@@ -50,19 +61,16 @@ class _ContratScreenState extends State<ContratScreen>
   }
 
   Future<void> _loadAll() async {
-    // Charger d'abord depuis local (affichage immédiat)
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(_kAcceptedKey);
     if (stored != null) {
       _acceptedAt = DateTime.tryParse(stored);
     }
     await _load();
-    // Après la réponse serveur, utiliser la date de signature serveur si disponible
     if (_data != null && _data!['contrat_accepte_at'] != null) {
       final serverDate = DateTime.tryParse('${_data!['contrat_accepte_at']}');
       if (serverDate != null && mounted) {
         setState(() => _acceptedAt = serverDate);
-        // Synchroniser le cache local avec la date serveur
         await prefs.setString(_kAcceptedKey, serverDate.toIso8601String());
       }
     }
@@ -118,10 +126,11 @@ class _ContratScreenState extends State<ContratScreen>
         if (mounted) {
           setState(() => _acceptedAt = now);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Contrat signé et enregistré. Merci !'),
-              backgroundColor: Color(0xFF22C55E),
+            SnackBar(
+              content: const Text('Contrat signé et enregistré. Merci !'),
+              backgroundColor: const Color(0xFF22C55E),
               behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           );
         }
@@ -150,108 +159,113 @@ class _ContratScreenState extends State<ContratScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isLight = widget.paletteMode == AppPaletteMode.light;
-    final bg = isLight ? const Color(0xFFF6F8FC) : const Color(0xFF0B1B34);
-    final cardBg = isLight ? Colors.white : const Color(0xFF1A2744);
-    final textPrimary = isLight ? const Color(0xFF0F172A) : Colors.white;
-    final textSecondary =
-        isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
-    final divider = isLight
-        ? const Color(0xFFE2E8F0)
-        : Colors.white.withValues(alpha: 0.07);
-
-    return Scaffold(
-      backgroundColor: bg,
-      body: CustomScrollView(
-        slivers: [
-          _buildAppBar(isLight, textPrimary),
-          if (_loading)
-            const SliverFillRemaining(
-              child: Center(
-                child: CircularProgressIndicator(color: Color(0xFF4CC9F0)),
-              ),
-            )
-          else if (_error != null)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline_rounded,
-                        size: 56,
-                        color: textSecondary.withValues(alpha: 0.5)),
-                    const SizedBox(height: 16),
-                    Text(_error!,
-                        style: TextStyle(color: textSecondary)),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                        onPressed: _load,
-                        child: const Text('Réessayer')),
-                  ],
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_deepNavy, _darkSurface, _deepNavy],
+          stops: [0.0, 0.5, 1.0],
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: CustomScrollView(
+          slivers: [
+            _buildAppBar(),
+            if (_loading)
+              const SliverFillRemaining(
+                child: Center(
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: CircularProgressIndicator(
+                      color: _premiumGold,
+                      strokeWidth: 3,
+                    ),
+                  ),
                 ),
-              ),
-            )
-          else
-            SliverFadeTransition(
-              opacity: _fade,
-              sliver: SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _StatsCard(
-                        data: _data!,
-                        cardBg: cardBg,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        isLight: isLight,
-                        divider: divider),
-                    const SizedBox(height: 20),
-                    _CommissionCard(
-                        data: _data!,
-                        cardBg: cardBg,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        isLight: isLight),
-                    const SizedBox(height: 20),
-                    _ClausesSection(
+              )
+            else if (_error != null)
+              SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.red.withValues(alpha: 0.1),
+                        ),
+                        child: const Icon(Icons.error_outline_rounded,
+                            size: 40, color: Colors.white54),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(_error!, style: const TextStyle(color: Colors.white70)),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: _load,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _premiumGold,
+                          foregroundColor: _deepNavy,
+                        ),
+                        child: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              SliverFadeTransition(
+                opacity: _fade,
+                sliver: SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      _StatsCard(data: _data!),
+                      const SizedBox(height: 20),
+                      _CommissionCard(data: _data!),
+                      const SizedBox(height: 20),
+                      _ClausesSection(
                         clauses: (_data!['clauses'] as List? ?? [])
                             .cast<Map<String, dynamic>>(),
-                        cardBg: cardBg,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        isLight: isLight,
-                        divider: divider),
-                    const SizedBox(height: 24),
-                    _AcceptanceFooter(
-                      acceptedAt: _acceptedAt,
-                      isLight: isLight,
-                      textSecondary: textSecondary,
-                      onAccept: _acceptedAt == null ? _acceptContrat : null,
-                    ),
-                  ]),
+                      ),
+                      const SizedBox(height: 24),
+                      _AcceptanceFooter(
+                        acceptedAt: _acceptedAt,
+                        onAccept: _acceptedAt == null ? _acceptContrat : null,
+                      ),
+                    ]),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  SliverAppBar _buildAppBar(bool isLight, Color textPrimary) {
+  SliverAppBar _buildAppBar() {
     return SliverAppBar(
-      expandedHeight: 120,
+      expandedHeight: 130,
       pinned: true,
-      backgroundColor: const Color(0xFF0B1B34),
+      backgroundColor: Colors.transparent,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
         onPressed: widget.onBack,
       ),
       flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 14),
+        titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
         title: const Text(
           'Mon Contrat',
           style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            letterSpacing: 0.3,
+          ),
         ),
         background: Stack(
           fit: StackFit.expand,
@@ -261,7 +275,7 @@ class _ContratScreenState extends State<ContratScreen>
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF0B1B34), Color(0xFF1E3A6E)],
+                  colors: [_deepNavy, Color(0xFF1E3A6E), _deepNavy],
                 ),
               ),
             ),
@@ -273,15 +287,31 @@ class _ContratScreenState extends State<ContratScreen>
                 height: 160,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF4CC9F0).withValues(alpha: 0.06),
+                  gradient: RadialGradient(
+                    colors: [
+                      _premiumGold.withValues(alpha: 0.08),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 14,
-              child: SizedBox(),
+            Positioned(
+              left: -40,
+              bottom: -40,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      _premiumGold.withValues(alpha: 0.05),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -293,21 +323,12 @@ class _ContratScreenState extends State<ContratScreen>
 // ─── Stats Card ──────────────────────────────────────────────────────────────
 
 class _StatsCard extends StatelessWidget {
-  const _StatsCard({
-    required this.data,
-    required this.cardBg,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.isLight,
-    required this.divider,
-  });
+  const _StatsCard({required this.data});
   final Map<String, dynamic> data;
-  final Color cardBg, textPrimary, textSecondary, divider;
-  final bool isLight;
 
   @override
   Widget build(BuildContext context) {
-    final nom = data['nom'] as String? ?? '';
+    final nom = data['nom'] as String? ?? 'PRESTATAIRE';
     final specialite = data['specialite'] as String? ?? '';
     final ville = data['ville'] as String? ?? '';
     final rating = (data['average_rating'] as num?)?.toDouble() ?? 0.0;
@@ -318,86 +339,129 @@ class _StatsCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: isLight
-            ? [BoxShadow(color: const Color(0x0F000000), blurRadius: 16)]
-            : null,
-        border: !isLight
-            ? Border.all(color: Colors.white.withValues(alpha: 0.07))
-            : null,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_cardBg, const Color(0xFF1A2744)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _premiumGold.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _premiumGold.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CC9F0).withValues(alpha: 0.12),
+                  gradient: LinearGradient(
+                    colors: [
+                      _premiumGold.withValues(alpha: 0.2),
+                      _premiumGold.withValues(alpha: 0.05),
+                    ],
+                  ),
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _premiumGold.withValues(alpha: 0.4),
+                    width: 1.5,
+                  ),
                 ),
                 child: const Icon(Icons.person_rounded,
-                    color: Color(0xFF4CC9F0), size: 28),
+                    color: _premiumGold, size: 28),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(nom,
-                        style: TextStyle(
-                            fontSize: 16,
+                        style: const TextStyle(
+                            fontSize: 17,
                             fontWeight: FontWeight.w800,
-                            color: textPrimary)),
+                            color: Colors.white,
+                            letterSpacing: 0.3)),
+                    const SizedBox(height: 2),
                     Text('$specialite • $ville',
-                        style: TextStyle(
-                            fontSize: 12, color: textSecondary)),
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.white70)),
                   ],
                 ),
               ),
               Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   if (isCertified)
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+                        gradient: LinearGradient(
+                          colors: [
+                            _premiumGold.withValues(alpha: 0.2),
+                            _premiumGold.withValues(alpha: 0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _premiumGold.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.verified_rounded,
-                              color: Color(0xFF4CC9F0), size: 13),
-                          SizedBox(width: 3),
+                              color: _premiumGold, size: 14),
+                          SizedBox(width: 4),
                           Text('Certifié',
                               style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF4CC9F0))),
+                                  color: _premiumGold)),
                         ],
                       ),
                     ),
                   if (isPremium) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+                        gradient: LinearGradient(
+                          colors: [
+                            _premiumGold.withValues(alpha: 0.2),
+                            _premiumGold.withValues(alpha: 0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _premiumGold.withValues(alpha: 0.4),
+                        ),
                       ),
-                      child: Text(
-                        tier[0].toUpperCase() + tier.substring(1),
-                        style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFFF59E0B)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.workspace_premium_rounded,
+                              color: _premiumGold, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${tier[0].toUpperCase()}${tier.substring(1)}',
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _premiumGold),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -405,9 +469,20 @@ class _StatsCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Divider(height: 1, color: divider),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
+          Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  _premiumGold.withValues(alpha: 0.3),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
@@ -418,24 +493,24 @@ class _StatsCard extends StatelessWidget {
                   color: const Color(0xFF22C55E),
                 ),
               ),
+              Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.1)),
               Expanded(
                 child: _MiniStat(
                   icon: Icons.star_rounded,
                   label: 'Note moyenne',
                   value: rating > 0 ? rating.toStringAsFixed(1) : '—',
-                  color: const Color(0xFFF59E0B),
+                  color: _premiumGold,
                 ),
               ),
+              Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.1)),
               Expanded(
                 child: _MiniStat(
                   icon: Icons.workspace_premium_rounded,
                   label: 'Statut',
                   value: isPremium
-                      ? tier[0].toUpperCase() + tier.substring(1)
+                      ? '${tier[0].toUpperCase()}${tier.substring(1)}'
                       : 'Standard',
-                  color: isPremium
-                      ? const Color(0xFFF59E0B)
-                      : const Color(0xFF64748B),
+                  color: isPremium ? _premiumGold : const Color(0xFF64748B),
                 ),
               ),
             ],
@@ -461,13 +536,14 @@ class _MiniStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, color: color, size: 22),
-        const SizedBox(height: 4),
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 6),
         Text(value,
             style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w800, color: color)),
+                fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+        const SizedBox(height: 2),
         Text(label,
-            style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+            style: const TextStyle(fontSize: 10, color: Colors.white54)),
       ],
     );
   }
@@ -476,90 +552,124 @@ class _MiniStat extends StatelessWidget {
 // ─── Commission Card ─────────────────────────────────────────────────────────
 
 class _CommissionCard extends StatelessWidget {
-  const _CommissionCard({
-    required this.data,
-    required this.cardBg,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.isLight,
-  });
+  const _CommissionCard({required this.data});
   final Map<String, dynamic> data;
-  final Color cardBg, textPrimary, textSecondary;
-  final bool isLight;
 
   @override
   Widget build(BuildContext context) {
     final rate = data['commission_rate'] as int? ?? 18;
     final base = data['commission_base'] as int? ?? 18;
     final reduction = data['premium_reduction'] as int? ?? 0;
-    const cyan = Color(0xFF4CC9F0);
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            cyan.withValues(alpha: 0.14),
-            cyan.withValues(alpha: 0.04),
+            Color(0xFF1A2744),
+            _cardBg,
           ],
         ),
-        border: Border.all(color: cyan.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _premiumGold.withValues(alpha: 0.25),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _premiumGold.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: cyan.withValues(alpha: 0.15),
+                  gradient: LinearGradient(
+                    colors: [
+                      _premiumGold.withValues(alpha: 0.2),
+                      _premiumGold.withValues(alpha: 0.05),
+                    ],
+                  ),
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _premiumGold.withValues(alpha: 0.4),
+                    width: 1.5,
+                  ),
                 ),
                 child: const Icon(Icons.percent_rounded,
-                    color: cyan, size: 22),
+                    color: _premiumGold, size: 24),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Commission BABIFIX',
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: textPrimary)),
-                  Text('Taux appliqué sur vos prestations',
-                      style: TextStyle(
-                          fontSize: 12, color: textSecondary)),
-                ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Commission BABIFIX',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.3)),
+                    const SizedBox(height: 2),
+                    const Text('Taux appliqué sur vos prestations',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.white70)),
+                  ],
+                ),
               ),
-              const Spacer(),
-              Text(
-                '$rate%',
-                style: const TextStyle(
-                    fontSize: 32, fontWeight: FontWeight.w900, color: cyan),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _premiumGold.withValues(alpha: 0.2),
+                      _premiumGold.withValues(alpha: 0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _premiumGold.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Text(
+                  '$rate%',
+                  style: const TextStyle(
+                      fontSize: 28, fontWeight: FontWeight.w900, color: _premiumGold),
+                ),
               ),
             ],
           ),
           if (reduction > 0) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFF22C55E).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF0A2E0A),
+                    const Color(0xFF0D3A0D),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: const Color(0xFF22C55E).withValues(alpha: 0.2)),
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.workspace_premium_rounded,
-                      color: Color(0xFF22C55E), size: 18),
-                  const SizedBox(width: 8),
+                      color: Color(0xFF22C55E), size: 20),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Réduction Premium : -$reduction% (taux de base $base% → $rate% effectif)',
@@ -573,11 +683,21 @@ class _CommissionCard extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          Text(
-            'Exemple : pour une prestation à 10 000 FCFA, BABIFIX prélève ${(10000 * rate / 100).round()} FCFA — vous recevez ${(10000 * (100 - rate) / 100).round()} FCFA net.',
-            style:
-                TextStyle(fontSize: 12, color: textSecondary, height: 1.4),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Text(
+              'Exemple : pour une prestation à 10 000 FCFA, BABIFIX prélève ${(10000 * rate / 100).round()} FCFA — vous recevez ${(10000 * (100 - rate) / 100).round()} FCFA net.',
+              style: const TextStyle(
+                  fontSize: 12, color: Colors.white54, height: 1.5),
+            ),
           ),
         ],
       ),
@@ -590,15 +710,8 @@ class _CommissionCard extends StatelessWidget {
 class _ClausesSection extends StatefulWidget {
   const _ClausesSection({
     required this.clauses,
-    required this.cardBg,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.isLight,
-    required this.divider,
   });
   final List<Map<String, dynamic>> clauses;
-  final Color cardBg, textPrimary, textSecondary, divider;
-  final bool isLight;
 
   @override
   State<_ClausesSection> createState() => _ClausesSectionState();
@@ -615,61 +728,77 @@ class _ClausesSectionState extends State<_ClausesSection> {
         Row(
           children: [
             Container(
-              width: 30,
-              height: 30,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _premiumGold.withValues(alpha: 0.2),
+                    _premiumGold.withValues(alpha: 0.05),
+                  ],
+                ),
                 shape: BoxShape.circle,
-                color: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
+                border: Border.all(
+                  color: _premiumGold.withValues(alpha: 0.4),
+                ),
               ),
               child: const Icon(Icons.description_rounded,
-                  size: 15, color: Color(0xFF4CC9F0)),
+                  size: 16, color: _premiumGold),
             ),
-            const SizedBox(width: 8),
-            Text(
+            const SizedBox(width: 10),
+            const Text(
               'CLAUSES DU CONTRAT',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.2,
-                color: widget.isLight
-                    ? const Color(0xFF64748B)
-                    : const Color(0xFF9CA3AF),
+                color: Colors.white54,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: widget.cardBg,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: widget.isLight
-                ? [
-                    BoxShadow(
-                        color: const Color(0x0F000000),
-                        blurRadius: 16)
-                  ]
-                : null,
-            border: !widget.isLight
-                ? Border.all(
-                    color: Colors.white.withValues(alpha: 0.07))
-                : null,
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_cardBg, Color(0xFF1A2744)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _premiumGold.withValues(alpha: 0.2),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _premiumGold.withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Column(
             children: [
               for (int i = 0; i < widget.clauses.length; i++) ...[
                 if (i > 0)
-                  Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: widget.divider),
+                  Container(
+                    height: 1,
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          _premiumGold.withValues(alpha: 0.2),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
                 _ClauseTile(
                   index: i + 1,
                   clause: widget.clauses[i],
                   isExpanded: _expanded == i,
-                  textPrimary: widget.textPrimary,
-                  textSecondary: widget.textSecondary,
                   onTap: () =>
                       setState(() => _expanded = _expanded == i ? null : i),
                 ),
@@ -687,74 +816,79 @@ class _ClauseTile extends StatelessWidget {
     required this.index,
     required this.clause,
     required this.isExpanded,
-    required this.textPrimary,
-    required this.textSecondary,
     required this.onTap,
   });
   final int index;
   final Map<String, dynamic> clause;
   final bool isExpanded;
-  final Color textPrimary, textSecondary;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  width: 24,
-                  height: 24,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CC9F0).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
+                    gradient: LinearGradient(
+                      colors: [
+                        _premiumGold.withValues(alpha: 0.2),
+                        _premiumGold.withValues(alpha: 0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _premiumGold.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Center(
                     child: Text(
                       '$index',
                       style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF4CC9F0)),
+                          color: _premiumGold),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     clause['titre'] as String? ?? '',
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: textPrimary),
+                        color: Colors.white),
                   ),
                 ),
                 Icon(
                   isExpanded
                       ? Icons.keyboard_arrow_up_rounded
                       : Icons.keyboard_arrow_down_rounded,
-                  color: textSecondary,
+                  color: Colors.white54,
                   size: 20,
                 ),
               ],
             ),
             if (isExpanded) ...[
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.only(left: 34),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.only(left: 40),
                 child: Text(
                   clause['contenu'] as String? ?? '',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 13,
-                      color: textSecondary,
-                      height: 1.5),
+                      color: Colors.white70,
+                      height: 1.6),
                 ),
               ),
             ],
@@ -770,13 +904,9 @@ class _ClauseTile extends StatelessWidget {
 class _AcceptanceFooter extends StatelessWidget {
   const _AcceptanceFooter({
     required this.acceptedAt,
-    required this.isLight,
-    required this.textSecondary,
     required this.onAccept,
   });
   final DateTime? acceptedAt;
-  final bool isLight;
-  final Color textSecondary;
   final VoidCallback? onAccept;
 
   String _fmt(DateTime dt) {
@@ -787,18 +917,42 @@ class _AcceptanceFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     if (acceptedAt != null) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: const Color(0xFF22C55E).withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF0A2E0A),
+              const Color(0xFF0D3A0D),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: const Color(0xFF22C55E).withValues(alpha: 0.25)),
+            color: const Color(0xFF22C55E).withValues(alpha: 0.3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF22C55E).withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_rounded,
-                color: Color(0xFF22C55E), size: 28),
-            const SizedBox(width: 12),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF22C55E).withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.4),
+                ),
+              ),
+              child: const Icon(Icons.check_circle_rounded,
+                  color: Color(0xFF22C55E), size: 22),
+            ),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -810,10 +964,11 @@ class _AcceptanceFooter extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF22C55E)),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     'Le ${_fmt(acceptedAt!)}',
-                    style: TextStyle(
-                        fontSize: 12, color: textSecondary),
+                    style: const TextStyle(
+                        fontSize: 12, color: Colors.white70),
                   ),
                 ],
               ),
@@ -829,23 +984,23 @@ class _AcceptanceFooter extends StatelessWidget {
         Text(
           'En acceptant ce contrat, vous confirmez avoir lu et compris l\'ensemble des clauses ci-dessus et vous engagez à les respecter.',
           textAlign: TextAlign.center,
-          style: TextStyle(
-              fontSize: 12, color: textSecondary, height: 1.4),
+          style: const TextStyle(
+              fontSize: 12, color: Colors.white54, height: 1.5),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         SizedBox(
-          height: 52,
+          height: 56,
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF4CC9F0), Color(0xFF0EA5E9)],
+                colors: [_premiumGold, Color(0xFFFFE55C)],
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF4CC9F0).withValues(alpha: 0.3),
+                  color: _premiumGold.withValues(alpha: 0.4),
                   blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
@@ -859,9 +1014,10 @@ class _AcceptanceFooter extends StatelessWidget {
                   child: Text(
                     'J\'accepte le contrat',
                     style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800),
+                        color: _deepNavy,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.3),
                   ),
                 ),
               ),
