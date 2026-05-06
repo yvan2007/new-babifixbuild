@@ -105,9 +105,9 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
     if (token == null) {
       setState(() => _submitting = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Non connecté')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Non connecte')),
+        );
       }
       return;
     }
@@ -149,7 +149,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
       if (resp.statusCode == 200) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Devis envoyé avec succès!')),
+            const SnackBar(content: Text('Devis envoye avec succes!')),
           );
           widget.onDevisCreated();
         }
@@ -162,9 +162,9 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
       }
     }
 
@@ -183,7 +183,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
           onPressed: widget.onBack,
         ),
         title: const Text(
-          'Créer un devis',
+          'Creer un devis',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
@@ -229,6 +229,14 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
     final client = widget.reservationDetails['client'] ?? 'Client';
     final title = widget.reservationDetails['title'] ?? '';
     final description = widget.reservationDetails['description_probleme'] ?? '';
+    final address = widget.reservationDetails['address'] ?? '';
+    final paymentType = widget.reservationDetails['payment_type'] ?? '';
+    final mmOperator = widget.reservationDetails['mobile_money_operator'] ?? '';
+    final disponibilites = widget.reservationDetails['disponibilites'] ?? '';
+    final isUrgent = widget.reservationDetails['is_urgent'] == true;
+    final prixPropose = widget.reservationDetails['prix_propose'] as double?;
+    final date = widget.reservationDetails['date'] ?? '';
+    final hour = widget.reservationDetails['hour'] ?? '';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -259,21 +267,93 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                 ),
               ),
               const SizedBox(width: 14),
-              const Text(
-                'Demande de devis',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: Colors.white,
+              Expanded(
+                child: Text(
+                  'Demande de $client',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (isUrgent)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.flash_on_rounded, size: 12, color: Color(0xFFEF4444)),
+                      SizedBox(width: 3),
+                      Text(
+                        'URGENT',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFEF4444),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),
           _infoRow(Icons.person_outline, 'Client', client),
           if (title.isNotEmpty) _infoRow(Icons.build_outlined, 'Service', title),
+          if (address.isNotEmpty) _infoRow(Icons.location_on_outlined, 'Adresse', address),
+          if (date.isNotEmpty || hour.isNotEmpty)
+            _infoRow(Icons.calendar_today_outlined, 'Date/Heure', '$date $hour'.trim()),
+          if (disponibilites.isNotEmpty) _infoRow(Icons.schedule_outlined, 'Dispo', disponibilites),
+          if (paymentType.isNotEmpty)
+            _infoRow(
+              Icons.payment_outlined,
+              'Paiement',
+              mmOperator.isNotEmpty ? '$paymentType ($mmOperator)' : paymentType,
+            ),
+          if (prixPropose != null && prixPropose > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.monetization_on_outlined, size: 18, color: Color(0xFFF59E0B)),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Budget proposé :',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${prixPropose.toStringAsFixed(0)} FCFA',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFF59E0B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (description.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            const Text(
+              'Description du problème',
+              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -330,12 +410,12 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
         children: [
           _PremiumTextField(
             controller: _diagnosticCtrl,
-            hint: 'Décrivez votre diagnostic et les travaux à effectuer...',
+            hint: 'Decrivez votre diagnostic et les travaux a effectuer...',
             maxLines: 4,
           ),
           const SizedBox(height: 16),
           const Text(
-            'Note complémentaire',
+            'Note complementaire',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -345,7 +425,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
           const SizedBox(height: 8),
           _PremiumTextField(
             controller: _noteCtrl,
-            hint: 'Informations complémentaires pour le client...',
+            hint: 'Informations complementaires pour le client...',
             maxLines: 2,
           ),
         ],
@@ -395,7 +475,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                   icon: Icons.schedule,
                   label: _heureDebut != null
                       ? _heureDebut!.format(context)
-                      : 'Heure début',
+                      : 'Heure debut',
                   onTap: () async {
                     final t = await showTimePicker(
                       context: context,
@@ -502,8 +582,8 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                 onSelected: _addLigne,
                 itemBuilder: (_) => [
                   _popupItem('FOURNITURE', 'Fourniture', Icons.inventory_2),
-                  _popupItem('MAIN_OEUVRE', 'Main d\'œuvre', Icons.engineering),
-                  _popupItem('DEPLACEMENT', 'Déplacement', Icons.directions_car),
+                  _popupItem('MAIN_OEUVRE', 'Main d\'oeuvre', Icons.engineering),
+                  _popupItem('DEPLACEMENT', 'Deplacement', Icons.directions_car),
                   _popupItem('AUTRE', 'Autre', Icons.more_horiz),
                 ],
               ),
@@ -584,8 +664,8 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                   dropdownColor: const Color(0xFF152A45),
                   items: const [
                     DropdownMenuItem(value: 'FOURNITURE', child: Text('Fourniture')),
-                    DropdownMenuItem(value: 'MAIN_OEUVRE', child: Text('Main d\'œuvre')),
-                    DropdownMenuItem(value: 'DEPLACEMENT', child: Text('Déplacement')),
+                    DropdownMenuItem(value: 'MAIN_OEUVRE', child: Text('Main d\'oeuvre')),
+                    DropdownMenuItem(value: 'DEPLACEMENT', child: Text('Deplacement')),
                     DropdownMenuItem(value: 'AUTRE', child: Text('Autre')),
                   ],
                   onChanged: (v) => setState(() => ligne.type = v!),
@@ -619,7 +699,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
             children: [
               Expanded(
                 child: _PremiumTextField(
-                  hint: 'Qté',
+                  hint: 'Qte',
                   keyboardType: TextInputType.number,
                   onChanged: (v) => ligne.quantite = int.tryParse(v) ?? 1,
                 ),
@@ -668,13 +748,13 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
 
   Widget _buildValiditeSection() {
     return _SectionCard(
-      title: 'Validité du devis',
+      title: 'Validite du devis',
       icon: Icons.timer_outlined,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            'Durée de validité',
+            'Duree de validite',
             style: TextStyle(fontSize: 14, color: Color(0xFFB4C2D9)),
           ),
           Container(
@@ -868,7 +948,7 @@ class _SectionCard extends StatelessWidget {
 class _PremiumTextField extends StatelessWidget {
   final TextEditingController? controller;
   final String? hint;
-  final int maxLines;
+  final int? maxLines;
   final TextInputType? keyboardType;
   final String? suffix;
   final ValueChanged<String>? onChanged;
@@ -876,7 +956,7 @@ class _PremiumTextField extends StatelessWidget {
   const _PremiumTextField({
     this.controller,
     this.hint,
-    this.maxLines = 1,
+    this.maxLines,
     this.keyboardType,
     this.suffix,
     this.onChanged,

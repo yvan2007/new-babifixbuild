@@ -49,7 +49,6 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   final _msgCtrl = TextEditingController();
   final _prixProposeCtrl = TextEditingController();
   bool _submitting = false;
-  bool _confirmed = false;
   String _paymentType = 'ESPECES';
   String _mmOperator = 'ORANGE_MONEY';
   bool _isUrgent = false;
@@ -149,13 +148,28 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           .toList();
     }
 
+    debugPrint('📤 RESERVATION SUBMIT — data: ${jsonEncode(data)}');
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Envoi au prestataire #${widget.providerId ?? "non spécifié"}...',
+          style: const TextStyle(fontSize: 12),
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF3B82F6),
+      ),
+    );
+
     bool ok = false;
     String? reference;
+    String? errorMsg;
     if (widget.onConfirm != null) {
       final result = await widget.onConfirm!(data);
       if (result != null) {
         ok = result['ok'] == true;
         reference = result['reference'] as String?;
+        errorMsg = result['error'] as String?;
       }
     } else {
       await Future.delayed(const Duration(seconds: 1));
@@ -164,10 +178,30 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     if (!mounted) return;
     setState(() {
       _submitting = false;
-      _confirmed = ok;
       if (reference != null) _reservationReference = reference;
     });
-    if (ok) _goTo(3);
+    if (ok) {
+      debugPrint('✅ RESERVATION OK — reference: $reference');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Réservation créée: $reference'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: const Color(0xFF22C55E),
+        ),
+      );
+      _goTo(3);
+    } else {
+      debugPrint('❌ RESERVATION FAILED — error: $errorMsg');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Échec: ${errorMsg ?? "Erreur inconnue"}'),
+          duration: const Duration(seconds: 4),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+    }
   }
 
   Widget _buildCurrentStep(BuildContext context, Color text, Color sub) {
@@ -233,6 +267,8 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           checkingAvailability: _checkingAvailability,
           providerAvailable: _providerAvailable,
           availabilityMessage: _availabilityMessage,
+          availableCreneaux: _availableCreneaux,
+          onCreneauSelected: (v) => setState(() => _disponibilites = v),
           onCheckAvailability: _checkProviderAvailability,
         );
       default:
@@ -797,28 +833,6 @@ class _PremiumPickerCard extends StatelessWidget {
   }
 }
 
-// Old _DatePickerCard kept as dead code to not break references — replaced by _PremiumPickerCard
-class _DatePickerCard extends StatelessWidget {
-  const _DatePickerCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.onTap,
-  });
-  final String label;
-  final String value;
-  final IconData icon;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => _PremiumPickerCard(
-    label: label,
-    value: value,
-    icon: icon,
-    isSet: false,
-    onTap: onTap,
-  );
-}
-
 // ── Step 1 : Adresse ──────────────────────────────────────────────────────────
 
 class _StepAddress extends StatefulWidget {
@@ -1259,6 +1273,8 @@ class _StepDisponibilite extends StatelessWidget {
     this.checkingAvailability,
     this.providerAvailable,
     this.availabilityMessage,
+    this.availableCreneaux = const [],
+    this.onCreneauSelected,
     this.onCheckAvailability,
   });
 
@@ -1279,6 +1295,8 @@ class _StepDisponibilite extends StatelessWidget {
   final bool? checkingAvailability;
   final bool? providerAvailable;
   final String? availabilityMessage;
+  final List<Map<String, dynamic>> availableCreneaux;
+  final ValueChanged<String>? onCreneauSelected;
   final Future<void> Function(DateTime)? onCheckAvailability;
 
   static const _kNavy = Color(0xFF050D1A);
@@ -1287,19 +1305,8 @@ class _StepDisponibilite extends StatelessWidget {
   static const _kCyan = Color(0xFF4CC9F0);
   static const _kRed = Color(0xFFDC2626);
 
-  static const _creneaux = [
-    'Matin (8h-12h)',
-    'Après-midi (12h-17h)',
-    'Soir (17h-20h)',
-    'Jour entier',
-  ];
-  static const _jours = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-
   @override
   Widget build(BuildContext context) {
-    final selectedCreneaux = disponibilites.isNotEmpty
-        ? disponibilites.split(',').toSet()
-        : <String>{};
 
     return Container(
       color: _kNavy,
@@ -1445,6 +1452,33 @@ class _StepDisponibilite extends StatelessWidget {
                   ),
                 ),
               ],
+            ],
+            if (availableCreneaux.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const Text(
+                'Créneaux disponibles',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in availableCreneaux)
+                    _CreneauChip(
+                      label: c['label'] as String? ?? 'Créneau',
+                      timeRange: c['time_range'] as String? ?? '',
+                      selected: disponibilites == c['id'].toString(),
+                      onTap: () => onCreneauSelected?.call(
+                        c['id'].toString(),
+                      ),
+                    ),
+                ],
+              ),
             ],
             const SizedBox(height: 24),
             // ── Mode de paiement ──────────────────────────────────────────
@@ -1652,558 +1686,71 @@ class _StepDisponibilite extends StatelessWidget {
   }
 }
 
-class _StepSummary extends StatelessWidget {
-  const _StepSummary({
-    required this.textColor,
-    required this.subColor,
-    required this.serviceTitle,
-    required this.servicePrice,
-    required this.date,
-    required this.time,
-    required this.address,
-    required this.mapPinRegistered,
-    required this.photoCount,
-    required this.paymentType,
-    required this.mmOperator,
-    required this.onPaymentChanged,
-    required this.onMmOperatorChanged,
-    required this.onConfirm,
-    required this.onBack,
-    required this.submitting,
-    required this.prixProposeCtrl,
+class _CreneauChip extends StatelessWidget {
+  const _CreneauChip({
+    required this.label,
+    required this.timeRange,
+    required this.selected,
+    required this.onTap,
   });
 
-  final Color textColor;
-  final Color subColor;
-  final String serviceTitle;
-  final int servicePrice;
-  final DateTime? date;
-  final TimeOfDay? time;
-  final String address;
-  final bool mapPinRegistered;
-  final int photoCount;
-  final String paymentType;
-  final String mmOperator;
-  final ValueChanged<String> onPaymentChanged;
-  final ValueChanged<String> onMmOperatorChanged;
-  final Future<void> Function() onConfirm;
-  final VoidCallback onBack;
-  final bool submitting;
-  final TextEditingController prixProposeCtrl;
+  final String label;
+  final String timeRange;
+  final bool selected;
+  final VoidCallback onTap;
 
-  static const _mmIds = ['ORANGE_MONEY', 'MTN_MOMO', 'WAVE', 'MOOV'];
+  static const _kCyan = Color(0xFF4CC9F0);
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isLight = theme.brightness == Brightness.light;
-    final cardBg = isLight ? Colors.white : const Color(0xFF1A1F28);
-    final sectionBg = isLight
-        ? const Color(0xFFF8FAFC)
-        : const Color(0xFF141920);
-    final dividerColor = isLight
-        ? const Color(0xFFE8EDF3)
-        : const Color(0xFF252C38);
-
-    final dateStr = date != null
-        ? '${date!.day.toString().padLeft(2, '0')}/${date!.month.toString().padLeft(2, '0')}/${date!.year} — ${time?.format(context) ?? ''}'
-        : '—';
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Bannière service ──────────────────────────────────────────────
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF0A2540), Color(0xFF0E3A65)],
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF0A2540).withValues(alpha: 0.45),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? _kCyan.withValues(alpha: 0.2) : const Color(0xFF0D1525),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? _kCyan : Colors.white.withValues(alpha: 0.1),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: BabifixDesign.cyan.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: BabifixDesign.cyan.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.verified_rounded,
-                            size: 12,
-                            color: BabifixDesign.cyan,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Récapitulatif',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: BabifixDesign.cyan,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Icon(
+                  Icons.access_time_rounded,
+                  size: 16,
+                  color: selected ? _kCyan : Colors.white.withValues(alpha: 0.5),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(width: 6),
                 Text(
-                  serviceTitle,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: -0.4,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _BannerChip(
-                      icon: Icons.calendar_today_rounded,
-                      label: dateStr,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _BannerChip(
-                      icon: Icons.location_on_rounded,
-                      label: address.isEmpty
-                          ? 'Adresse non renseignée'
-                          : address,
-                      maxWidth: 260,
-                    ),
-                  ],
-                ),
-                if (servicePrice > 0) ...[
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Tarif estimé : ',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        Text(
-                          '$servicePrice FCFA',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: BabifixDesign.cyan,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // ── Détails logistiques ───────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: dividerColor),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isLight ? 0.04 : 0.18),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                _SummaryRow2(
-                  icon: Icons.event_available_rounded,
-                  iconColor: const Color(0xFF6366F1),
-                  iconBg: const Color(0xFFEEF2FF),
-                  iconBgDark: const Color(0xFF1E1B4B),
-                  label: 'Date & heure',
-                  value: dateStr,
-                  isLight: isLight,
-                  textColor: textColor,
-                  subColor: subColor,
-                ),
-                Divider(height: 1, color: dividerColor),
-                _SummaryRow2(
-                  icon: Icons.signpost_rounded,
-                  iconColor: const Color(0xFF10B981),
-                  iconBg: const Color(0xFFECFDF5),
-                  iconBgDark: const Color(0xFF064E3B),
-                  label: 'Adresse d\'intervention',
-                  value: address.isEmpty ? 'Non renseignée' : address,
-                  isLight: isLight,
-                  textColor: textColor,
-                  subColor: subColor,
-                  valueMaxLines: 3,
-                ),
-                Divider(height: 1, color: dividerColor),
-                _SummaryRow2(
-                  icon: Icons.explore_rounded,
-                  iconColor: const Color(0xFFF59E0B),
-                  iconBg: const Color(0xFFFFFBEB),
-                  iconBgDark: const Color(0xFF451A03),
-                  label: 'Repère GPS',
-                  value: mapPinRegistered
-                      ? 'Position enregistrée ✓'
-                      : 'Non renseigné (optionnel)',
-                  isLight: isLight,
-                  textColor: textColor,
-                  subColor: subColor,
-                ),
-                if (photoCount > 0) ...[
-                  Divider(height: 1, color: dividerColor),
-                  _SummaryRow2(
-                    icon: Icons.collections_rounded,
-                    iconColor: const Color(0xFFEC4899),
-                    iconBg: const Color(0xFFFDF2F8),
-                    iconBgDark: const Color(0xFF4A044E),
-                    label: 'Photos jointes',
-                    value:
-                        '$photoCount photo${photoCount > 1 ? "s" : ""} ajoutée${photoCount > 1 ? "s" : ""}',
-                    isLight: isLight,
-                    textColor: textColor,
-                    subColor: subColor,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // ── Prix proposé (optionnel) ──────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: dividerColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isLight
-                            ? const Color(0xFFFFF7ED)
-                            : const Color(0xFF431407),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.price_change_rounded,
-                        size: 18,
-                        color: Color(0xFFF97316),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Prix proposé',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                              color: textColor,
-                            ),
-                          ),
-                          Text(
-                            'Optionnel — proposez votre budget au prestataire',
-                            style: TextStyle(fontSize: 11, color: subColor),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: prixProposeCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    hintText: 'ex : 15000',
-                    suffixText: 'FCFA',
-                    prefixIcon: const Icon(
-                      Icons.monetization_on_outlined,
-                      color: Color(0xFFF97316),
-                    ),
-                    filled: true,
-                    fillColor: isLight
-                        ? const Color(0xFFFFFBF7)
-                        : const Color(0xFF1A1410),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: dividerColor),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFFF97316),
-                        width: 2,
-                      ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? _kCyan : Colors.white70,
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 14),
-
-          // ── Mode de paiement ──────────────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: sectionBg,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: dividerColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isLight
-                            ? const Color(0xFFEFF6FF)
-                            : const Color(0xFF1E3A5F),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.payments_rounded,
-                        size: 18,
-                        color: Color(0xFF3B82F6),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Mode de paiement',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                        color: textColor,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.only(left: 36),
-                  child: Text(
-                    'Espèces sur place ou Mobile Money (Orange, MTN, Wave, Moov).',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: subColor,
-                      height: 1.35,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _PaymentModeTile(
-                    selected: paymentType == 'ESPECES',
-                    onTap: () => onPaymentChanged('ESPECES'),
-                    icon: Icons.payments_rounded,
-                    title: 'Espèces',
-                    subtitle: 'Au rendez-vous',
-                    textColor: textColor,
-                    subColor: subColor,
-                    footer: const SizedBox(height: 28),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _PaymentModeTile(
-                    selected: paymentType == 'MOBILE_MONEY',
-                    onTap: () => onPaymentChanged('MOBILE_MONEY'),
-                    icon: Icons.phone_android_rounded,
-                    title: 'Mobile Money',
-                    subtitle: 'Orange · MTN · Wave',
-                    textColor: textColor,
-                    subColor: subColor,
-                    footer: const SizedBox(
-                      height: 28,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: BabifixMobileMoneyLogoStrip(height: 20),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ), // Row
-          ), // IntrinsicHeight
-          if (paymentType == 'MOBILE_MONEY') ...[
-            const SizedBox(height: 14),
-            Text(
-              'Opérateur',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final id in _mmIds)
-                  _MmOperatorLogoChip(
-                    methodId: id,
-                    selected: mmOperator == id,
-                    onTap: () => onMmOperatorChanged(id),
-                  ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 20),
-          // ── Boutons d'action ──────────────────────────────────────────────
-          Row(
-            children: [
-              OutlinedButton(
-                onPressed: onBack,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(52, 52),
-                  maximumSize: const Size(52, 52),
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Icon(Icons.arrow_back_rounded),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: submitting ? null : onConfirm,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: 52,
-                    decoration: BoxDecoration(
-                      gradient: submitting
-                          ? null
-                          : const LinearGradient(
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                              colors: [Color(0xFF0EA5E9), Color(0xFF4CC9F0)],
-                            ),
-                      color: submitting ? const Color(0xFF94A3B8) : null,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: submitting
-                          ? null
-                          : [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFF0EA5E9,
-                                ).withValues(alpha: 0.4),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                    ),
-                    alignment: Alignment.center,
-                    child: submitting
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.check_circle_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Confirmer la réservation',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
+            if (timeRange.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                timeRange,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.white.withValues(alpha: 0.35),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 32),
-        ],
+          ],
+        ),
       ),
     );
   }

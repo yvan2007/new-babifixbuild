@@ -2461,12 +2461,12 @@ def api_client_create_reservation(request):
     prov = None
     pid = payload.get("provider_id")
     if pid is not None and str(pid).isdigit():
-        prov = Provider.objects.filter(
-            id=int(pid), statut=Provider.Status.VALID
-        ).first()
+        # Chercher le provider par ID (peu importe le statut)
+        prov = Provider.objects.filter(id=int(pid)).first()
+        print(f"[RESERVATION] provider_id={pid}, prov={prov}, statut={prov.statut if prov else None}, user_id={prov.user_id if prov else None}")
 
-    # Vérifier si le prestataire est disponible
-    if prov and not prov.disponible:
+    # Vérifier si le prestataire est disponible (uniquement si VALID)
+    if prov and prov.statut == Provider.Status.VALID and not prov.disponible:
         return JsonResponse(
             {
                 "error": "provider_unavailable",
@@ -2604,6 +2604,7 @@ def api_client_create_reservation(request):
         idempotency_key=idem_key,
         appel_masque=True,  # Activer masquage par défaut
     )
+    print(f"[RESERVATION CREATED] ref={reference}, prestataire='{prest_label}', user_id={prest_user_id}, provider_id={prov.id if prov else None}, status={initial_status}")
     if res_obj.client_user_id and res_obj.prestataire_user_id:
         Conversation.objects.get_or_create(
             reservation=res_obj,
@@ -2912,6 +2913,7 @@ def api_prestataire_requests(request):
     status = request.GET.get("status")
     uid = request.api_user_id
     prov = _prestataire_provider_for_user(uid)
+    print(f"[PRESTATAIRE REQUESTS] user_id={uid}, prov={prov}, prov.nom={prov.nom if prov else None}, prov.id={prov.id if prov else None}")
 
     queryset = Reservation.objects.all()
     if prov:
@@ -2920,8 +2922,11 @@ def api_prestataire_requests(request):
             | Q(prestataire=prov.nom)
             | Q(assigned_provider_id=prov.id)
         )
+        print(f"[PRESTATAIRE REQUESTS] filter: user_id={uid} OR prestataire='{prov.nom}' OR assigned_provider_id={prov.id}")
     if status:
         queryset = queryset.filter(statut=status)
+
+    print(f"[PRESTATAIRE REQUESTS] total items: {queryset.count()}")
 
     data = []
     for item in queryset[:20]:
@@ -2931,34 +2936,53 @@ def api_prestataire_requests(request):
             if prov_obj and prov_obj.rating_count
             else 4.7
         )
+
+        # Récupérer les photos du client (JSONFields + base64)
+        client_photos = []
+        for url in (item.photos_probleme or []):
+            if url and isinstance(url, str):
+                client_photos.append(url)
+        for url in (item.preuve_photos or []):
+            if url and isinstance(url, str):
+                client_photos.append(url)
+
+        montant_fmt = 0
+        if item.montant:
+            try:
+                montant_fmt = float(item.montant)
+            except (ValueError, TypeError):
+                montant_fmt = 0
+
         data.append(
             {
+                "id": item.id,
                 "reference": item.reference,
-                "client": item.client,
+                "client": item.client or "Client",
                 "service": item.title or "Intervention domiciliaire",
                 "date": item.location_captured_at.strftime("%d %b %Y")
                 if item.location_captured_at
-                else "—",
+                else "",
                 "hour": item.location_captured_at.strftime("%H:%M")
                 if item.location_captured_at
-                else "—",
-                "address": item.address_label or "—",
+                else "",
+                "address": item.address_label or "",
                 "description": (
                     item.client_message
                     or item.description_probleme
                     or f"Detail de la demande {item.reference}"
                 )[:500],
                 "client_message": item.description_probleme or "",
+                "client_photos": client_photos,
                 "disponibilites_client": item.disponibilites_client or "",
-                "is_urgent": item.is_urgent,
-                "amount": float(item.montant) if item.montant else 0,
+                "is_urgent": item.is_urgent or False,
+                "amount": montant_fmt,
+                "amount_label": f"{montant_fmt:.0f} FCFA" if montant_fmt > 0 else "À définir",
                 "status": item.statut,
-                "payment_type": item.payment_type,
+                "payment_type": item.payment_type or "ESPECES",
                 "mobile_money_operator": item.mobile_money_operator or "",
-                "cash_flow_status": item.cash_flow_status,
+                "cash_flow_status": item.cash_flow_status or "",
                 "rating": ravg,
                 "prix_propose": float(item.prix_propose) if item.prix_propose else None,
-                "bookingId": item.id,
             }
         )
     return JsonResponse({"items": data})
@@ -4031,9 +4055,13 @@ def api_client_pay_post_prestation(request, reference):
         )
     note = str(payload.get("message", "") or "")[:2000]
     ref_pay = f"PAY-{res.reference}-{int(timezone.now().timestamp())}"
-    from adminpanel.services.wallet_service import _get_system_commission_rate
+    from adminpanel.services.wallet_service import WalletService, _get_effective_commission_rate
     commission_rate = _get_system_commission_rate()
-    commission = (res.montant * commission_rate) if res.montant else Decimal("0")
+    # Calculer la commission effective (prend en compte premium tier)
+    provider_for_commission = res.assigned_provider
+    if provider_for_commission:
+        commission_rate = _get_effective_commission_rate(provider_for_commission)
+    commission = (res.montant * commission_rate).quantize(Decimal("1")) if res.montant else Decimal("0")
     tp = Payment.TypePaiement.ESPECES
     if mid != "ESPECES":
         tp = Payment.TypePaiement.MOBILE_MONEY
@@ -4066,6 +4094,14 @@ def api_client_pay_post_prestation(request, reference):
                 valide_par_admin=False,
                 idempotency_key=idem_key,
             )
+            # Créditer le wallet prestataire (net après commission)
+            try:
+                from adminpanel.services.wallet_service import WalletService
+                WalletService.credit_provider(
+                    Payment.objects.get(reference=ref_pay)
+                )
+            except Exception as e:
+                logger.warning("Erreur crédit wallet post-prestation: %s", e)
     except Exception as e:
         return JsonResponse({"error": "transaction_failed", "detail": str(e)}, status=500)
     _schedule(
@@ -4710,7 +4746,7 @@ def api_client_accept_devis(request, reference):
     )
 
     return JsonResponse(
-        {"ok": True, "statut": res.statut, "montant": float(res.montant)}
+        {"ok": True, "statut": res.statut, "montant": float(res.montant), "reservation_id": res.pk, "reference": res.reference}
     )
 
 
@@ -4755,6 +4791,42 @@ def api_client_refuse_devis(request, reference):
     )
 
     return JsonResponse({"ok": True, "statut": res.statut})
+
+
+@csrf_exempt
+@require_GET
+@require_api_auth(["client"])
+def api_client_receipt_pdf(request, reference):
+    """GET /api/client/reservations/<reference>/receipt/pdf/ — Télécharger le reçu PDF."""
+    user_id = request.api_user_id
+
+    try:
+        payment = (
+            Payment.objects.select_related("reservation__client_user")
+            .filter(
+                reservation__reference=reference,
+                reservation__client_user_id=user_id,
+                etat=Payment.State.COMPLETE,
+            )
+            .first()
+        )
+    except Exception:
+        payment = None
+
+    if not payment:
+        return JsonResponse({"error": "Reçu introuvable ou accès refusé"}, status=404)
+
+    try:
+        from adminpanel.services.invoice_service import InvoiceService
+
+        pdf_bytes = InvoiceService.generate_pdf(payment, doc_type="receipt")
+    except Exception as exc:
+        logger.error("Erreur génération PDF reçu ref=%s: %s", reference, exc)
+        return JsonResponse({"error": "Erreur génération PDF"}, status=500)
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="recu_{reference}.pdf"'
+    return response
 
 
 def error_500(request):

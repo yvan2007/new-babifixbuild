@@ -160,8 +160,9 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
             servicePrice: 0,
             onConfirm: (data) async {
               final token = await BabifixUserStore.getApiToken();
-              if (token == null) return {'ok': false};
+              if (token == null) return {'ok': false, 'error': 'Non connecté'};
 
+              debugPrint('📤 BOOKING BUILDER — provider_id: ${data['provider_id'] ?? "null"}, title: ${data['title']}');
               try {
                 final resp = await http.post(
                   Uri.parse('${babifixApiBaseUrl()}/api/client/reservations'),
@@ -171,15 +172,19 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
                   },
                   body: jsonEncode(data),
                 );
+                debugPrint('📥 BOOKING BUILDER — status: ${resp.statusCode}, body: ${resp.body}');
 
                 if (resp.statusCode == 201) {
                   final result = jsonDecode(resp.body);
                   return {'ok': true, 'reference': result['reference']};
+                } else {
+                  final err = jsonDecode(resp.body);
+                  return {'ok': false, 'error': err['error'] ?? resp.body};
                 }
               } catch (e) {
-                // Error
+                debugPrint('❌ BOOKING BUILDER ERROR: $e');
+                return {'ok': false, 'error': '$e'};
               }
-              return {'ok': false};
             },
           );
         },
@@ -261,9 +266,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
       filterKey: 'TOUS',
     ),
   ];
-
-  /// Raw categories data from API for ID lookup
-  List<Map<String, dynamic>> _publicCategories = [];
 
   /// Donnees 100 % issues de l'API — aucune liste locale fictive.
   List<ClientService> services = <ClientService>[];
@@ -3118,6 +3120,31 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildReservations() {
+    final pending = reservations.where((r) =>
+        r.status == 'DEMANDE_ENVOYEE' ||
+        r.status == 'DEVIS_EN_COURS' ||
+        r.status == 'DEVIS_ENVOYE' ||
+        r.status == 'En attente' ||
+        r.canViewDevis ||
+        r.canAcceptDevis).toList();
+
+    final active = reservations.where((r) =>
+        r.status == 'Confirmee' ||
+        r.status == 'DEVIS_ACCEPTE' ||
+        r.status == 'INTERVENTION_EN_COURS' ||
+        r.status == 'En cours' ||
+        r.canConfirmService ||
+        r.canPay ||
+        _canDeclareCash(r)).toList();
+
+    final completed = reservations.where((r) =>
+        r.status == 'Terminee' ||
+        r.status == 'DONE').toList();
+
+    final cancelled = reservations.where((r) =>
+        r.status == 'Annulee' ||
+        r.status == 'CANCELLED').toList();
+
     return Column(
       children: [
         _buildTopBar('Rendez-vous'),
@@ -3187,194 +3214,558 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 )
               : RefreshIndicator(
                   onRefresh: _loadRemoteData,
-                  child: ListView.builder(
+                  child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                    itemCount: reservations.length,
-                    itemBuilder: (context, index) {
-                      final r = reservations[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: _cardBg,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: _isLight
-                                ? const Color(0x120F172A)
-                                : const Color(0x22FFFFFF),
-                          ),
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 120),
+                    children: [
+                      // ── Pipeline visuel en haut ──────────────────────
+                      _buildReservationPipeline(
+                        pending: pending.length,
+                        active: active.length,
+                        completed: completed.length,
+                        total: reservations.length,
+                      ),
+                      const SizedBox(height: 16),
+                      // ── En attente / Devis (Nouvelles) ────────────────
+                      if (pending.isNotEmpty) ...[
+                        _buildSectionHeader(
+                          title: 'En attente',
+                          subtitle: 'Action requise de votre part',
+                          count: pending.length,
+                          color: const Color(0xFFF59E0B),
+                          icon: Icons.hourglass_empty_rounded,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    r.title,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: _textPrimary,
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE0F2FE),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    _paymentLabelClient(r.paymentType),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF0369A1),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              r.whenLabel,
-                              style: TextStyle(
-                                color: _textSecondary,
-                                fontSize: 13,
-                              ),
-                            ),
-                            if (r.disputeOuverte) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Litige signale — suivi avec BABIFIX',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.orange.shade800,
-                                ),
-                              ),
-                            ],
-                            if (r.rated) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                'Avis laisse',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: _textSecondary,
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Text(
-                                  r.amount,
-                                  style: const TextStyle(
-                                    color: Color(0xFF7EC8E3),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const Spacer(),
-                                StatusPill(
-                                  text: r.statusLabel.isNotEmpty
-                                      ? r.statusLabel
-                                      : (r.status == 'DEVIS_ENVOYE'
-                                          ? 'Devis reçu'
-                                          : r.status),
-                                ),
-                              ],
-                            ),
-                            if (r.canConfirmService ||
-                                r.canPay ||
-                                r.canRate ||
-                                r.canViewDevis ||
-                                r.canAcceptDevis ||
-                                _canDeclareCash(r)) ...[
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 6,
-                                children: [
-                                  if (r.canConfirmService)
-                                    FilledButton(
-                                      onPressed: () =>
-                                          _confirmPrestationClient(r),
-                                      child: const Text(
-                                        'Confirmer la prestation',
-                                      ),
-                                    ),
-                                  if (r.canViewDevis || r.canAcceptDevis)
-                                    FilledButton.icon(
-                                      onPressed: () {
-                                        Navigator.of(context).push<void>(
-                                          MaterialPageRoute(
-                                            builder: (_) => DevisDetailScreen(
-                                              reservationReference: r.reference,
-                                              onBack: () =>
-                                                  Navigator.pop(context),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      icon: const Icon(
-                                        Icons.description_outlined,
-                                        size: 18,
-                                      ),
-                                      label: Text(
-                                        r.canAcceptDevis
-                                            ? 'Voir et accepter le devis'
-                                            : 'Voir le devis',
-                                      ),
-                                    ),
-                                  if (r.canPay)
-                                    FilledButton.tonal(
-                                      onPressed: () {
-                                        if (r.id > 0) {
-                                          Navigator.of(context).push<void>(
-                                            MaterialPageRoute(
-                                              builder: (_) => PaymentScreen(
-                                                reservationId: r.id,
-                                                serviceTitle: r.title,
-                                              ),
-                                            ),
-                                          );
-                                        } else {
-                                          _openPostPrestationPaySheet(r);
-                                        }
-                                      },
-                                      child: const Text('Choisir le paiement'),
-                                    ),
-                                  if (r.canRate)
-                                    OutlinedButton.icon(
-                                      onPressed: () => _rateReservation(r),
-                                      icon: const Icon(
-                                        Icons.star_outline,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Noter le prestataire'),
-                                    ),
-                                  if (_canDeclareCash(r))
-                                    FilledButton.tonal(
-                                      onPressed: () => _declareCashPayment(r),
-                                      child: const Text(
-                                        'J\'ai paye en especes',
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ],
+                        ...pending.map((r) => _buildReservationCard(r, isPending: true)),
+                        const SizedBox(height: 8),
+                      ],
+                      // ── En cours / Actives ────────────────────────────
+                      if (active.isNotEmpty) ...[
+                        _buildSectionHeader(
+                          title: 'En cours',
+                          subtitle: 'Intervention programmee ou en cours',
+                          count: active.length,
+                          color: const Color(0xFF3B82F6),
+                          icon: Icons.play_circle_rounded,
                         ),
-                      );
-                    },
+                        ...active.map((r) => _buildReservationCard(r, isActive: true)),
+                        const SizedBox(height: 8),
+                      ],
+                      // ── Terminées ─────────────────────────────────────
+                      if (completed.isNotEmpty) ...[
+                        _buildSectionHeader(
+                          title: 'Terminées',
+                          subtitle: 'Prestations finalisees',
+                          count: completed.length,
+                          color: const Color(0xFF22C55E),
+                          icon: Icons.check_circle_rounded,
+                          muted: true,
+                        ),
+                        ...completed.map((r) => _buildReservationCard(r, isCompleted: true)),
+                        const SizedBox(height: 8),
+                      ],
+                      // ── Annulées ──────────────────────────────────────
+                      if (cancelled.isNotEmpty) ...[
+                        _buildSectionHeader(
+                          title: 'Annulées',
+                          subtitle: 'Reservations annulees',
+                          count: cancelled.length,
+                          color: const Color(0xFFEF4444),
+                          icon: Icons.cancel_rounded,
+                          muted: true,
+                        ),
+                        ...cancelled.map((r) => _buildReservationCard(r, isCancelled: true)),
+                      ],
+                    ],
                   ),
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildReservationPipeline({
+    required int pending,
+    required int active,
+    required int completed,
+    required int total,
+  }) {
+    final steps = [
+      _PipelineStep(
+        label: 'Demande',
+        count: pending,
+        icon: Icons.send_rounded,
+        color: pending > 0 ? const Color(0xFFF59E0B) : const Color(0xFF475569),
+        active: pending > 0,
+      ),
+      _PipelineStep(
+        label: 'En cours',
+        count: active,
+        icon: Icons.build_rounded,
+        color: active > 0 ? const Color(0xFF3B82F6) : const Color(0xFF475569),
+        active: active > 0,
+      ),
+      _PipelineStep(
+        label: 'Termine',
+        count: completed,
+        icon: Icons.check_circle_rounded,
+        color: completed > 0 ? const Color(0xFF22C55E) : const Color(0xFF475569),
+        active: completed > 0,
+      ),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x22FFFFFF)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.cyan.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.route_rounded,
+                  color: BabifixDesign.cyan,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Suivi global',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$total total',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8B5CF6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              for (int i = 0; i < steps.length; i++) ...[
+                Expanded(
+                  child: _PipelineStepWidget(step: steps[i]),
+                ),
+                if (i < steps.length - 1)
+                  Container(
+                    width: 24,
+                    height: 2,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          steps[i].active ? steps[i].color : const Color(0xFF334155),
+                          steps[i + 1].active ? steps[i + 1].color : const Color(0xFF334155),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required String title,
+    required String subtitle,
+    required int count,
+    required Color color,
+    required IconData icon,
+    bool muted = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 20,
+            decoration: BoxDecoration(
+              color: muted ? color.withValues(alpha: 0.4) : color,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Icon(icon, size: 18, color: muted ? color.withValues(alpha: 0.6) : color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: muted ? _textSecondary : color,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _textSecondary.withValues(alpha: muted ? 0.5 : 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: muted ? 0.1 : 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: muted ? color.withValues(alpha: 0.5) : color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReservationCard(
+    ClientReservation r, {
+    bool isPending = false,
+    bool isActive = false,
+    bool isCompleted = false,
+    bool isCancelled = false,
+  }) {
+    final isDevis = r.status == 'DEVIS_ENVOYE' || r.canViewDevis || r.canAcceptDevis;
+    final showActions = r.canConfirmService ||
+        r.canPay ||
+        r.canRate ||
+        r.canViewDevis ||
+        r.canAcceptDevis ||
+        _canDeclareCash(r);
+
+    return GestureDetector(
+      onTap: () => _showReservationDetails(r),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          gradient: isPending
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF2A1F0A), Color(0xFF1E1508)],
+                )
+              : isActive
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF0A1F2A), Color(0xFF081520)],
+                    )
+                  : null,
+          color: (isPending || isActive) ? null : _cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isPending
+                ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
+                : isActive
+                    ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
+                    : isCancelled
+                        ? _isLight
+                            ? const Color(0x0A0F172A)
+                            : const Color(0x10FFFFFF)
+                        : _isLight
+                            ? const Color(0x120F172A)
+                            : const Color(0x22FFFFFF),
+            width: isPending ? 1.5 : 1,
+          ),
+          boxShadow: isPending
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            if (isPending)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.access_time_rounded, size: 10, color: Color(0xFFF59E0B)),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'Nouveau',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFFF59E0B),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (isActive)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.play_circle_rounded, size: 10, color: Color(0xFF3B82F6)),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'ACTIF',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF3B82F6),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                r.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: isPending || isActive
+                                      ? Colors.white
+                                      : _textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          r.whenLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isPending || isActive
+                                ? Colors.white.withValues(alpha: 0.5)
+                                : _textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isPending || isActive
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : isCancelled
+                              ? const Color(0xFFEF4444).withValues(alpha: 0.08)
+                              : const Color(0xFFE0F2FE),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _paymentLabelClient(r.paymentType),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isPending || isActive
+                            ? Colors.white.withValues(alpha: 0.6)
+                            : isCancelled
+                                ? const Color(0xFFEF4444)
+                                : const Color(0xFF0369A1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (r.disputeOuverte) ...[
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_rounded, size: 14, color: Colors.orange.shade700),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Litige signale',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+              child: Row(
+                children: [
+                  Text(
+                    r.amount,
+                    style: TextStyle(
+                      color: isPending
+                          ? const Color(0xFFF59E0B)
+                          : isActive
+                              ? const Color(0xFF7EC8E3)
+                              : _textSecondary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const Spacer(),
+                  _ReservationStatusPill(
+                    status: r.status,
+                    statusLabel: r.statusLabel,
+                    isDevis: isDevis,
+                  ),
+                ],
+              ),
+            ),
+            // Actions rapides
+            if (showActions) ...[
+              const Divider(height: 1, color: Color(0x15FFFFFF)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (r.canViewDevis || r.canAcceptDevis)
+                      _QuickActionChip(
+                        icon: Icons.description_outlined,
+                        label: r.canAcceptDevis ? 'Voir & accepter' : 'Voir le devis',
+                        color: const Color(0xFFF59E0B),
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => DevisDetailScreen(
+                                reservationReference: r.reference,
+                                onBack: () => Navigator.pop(context),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    if (r.canConfirmService)
+                      _QuickActionChip(
+                        icon: Icons.check_circle_outline,
+                        label: 'Confirmer',
+                        color: const Color(0xFF22C55E),
+                        onTap: () => _confirmPrestationClient(r),
+                      ),
+                    if (r.canPay)
+                      _QuickActionChip(
+                        icon: Icons.payment_rounded,
+                        label: 'Payer',
+                        color: const Color(0xFF3B82F6),
+                        onTap: () {
+                          if (r.id > 0) {
+                            Navigator.of(context).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => PaymentScreen(
+                                  reservationId: r.id,
+                                  serviceTitle: r.title,
+                                ),
+                              ),
+                            );
+                          } else {
+                            _openPostPrestationPaySheet(r);
+                          }
+                        },
+                      ),
+                    if (_canDeclareCash(r))
+                      _QuickActionChip(
+                        icon: Icons.money_rounded,
+                        label: 'Espece',
+                        color: const Color(0xFF10B981),
+                        onTap: () => _declareCashPayment(r),
+                      ),
+                    if (r.canRate && !r.rated)
+                      _QuickActionChip(
+                        icon: Icons.star_outline_rounded,
+                        label: 'Noter',
+                        color: const Color(0xFF8B5CF6),
+                        onTap: () => _rateReservation(r),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -4105,7 +4496,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         params['category'] = categoryId.toString();
       }
 
-      // Ajouter les coordonnées GPS si la permission est déjà accordée
+      // Ajouter les coordonnées GPS si la permission est déjà accordée (non bloquant)
       try {
         final perm = await Permission.locationWhenInUse.status;
         if (perm.isGranted || perm.isLimited) {
@@ -4113,6 +4504,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
             locationSettings: const LocationSettings(
               accuracy: LocationAccuracy.medium,
             ),
+          ).timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => throw TimeoutException('GPS timeout'),
           );
           params['lat'] = pos.latitude.toStringAsFixed(6);
           params['lon'] = pos.longitude.toStringAsFixed(6);
@@ -4120,12 +4514,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
           debugPrint('BABIFIX: Filtering providers near (${params['lat']}, ${params['lon']}) radius=15km');
         }
       } catch (_) {
-        // GPS non disponible — on charge sans filtre géo
+        // GPS non disponible ou timeout — on charge sans filtre géo
       }
 
       final uri = Uri.parse('$base/api/public/providers/').replace(queryParameters: params);
       debugPrint('BABIFIX: Fetching providers from: $uri');
-      final pres = await http.get(uri);
+      final pres = await http.get(uri).timeout(const Duration(seconds: 15));
       if (pres.statusCode == 200) {
         final pdata = jsonDecode(pres.body) as Map<String, dynamic>;
         final rows = (pdata['providers'] as List<dynamic>? ?? []);
@@ -4227,7 +4621,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
         if (mounted) {
           setState(() {
-            _publicCategories = rows.cast<Map<String, dynamic>>();
             categoryTabs = nextTabs;
             if (categoryIndex >= categoryTabs.length) {
               categoryIndex = 0;
@@ -4294,9 +4687,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 filterKey: fk,
               ),
             ];
-          }
-          if (mounted) {
-            _publicCategories = rows.cast<Map<String, dynamic>>();
           }
         }
       } catch (e) {}
@@ -4675,12 +5065,27 @@ class _ClientHomePageState extends State<ClientHomePage> {
         if (addressLabel.isNotEmpty) 'address_label': addressLabel,
         if (photoAttachments.isNotEmpty) 'photo_attachments': photoAttachments,
       };
+      debugPrint('📤 CREATE RESERVATION — URL: $uri');
+      debugPrint('📤 BODY: provider_id=${body['provider_id'] ?? "null"}, title=${body['title']}, price=${body['price_fcfa']}');
       final res = await BabifixUserStore.authPost(
         uri.toString(),
         body: jsonEncode(body),
       );
+      debugPrint('📥 RESPONSE — status: ${res.statusCode}, body: ${res.body}');
       if (res.statusCode == 201) {
-        if (mounted) await _loadRemoteData();
+        final respJson = jsonDecode(res.body) as Map<String, dynamic>;
+        final ref = respJson['reference'] ?? '?';
+        debugPrint('✅ RESERVATION CREATED — ref: $ref');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Réservation créée: $ref (prestataire #${service.providerId})'),
+              duration: const Duration(seconds: 4),
+              backgroundColor: const Color(0xFF22C55E),
+            ),
+          );
+          await _loadRemoteData();
+        }
         return true;
       }
       if (mounted) {
@@ -5499,6 +5904,166 @@ class _ClientHomePageState extends State<ClientHomePage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ReservationStatusPill extends StatelessWidget {
+  const _ReservationStatusPill({
+    required this.status,
+    required this.statusLabel,
+    required this.isDevis,
+  });
+
+  final String status;
+  final String statusLabel;
+  final bool isDevis;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = statusLabel.isNotEmpty
+        ? statusLabel
+        : (isDevis ? 'Devis reçu' : status);
+
+    late Color bg;
+    late Color fg;
+    if (isDevis) {
+      bg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
+      fg = const Color(0xFFF59E0B);
+    } else if (status == 'Confirmee' || status == 'DEVIS_ACCEPTE') {
+      bg = const Color(0xFF3B82F6).withValues(alpha: 0.15);
+      fg = const Color(0xFF3B82F6);
+    } else if (status == 'INTERVENTION_EN_COURS') {
+      bg = const Color(0xFF8B5CF6).withValues(alpha: 0.15);
+      fg = const Color(0xFF8B5CF6);
+    } else if (status == 'Terminee' || status == 'DONE') {
+      bg = const Color(0xFF22C55E).withValues(alpha: 0.15);
+      fg = const Color(0xFF22C55E);
+    } else if (status == 'Annulee') {
+      bg = const Color(0xFFEF4444).withValues(alpha: 0.15);
+      fg = const Color(0xFFEF4444);
+    } else {
+      bg = const Color(0x1AFFFFFF);
+      fg = const Color(0xFF94A3B8);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _QuickActionChip extends StatelessWidget {
+  const _QuickActionChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PipelineStep {
+  final String label;
+  final int count;
+  final IconData icon;
+  final Color color;
+  final bool active;
+  const _PipelineStep({
+    required this.label,
+    required this.count,
+    required this.icon,
+    required this.color,
+    required this.active,
+  });
+}
+
+class _PipelineStepWidget extends StatelessWidget {
+  const _PipelineStepWidget({required this.step});
+  final _PipelineStep step;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: step.color.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: step.color.withValues(alpha: step.active ? 0.4 : 0.15),
+              width: step.active ? 2 : 1,
+            ),
+          ),
+          child: Icon(
+            step.icon,
+            size: 18,
+            color: step.color,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${step.count}',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: step.color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          step.label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: step.active ? Colors.white.withValues(alpha: 0.8) : const Color(0xFF64748B),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -133,8 +133,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
         onConfirm: (data) async {
           final token = await BabifixUserStore.getApiToken();
           if (token == null || token.isEmpty) {
-            return {'ok': false};
+            return {'ok': false, 'error': 'Non connecté'};
           }
+          debugPrint('📤 PROVIDER PROFILE — provider_id: ${widget.providerId}, title: ${data['title']}');
           try {
             final uri = Uri.parse(
               '${babifixApiBaseUrl()}/api/client/reservations',
@@ -162,10 +163,12 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
                 'photo_attachments': data['photo_attachments'],
               if (data['is_urgent'] == true) 'is_urgent': true,
             };
+            debugPrint('📤 BODY provider_id: ${body['provider_id'] ?? "null"}');
             final res = await BabifixUserStore.authPost(
               uri.toString(),
               body: jsonEncode(body),
             );
+            debugPrint('📥 RESPONSE — status: ${res.statusCode}, body: ${res.body}');
             if (res.statusCode == 201) {
               final respJson = jsonDecode(res.body) as Map<String, dynamic>;
               return {
@@ -173,9 +176,11 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
                 'reference': respJson['reference'] as String?,
               };
             }
-            return {'ok': false};
-          } catch (_) {
-            return {'ok': false};
+            final err = jsonDecode(res.body);
+            return {'ok': false, 'error': err['error'] ?? res.body};
+          } catch (e) {
+            debugPrint('❌ PROVIDER PROFILE ERROR: $e');
+            return {'ok': false, 'error': '$e'};
           }
         },
       ),

@@ -11,6 +11,7 @@ import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import 'create_devis_screen.dart';
 import 'rate_client_screen.dart';
+import 'request_detail_screen.dart';
 import 'waiting_payment_screen.dart';
 
 class RequestsScreen extends StatefulWidget {
@@ -91,231 +92,315 @@ class _RequestsScreenState extends State<RequestsScreen> {
     final active = items.where((e) => e.status == 'active').toList();
     final completed = items.where((e) => e.status == 'completed').toList();
     final refused = items.where((e) => e.status == 'refused').toList();
+
+    final total = items.length;
+    final steps = [
+      _KanbanStep(
+        label: 'Nouveau',
+        count: pending.length,
+        icon: Icons.notifications_active_rounded,
+        color: pending.isNotEmpty ? const Color(0xFF38BDF8) : const Color(0xFF475569),
+      ),
+      _KanbanStep(
+        label: 'Devis',
+        count: devisPending.length + devisSent.length,
+        icon: Icons.request_quote_rounded,
+        color: (devisPending.isNotEmpty || devisSent.isNotEmpty) ? const Color(0xFF60A5FA) : const Color(0xFF475569),
+      ),
+      _KanbanStep(
+        label: 'En cours',
+        count: active.length,
+        icon: Icons.build_rounded,
+        color: active.isNotEmpty ? const Color(0xFFA78BFA) : const Color(0xFF475569),
+      ),
+      _KanbanStep(
+        label: 'Terminé',
+        count: completed.length,
+        icon: Icons.task_alt_rounded,
+        color: completed.isNotEmpty ? const Color(0xFF34D399) : const Color(0xFF475569),
+      ),
+    ];
+
     return Scaffold(
       backgroundColor: BabifixDesign.navy,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: widget.onBack,
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-        ),
-        title: const Text(
-          'Demandes',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-          ),
-        ),
-      ),
       body: loading
           ? _buildShimmer()
-          : ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Nouvelles demandes (à accepter/refuser)
-          if (pending.isNotEmpty) ...[
-            Row(
+          : RefreshIndicator(
+              onRefresh: _loadRequests,
+              color: const Color(0xFF38BDF8),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+          SliverAppBar(
+            backgroundColor: BabifixDesign.navy,
+            elevation: 0,
+            leading: IconButton(
+              onPressed: widget.onBack,
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+            ),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Nouvelles demandes',
+                  'Demandes',
                   style: TextStyle(
+                    fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    fontSize: 17,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: BabifixDesign.cyan.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFF38BDF8).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    '${pending.length}',
+                    '$total mission${total > 1 ? "s" : ""}',
                     style: const TextStyle(
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                      color: BabifixDesign.cyan,
+                      color: Color(0xFF38BDF8),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            const Row(
-              children: [
-                Icon(Icons.swipe_rounded, size: 14, color: Color(0xFF64748B)),
-                SizedBox(width: 4),
-                Text(
-                  'Glissez → pour accepter  •  ← pour refuser',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...pending.map((item) => _buildCard(item)),
-            const SizedBox(height: 20),
-          ],
-          // Devis à préparer (DEVIS_EN_COURS)
-          if (devisPending.isNotEmpty) ...[
-            const Text(
-              'Devis à préparer',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ...devisPending.map((item) => _buildCard(item)),
-            const SizedBox(height: 20),
-          ],
-          // Devis envoyés, en attente client
-          if (devisSent.isNotEmpty) ...[
-            const Text(
-              'Devis envoyés',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ...devisSent.map((item) => _buildCard(item)),
-            const SizedBox(height: 20),
-          ],
-          // Confirmées / en cours
-          if (active.isNotEmpty) ...[
-            const Text(
-              'Confirmées / en cours',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ...active.map((item) => _buildCard(item)),
-            const SizedBox(height: 20),
-          ],
-          // Terminées
-          if (completed.isNotEmpty) ...[
-            Row(
-              children: [
-                const Text(
-                  'Terminées',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: BabifixDesign.success.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${completed.length}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                      color: BabifixDesign.success,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...completed.map((item) => _buildCard(item)),
-            const SizedBox(height: 20),
-          ],
-          // Annulées
-          if (refused.isNotEmpty) ...[
-            Row(
-              children: [
-                const Text(
-                  'Annulées',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: BabifixDesign.error.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${refused.length}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                      color: BabifixDesign.error,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...refused.map((item) => _buildCard(item)),
-          ],
-          // Empty state quand tout est vide
-          if (!loading &&
-              pending.isEmpty &&
-              devisPending.isEmpty &&
-              devisSent.isEmpty &&
-              active.isEmpty &&
-              completed.isEmpty &&
-              refused.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 60),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+            centerTitle: true,
+          ),
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: BabifixDesign.cyan.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
+                  for (int i = 0; i < steps.length; i++) ...[
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: steps[i].color.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: steps[i].color.withValues(alpha: steps[i].count > 0 ? 0.5 : 0.15),
+                                width: steps[i].count > 0 ? 2 : 1,
+                              ),
+                            ),
+                            child: Icon(
+                              steps[i].icon,
+                              size: 18,
+                              color: steps[i].color,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${steps[i].count}',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: steps[i].color,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            steps[i].label,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: steps[i].count > 0
+                                  ? Colors.white.withValues(alpha: 0.6)
+                                  : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.assignment_outlined,
-                      size: 40,
-                      color: BabifixDesign.cyan,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Aucune mission',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Vos demandes de clients apparaîtront ici.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF64748B),
-                      height: 1.4,
-                    ),
-                  ),
+                    if (i < steps.length - 1)
+                      Expanded(
+                        flex: 1,
+                        child: Container(
+                          height: 2,
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                steps[i].color.withValues(alpha: 0.3),
+                                steps[i + 1].color.withValues(alpha: 0.3),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
+          ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      // Nouvelles demandes (à accepter/refuser)
+                      if (pending.isNotEmpty) ...[
+                        _buildKanbanSectionHeader(
+                          title: 'Nouvelles demandes',
+                          subtitle: 'Glissez → accepter  •  ← refuser',
+                          count: pending.length,
+                          color: const Color(0xFF38BDF8),
+                          icon: Icons.notifications_active_rounded,
+                          accentGradient: const LinearGradient(
+                            colors: [Color(0xFF38BDF8), Color(0xFF0EA5E9)],
+                          ),
+                        ),
+...pending.map((item) => _buildCardTappable(item)),
+...devisPending.map((item) => _buildCardTappable(item)),
+...devisSent.map((item) => _buildCardTappable(item)),
+...active.map((item) => _buildCardTappable(item)),
+...completed.map((item) => _buildCardTappable(item)),
+...refused.map((item) => _buildCardTappable(item)),
+                      ],
+                      // Empty state quand tout est vide
+                      if (items.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 60),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  color: BabifixDesign.cyan.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.assignment_outlined,
+                                  size: 40,
+                                  color: BabifixDesign.cyan,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const Text(
+                                'Aucune mission',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Vos demandes de clients apparaîtront ici.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF64748B),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildKanbanSectionHeader({
+    required String title,
+    required String subtitle,
+    required int count,
+    required Color color,
+    required IconData icon,
+    required Gradient accentGradient,
+    bool muted = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withValues(alpha: muted ? 0.05 : 0.08),
+            color.withValues(alpha: muted ? 0.02 : 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: color.withValues(alpha: muted ? 0.1 : 0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: accentGradient,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: muted ? Colors.white.withValues(alpha: 0.5) : Colors.white,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: muted
+                        ? Colors.white.withValues(alpha: 0.3)
+                        : Colors.white.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: accentGradient,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: muted
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -326,6 +411,35 @@ class _RequestsScreenState extends State<RequestsScreen> {
       padding: const EdgeInsets.all(16),
       itemCount: 5,
       itemBuilder: (_, __) => const _ShimmerCard(),
+    );
+  }
+
+  Widget _buildCardTappable(_RequestItem it) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => RequestDetailScreen(
+            reference: it.reference,
+            client: it.client,
+            service: it.service,
+            date: it.date,
+            hour: it.hour,
+            amount: it.amount,
+            address: it.address,
+            description: it.description,
+            apiStatus: it.apiStatus,
+            paymentType: it.paymentType,
+            mobileMoneyOperator: it.mobileMoneyOperator,
+            rating: it.rating,
+            clientMessage: it.clientMessage,
+            clientPhotos: it.clientPhotos,
+            disponibilitesClient: it.disponibilitesClient,
+            isUrgent: it.isUrgent,
+            prixPropose: it.prixPropose,
+          ),
+        ),
+      ),
+      child: _buildCard(it),
     );
   }
 
@@ -487,6 +601,121 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ],
           ),
+
+          // ── Exigences du client ───────────────────────────────────────
+          if (it.isUrgent || it.disponibilitesClient.isNotEmpty || it.prixPropose != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: it.isUrgent
+                    ? const Color(0xFFEF4444).withValues(alpha: 0.1)
+                    : const Color(0xFF8B5CF6).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: it.isUrgent
+                      ? const Color(0xFFEF4444).withValues(alpha: 0.2)
+                      : const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        it.isUrgent ? Icons.priority_high_rounded : Icons.assignment_turned_in_outlined,
+                        size: 14,
+                        color: it.isUrgent ? const Color(0xFFEF4444) : const Color(0xFF8B5CF6),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Exigences du client',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: it.isUrgent ? const Color(0xFFEF4444) : const Color(0xFF8B5CF6),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (it.isUrgent) ...[
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.flash_on_rounded, size: 10, color: Color(0xFFEF4444)),
+                              SizedBox(width: 3),
+                              Text(
+                                'URGENT',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFEF4444),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Intervention rapide demandée',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  if (it.disponibilitesClient.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.schedule_rounded, size: 12, color: Color(0xFF64748B)),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Dispo :',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            it.disponibilitesClient,
+                            style: const TextStyle(fontSize: 11, color: Color(0xFFCBD5E1)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (it.prixPropose != null && it.prixPropose! > 0) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.monetization_on_outlined, size: 12, color: Color(0xFFF59E0B)),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Budget :',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${it.prixPropose!.toStringAsFixed(0)} FCFA',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFFF59E0B), fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
 
           // ── Message du client ─────────────────────────────────────────
           if (hasClientMsg) ...[
@@ -876,13 +1105,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
     if (authToken == null) return;
     setState(() => loading = true);
     try {
+      final url = '${babifixApiBaseUrl()}/api/prestataire/requests';
+      debugPrint('📥 PRESTATAIRE LOAD REQUESTS — URL: $url');
       final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests'),
+        Uri.parse(url),
         headers: {'Authorization': 'Bearer $authToken'},
       );
+      debugPrint('📥 RESPONSE — status: ${res.statusCode}, body: ${res.body}');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final remote = (data['items'] as List<dynamic>? ?? []).map((e) {
+        final itemsList = data['items'] as List<dynamic>? ?? [];
+        debugPrint('📥 ITEMS COUNT: ${itemsList.length}');
+        final remote = itemsList.map((e) {
           final raw = '${e['status']}';
           final bucket = _RequestsScreenState._bucketFromApi(raw);
           final pay = '${e['payment_type'] ?? ''}';
@@ -910,11 +1144,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
             clientMessage: '${e['client_message'] ?? ''}',
             clientPhotos: photos,
             bookingId: (e['id'] as num?)?.toInt(),
+            disponibilitesClient: '${e['disponibilites_client'] ?? ''}',
+            isUrgent: e['is_urgent'] == true,
+            prixPropose: (e['prix_propose'] as num?)?.toDouble(),
           );
         }).toList();
         setState(() => items = remote);
+        debugPrint('✅ LOADED ${remote.length} requests');
+      } else {
+        debugPrint('❌ LOAD FAILED — status: ${res.statusCode}');
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ LOAD ERROR: $e');
       if (mounted) setState(() => items = []);
     } finally {
       if (mounted) setState(() => loading = false);
@@ -944,6 +1185,36 @@ class _RequestsScreenState extends State<RequestsScreen> {
         final st =
             '${body['status'] ?? (decision == 'accept' ? 'DEVIS_EN_COURS' : 'Annulee')}';
         setState(() => _applyStatusFromApi(item, st));
+
+        // Si acceptation → rediriger directement vers CreateDevisScreen
+        if (decision == 'accept') {
+          if (!mounted) return;
+          await Navigator.of(context).push<void>(
+            babifixRoute(
+              (_) => CreateDevisScreen(
+                reservationReference: item.reference,
+                reservationDetails: {
+                  'client': item.client,
+                  'title': item.service,
+                  'description_probleme': item.clientMessage,
+                  'address': item.address,
+                  'payment_type': item.paymentType,
+                  'mobile_money_operator': item.mobileMoneyOperator,
+                  'disponibilites': item.disponibilitesClient,
+                  'is_urgent': item.isUrgent,
+                  'prix_propose': item.prixPropose,
+                  'date': item.date,
+                  'hour': item.hour,
+                },
+                onBack: () => Navigator.pop(context),
+                onDevisCreated: () {
+                  Navigator.pop(context);
+                  _loadRequests();
+                },
+              ),
+            ),
+          );
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -1170,6 +1441,11 @@ class _RequestItem {
   /// ID numérique pour les endpoints devis
   final int? bookingId;
 
+  /// Exigences du client
+  final String disponibilitesClient;
+  final bool isUrgent;
+  final double? prixPropose;
+
   _RequestItem({
     required this.reference,
     required this.client,
@@ -1188,6 +1464,9 @@ class _RequestItem {
     this.clientMessage = '',
     this.clientPhotos = const [],
     this.bookingId,
+    this.disponibilitesClient = '',
+    this.isUrgent = false,
+    this.prixPropose,
   });
 }
 
@@ -1318,6 +1597,14 @@ class _TagPremium extends StatelessWidget {
       ),
     );
   }
+}
+
+class _KanbanStep {
+  final String label;
+  final int count;
+  final IconData icon;
+  final Color color;
+  _KanbanStep({required this.label, required this.count, required this.icon, required this.color});
 }
 
 class _ShimmerCard extends StatefulWidget {
