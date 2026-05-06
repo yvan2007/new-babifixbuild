@@ -139,7 +139,7 @@ GoRouter createBabifixClientRouter({
         path: BabifixRoutes.rateProvider,
         builder: (ctx, state) {
           final ref = state.pathParameters['ref'] ?? '';
-          return RateProviderScreen(bookingId: int.tryParse(ref) ?? 0);
+          return RateProviderScreen(reservationReference: ref);
         },
       ),
       GoRoute(

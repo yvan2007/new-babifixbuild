@@ -9,16 +9,16 @@ import '../../user_store.dart';
 
 /// Écran de notation du prestataire après prestation terminée.
 /// Appelé via : Navigator.push(context, MaterialPageRoute(
-///   builder: (_) => RateProviderScreen(bookingId: 42, prestataireName: 'Jean')))
+///   builder: (_) => RateProviderScreen(reservationReference: 'RES-042', prestataireName: 'Jean')))
 class RateProviderScreen extends StatefulWidget {
-  final int bookingId;
+  final String reservationReference;
   final String prestataireName;
   final String? apiBase;
   final String? authToken;
 
   const RateProviderScreen({
     super.key,
-    required this.bookingId,
+    required this.reservationReference,
     this.prestataireName = 'le prestataire',
     this.apiBase,
     this.authToken,
@@ -83,7 +83,7 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
         } catch (_) {}
       }
       final res = await http.post(
-        Uri.parse('$_base/api/bookings/${widget.bookingId}/rate/'),
+        Uri.parse('$_base/api/client/reservations/${Uri.encodeComponent(widget.reservationReference)}/rating'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',

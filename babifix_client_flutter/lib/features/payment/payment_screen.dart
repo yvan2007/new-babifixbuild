@@ -82,6 +82,7 @@ class _PaymentScreenState extends State<PaymentScreen>
 
   // ── données réservation ───────────────────────────────────────────────────
   Map<String, dynamic>? _reservation;
+  String? _reservationRef;
   bool _fetching = true;
 
   // ── formulaire Mobile Money ───────────────────────────────────────────────
@@ -131,6 +132,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         if (!mounted) return;
         setState(() {
           _reservation = data;
+          _reservationRef = (data['reference'] as String?)?.trim();
           _fetching = false;
           // Pré-remplir le téléphone depuis le profil client si disponible
           final phone = (data['client']?['phone_e164'] as String? ?? '').trim();
@@ -245,7 +247,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         if (!mounted) { t.cancel(); return; }
         if (status != null && status.isCompleted) {
           t.cancel();
-          setState(() { _polling = false; _done = true; });
+          await _registerPaymentAfterGeniusPay();
         } else if (status != null && status.isFailed) {
           t.cancel();
           setState(() {
@@ -259,6 +261,10 @@ class _PaymentScreenState extends State<PaymentScreen>
 
   // ── PAIEMENT ESPÈCES ─────────────────────────────────────────────────────
   Future<void> _payEspeces() async {
+    if (_reservationRef == null || _reservationRef!.isEmpty) {
+      setState(() => _error = 'Réservation non trouvée.');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -267,15 +273,16 @@ class _PaymentScreenState extends State<PaymentScreen>
       final token = await BabifixUserStore.getApiToken();
       if (token == null) throw Exception('Non connecté');
       final res = await http.post(
-        Uri.parse('${babifixApiBaseUrl()}/api/paiements/'),
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(_reservationRef!)}/pay-post-prestation',
+        ),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'reservation': widget.reservationId,
-          'mode_paiement': 'ESPECES',
-          'montant': _amount,
+          'payment_method_id': 'ESPECES',
+          'message': 'Paiement en espèces',
         }),
       );
       if (res.statusCode == 200 || res.statusCode == 201) {
@@ -287,7 +294,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         String msg = 'Erreur de paiement.';
         try {
           final d = jsonDecode(res.body) as Map<String, dynamic>;
-          msg = (d['detail'] ?? msg) as String;
+          msg = (d['error'] ?? d['detail'] ?? msg) as String;
         } catch (_) {}
         setState(() {
           _error = msg;
@@ -300,6 +307,54 @@ class _PaymentScreenState extends State<PaymentScreen>
         _error = 'Erreur réseau.';
         _loading = false;
       });
+    }
+  }
+
+  // ── Enregistrer le paiement après succès GeniusPay ──────────────────────
+  Future<void> _registerPaymentAfterGeniusPay() async {
+    if (_reservationRef == null || _reservationRef!.isEmpty) {
+      setState(() {
+        _polling = false;
+        _error = 'Réservation non trouvée.';
+      });
+      return;
+    }
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      if (token == null) {
+        setState(() { _polling = false; _done = true; });
+        return;
+      }
+      final res = await http.post(
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(_reservationRef!)}/pay-post-prestation',
+        ),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'payment_method_id': _operator,
+          'message': 'Paiement ${_currentOp.label} via GeniusPay',
+        }),
+      );
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        if (mounted) setState(() { _polling = false; _done = true; });
+      } else {
+        if (mounted) {
+          setState(() {
+            _polling = false;
+            _error = 'Paiement GeniusPay réussi mais enregistrement échoué. Contactez le support.';
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _polling = false;
+          _error = 'Erreur lors de l\'enregistrement du paiement.';
+        });
+      }
     }
   }
 

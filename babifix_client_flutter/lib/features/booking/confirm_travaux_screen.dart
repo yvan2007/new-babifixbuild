@@ -80,7 +80,7 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
 
     try {
       final uri = Uri.parse(
-        '${babifixApiBaseUrl()}/api/client/demandes/${widget.reservationReference}/confirmer-travaux',
+        '${babifixApiBaseUrl()}/api/client/reservations/${widget.reservationReference}/confirmer-travaux',
       );
       final resp = await http.post(
         uri,
