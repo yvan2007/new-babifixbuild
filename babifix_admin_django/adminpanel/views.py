@@ -2578,7 +2578,7 @@ def api_client_create_reservation(request):
         payment_type=payment_type,
         mobile_money_operator=mobile_money_operator,
         client_message=client_message,
-        preuve_photos=preuve_list,
+        photos_probleme=preuve_list,
         prix_propose=prix_propose,
         description_probleme=str(payload.get("description_probleme", "") or "")[:2000],
         disponibilites_client=str(payload.get("disponibilites_client", "") or "")[:255],
@@ -2596,6 +2596,23 @@ def api_client_create_reservation(request):
             },
         )
     Notification.objects.create(title=f"Nouvelle reservation creee: {title}")
+
+    # Notification au prestataire de la nouvelle demande
+    if prov and prov.user_id:
+        Notification.objects.create(
+            user_id=prov.user_id,
+            title="Nouvelle demande reçue",
+            body=f"{client_label} a demandé votre service : {title}",
+            notif_type=Notification.NotifType.BROADCAST,
+            reference=f"reservation:{reference}",
+            lu=False,
+        )
+        _schedule(
+            [prov.user_id],
+            "Nouvelle demande",
+            f"{client_label} sollicite vos services pour : {title}",
+            {"type": "demande.received", "reference": reference},
+        )
 
     # Notification WhatsApp urgence au prestataire
     if is_urgent and prov and prov.user_id:

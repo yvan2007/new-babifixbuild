@@ -48,8 +48,12 @@ def on_reservation_saved(sender, instance, created, **kwargs):
     push_dispatch.on_reservation_change(instance, created, _update_fields_frozen(**kwargs))
     # Notify client and prestataire apps
     if instance.client_user_id:
-        realtime.broadcast_prestataire_user(
+        realtime.broadcast_client_user(
             instance.client_user_id, event, realtime.serialize_reservation(instance),
+        )
+    if instance.prestataire_user_id:
+        realtime.broadcast_prestataire_user(
+            instance.prestataire_user_id, event, realtime.serialize_reservation(instance),
         )
 
     # ── Emails : nouvelle réservation → prestataire ; mission terminée → client ──

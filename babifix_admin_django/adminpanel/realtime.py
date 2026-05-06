@@ -35,6 +35,24 @@ def broadcast_prestataire_user(
     )
 
 
+def broadcast_client_user(
+    user_id: int, event_type: str, payload: dict[str, Any] | None = None
+) -> None:
+    """Événement temps réel vers l'app client d'un utilisateur spécifique."""
+    layer = get_channel_layer()
+    if layer is None:
+        return
+    payload = payload or {}
+    async_to_sync(layer.group_send)(
+        f'babifix_client_{int(user_id)}',
+        {
+            'type': 'client.notify',
+            'event_type': event_type,
+            'payload': payload,
+        },
+    )
+
+
 def broadcast_client_event(event_type: str, payload: dict[str, Any] | None = None) -> None:
     """Prestataire approuvé, nouvelle actualité, etc. — apps Flutter client & prestataire."""
     layer = get_channel_layer()
