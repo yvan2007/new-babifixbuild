@@ -70,10 +70,16 @@ class InvoiceService:
             "total": float(res.prix_propose or 0),
         })
         
-        # Calcul commission (18% par defaut)
+        # Calcul commission (utilise la commission du paiement si disponible)
         base_amount = float(res.prix_propose or 0)
-        commission_pct = 18.0
-        commission_amount = base_amount * (commission_pct / 100)
+        if payment.commission:
+            commission_amount = float(payment.commission)
+            commission_pct = (commission_amount / base_amount * 100) if base_amount > 0 else 0
+        else:
+            from adminpanel.models import SystemSetting
+            setting = SystemSetting.objects.first()
+            commission_pct = setting.commission if setting else 18
+            commission_amount = base_amount * (commission_pct / 100)
         total_paid = float(payment.amount)
         
         return InvoiceData(

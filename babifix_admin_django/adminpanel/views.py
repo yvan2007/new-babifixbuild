@@ -4031,7 +4031,9 @@ def api_client_pay_post_prestation(request, reference):
         )
     note = str(payload.get("message", "") or "")[:2000]
     ref_pay = f"PAY-{res.reference}-{int(timezone.now().timestamp())}"
-    commission = res.montant * Decimal("0.18") if res.montant else Decimal("0")
+    from adminpanel.services.wallet_service import _get_system_commission_rate
+    commission_rate = _get_system_commission_rate()
+    commission = (res.montant * commission_rate) if res.montant else Decimal("0")
     tp = Payment.TypePaiement.ESPECES
     if mid != "ESPECES":
         tp = Payment.TypePaiement.MOBILE_MONEY

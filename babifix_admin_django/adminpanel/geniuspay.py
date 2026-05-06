@@ -372,8 +372,19 @@ def geniuspay_webhook(request):
                 pass
 
         payment.etat = Payment.State.COMPLETE
-        payment.valide_par_admin = False
-        payment.save(update_fields=["etat", "valide_par_admin"])
+        payment.valide_par_admin = True
+
+        # Calculer et enregistrer la commission BABIFIX
+        from decimal import Decimal
+        from adminpanel.models import SystemSetting
+        setting = SystemSetting.objects.first()
+        commission_pct = setting.commission if setting else 18
+        commission_rate = Decimal(str(commission_pct)) / Decimal("100")
+        gross = Decimal(str(payment.montant or 0))
+        commission = (gross * commission_rate).quantize(Decimal("1"))
+        payment.commission = str(commission)
+
+        payment.save(update_fields=["etat", "valide_par_admin", "commission"])
 
         # Mettre à jour le cash flow de la réservation
         if payment.reservation:

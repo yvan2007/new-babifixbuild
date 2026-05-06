@@ -89,7 +89,6 @@ class Command(BaseCommand):
                             "client": data["client"],
                             "prestataire": provider.nom,
                             "montant": data["montant"],
-                            "commission": data["montant"] * Decimal("0.18"),
                             "etat": Payment.State.PENDING,
                         },
                     )

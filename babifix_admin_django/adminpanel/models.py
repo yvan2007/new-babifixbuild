@@ -539,7 +539,13 @@ class Reservation(models.Model):
             )
             if montant_decimal > 0:
                 self.montant = montant_decimal
-                self.commission = montant_decimal * Decimal("0.18")
+                # Commission via SystemSetting (fallback 18%)
+                try:
+                    setting = SystemSetting.objects.first()
+                    commission_pct = setting.commission if setting else 18
+                    self.commission = montant_decimal * Decimal(str(commission_pct)) / Decimal("100")
+                except Exception:
+                    self.commission = montant_decimal * Decimal("0.18")
         # Calcul des montants restants pour la sécurisation
         self.montant_restant = (self.montant or 0) - (self.montant_verse or 0)
         super().save(*args, **kwargs)
@@ -642,7 +648,9 @@ class Payment(models.Model):
     commission = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        help_text="Commission en francs CFA",
+        null=True,
+        blank=True,
+        help_text="Commission BABIFIX calculée automatiquement",
     )
     etat = models.CharField(max_length=20, choices=State.choices, default=State.PENDING)
     reservation = models.ForeignKey(
@@ -684,6 +692,24 @@ class Payment(models.Model):
 
     def __str__(self):
         return self.reference
+
+    def save(self, *args, **kwargs):
+        # Calculer la commission automatiquement si non définie
+        if not self.commission and self.montant:
+            montant_decimal = (
+                self.montant
+                if isinstance(self.montant, Decimal)
+                else Decimal(str(self.montant))
+            )
+            if montant_decimal > 0:
+                try:
+                    from adminpanel.models import SystemSetting
+                    setting = SystemSetting.objects.first()
+                    commission_pct = setting.commission if setting else 18
+                    self.commission = montant_decimal * Decimal(str(commission_pct)) / Decimal("100")
+                except Exception:
+                    self.commission = montant_decimal * Decimal("0.18")
+        super().save(*args, **kwargs)
 
 
 class Category(models.Model):

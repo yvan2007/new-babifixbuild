@@ -19,9 +19,21 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-BABIFIX_COMMISSION_RATE = Decimal("0.15")
+BABIFIX_COMMISSION_RATE = Decimal("0.18")
 WITHDRAWAL_MIN_FCFA = Decimal("1000")
 URGENCE_SURCHARGE_PCT = 20  # +20 % sur le montant si is_urgent
+
+
+def _get_system_commission_rate() -> Decimal:
+    """Recupere le taux de commission global depuis SystemSetting."""
+    try:
+        from adminpanel.models import SystemSetting
+        setting = SystemSetting.objects.first()
+        if setting and setting.commission:
+            return Decimal(str(setting.commission)) / Decimal("100")
+    except Exception:
+        pass
+    return BABIFIX_COMMISSION_RATE
 
 
 class WalletService:
@@ -316,8 +328,8 @@ class WalletService:
 
 
 def _get_effective_commission_rate(provider) -> Decimal:
-    """Commission effective = taux catégorie - réduction premium."""
-    base = Decimal("0.18")
+    """Commission effective = taux categorie - reduction premium."""
+    base = _get_system_commission_rate()
     if provider.category_id:
         try:
             from adminpanel.models import CategoryCommission
