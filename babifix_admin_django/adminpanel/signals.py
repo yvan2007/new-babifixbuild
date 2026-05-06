@@ -112,6 +112,22 @@ def on_actualite_saved(sender, instance, created, **kwargs):
     realtime.broadcast_client_event('actualite.updated', {})
     push_dispatch.on_actualite_published(instance, created, _update_fields_frozen(**kwargs))
 
+    # Créer une notification admin quand l'actualité est publiée
+    if instance.publie:
+        from django.contrib.auth import get_user_model
+        from .models import Notification
+        User = get_user_model()
+        staff_users = User.objects.filter(is_staff=True)
+        for user in staff_users:
+            Notification.objects.create(
+                title=f"Actualité publiée : {instance.titre}",
+                body=instance.description[:200],
+                notif_type=Notification.NotifType.BROADCAST,
+                reference=f"actualite:{instance.pk}",
+                lu=False,
+                user=user,
+            )
+
 
 @receiver(post_delete, sender=Provider)
 def on_provider_deleted(sender, instance, **kwargs):

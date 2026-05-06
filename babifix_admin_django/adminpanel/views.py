@@ -675,6 +675,8 @@ def _dashboard_forms_context(request, section):
     ctx = {}
     if section == "prestataires":
         eid = request.GET.get("edit_provider")
+        view_mode = request.GET.get("view", "kanban")
+        ctx["provider_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Provider.objects.get(pk=int(eid))
@@ -684,8 +686,21 @@ def _dashboard_forms_context(request, section):
                 ctx["provider_form"] = ProviderForm()
         else:
             ctx["provider_form"] = ProviderForm()
+        if view_mode == "kanban":
+            kanban_providers = {}
+            for s in ["En attente", "Valide", "Refusé", "Suspendu"]:
+                kanban_providers[s] = list(
+                    Provider.objects.filter(statut=s)
+                    .select_related("user", "category")
+                    .order_by("-user__date_joined")[:20]
+                )
+            ctx["kanban_providers"] = kanban_providers
+        else:
+            pass
     elif section == "clients":
         eid = request.GET.get("edit_client")
+        view_mode = request.GET.get("view", "kanban")
+        ctx["client_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Client.objects.get(pk=int(eid))
@@ -695,8 +710,20 @@ def _dashboard_forms_context(request, section):
                 ctx["client_form"] = ClientForm()
         else:
             ctx["client_form"] = ClientForm()
+        if view_mode == "kanban":
+            kanban_clients = {}
+            for s in ["Abidjan", "Bouaké", "Yamoussoukro", "Daloa", "San-Pédro", "Autre"]:
+                qs = Client.objects.filter(ville__icontains=s).order_by("-id")[:20]
+                if not qs.exists() and s == "Autre":
+                    qs = Client.objects.exclude(
+                        ville__in=["Abidjan", "Bouaké", "Yamoussoukro", "Daloa", "San-Pédro"]
+                    ).order_by("-id")[:20]
+                kanban_clients[s] = list(qs)
+            ctx["kanban_clients"] = kanban_clients
     elif section == "reservations":
         eid = request.GET.get("edit_reservation")
+        view_mode = request.GET.get("view", "kanban")
+        ctx["reservation_view"] = view_mode
         ctx["reservation_form"] = None
         if eid and str(eid).isdigit():
             try:
@@ -705,8 +732,25 @@ def _dashboard_forms_context(request, section):
                 ctx["edit_reservation_id"] = inst.pk
             except Reservation.DoesNotExist:
                 pass
+        if view_mode == "kanban":
+            kanban_reservations = {}
+            statuses = [
+                "DEMANDE_ENVOYEE",
+                "DEVIS_EN_COURS",
+                "DEVIS_ENVOYE",
+                "DEVIS_ACCEPTE",
+                "INTERVENTION_EN_COURS",
+                "En attente client",
+                "Terminee",
+            ]
+            for s in statuses:
+                kanban_reservations[s] = list(
+                    Reservation.objects.filter(statut=s)
+                    .select_related("client_user", "assigned_provider")
+                    .order_by("-id")[:20]
+                )
+            ctx["kanban_reservations"] = kanban_reservations
     elif section == "kanban":
-        # Kanban view - get all reservations grouped by status
         kanban_reservations = {}
         statuses = [
             "DEMANDE_ENVOYEE",
@@ -721,11 +765,13 @@ def _dashboard_forms_context(request, section):
             kanban_reservations[s] = list(
                 Reservation.objects.filter(statut=s)
                 .select_related("client_user", "assigned_provider")
-                .order_by("-created_at")[:20]
+                .order_by("-id")[:20]
             )
         ctx["kanban_reservations"] = kanban_reservations
     elif section == "litiges":
         eid = request.GET.get("edit_litige")
+        view_mode = request.GET.get("view", "kanban")
+        ctx["litige_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Dispute.objects.get(pk=int(eid))
@@ -735,8 +781,16 @@ def _dashboard_forms_context(request, section):
                 ctx["litige_form"] = DisputeForm()
         else:
             ctx["litige_form"] = DisputeForm()
+        if view_mode == "kanban":
+            kanban_litiges = {}
+            for s in ["OPEN", "REFUND", "RELEASE", "SPLIT"]:
+                qs = Dispute.objects.filter(decision=s).order_by("-created_at")[:20]
+                kanban_litiges[s] = list(qs)
+            ctx["kanban_litiges"] = kanban_litiges
     elif section == "paiements":
         eid = request.GET.get("edit_paiement")
+        view_mode = request.GET.get("view", "kanban")
+        ctx["paiement_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Payment.objects.get(pk=int(eid))
@@ -746,9 +800,17 @@ def _dashboard_forms_context(request, section):
                 ctx["paiement_form"] = PaymentForm()
         else:
             ctx["paiement_form"] = PaymentForm()
+        if view_mode == "kanban":
+            kanban_paiements = {}
+            for s in ["Pending", "Complete", "Litige"]:
+                qs = Payment.objects.filter(etat=s).order_by("-id")[:20]
+                kanban_paiements[s] = list(qs)
+            ctx["kanban_paiements"] = kanban_paiements
     elif section == "categories":
         ctx["category_icon_slugs"] = CATEGORY_ICON_SLUGS
         eid = request.GET.get("edit_category")
+        view_mode = request.GET.get("view", "kanban")
+        ctx["category_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Category.objects.get(pk=int(eid))
@@ -758,8 +820,22 @@ def _dashboard_forms_context(request, section):
                 ctx["category_form"] = CategoryForm()
         else:
             ctx["category_form"] = CategoryForm()
+        if view_mode == "kanban":
+            kanban_categories = {}
+            kanban_categories["Actives"] = list(
+                Category.objects.filter(actif=True, is_deleted=False).order_by("ordre_affichage")[:30]
+            )
+            kanban_categories["Inactives"] = list(
+                Category.objects.filter(actif=False, is_deleted=False).order_by("ordre_affichage")[:30]
+            )
+            kanban_categories["Supprimées"] = list(
+                Category.objects.filter(is_deleted=True).order_by("-ordre_affichage")[:30]
+            )
+            ctx["kanban_categories"] = kanban_categories
     elif section == "notifications":
         eid = request.GET.get("edit_notification")
+        view_mode = request.GET.get("view", "kanban")
+        ctx["notification_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Notification.objects.get(pk=int(eid))
@@ -769,8 +845,19 @@ def _dashboard_forms_context(request, section):
                 ctx["notification_form"] = NotificationForm()
         else:
             ctx["notification_form"] = NotificationForm()
+        if view_mode == "kanban":
+            kanban_notifications = {}
+            for s in ["Non lues", "Lues"]:
+                if s == "Non lues":
+                    qs = Notification.objects.filter(lu=False).order_by("-created_at")[:30]
+                else:
+                    qs = Notification.objects.filter(lu=True).order_by("-created_at")[:30]
+                kanban_notifications[s] = list(qs)
+            ctx["kanban_notifications"] = kanban_notifications
     elif section == "actualites":
         eid = request.GET.get("edit_actualite")
+        view_mode = request.GET.get("view", "kanban")
+        ctx["actualite_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Actualite.objects.get(pk=int(eid))
@@ -780,6 +867,18 @@ def _dashboard_forms_context(request, section):
                 ctx["actualite_form"] = ActualiteForm()
         else:
             ctx["actualite_form"] = ActualiteForm()
+        if view_mode == "kanban":
+            kanban_actualites = {}
+            for s in ["Publiées", "Brouillons"]:
+                if s == "Publiées":
+                    qs = Actualite.objects.filter(publie=True).order_by("-date_publication")[:30]
+                else:
+                    qs = Actualite.objects.filter(publie=False).order_by("-date_publication")[:30]
+                kanban_actualites[s] = list(qs)
+            ctx["kanban_actualites"] = kanban_actualites
+    elif section == "parametres":
+        view_mode = request.GET.get("view", "kanban")
+        ctx["parametre_view"] = view_mode
     return ctx
 
 
@@ -1112,6 +1211,7 @@ def dashboard(request):
         "dashboard",
         "prestataires",
         "reservations",
+        "kanban",
         "litiges",
         "clients",
         "paiements",
@@ -1374,11 +1474,46 @@ def dashboard(request):
             search_q,
         )
     )
-    actualites = Actualite.objects.all().order_by("-date_publication")
+    actualites = Actualite.objects.filter(publie=True).order_by("-date_publication")[:20]
     if section == "actualites" and search_q:
-        actualites = actualites.filter(
+        actualites = Actualite.objects.all().order_by("-date_publication").filter(
             Q(titre__icontains=search_q) | Q(description__icontains=search_q)
         )
+
+    # Unifier notifications + actualités récentes pour le dropdown topbar
+    from django.db.models import Case, When, Value, CharField
+    from django.utils import timezone
+
+    notifications_qs = Notification.objects.filter(user=request.user).order_by("-id")[:15]
+    actualites_recentes = Actualite.objects.filter(publie=True).order_by("-date_publication")[:10]
+
+    unified_notifications = []
+    for n in notifications_qs:
+        unified_notifications.append({
+            "title": n.title,
+            "body": n.body or "",
+            "time": n.time or "Récent",
+            "is_read": n.lu,
+            "notif_type": n.notif_type,
+            "is_actualite": False,
+            "id": n.pk,
+            "reference": n.reference or "",
+        })
+    for a in actualites_recentes:
+        unified_notifications.append({
+            "title": a.titre,
+            "body": a.description[:200] if a.description else "",
+            "time": "Nouvelle actualité",
+            "is_read": False,
+            "notif_type": "actualite",
+            "is_actualite": True,
+            "id": a.pk,
+            "reference": str(a.pk),
+            "image_url": a.image.url if a.image else "",
+            "categorie_tag": a.categorie_tag,
+        })
+    unified_notifications.sort(key=lambda x: 0 if not x["is_read"] else 1)
+    unified_notifications = unified_notifications[:20]
 
     if request.GET.get("partial") == "stats" and section == "dashboard":
         return render(
@@ -1394,37 +1529,43 @@ def dashboard(request):
         ),
         "prestataires": (
             "Prestataires",
-            "Vous n'inventez pas les dossiers : les prestataires s'inscrivent sur l'app. Ici : vérifier, approuver, suspendre ou refuser.",
+            "Vue Kanban — glissez pour changer le statut. Les prestataires s'inscrivent sur l'app ; ici : vérifier, approuver, suspendre ou refuser.",
         ),
         "reservations": (
             "Réservations",
-            "Suivi des missions, mode de paiement (espèces, Mobile Money Orange/MTN/Wave/Moov, carte) et flux espèces.",
+            "Vue Kanban — pipeline des missions. Suivi des statuts, paiement (espèces, Mobile Money, carte) et flux espèces.",
         ),
         "kanban": (
             "Kanban Réservations",
             "Vue drag & drop du pipeline de réservations — glissez pour changer le statut.",
         ),
-        "litiges": ("Litiges", "Médiation et décisions enregistrées côté plateforme."),
+        "litiges": (
+            "Litiges",
+            "Vue Kanban — médiation et décisions enregistrées côté plateforme.",
+        ),
         "clients": (
             "Clients",
-            "Lecture / suivi des fiches issues de l'activité — pas de saisie manuelle des noms comme sur un guichet.",
+            "Vue Kanban — distribution géographique. Suivi des fiches issues de l'activité.",
         ),
         "paiements": (
             "Paiements",
-            "Commissions & états (espèces, Orange/MTN/Wave/Moov, carte selon config).",
+            "Vue Kanban — suivi des transactions par état. Commissions & états (espèces, Mobile Money, carte).",
         ),
         "categories": (
             "Catégories",
-            "Services affichés sur la vitrine et dans les apps.",
+            "Vue Kanban — services affichés sur la vitrine et dans les apps.",
         ),
-        "notifications": ("Notifications", "Alertes internes équipe admin."),
+        "notifications": (
+            "Notifications",
+            "Vue Kanban — centre d'alertes internes équipe admin.",
+        ),
         "actualites": (
             "Actualités",
-            "Annonces publiques pour les apps client et prestataire — publication instantanée (WebSocket + push).",
+            "Vue Kanban — annonces publiques pour les apps client et prestataire.",
         ),
         "parametres": (
             "Paramètres",
-            "Commission, maintenance — impacte le comportement des apps connectées.",
+            "Configuration globale — commission, maintenance, sécurité. Impacte les apps connectées.",
         ),
     }
     page_heading, page_subtitle = _headings.get(section, _headings["dashboard"])
@@ -1444,6 +1585,7 @@ def dashboard(request):
         "paiements": paiements,
         "categories": categories,
         "notifications": notifications,
+        "unified_notifications": unified_notifications,
         "actualites": actualites,
         "params": settings_obj,
     }
@@ -4668,3 +4810,293 @@ def api_admin_reservation_status(request, id):
     res.save(update_fields=["statut"])
 
     return JsonResponse({"ok": True, "reference": res.reference, "statut": new_status})
+
+
+@login_required(login_url="/admin/login/")
+@require_http_methods(["POST"])
+def api_admin_notifications_mark_all_read(request):
+    Notification.objects.filter(user=request.user, lu=False).update(lu=True)
+    return JsonResponse({"ok": True})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ZEGOCLOUD — Masquage téléphonique
+# ─────────────────────────────────────────────────────────────────────────────
+
+ZEGOCLOUD_APP_ID = os.getenv("ZEGOCLOUD_APP_ID", "")
+ZEGOCLOUD_SERVER_SECRET = os.getenv("ZEGOCLOUD_SERVER_SECRET", "")
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client", "prestataire"])
+def api_phone_masking_initiate(request, reference):
+    """Initialise un appel masqué entre client et prestataire via ZEGOCLOUD."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid and res.prestataire_user_id != uid:
+        return JsonResponse({"error": "not_participant"}, status=403)
+
+    if res.statut not in [
+        Reservation.Status.DEVIS_ACCEPTE,
+        Reservation.Status.INTERVENTION_EN_COURS,
+        Reservation.Status.CONFIRMED,
+    ]:
+        return JsonResponse({"error": "invalid_state"}, status=400)
+
+    if not ZEGOCLOUD_APP_ID or not ZEGOCLOUD_SERVER_SECRET:
+        # Fallback: retourner les numéros masqués si configurés
+        if res.numero_masque:
+            return JsonResponse({
+                "ok": True,
+                "mode": "fallback",
+                "numero_masque": res.numero_masque,
+                "message": "ZEGOCLOUD non configuré — fallback actif",
+            })
+        return JsonResponse({
+            "error": "zegocloud_not_configured",
+            "message": "Les identifiants ZEGOCLOUD ne sont pas configurés.",
+        }, status=501)
+
+    import hashlib
+    import time as _time
+
+    # Générer un token ZEGOCLOUD
+    now = int(_time.time())
+    user_id = str(uid)
+    nonce = f"{uid}-{now}-{uuid.uuid4().hex[:8]}"
+    sign = hashlib.sha256(
+        f"{ZEGOCLOUD_APP_ID}{ZEGOCLOUD_SERVER_SECRET}{nonce}{now}".encode()
+    ).hexdigest()
+
+    # Déterminer l'autre partie
+    if uid == res.client_user_id:
+        other_uid = res.prestataire_user_id
+        other_role = "prestataire"
+    else:
+        other_uid = res.client_user_id
+        other_role = "client"
+
+    res.appel_masque = True
+    res.save(update_fields=["appel_masque"])
+
+    return JsonResponse({
+        "ok": True,
+        "mode": "zegocloud",
+        "app_id": ZEGOCLOUD_APP_ID,
+        "user_id": user_id,
+        "token": sign,
+        "nonce": nonce,
+        "timestamp": now,
+        "call_target_id": str(other_uid),
+        "call_target_role": other_role,
+        "reference": res.reference,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# API REST Chat — Historique + envoi messages
+# ─────────────────────────────────────────────────────────────────────────────
+
+@require_http_methods(["GET"])
+@require_api_auth(["client", "prestataire", "admin"])
+def api_chat_history(request, reference):
+    """Récupère l'historique des messages d'une conversation liée à une réservation."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid and res.prestataire_user_id != uid and request.api_role != "admin":
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    conv = Conversation.objects.filter(reservation=res).first()
+    if not conv:
+        return JsonResponse({"messages": []})
+
+    limit = min(int(request.GET.get("limit", 50)), 200)
+    offset = max(int(request.GET.get("offset", 0)), 0)
+
+    messages = list(
+        Message.objects.filter(conversation=conv)
+        .select_related("sender")
+        .order_by("-created_at")[offset:offset + limit]
+    )
+    messages.reverse()
+
+    result = []
+    for m in messages:
+        result.append({
+            "id": m.pk,
+            "sender_id": m.sender_id,
+            "sender_name": m.sender.username if m.sender else "Inconnu",
+            "body": m.body,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "reply_to_id": m.reply_to_id,
+        })
+
+    return JsonResponse({"messages": result, "conversation_id": conv.pk})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client", "prestataire", "admin"])
+def api_chat_send_message(request, reference):
+    """Envoie un message dans la conversation d'une réservation (REST)."""
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid and res.prestataire_user_id != uid and request.api_role != "admin":
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    conv = Conversation.objects.filter(reservation=res).first()
+    if not conv:
+        return JsonResponse({"error": "no_conversation"}, status=404)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    body = (payload.get("body") or "").strip()[:5000]
+    if not body:
+        return JsonResponse({"error": "body_required"}, status=400)
+
+    reply_to_id = payload.get("reply_to_id")
+
+    msg = Message.objects.create(
+        conversation=conv,
+        sender_id=uid,
+        body=body,
+        reply_to_id=int(reply_to_id) if reply_to_id and str(reply_to_id).isdigit() else None,
+    )
+
+    # Notifier l'autre partie
+    if uid == res.client_user_id:
+        _schedule(
+            [res.prestataire_user_id] if res.prestataire_user_id else [],
+            "Nouveau message",
+            f"Client a envoyé un message pour {res.reference}",
+            {"type": "chat.message", "conversation_id": conv.pk, "reference": res.reference},
+        )
+    else:
+        _schedule(
+            [res.client_user_id] if res.client_user_id else [],
+            "Nouveau message",
+            f"Prestataire a envoyé un message pour {res.reference}",
+            {"type": "chat.message", "conversation_id": conv.pk, "reference": res.reference},
+        )
+
+    # Broadcast WebSocket
+    try:
+        from adminpanel import realtime
+        realtime.broadcast_client_event("chat.message", {
+            "conversation_id": conv.pk,
+            "sender_id": uid,
+            "body": body,
+            "reference": res.reference,
+        })
+    except Exception:
+        pass
+
+    return JsonResponse({
+        "ok": True,
+        "message": {
+            "id": msg.pk,
+            "sender_id": msg.sender_id,
+            "body": msg.body,
+            "created_at": msg.created_at.isoformat() if msg.created_at else None,
+        },
+    }, status=201)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# API Admin — Décision litige
+# ─────────────────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required(login_url="/admin/login/")
+def api_admin_decide_dispute(request):
+    """Admin prend une décision sur un litige (rembourser, libérer, partager)."""
+    _bootstrap_data()
+    if not (request.user.is_staff or request.user.is_superuser):
+        return JsonResponse({"error": "admin_required"}, status=403)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    litige_id = payload.get("litige_id")
+    if not litige_id or not str(litige_id).isdigit():
+        return JsonResponse({"error": "litige_id_required"}, status=400)
+
+    decision = payload.get("decision", "")
+    if decision not in ["REFUND", "RELEASE", "SPLIT"]:
+        return JsonResponse({"error": "invalid_decision", "allowed": ["REFUND", "RELEASE", "SPLIT"]}, status=400)
+
+    partage_pct = None
+    if decision == "SPLIT":
+        partage_pct = int(payload.get("partage_pct", 50))
+        if not (0 <= partage_pct <= 100):
+            return JsonResponse({"error": "invalid_split_pct"}, status=400)
+
+    try:
+        dispute = Dispute.objects.get(pk=int(litige_id))
+    except Dispute.DoesNotExist:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    with transaction.atomic():
+        dispute.decision = decision
+        dispute.partage_pct = partage_pct
+        dispute.save(update_fields=["decision", "partage_pct"])
+
+        # Mettre à jour la réservation liée
+        if dispute.reservation:
+            res = dispute.reservation
+            res.dispute_ouverte = False
+            res.save(update_fields=["dispute_ouverte"])
+
+    # Notification au client et prestataire
+    decision_labels = {"REFUND": "remboursement", "RELEASE": "paiement libéré", "SPLIT": "partage"}
+    notif_title = f"Litige {dispute.reference} — Décision : {decision_labels.get(decision, decision)}"
+
+    user_ids = set()
+    if dispute.reservation and dispute.reservation.client_user_id:
+        user_ids.add(dispute.reservation.client_user_id)
+    if dispute.reservation and dispute.reservation.prestataire_user_id:
+        user_ids.add(dispute.reservation.prestataire_user_id)
+
+    _schedule(
+        list(user_ids),
+        "BABIFIX — Décision litige",
+        notif_title,
+        {"type": "dispute.decided", "reference": dispute.reference, "decision": decision},
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "litige_reference": dispute.reference,
+        "decision": decision,
+        "partage_pct": partage_pct,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# API Paiement — Endpoint unifié pour le client
+# ─────────────────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client", "admin"])
+def api_client_pay(request, reference):
+    """Enregistre le paiement d'une réservation (alias de api_client_pay_post_prestation)."""
+    return api_client_pay_post_prestation(request, reference)

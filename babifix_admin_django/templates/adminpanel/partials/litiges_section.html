@@ -1,0 +1,55 @@
+{% load babifix_tags %}
+
+<section class="data-section">
+  <div class="section-toolbar">
+    <div class="toolbar-left">
+      <h2 class="section-title">Litiges</h2>
+      <span class="section-count">{{ litiges|length }} resultat(s)</span>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Motif</th>
+          <th>Client</th>
+          <th>Prestataire</th>
+          <th>Priorite</th>
+          <th>Decision</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for litige in litiges %}
+        <tr class="data-row" data-id="{{ litige.id }}">
+          <td><span class="cell-ref">{{ litige.reference }}</span></td>
+          <td>{{ litige.motif|truncatechars:40 }}</td>
+          <td>{{ litige.client|truncatechars:25 }}</td>
+          <td>{{ litige.prestataire|truncatechars:25 }}</td>
+          <td>
+            <span class="priority-badge priority-badge--{{ litige.priorite|lower }}">{{ litige.get_priorite_display }}</span>
+          </td>
+          <td>
+            <span class="status-badge status-badge--{{ litige.decision|lower|slugify }}">{{ litige.get_decision_display }}</span>
+          </td>
+          <td><span class="cell-date">{{ litige.created_at|date:"d/m/Y" }}</span></td>
+          <td>
+            <div class="row-actions">
+              <a href="/?section=litiges&action=view&id={{ litige.id }}" class="action-btn" title="Voir">👁️</a>
+              {% if litige.decision == "En cours" %}
+              <button class="action-btn action-btn--success" onclick="resolveLitige({{ litige.id }}, 'Liberer')" title="Liberer">✓</button>
+              <button class="action-btn action-btn--danger" onclick="resolveLitige({{ litige.id }}, 'Rembourser')" title="Rembourser">↩</button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="empty-state">Aucun litige</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,69 @@
+{% load babifix_tags %}
+
+<section class="data-section">
+  <h2 class="section-title">Parametres systeme</h2>
+
+  <div class="settings-grid">
+    <div class="settings-card">
+      <h3 class="settings-card__title">💰 Commission</h3>
+      <form method="post" class="settings-form" hx-post="/?section=parametres&hx=1" hx-swap="outerHTML">
+        {% csrf_token %}
+        <input type="hidden" name="setting_key" value="commission_pct">
+        <div class="form-group">
+          <label for="commission_pct">Pourcentage de commission (%)</label>
+          <input type="number" id="commission_pct" name="value" value="{{ settings.commission_pct|default:18 }}" min="0" max="50" step="0.5" class="form-input">
+        </div>
+        <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
+      </form>
+    </div>
+
+    <div class="settings-card">
+      <h3 class="settings-card__title">⚙️ Validation automatique</h3>
+      <form method="post" class="settings-form" hx-post="/?section=parametres&hx=1" hx-swap="outerHTML">
+        {% csrf_token %}
+        <input type="hidden" name="setting_key" value="auto_validation">
+        <div class="form-group">
+          <label for="auto_validation">Validation auto des prestataires</label>
+          <select id="auto_validation" name="value" class="form-select">
+            <option value="False" {% if settings.auto_validation != "True" %}selected{% endif %}>Desactivee</option>
+            <option value="True" {% if settings.auto_validation == "True" %}selected{% endif %}>Activee</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
+      </form>
+    </div>
+
+    <div class="settings-card">
+      <h3 class="settings-card__title">🔧 Mode maintenance</h3>
+      <form method="post" class="settings-form" hx-post="/?section=parametres&hx=1" hx-swap="outerHTML">
+        {% csrf_token %}
+        <input type="hidden" name="setting_key" value="maintenance_mode">
+        <div class="form-group">
+          <label for="maintenance_mode">Etat de la plateforme</label>
+          <select id="maintenance_mode" name="value" class="form-select">
+            <option value="False" {% if settings.maintenance_mode != "True" %}selected{% endif %}>🟢 En ligne</option>
+            <option value="True" {% if settings.maintenance_mode == "True" %}selected{% endif %}>🔴 Maintenance</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
+      </form>
+    </div>
+
+    <div class="settings-card">
+      <h3 class="settings-card__title">💳 Modes de paiement</h3>
+      <form method="post" class="settings-form" hx-post="/?section=parametres&hx=1" hx-swap="outerHTML">
+        {% csrf_token %}
+        <input type="hidden" name="setting_key" value="mode_paiement">
+        <div class="form-group">
+          <label for="mode_paiement">Mode de paiement actif</label>
+          <select id="mode_paiement" name="value" class="form-select">
+            <option value="ESPECES" {% if settings.mode_paiement == "ESPECES" %}selected{% endif %}>Espece</option>
+            <option value="MOBILE_MONEY" {% if settings.mode_paiement == "MOBILE_MONEY" %}selected{% endif %}>Mobile Money</option>
+            <option value="TOUS" {% if settings.mode_paiement == "TOUS" %}selected{% endif %}>Tous</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
+      </form>
+    </div>
+  </div>
+</section>

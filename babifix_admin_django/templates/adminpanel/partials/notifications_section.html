@@ -1,0 +1,48 @@
+{% load babifix_tags %}
+
+<section class="data-section">
+  <div class="section-toolbar">
+    <div class="toolbar-left">
+      <h2 class="section-title">Notifications</h2>
+      <span class="section-count">{{ notifications|length }} resultat(s)</span>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn btn--sm btn--outline" onclick="markAllNotificationsRead()">Tout marquer lu</button>
+      <a href="/?section=notifications&action=new" class="btn btn--sm btn--primary">+ Nouvelle notification</a>
+    </div>
+  </div>
+
+  <div class="notif-list">
+    {% for notif in notifications %}
+    <div class="notif-item {% if not notif.lu %}notif-item--unread{% endif %}" data-id="{{ notif.id }}">
+      <div class="notif-item__icon notif-item--{{ notif.severity }}">
+        {% if notif.notif_type == 'reservation.created' %}📋
+        {% elif notif.notif_type == 'provider.created' %}👤
+        {% elif notif.notif_type == 'payment.received' %}💰
+        {% elif notif.notif_type == 'dispute.created' %}⚠️
+        {% else %}📌{% endif %}
+      </div>
+      <div class="notif-item__content">
+        <div class="notif-item__title">{{ notif.title }}</div>
+        {% if notif.body %}
+        <div class="notif-item__desc">{{ notif.body|truncatechars:100 }}</div>
+        {% endif %}
+        <div class="notif-item__meta">
+          <span class="notif-item__time">{{ notif.created_at|timesince }}</span>
+          <span class="notif-item__type">{{ notif.get_notif_type_display|default:notif.notif_type }}</span>
+        </div>
+      </div>
+      <div class="notif-item__actions">
+        {% if not notif.lu %}
+        <button class="action-btn" onclick="markNotifRead({{ notif.id }})" title="Marquer lu">✓</button>
+        {% endif %}
+        <button class="action-btn action-btn--danger" onclick="deleteNotif({{ notif.id }})" title="Supprimer">🗑️</button>
+      </div>
+    </div>
+    {% empty %}
+    <div class="empty-state-grid">
+      <p>Aucune notification</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>

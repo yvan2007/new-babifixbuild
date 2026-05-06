@@ -1,0 +1,73 @@
+{% load babifix_tags %}
+
+<section class="data-section" hx-get="{% if request.GET.section %}?section=prestataires&hx=1{% endif %}" hx-trigger="load once" hx-swap="outerHTML">
+  <div class="section-toolbar">
+    <div class="toolbar-left">
+      <h2 class="section-title">Prestataires</h2>
+      <span class="section-count">{{ prestataires|length }} resultat(s)</span>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn btn--sm btn--outline" onclick="bulkAction('ACCEPT')">Valider selection</button>
+      <button class="btn btn--sm btn--danger" onclick="bulkAction('SUSPEND')">Suspendre</button>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="select-all-providers" onchange="toggleSelectAll(this)"></th>
+          <th>Nom</th>
+          <th>Specialite</th>
+          <th>Ville</th>
+          <th>Note</th>
+          <th>Statut</th>
+          <th>KYC</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in prestataires %}
+        <tr class="data-row" data-id="{{ p.id }}">
+          <td><input type="checkbox" class="provider-select" value="{{ p.id }}"></td>
+          <td>
+            <div class="cell-primary">
+              <span class="cell-name">{{ p.nom }}</span>
+              {% if p.user_id %}
+              <span class="cell-sub">ID: {{ p.user_id }}</span>
+              {% endif %}
+            </div>
+          </td>
+          <td><span class="tag tag--category">{{ p.specialite|default:"—" }}</span></td>
+          <td>{{ p.ville|default:"—" }}</td>
+          <td>
+            {% if p.note_moyenne %}
+            <span class="rating-badge">★ {{ p.note_moyenne|floatformat:1 }}</span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="status-badge status-badge--{{ p.statut|lower|slugify }}">{{ p.get_statut_display }}</span>
+          </td>
+          <td>
+            {% if p.cni_recto %}<span class="kyc-check">✓ CNI</span>{% endif %}
+            {% if p.selfie_verified %}<span class="kyc-check kyc-check--success">✓ Selfie</span>{% endif %}
+          </td>
+          <td>
+            <div class="row-actions">
+              <a href="/?section=prestataires&action=view&id={{ p.id }}" class="action-btn" title="Voir">👁️</a>
+              {% if p.statut == "En attente" %}
+              <button class="action-btn action-btn--success" onclick="validateProvider({{ p.id }}, 'VALID')" title="Valider">✓</button>
+              <button class="action-btn action-btn--danger" onclick="validateProvider({{ p.id }}, 'REFUSE')" title="Refuser">✕</button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="empty-state">Aucun prestataire trouve</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -510,6 +510,8 @@ class Reservation(models.Model):
         default="",
         help_text="Message optionnel du client au moment du paiement",
     )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.reference

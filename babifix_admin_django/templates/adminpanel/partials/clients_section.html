@@ -1,0 +1,39 @@
+{% load babifix_tags %}
+
+<section class="data-section">
+  <div class="section-toolbar">
+    <div class="toolbar-left">
+      <h2 class="section-title">Clients</h2>
+      <span class="section-count">{{ clients|length }} resultat(s)</span>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Nom</th>
+          <th>Email</th>
+          <th>Ville</th>
+          <th>Reservations</th>
+          <th>Depenses</th>
+          <th>Date inscription</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for client in clients %}
+        <tr class="data-row">
+          <td><span class="cell-name">{{ client.nom }}</span></td>
+          <td><span class="cell-sub">{{ client.email|default:"—" }}</span></td>
+          <td>{{ client.ville|default:"—" }}</td>
+          <td><span class="count-badge">{{ client.reservations_count|default:0 }}</span></td>
+          <td><strong>{{ client.depense|default:0|floatformat:0 }} FCFA</strong></td>
+          <td><span class="cell-date">{{ client.created_at|date:"d/m/Y" }}</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="empty-state">Aucun client</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

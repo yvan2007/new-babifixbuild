@@ -17,6 +17,7 @@ import 'category_icon_mapper.dart';
 import 'shared/app_palette_mode.dart';
 import 'shared/auth_utils.dart';
 import 'shared/in_app_notifications.dart';
+import 'services/notification_sound_service.dart';
 
 import 'features/earnings/earnings_screen.dart' as earnings_feature;
 import 'features/auth/landing_screen.dart';
@@ -54,6 +55,7 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
   void initState() {
     super.initState();
     _loadPalette();
+    BabifixNotificationSoundService.ensureInitialized();
   }
 
   Future<void> _loadPalette() async {

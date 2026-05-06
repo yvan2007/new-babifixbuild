@@ -1,0 +1,45 @@
+{% load babifix_tags %}
+
+<section class="data-section">
+  <div class="section-toolbar">
+    <div class="toolbar-left">
+      <h2 class="section-title">Paiements</h2>
+      <span class="section-count">{{ paiements|length }} resultat(s)</span>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Client</th>
+          <th>Prestataire</th>
+          <th>Montant</th>
+          <th>Commission</th>
+          <th>Net Prestataire</th>
+          <th>Type</th>
+          <th>Etat</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for paiement in paiements %}
+        <tr class="data-row">
+          <td><span class="cell-ref">{{ paiement.reference }}</span></td>
+          <td>{{ paiement.client|truncatechars:20 }}</td>
+          <td>{{ paiement.prestataire|truncatechars:20 }}</td>
+          <td><strong>{{ paiement.montant|floatformat:0 }} FCFA</strong></td>
+          <td><span class="text-amber">{{ paiement.commission|floatformat:0 }} FCFA</span></td>
+          <td><span class="text-green">{{ paiement.net_prestataire|floatformat:0 }} FCFA</span></td>
+          <td><span class="payment-badge payment-badge--{{ paiement.type_paiement|lower }}">{{ paiement.get_type_paiement_display }}</span></td>
+          <td><span class="status-badge status-badge--{{ paiement.etat|lower|slugify }}">{{ paiement.get_etat_display }}</span></td>
+          <td><span class="cell-date">{{ paiement.created_at|date:"d/m/Y H:i" }}</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="empty-state">Aucun paiement</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

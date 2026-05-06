@@ -107,7 +107,7 @@
           <input type="search" name="q" value="{{ search_q }}" placeholder="Filtrer cette section…" class="search-input" title="Filtre sur les colonnes principales" autocomplete="off">
           <button type="submit" class="search-submit-btn">Filtrer</button>
         </form>
-        <button type="button" class="icon-btn" aria-label="Notifications" title="Centre de notifications">
+        <button type="button" class="icon-btn" id="notif-btn" aria-label="Notifications" title="Centre de notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"/></svg>
           <span class="notif-dot"></span>
         </button>
@@ -170,6 +170,13 @@
 
     <main class="content">
     {% if section == 'dashboard' %}
+      <div class="kanban-toolbar">
+        <div class="kanban-toolbar-left">
+          <span class="kanban-toolbar-badge">Vue d'ensemble</span>
+          <span class="kanban-toolbar-count">Tableau de bord BABIFIX Admin</span>
+        </div>
+        <div id="htmx-stats-spinner" class="htmx-indicator htmx-spinner" title="Mise à jour KPI"></div>
+      </div>
       <div
         id="dashboard-stats-fragment"
         hx-get="{% url 'admin-dashboard' %}?section=dashboard&partial=stats"
@@ -179,48 +186,152 @@
       >
         {% include 'adminpanel/partials/dashboard_stats.html' %}
       </div>
-      <section class="pay-ci-strip card card-elevate">
-        <h3>Moyens de paiement — Côte d'Ivoire</h3>
-        <p class="section-help">Logos Mobile Money (PNG) dans <code>static/payment-logos/</code> — alignés API <code>PAYMENT_METHOD_STATIC</code>.</p>
-        <div class="pay-ci-logos">
-          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/orange-money.png' %}" alt="Orange Money" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>Orange Money</figcaption></figure>
-          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/mtn-momo.png' %}" alt="MTN MoMo" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>MTN MoMo</figcaption></figure>
-          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/wave.png' %}" alt="Wave" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>Wave</figcaption></figure>
-          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/moov-money.png' %}" alt="Moov Money" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>Moov Money</figcaption></figure>
-          <figure class="pay-logo-cell"><img src="{% static 'payment-logos/especes.svg' %}" alt="Espèces" loading="lazy" width="120" height="40" onerror="this.closest('figure').classList.add('pay-logo-missing')"><figcaption>Espèces</figcaption></figure>
+      <div class="kanban-board kanban-board--dashboard">
+        <div class="kanban-column kanban-column--dash-stat">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot" style="background:#f97316;"></span>
+              <span class="kanban-column-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+                Prestataires
+              </span>
+            </div>
+            <span class="kanban-count" style="background:#f97316;">{{ providers|length }}</span>
+          </div>
+          <div class="kanban-dropzone kanban-dropzone--dash">
+            {% for p in providers|slice:":6" %}
+            <div class="kanban-card kanban-card--dash">
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">{{ p.nom }}</span>
+              </div>
+              <div class="kanban-card-parties">
+                <div class="kanban-party">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                  <span>{{ p.specialite|truncatechars:25 }}</span>
+                </div>
+              </div>
+              <div class="kanban-card-footer">
+                <span class="status-badge status-badge--{% if p.statut == 'En attente' %}pending{% elif p.statut == 'Valide' %}valid{% else %}refused{% endif %}" style="font-size:11px;">
+                  <span class="status-dot"></span>{{ p.statut }}
+                </span>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <p>Aucun prestataire</p>
+            </div>
+            {% endfor %}
+          </div>
         </div>
-        <div class="pay-ci-badges pay-ci-badges-fallback">
-          <span class="pay-badge pay-orange">Orange Money</span>
-          <span class="pay-badge pay-mtn">MTN Mobile Money</span>
-          <span class="pay-badge pay-wave">Wave</span>
-          <span class="pay-badge pay-moov">Moov Money</span>
-          <span class="pay-badge pay-cash">Espèces</span>
+        <div class="kanban-column kanban-column--dash-stat">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot" style="background:#3b82f6;"></span>
+              <span class="kanban-column-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+                Réservations récentes
+              </span>
+            </div>
+            <span class="kanban-count" style="background:#3b82f6;">{{ reservations|length }}</span>
+          </div>
+          <div class="kanban-dropzone kanban-dropzone--dash">
+            {% for r in reservations|slice:":6" %}
+            <div class="kanban-card kanban-card--dash">
+               <div class="kanban-card-top">
+                 <span class="kanban-card-ref">#{{ r.reference }}</span>
+               </div>
+              <div class="kanban-card-parties">
+                <div class="kanban-party">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span>{{ r.client|truncatechars:20 }}</span>
+                </div>
+              </div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-amount">{{ r.montant|floatformat:0 }} F</span>
+                <span class="kanban-card-type">{{ r.statut|truncatechars:15 }}</span>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <p>Aucune réservation</p>
+            </div>
+            {% endfor %}
+          </div>
         </div>
-      </section>
-      <section class="split">
-        <article class="card card-elevate">
-          <h3>Vérification prestataires</h3>
-          <table>
-            <thead><tr><th>Nom</th><th>Spécialité</th><th>Statut</th></tr></thead>
-            <tbody>
-              {% for p in providers %}
-              <tr><td>{{ p.nom }}</td><td>{{ p.specialite }}</td><td><span class="pill">{{ p.statut }}</span></td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </article>
-        <article class="card card-elevate">
-          <h3>Suivi paiements</h3>
-          <table>
-            <thead><tr><th>Référence</th><th>Montant</th><th>État</th></tr></thead>
-            <tbody>
-              {% for p in paiements %}
-              <tr><td>{{ p.reference }}</td><td>{{ p.montant|strip_fcfa_label|format_fcfa }}</td><td>{{ p.etat }}</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </article>
-      </section>
+        <div class="kanban-column kanban-column--dash-stat">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot" style="background:#22c55e;"></span>
+              <span class="kanban-column-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                Paiements récents
+              </span>
+            </div>
+            <span class="kanban-count" style="background:#22c55e;">{{ paiements|length }}</span>
+          </div>
+          <div class="kanban-dropzone kanban-dropzone--dash">
+            {% for p in paiements|slice:":6" %}
+            <div class="kanban-card kanban-card--dash">
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">#{{ p.reference }}</span>
+              </div>
+              <div class="kanban-card-parties">
+                <div class="kanban-party">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span>{{ p.client|truncatechars:18 }}</span>
+                </div>
+              </div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-amount">{{ p.montant|floatformat:0 }} F</span>
+                <span class="status-badge status-badge--{% if p.etat == 'Complete' %}valid{% elif p.etat == 'Pending' %}pending{% else %}refused{% endif %}" style="font-size:10px;">
+                  <span class="status-dot"></span>{{ p.etat }}
+                </span>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <p>Aucun paiement</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="kanban-column kanban-column--dash-stat">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot" style="background:#ef4444;"></span>
+              <span class="kanban-column-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0z"/></svg>
+                Litiges ouverts
+              </span>
+            </div>
+            <span class="kanban-count" style="background:#ef4444;">{{ litiges|length }}</span>
+          </div>
+          <div class="kanban-dropzone kanban-dropzone--dash">
+            {% for l in litiges|slice:":6" %}
+            <div class="kanban-card kanban-card--dash">
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">#{{ l.reference }}</span>
+              </div>
+              <div class="kanban-card-parties">
+                <div class="kanban-party">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span>{{ l.client|truncatechars:18 }}</span>
+                </div>
+              </div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-urgence kanban-card-urgence--{% if l.priorite == 'HIGH' %}urgent{% elif l.priorite == 'MEDIUM' %}high{% else %}low{% endif %}" style="font-size:10px;">
+                  {{ l.priorite }}
+                </span>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <p>Aucun litige</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
     {% elif section == 'prestataires' %}
       {% if edit_provider_id %}
       <article class="card card-elevate crud-form-card">
@@ -266,14 +377,101 @@
             <h3>Liste — vérification &amp; visibilité app</h3>
             <p class="psh-sub">Tant que le statut n'est pas <strong>Valide</strong>, le profil n'apparaît pas côté client.</p>
           </div>
-          {% with total=providers|length %}
-          <span class="providers-count-pill">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-            {{ total }} prestataire{{ total|pluralize }}
-          </span>
-          {% endwith %}
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="view-toggle">
+              <a href="?section=prestataires&view=table" class="view-toggle-btn {% if provider_view != 'kanban' %}view-toggle-btn--active{% endif %}" title="Vue tableau">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
+                Tableau
+              </a>
+              <a href="?section=prestataires&view=kanban" class="view-toggle-btn {% if provider_view == 'kanban' %}view-toggle-btn--active{% endif %}" title="Vue kanban">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="15" y="3" width="6" height="12" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+                Kanban
+              </a>
+            </div>
+            {% with total=providers|length %}
+            <span class="providers-count-pill">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+              {{ total }} prestataire{{ total|pluralize }}
+            </span>
+            {% endwith %}
+          </div>
         </div>
 
+        {% if provider_view == 'kanban' and kanban_providers %}
+        <div class="kanban-board">
+          {% for status, items in kanban_providers.items %}
+          <div class="kanban-column" data-status="{{ status }}">
+            <div class="kanban-column-header">
+              <div class="kanban-column-header-left">
+                <span class="kanban-column-dot kanban-column-dot--{{ status|lower }}"></span>
+                <span class="kanban-column-title">{{ status }}</span>
+              </div>
+              <span class="kanban-count">{{ items|length }}</span>
+            </div>
+            <div class="kanban-dropzone">
+              {% for p in items %}
+              <div class="kanban-card kanban-card--provider" data-id="{{ p.id }}">
+                <div class="kanban-card-top">
+                  <span class="kanban-card-ref">{{ p.nom }}</span>
+                  {% if p.user and p.user.date_joined %}
+                  <time class="kanban-card-date" title="{{ p.user.date_joined|date:'d/m/Y H:i' }}">{{ p.user.date_joined|timesince }}</time>
+                  {% endif %}
+                </div>
+                {% if p.specialite %}
+                <p class="kanban-card-desc">{{ p.specialite|truncatechars:50 }}</p>
+                {% endif %}
+                <div class="kanban-card-parties">
+                  <div class="kanban-party">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>{{ p.ville|default:"—" }}</span>
+                  </div>
+                  {% if p.category %}
+                  <div class="kanban-party kanban-party--provider">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    <span>{{ p.category.nom|truncatechars:18 }}</span>
+                  </div>
+                  {% endif %}
+                </div>
+                <div class="kanban-card-footer">
+                  {% if p.tarif_horaire %}
+                  <span class="kanban-card-amount">{{ p.tarif_horaire|floatformat:0 }} FCFA/h</span>
+                  {% else %}
+                  <span class="kanban-card-amount kanban-card-amount--pending">Tarif non défini</span>
+                  {% endif %}
+                  {% if p.disponible %}
+                  <span class="kanban-card-dispo kanban-card-dispo--on">Disponible</span>
+                  {% else %}
+                  <span class="kanban-card-dispo kanban-card-dispo--off">Indisponible</span>
+                  {% endif %}
+                </div>
+                <div class="kanban-card-actions">
+                  <a href="?section=prestataires&edit_provider={{ p.id }}" class="kanban-card-action-btn" title="Modifier">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </a>
+                  {% if p.statut == 'En attente' %}
+                  <form method="post" class="kanban-card-form" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="provider_status">
+                    <input type="hidden" name="provider_id" value="{{ p.id }}">
+                    <input type="hidden" name="next_status" value="Valide">
+                    <button type="submit" class="kanban-card-action-btn kanban-card-action-btn--approve" title="Valider">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
+              </div>
+              {% empty %}
+              <div class="kanban-empty-col">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+                <p>Aucun prestataire</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
         <div class="table-responsive providers-table-wrap">
         <table class="providers-table">
           <thead>
@@ -851,6 +1049,7 @@
           </tbody>
         </table>
         </div>
+        {% endif %}
       </article>
     {% elif section == 'reservations' %}
       {% if reservation_form %}
@@ -877,6 +1076,101 @@
         </div>
       </div>
       {% endif %}
+      {% if reservation_view == 'kanban' and kanban_reservations %}
+      <div class="kanban-toolbar">
+        <div class="kanban-toolbar-left">
+          <span class="kanban-toolbar-badge">{{ kanban_reservations|length }} colonnes</span>
+          <span class="kanban-toolbar-count">Pipeline réservations</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="view-toggle">
+            <a href="?section=reservations&view=table" class="view-toggle-btn" title="Vue tableau">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
+              Tableau
+            </a>
+            <a href="?section=reservations&view=kanban" class="view-toggle-btn view-toggle-btn--active" title="Vue kanban">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="15" y="3" width="6" height="12" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+              Kanban
+            </a>
+          </div>
+          <button type="button" class="kanban-refresh-btn" onclick="location.reload()" title="Actualiser">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Actualiser
+          </button>
+        </div>
+      </div>
+      <div class="kanban-board">
+        {% for status, items in kanban_reservations.items %}
+        <div class="kanban-column" data-status="{{ status }}">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot kanban-column-dot--{{ status|lower }}"></span>
+              <span class="kanban-column-title">{{ status }}</span>
+            </div>
+            <span class="kanban-count">{{ items|length }}</span>
+          </div>
+          <div class="kanban-dropzone">
+            {% for r in items %}
+            <div class="kanban-card" data-id="{{ r.id }}">
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">#{{ r.reference }}</span>
+                {% if r.created_at %}
+                <time class="kanban-card-date" title="{{ r.created_at|date:'d/m/Y H:i' }}">{{ r.created_at|timesince }}</time>
+                {% endif %}
+              </div>
+              {% if r.description %}
+              <p class="kanban-card-desc">{{ r.description|truncatechars:60 }}</p>
+              {% endif %}
+              <div class="kanban-card-parties">
+                <div class="kanban-party">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span>{{ r.client_user.username|default:"Client" }}</span>
+                </div>
+                {% if r.assigned_provider %}
+                <div class="kanban-party kanban-party--provider">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+                  <span>{{ r.assigned_provider.nom|truncatechars:20 }}</span>
+                </div>
+                {% else %}
+                <div class="kanban-party kanban-party--unassigned">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                  <span>Aucun prestataire</span>
+                </div>
+                {% endif %}
+              </div>
+              {% if r.category %}
+              <span class="kanban-card-category">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                {{ r.category.nom }}
+              </span>
+              {% endif %}
+              <div class="kanban-card-footer">
+                {% if r.montant and r.montant > 0 %}
+                <span class="kanban-card-amount">{{ r.montant|floatformat:0 }} FCFA</span>
+                {% else %}
+                <span class="kanban-card-amount kanban-card-amount--pending">En attente</span>
+                {% endif %}
+                {% if r.urgence and r.urgence != 'NORMAL' %}
+                <span class="kanban-card-urgence kanban-card-urgence--{{ r.urgence|lower }}">{{ r.urgence }}</span>
+                {% endif %}
+              </div>
+              <div class="kanban-card-actions">
+                <a href="?section=reservations&edit_reservation={{ r.id }}" class="kanban-card-action-btn" title="Modifier">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </a>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+              <p>Aucune réservation</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
       <article class="card card-elevate">
         <h3>Liste des réservations</h3>
         <p class="section-help">Colonnes <strong>Paiement</strong> et <strong>Opérateur</strong> : données issues des apps (Mobile Money Orange, MTN, Wave, Moov).</p>
@@ -920,48 +1214,179 @@
           </tbody>
         </table>
       </article>
+      {% endif %}
     {% elif section == 'kanban' %}
-      <div class="kanban-board">
+      <div class="kanban-toolbar">
+        <div class="kanban-toolbar-left">
+          <span class="kanban-toolbar-badge">{{ kanban_reservations|length }} colonnes</span>
+          <span class="kanban-toolbar-count">
+            {% for status, items in kanban_reservations.items %}
+              {% for item in items %}{% endfor %}
+            {% endfor %}
+            réservations actives
+          </span>
+        </div>
+        <button type="button" class="kanban-refresh-btn" onclick="location.reload()" title="Actualiser">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          Actualiser
+        </button>
+      </div>
+      <div class="kanban-board" id="kanban-board">
         {% for status, items in kanban_reservations.items %}
         <div class="kanban-column" data-status="{{ status }}">
-          <div class="kanban-header">
-            <span class="kanban-title">{{ status }}</span>
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot kanban-column-dot--{{ status|lower }}"></span>
+              <span class="kanban-column-title">{{ status }}</span>
+            </div>
             <span class="kanban-count">{{ items|length }}</span>
           </div>
-          <div class="kanban-cards" 
-               hx-post="/api/admin/reservation/move"
-               hx-vals='{"status": "{{ status }}"}'
-               hx-trigger="drop"
-               ondragover="allowDrop(event)"
-               ondrop="drop(event, '{{ status }}')">
+          <div class="kanban-dropzone" 
+               data-status="{{ status }}"
+               ondragover="handleDragOver(event)" 
+               ondragenter="handleDragEnter(event)"
+               ondragleave="handleDragLeave(event)"
+               ondrop="handleDrop(event, '{{ status }}')">
             {% for r in items %}
-            <div class="kanban-card" draggable="true" ondragstart="drag(event, {{ r.id }})" data-id="{{ r.id }}">
-              <div class="kanban-card-ref">{{ r.reference }}</div>
-              <div class="kanban-card-client">{{ r.client_user.username|default:"Client" }}</div>
-              <div class="kanban-card-provider">{{ r.assigned_provider.nom|default:"" }}</div>
-              <div class="kanban-card-amount">{{ r.montant|default:0 }}₣</div>
+            <div class="kanban-card" 
+                 draggable="true" 
+                 ondragstart="handleDragStart(event, {{ r.id }})"
+                 ondragend="handleDragEnd(event)"
+                 data-id="{{ r.id }}">
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">#{{ r.reference }}</span>
+                {% if r.created_at %}
+                <time class="kanban-card-date" title="{{ r.created_at|date:'d/m/Y H:i' }}">{{ r.created_at|timesince }}</time>
+                {% endif %}
+              </div>
+              {% if r.description %}
+              <p class="kanban-card-desc">{{ r.description|truncatechars:60 }}</p>
+              {% endif %}
+              <div class="kanban-card-parties">
+                <div class="kanban-party">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span>{{ r.client_user.username|default:"Client" }}</span>
+                </div>
+                {% if r.assigned_provider %}
+                <div class="kanban-party kanban-party--provider">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+                  <span>{{ r.assigned_provider.nom|truncatechars:20 }}</span>
+                </div>
+                {% else %}
+                <div class="kanban-party kanban-party--unassigned">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                  <span>Aucun prestataire</span>
+                </div>
+                {% endif %}
+              </div>
+              {% if r.category %}
+              <span class="kanban-card-category">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                {{ r.category.nom }}
+              </span>
+              {% endif %}
+              <div class="kanban-card-footer">
+                {% if r.montant and r.montant > 0 %}
+                <span class="kanban-card-amount">{{ r.montant|floatformat:0 }} FCFA</span>
+                {% else %}
+                <span class="kanban-card-amount kanban-card-amount--pending">En attente</span>
+                {% endif %}
+                {% if r.urgence and r.urgence != 'NORMAL' %}
+                <span class="kanban-card-urgence kanban-card-urgence--{{ r.urgence|lower }}">{{ r.urgence }}</span>
+                {% endif %}
+              </div>
+              <div class="kanban-card-actions">
+                <a href="?section=reservations&edit_reservation={{ r.id }}" class="kanban-card-action-btn" title="Modifier">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </a>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+              <p>Aucune réservation</p>
             </div>
             {% endfor %}
           </div>
         </div>
         {% endfor %}
       </div>
+      <div class="kanban-toast" id="kanban-toast" style="display:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+        <span id="kanban-toast-msg"></span>
+      </div>
       <script>
-      function allowDrop(ev) { ev.preventDefault(); }
-      function drag(ev, id) { ev.dataTransfer.setData("text", id); }
-      function drop(ev, newStatus) {
-        ev.preventDefault();
-        var id = ev.dataTransfer.getData("text");
-        if (!id) return;
-        fetch('/api/admin/reservation/' + id + '/status', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-          body: JSON.stringify({status: newStatus})
-        }).then(function() {
-          // Rester sur le Kanban après le drop
-          location.href = '/?section=kanban';
-        });
-      }
+      (function(){
+        var draggedId = null;
+        var draggedEl = null;
+        var csrfToken = '{{ csrf_token }}';
+
+        window.handleDragStart = function(ev, id) {
+          draggedId = id;
+          draggedEl = ev.target.closest('.kanban-card');
+          draggedEl.classList.add('kanban-card--dragging');
+          ev.dataTransfer.effectAllowed = 'move';
+          ev.dataTransfer.setData('text/plain', id);
+        };
+
+        window.handleDragEnd = function(ev) {
+          if (draggedEl) draggedEl.classList.remove('kanban-card--dragging');
+          document.querySelectorAll('.kanban-dropzone').forEach(function(z){ z.classList.remove('kanban-dropzone--over'); });
+          draggedId = null;
+          draggedEl = null;
+        };
+
+        window.handleDragOver = function(ev) {
+          ev.preventDefault();
+          ev.dataTransfer.dropEffect = 'move';
+        };
+
+        window.handleDragEnter = function(ev) {
+          ev.preventDefault();
+          var zone = ev.target.closest('.kanban-dropzone');
+          if (zone) zone.classList.add('kanban-dropzone--over');
+        };
+
+        window.handleDragLeave = function(ev) {
+          var zone = ev.target.closest('.kanban-dropzone');
+          if (zone && !zone.contains(ev.relatedTarget)) zone.classList.remove('kanban-dropzone--over');
+        };
+
+        window.handleDrop = function(ev, newStatus) {
+          ev.preventDefault();
+          document.querySelectorAll('.kanban-dropzone').forEach(function(z){ z.classList.remove('kanban-dropzone--over'); });
+          var id = ev.dataTransfer.getData('text/plain');
+          if (!id) return;
+          fetch('/api/admin/reservation/' + id + '/status', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({status: newStatus})
+          }).then(function(res){ return res.json(); })
+          .then(function(data){
+            if (data.ok) {
+              showKanbanToast('Statut mis à jour → ' + newStatus);
+              setTimeout(function(){ location.reload(); }, 800);
+            } else {
+              showKanbanToast('Erreur: ' + (data.error || 'Transition invalide'), true);
+            }
+          }).catch(function(){
+            showKanbanToast('Erreur réseau', true);
+          });
+        };
+
+        function showKanbanToast(msg, isError) {
+          var t = document.getElementById('kanban-toast');
+          var m = document.getElementById('kanban-toast-msg');
+          if (!t || !m) return;
+          m.textContent = msg;
+          t.className = 'kanban-toast kanban-toast--visible' + (isError ? ' kanban-toast--error' : '');
+          t.style.display = 'flex';
+          clearTimeout(showKanbanToast._h);
+          showKanbanToast._h = setTimeout(function(){
+            t.style.display = 'none';
+          }, 3000);
+        }
+      })();
       </script>
     {% elif section == 'litiges' %}
       {% if edit_litige_id %}
@@ -996,14 +1421,97 @@
             <h3 style="margin:0 0 4px;">Liste des litiges ouverts</h3>
             <p class="section-help" style="margin:0;">Arbitrez chaque litige : rembourser le client, libérer le paiement au prestataire, ou partage partiel.</p>
           </div>
-          {% with litige_count=litiges|length %}
-          {% if litige_count > 0 %}
-          <span class="status-badge status-badge--refused" style="font-size:13px;padding:4px 12px;">
-            <span class="status-dot"></span>{{ litige_count }} litige{{ litige_count|pluralize }} ouvert{{ litige_count|pluralize }}
-          </span>
-          {% endif %}
-          {% endwith %}
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="view-toggle">
+              <a href="?section=litiges&view=table" class="view-toggle-btn {% if litige_view != 'kanban' %}view-toggle-btn--active{% endif %}" title="Vue tableau">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
+                Tableau
+              </a>
+              <a href="?section=litiges&view=kanban" class="view-toggle-btn {% if litige_view == 'kanban' %}view-toggle-btn--active{% endif %}" title="Vue kanban">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="15" y="3" width="6" height="12" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+                Kanban
+              </a>
+            </div>
+            {% with litige_count=litiges|length %}
+            {% if litige_count > 0 %}
+            <span class="status-badge status-badge--refused" style="font-size:13px;padding:4px 12px;">
+              <span class="status-dot"></span>{{ litige_count }} litige{{ litige_count|pluralize }} ouvert{{ litige_count|pluralize }}
+            </span>
+            {% endif %}
+            {% endwith %}
+          </div>
         </div>
+        {% if litige_view == 'kanban' and kanban_litiges %}
+        <div class="kanban-board">
+          {% for status, items in kanban_litiges.items %}
+          <div class="kanban-column" data-status="{{ status }}">
+            <div class="kanban-column-header">
+              <div class="kanban-column-header-left">
+                <span class="kanban-column-dot kanban-column-dot--{{ status|lower }}"></span>
+                <span class="kanban-column-title">{% if status == 'OPEN' %}En cours{% elif status == 'REFUND' %}Remboursement{% elif status == 'RELEASE' %}Paiement libéré{% elif status == 'SPLIT' %}Partage{% else %}{{ status }}{% endif %}</span>
+              </div>
+              <span class="kanban-count">{{ items|length }}</span>
+            </div>
+            <div class="kanban-dropzone">
+              {% for l in items %}
+              <div class="kanban-card kanban-card--litige" data-id="{{ l.id }}">
+                <div class="kanban-card-top">
+                  <span class="kanban-card-ref">#{{ l.reference }}</span>
+                  {% if l.created_at %}
+                  <time class="kanban-card-date" title="{{ l.created_at|date:'d/m/Y H:i' }}">{{ l.created_at|timesince }}</time>
+                  {% endif %}
+                </div>
+                <p class="kanban-card-desc">{{ l.motif|truncatechars:70 }}</p>
+                <div class="kanban-card-parties">
+                  <div class="kanban-party">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <span>{{ l.client|truncatechars:20 }}</span>
+                  </div>
+                  <div class="kanban-party kanban-party--provider">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+                    <span>{{ l.prestataire|truncatechars:20 }}</span>
+                  </div>
+                </div>
+                <div class="kanban-card-footer">
+                  {% if l.priorite == 'HIGH' or l.priorite == 'Haute' %}
+                  <span class="kanban-card-urgence kanban-card-urgence--urgent">Haute</span>
+                  {% elif l.priorite == 'MEDIUM' or l.priorite == 'Moyenne' %}
+                  <span class="kanban-card-urgence kanban-card-urgence--high">Moyenne</span>
+                  {% else %}
+                  <span class="kanban-card-urgence kanban-card-urgence--low">Basse</span>
+                  {% endif %}
+                  <form method="post" class="kanban-card-form" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="litige_decision">
+                    <input type="hidden" name="litige_id" value="{{ l.reference }}">
+                    <select name="decision" style="font-size:10px;padding:3px 6px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;">
+                      <option value="OPEN">En cours</option>
+                      <option value="REFUND">Rembourser</option>
+                      <option value="RELEASE">Libérer</option>
+                      <option value="SPLIT">Partage</option>
+                    </select>
+                    <button type="submit" class="kanban-card-action-btn kanban-card-action-btn--approve" title="Appliquer">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                    </button>
+                  </form>
+                </div>
+                <div class="kanban-card-actions">
+                  <a href="?section=litiges&edit_litige={{ l.id }}" class="kanban-card-action-btn" title="Modifier">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </a>
+                </div>
+              </div>
+              {% empty %}
+              <div class="kanban-empty-col">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M12 9v4M12 17h.01M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0z"/></svg>
+                <p>Aucun litige</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
         <div class="table-responsive">
         <table class="data-table">
           <thead><tr><th>Réf.</th><th>Motif</th><th>Client</th><th>Prestataire</th><th>Priorité</th><th>Décision actuelle</th><th>Arbitrer</th><th>Actions</th></tr></thead>
@@ -1076,6 +1584,7 @@
           </tbody>
         </table>
         </div>
+        {% endif %}
       </article>
     {% elif section == 'clients' %}
       <div class="role-banner role-banner-soft">
@@ -1100,6 +1609,84 @@
         </form>
       </article>
       {% endif %}
+      {% if client_view == 'kanban' and kanban_clients %}
+      <div class="kanban-toolbar">
+        <div class="kanban-toolbar-left">
+          <span class="kanban-toolbar-badge">Clients par ville</span>
+          <span class="kanban-toolbar-count">Distribution géographique</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="view-toggle">
+            <a href="?section=clients&view=table" class="view-toggle-btn" title="Vue tableau">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
+              Tableau
+            </a>
+            <a href="?section=clients&view=kanban" class="view-toggle-btn view-toggle-btn--active" title="Vue kanban">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="15" y="3" width="6" height="12" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+              Kanban
+            </a>
+          </div>
+          <button type="button" class="kanban-refresh-btn" onclick="location.reload()" title="Actualiser">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Actualiser
+          </button>
+        </div>
+      </div>
+      <div class="kanban-board">
+        {% for ville, items in kanban_clients.items %}
+        <div class="kanban-column" data-status="{{ ville }}">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot kanban-column-dot--{{ ville|lower }}"></span>
+              <span class="kanban-column-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                {{ ville }}
+              </span>
+            </div>
+            <span class="kanban-count">{{ items|length }}</span>
+          </div>
+          <div class="kanban-dropzone">
+            {% for c in items %}
+            <div class="kanban-card kanban-card--client" data-id="{{ c.id }}">
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">{{ c.nom }}</span>
+                {% if c.created_at %}
+                <time class="kanban-card-date" title="{{ c.created_at|date:'d/m/Y H:i' }}">{{ c.created_at|timesince }}</time>
+                {% endif %}
+              </div>
+              {% if c.email %}
+              <p class="kanban-card-desc">{{ c.email|truncatechars:40 }}</p>
+              {% endif %}
+              <div class="kanban-card-parties">
+                <div class="kanban-party">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+                  <span>{{ c.reservations }} réservations</span>
+                </div>
+              </div>
+              <div class="kanban-card-footer">
+                {% if c.depense %}
+                <span class="kanban-card-amount">{{ c.depense }} FCFA</span>
+                {% else %}
+                <span class="kanban-card-amount kanban-card-amount--pending">0 FCFA</span>
+                {% endif %}
+              </div>
+              <div class="kanban-card-actions">
+                <a href="?section=clients&edit_client={{ c.id }}" class="kanban-card-action-btn" title="Modifier">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </a>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <p>Aucun client</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
       <article class="card card-elevate">
         <h3>Liste des clients</h3>
         <table>
@@ -1124,7 +1711,9 @@
           </tbody>
         </table>
       </article>
+      {% endif %}
     {% elif section == 'paiements' %}
+      {% if edit_paiement_id %}
       <article class="card card-elevate crud-form-card">
         <h3>{% if edit_paiement_id %}Modifier{% else %}Ajouter{% endif %} un paiement</h3>
         <form method="post" class="crud-form">
@@ -1138,6 +1727,96 @@
           </div>
         </form>
       </article>
+      {% endif %}
+      {% if paiement_view == 'kanban' and kanban_paiements %}
+      <div class="kanban-toolbar">
+        <div class="kanban-toolbar-left">
+          <span class="kanban-toolbar-badge">Paiements par état</span>
+          <span class="kanban-toolbar-count">Suivi des transactions</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="view-toggle">
+            <a href="?section=paiements&view=table" class="view-toggle-btn" title="Vue tableau">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
+              Tableau
+            </a>
+            <a href="?section=paiements&view=kanban" class="view-toggle-btn view-toggle-btn--active" title="Vue kanban">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="15" y="3" width="6" height="12" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+              Kanban
+            </a>
+          </div>
+          <button type="button" class="kanban-refresh-btn" onclick="location.reload()" title="Actualiser">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Actualiser
+          </button>
+        </div>
+      </div>
+      <div class="kanban-board">
+        {% for etat, items in kanban_paiements.items %}
+        <div class="kanban-column" data-status="{{ etat }}">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot kanban-column-dot--{{ etat|lower }}"></span>
+              <span class="kanban-column-title">{{ etat }}</span>
+            </div>
+            <span class="kanban-count">{{ items|length }}</span>
+          </div>
+          <div class="kanban-dropzone">
+            {% for p in items %}
+            <div class="kanban-card kanban-card--paiement" data-id="{{ p.id }}">
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">#{{ p.reference }}</span>
+                {% if p.created_at %}
+                <time class="kanban-card-date" title="{{ p.created_at|date:'d/m/Y H:i' }}">{{ p.created_at|timesince }}</time>
+                {% endif %}
+              </div>
+              <div class="kanban-card-parties">
+                <div class="kanban-party">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span>{{ p.client|truncatechars:18 }}</span>
+                </div>
+                <div class="kanban-party kanban-party--provider">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
+                  <span>{{ p.prestataire|truncatechars:18 }}</span>
+                </div>
+              </div>
+              {% if p.reservation %}
+              <span class="kanban-card-category">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+                Rés. {{ p.reservation.reference|truncatechars:12 }}
+              </span>
+              {% endif %}
+              <div class="kanban-card-footer">
+                <span class="kanban-card-amount">{{ p.montant|floatformat:0 }} FCFA</span>
+                <span class="kanban-card-commission">Com. {{ p.commission|floatformat:0 }} F</span>
+              </div>
+              <div class="kanban-card-actions">
+                <a href="?section=paiements&edit_paiement={{ p.id }}" class="kanban-card-action-btn" title="Modifier">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </a>
+                {% if p.etat == 'Pending' %}
+                <form method="post" class="kanban-card-form" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="payment_validate">
+                  <input type="hidden" name="payment_id" value="{{ p.id }}">
+                  <button type="submit" class="kanban-card-action-btn kanban-card-action-btn--approve" title="Valider">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              <p>Aucun paiement</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
       <article class="card card-elevate">
         <h3>Liste des paiements</h3>
         <table>
@@ -1160,9 +1839,11 @@
           </tbody>
         </table>
       </article>
+      {% endif %}
     {% elif section == 'categories' %}
       {% include 'adminpanel/partials/categories_section.html' %}
     {% elif section == 'notifications' %}
+      {% if edit_notification_id %}
       <article class="card card-elevate crud-form-card">
         <h3>{% if edit_notification_id %}Modifier{% else %}Ajouter{% endif %} une notification</h3>
         <form method="post" class="crud-form">
@@ -1176,6 +1857,75 @@
           </div>
         </form>
       </article>
+      {% endif %}
+      {% if notification_view == 'kanban' and kanban_notifications %}
+      <div class="kanban-toolbar">
+        <div class="kanban-toolbar-left">
+          <span class="kanban-toolbar-badge">Centre de notifications</span>
+          <span class="kanban-toolbar-count">
+            {% for status, items in kanban_notifications.items %}{% if status == 'Non lues' %}{{ items|length }} non lues{% endif %}{% endfor %}
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="view-toggle">
+            <a href="?section=notifications&view=table" class="view-toggle-btn" title="Vue liste">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
+              Liste
+            </a>
+            <a href="?section=notifications&view=kanban" class="view-toggle-btn view-toggle-btn--active" title="Vue kanban">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="15" y="3" width="6" height="12" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+              Kanban
+            </a>
+          </div>
+          <button type="button" class="kanban-refresh-btn" onclick="location.reload()" title="Actualiser">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Actualiser
+          </button>
+        </div>
+      </div>
+      <div class="kanban-board">
+        {% for etat, items in kanban_notifications.items %}
+        <div class="kanban-column" data-status="{{ etat }}">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot kanban-column-dot--{{ etat|lower }}"></span>
+              <span class="kanban-column-title">{{ etat }}</span>
+            </div>
+            <span class="kanban-count">{{ items|length }}</span>
+          </div>
+          <div class="kanban-dropzone">
+            {% for n in items %}
+            <div class="kanban-card kanban-card--notification {% if not n.lu %}kanban-card--unread{% endif %}" data-id="{{ n.id }}">
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">{{ n.title|truncatechars:40 }}</span>
+                <time class="kanban-card-date" title="{{ n.created_at|date:'d/m/Y H:i' }}">{{ n.time|default:"Récent" }}</time>
+              </div>
+              {% if n.body %}
+              <p class="kanban-card-desc">{{ n.body|truncatechars:80 }}</p>
+              {% endif %}
+              <div class="kanban-card-footer">
+                <span class="kanban-card-type">{{ n.get_notif_type_display|default:"Général" }}</span>
+                {% if n.reference %}
+                <code style="font-size:10px;">{{ n.reference }}</code>
+                {% endif %}
+              </div>
+              <div class="kanban-card-actions">
+                <a href="?section=notifications&edit_notification={{ n.id }}" class="kanban-card-action-btn" title="Modifier">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </a>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"/></svg>
+              <p>Aucune notification</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
       <article class="card card-elevate">
         <h3>Liste</h3>
         <ul class="notes">
@@ -1195,7 +1945,9 @@
           {% endfor %}
         </ul>
       </article>
+      {% endif %}
     {% elif section == 'actualites' %}
+      {% if edit_actualite_id %}
       <article class="card card-elevate crud-form-card">
         <h3>{% if edit_actualite_id %}Modifier{% else %}Créer{% endif %} une actualité</h3>
         <p class="section-help">Brouillon : décochez « Publie ». À la publication, diffusion temps réel (WebSocket + FCM) vers les apps.</p>
@@ -1210,6 +1962,84 @@
           </div>
         </form>
       </article>
+      {% endif %}
+      {% if actualite_view == 'kanban' and kanban_actualites %}
+      <div class="kanban-toolbar">
+        <div class="kanban-toolbar-left">
+          <span class="kanban-toolbar-badge">Actualités</span>
+          <span class="kanban-toolbar-count">
+            {% for status, items in kanban_actualites.items %}{% if status == 'Publiées' %}{{ items|length }} publiées{% endif %}{% endfor %}
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="view-toggle">
+            <a href="?section=actualites&view=table" class="view-toggle-btn" title="Vue liste">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
+              Liste
+            </a>
+            <a href="?section=actualites&view=kanban" class="view-toggle-btn view-toggle-btn--active" title="Vue kanban">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="15" y="3" width="6" height="12" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/></svg>
+              Kanban
+            </a>
+          </div>
+          <button type="button" class="kanban-refresh-btn" onclick="location.reload()" title="Actualiser">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Actualiser
+          </button>
+        </div>
+      </div>
+      <div class="kanban-board">
+        {% for etat, items in kanban_actualites.items %}
+        <div class="kanban-column" data-status="{{ etat }}">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot kanban-column-dot--{{ etat|lower }}"></span>
+              <span class="kanban-column-title">{{ etat }}</span>
+            </div>
+            <span class="kanban-count">{{ items|length }}</span>
+          </div>
+          <div class="kanban-dropzone">
+            {% for a in items %}
+            <div class="kanban-card kanban-card--actualite" data-id="{{ a.id }}">
+              {% if a.image %}
+              <div class="kanban-card-image" style="background-image:url('{{ a.image.url }}');"></div>
+              {% endif %}
+              <div class="kanban-card-top">
+                <span class="kanban-card-ref">{{ a.titre|truncatechars:35 }}</span>
+                {% if a.date_publication %}
+                <time class="kanban-card-date" title="{{ a.date_publication|date:'d/m/Y H:i' }}">{{ a.date_publication|timesince }}</time>
+                {% endif %}
+              </div>
+              {% if a.description %}
+              <p class="kanban-card-desc">{{ a.description|truncatechars:80 }}</p>
+              {% endif %}
+              <div class="kanban-card-footer">
+                <span class="kanban-card-type">
+                  {% if a.cible == 'client' %}📱 Client
+                  {% elif a.cible == 'prestataire' %}🔧 Prestataire
+                  {% else %}👥 Tous{% endif %}
+                </span>
+                {% if a.categorie_tag %}
+                <span class="kanban-card-category">{{ a.get_categorie_tag_display }}</span>
+                {% endif %}
+              </div>
+              <div class="kanban-card-actions">
+                <a href="?section=actualites&edit_actualite={{ a.id }}" class="kanban-card-action-btn" title="Modifier">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </a>
+              </div>
+            </div>
+            {% empty %}
+            <div class="kanban-empty-col">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M4 4h16v12H5.17L4 17.17V4zm2 2v8h12V6H6zm2 2h8v2H8V8zm0 4h5v2H8v-2z"/></svg>
+              <p>Aucune actualité</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
       <article class="card card-elevate">
         <h3>Liste des actualités</h3>
         <table class="data-table">
@@ -1244,22 +2074,68 @@
           </tbody>
         </table>
       </article>
+      {% endif %}
     {% elif section == 'parametres' %}
-      <article class="card card-elevate card-params">
-        <h3>Paramètres plateforme</h3>
-        <p class="section-help">Ces réglages sont stockés en base ; l'app mobile peut les lire si vous exposez un endpoint dédié (commission, maintenance).</p>
-        <form method="post" class="params-form">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="params_update">
-          <label>Taux de commission (%)</label>
-          <input type="number" name="commission" value="{{ params.commission }}" min="1" max="30">
-          <label>Moyens de paiement acceptés (texte de référence CI)</label>
-          <textarea name="mode_paiement" rows="3" class="params-textarea" placeholder="Ex. Espèces, Orange Money, MTN MoMo, Wave, Moov…">{{ params.mode_paiement }}</textarea>
-          <label class="chk"><input type="checkbox" name="auto_validation" {% if params.auto_validation %}checked{% endif %}> Validation automatique</label>
-          <label class="chk"><input type="checkbox" name="maintenance" {% if params.maintenance %}checked{% endif %}> Mode maintenance</label>
-          <button type="submit" class="btn-primary">Mettre à jour</button>
-        </form>
-      </article>
+      <div class="kanban-toolbar">
+        <div class="kanban-toolbar-left">
+          <span class="kanban-toolbar-badge">Paramètres plateforme</span>
+          <span class="kanban-toolbar-count">Configuration globale BABIFIX</span>
+        </div>
+      </div>
+      <div class="kanban-board kanban-board--params">
+        <div class="kanban-column kanban-column--params">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot" style="background:#f97316;"></span>
+              <span class="kanban-column-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                Commission &amp; Paiements
+              </span>
+            </div>
+          </div>
+          <div class="kanban-dropzone kanban-dropzone--params">
+            <form method="post" class="params-form-kanban">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="params_update">
+              <div class="param-card">
+                <label class="param-label">Taux de commission (%)</label>
+                <input type="number" name="commission" value="{{ params.commission }}" min="1" max="30" class="param-input">
+              </div>
+              <div class="param-card">
+                <label class="param-label">Moyens de paiement acceptés</label>
+                <textarea name="mode_paiement" rows="3" class="param-textarea" placeholder="Espèces, Orange Money, MTN MoMo, Wave, Moov…">{{ params.mode_paiement }}</textarea>
+              </div>
+              <button type="submit" class="btn-primary btn-primary--kanban">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                Enregistrer
+              </button>
+            </form>
+          </div>
+        </div>
+        <div class="kanban-column kanban-column--params">
+          <div class="kanban-column-header">
+            <div class="kanban-column-header-left">
+              <span class="kanban-column-dot" style="background:#3b82f6;"></span>
+              <span class="kanban-column-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Sécurité &amp; Accès
+              </span>
+            </div>
+          </div>
+          <div class="kanban-dropzone kanban-dropzone--params">
+            <div class="param-card">
+              <label class="chk param-check"><input type="checkbox" name="auto_validation" {% if params.auto_validation %}checked{% endif %}> Validation automatique des paiements espèces</label>
+            </div>
+            <div class="param-card">
+              <label class="chk param-check"><input type="checkbox" name="maintenance" {% if params.maintenance %}checked{% endif %}> Mode maintenance</label>
+            </div>
+            <div class="param-info-card">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              <p>Ces réglages sont stockés en base et impactent les apps connectées en temps réel.</p>
+            </div>
+          </div>
+        </div>
+      </div>
     {% endif %}
     </main>
   </div>
@@ -1411,9 +2287,42 @@
       var next = h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       h.setAttribute('data-theme', next);
       try { localStorage.setItem('babifix-theme', next); } catch (e) {}
-      // No reload needed - CSS variables update instantly
     });
   })();
+  </script>
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('notif-btn');
+    var dd = document.getElementById('notif-dropdown');
+    if (!btn) { console.warn('notif-btn missing'); }
+    if (!dd) { console.warn('notif-dropdown missing'); }
+    if (!btn || !dd) return;
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      dd.classList.toggle('is-open');
+      console.log('dropdown toggled:', dd.classList.contains('is-open'));
+    });
+    document.addEventListener('click', function(e){
+      if (dd.classList.contains('is-open') && !dd.contains(e.target) && e.target !== btn) {
+        dd.classList.remove('is-open');
+      }
+    });
+    var markRead = document.getElementById('notif-mark-read');
+    if (markRead) {
+      markRead.addEventListener('click', function(){
+        document.querySelectorAll('.notif-item--unread').forEach(function(el){
+          el.classList.remove('notif-item--unread');
+        });
+        var dot = btn.querySelector('.notif-dot');
+        if (dot) dot.style.display = 'none';
+        fetch('/api/admin/notifications/mark-all-read', {
+          method: 'POST',
+          headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''}
+        }).catch(function(){});
+      });
+    }
+  });
   </script>
   <script>
   function toggleDossier(id) {
@@ -1437,5 +2346,35 @@
     document.body.appendChild(modal);
   }
   </script>
+  <div class="notif-dropdown" id="notif-dropdown">
+    <div class="notif-dropdown-header">
+      <strong>Notifications</strong>
+      <button type="button" class="notif-mark-read" id="notif-mark-read">Tout marquer lu</button>
+    </div>
+    <div class="notif-dropdown-body" id="notif-list">
+      {% if unified_notifications %}
+        {% for n in unified_notifications|slice:":8" %}
+        <div class="notif-item {% if not n.is_read %}notif-item--unread{% endif %} {% if n.is_actualite %}notif-item--actualite{% endif %}">
+          <div class="notif-item-icon">
+            {% if n.is_actualite %}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a2 2 0 01-2 2zm0 0a2 2 0 01-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8z"/></svg>
+            {% else %}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"/></svg>
+            {% endif %}
+          </div>
+          <div class="notif-item-content">
+            <p class="notif-item-title">{{ n.title }}</p>
+            <time>{{ n.time|default:"Récent" }}</time>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="notif-empty">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"/></svg>
+          <p>Aucune notification</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
 </body>
 </html>

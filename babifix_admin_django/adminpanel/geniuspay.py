@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  getattr(settings, "GENIUSPAY_PUBLIC_KEY", ""))
 GENIUSPAY_SECRET_KEY  = os.getenv("GENIUSPAY_SECRET_KEY",  getattr(settings, "GENIUSPAY_SECRET_KEY", ""))
-GENIUSPAY_BASE_URL    = "https://pay.genius.ci/api/v1/merchant"
+GENIUSPAY_BASE_URL    = os.getenv("GENIUSPAY_API_URL",     getattr(settings, "GENIUSPAY_API_URL", "https://pay.genius.ci/api/v1/merchant"))
 GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", getattr(settings, "GENIUSPAY_WEBHOOK_URL", ""))
 GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", getattr(settings, "GENIUSPAY_SUCCESS_URL", ""))
 GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   getattr(settings, "GENIUSPAY_ERROR_URL", ""))

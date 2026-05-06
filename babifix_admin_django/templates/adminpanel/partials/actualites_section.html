@@ -1,0 +1,51 @@
+{% load babifix_tags %}
+
+<section class="data-section">
+  <div class="section-toolbar">
+    <div class="toolbar-left">
+      <h2 class="section-title">Actualites</h2>
+      <span class="section-count">{{ actualites|length }} resultat(s)</span>
+    </div>
+    <div class="toolbar-actions">
+      <a href="/?section=actualites&action=new" class="btn btn--sm btn--primary">+ Nouvelle actualite</a>
+    </div>
+  </div>
+
+  <div class="grid-cards">
+    {% for actu in actualites %}
+    <article class="news-card {% if not actu.publie %}news-card--draft{% endif %}">
+      {% if actu.image %}
+      <div class="news-card__image">
+        <img src="{{ actu.image_url }}" alt="{{ actu.titre }}" loading="lazy">
+      </div>
+      {% endif %}
+      <div class="news-card__body">
+        <div class="news-card__header">
+          <h3 class="news-card__title">{{ actu.titre|truncatechars:60 }}</h3>
+          <span class="status-badge status-badge--{{ actu.publie|yesno:'success,draft' }}">
+            {% if actu.publie %}Publie{% else %}Brouillon{% endif %}
+          </span>
+        </div>
+        <p class="news-card__desc">{{ actu.description|truncatechars:120|default:"Aucune description" }}</p>
+        <div class="news-card__footer">
+          <span class="news-card__date">{{ actu.date_publication|date:"d/m/Y" }}</span>
+          {% if actu.categorie_tag %}
+          <span class="tag tag--sm">{{ actu.categorie_tag }}</span>
+          {% endif %}
+          {% if actu.cible %}
+          <span class="target-badge">👤 {{ actu.cible }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="news-card__actions">
+        <a href="/?section=actualites&action=edit&id={{ actu.id }}" class="action-btn">✏️</a>
+        <button class="action-btn action-btn--danger" onclick="deleteActualite({{ actu.id }})" title="Supprimer">🗑️</button>
+      </div>
+    </article>
+    {% empty %}
+    <div class="empty-state-grid">
+      <p>Aucune actualite pour le moment</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>

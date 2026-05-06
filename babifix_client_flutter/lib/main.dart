@@ -23,6 +23,7 @@ import 'user_store.dart';
 import 'models/client_models.dart';
 import 'shared/in_app_notifications.dart';
 import 'shared/offline_cache.dart';
+import 'services/notification_sound_service.dart';
 import 'shared/widgets/status_pill.dart';
 import 'shared/widgets/category_strip.dart';
 import 'shared/services/real_time_sync.dart';
@@ -98,6 +99,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
   void initState() {
     super.initState();
     _loadPrefs();
+    BabifixNotificationSoundService.ensureInitialized();
   }
 
   Future<void> _loadPrefs() async {

@@ -1,6 +1,5 @@
 from django.urls import path
 
-from .cinetpay import cinetpay_initiate, cinetpay_status, cinetpay_webhook
 from .geniuspay import geniuspay_initiate, geniuspay_status, geniuspay_webhook
 from .views_finance import (
     api_referral,
@@ -114,6 +113,12 @@ from .views import (
     api_reservation_devis,
     api_admin_reservation_move,
     api_admin_reservation_status,
+    api_admin_notifications_mark_all_read,
+    api_admin_decide_dispute,
+    api_phone_masking_initiate,
+    api_chat_history,
+    api_chat_send_message,
+    api_client_pay,
     dashboard,
 )
 
@@ -302,16 +307,6 @@ urlpatterns = [
         name="api-prestataire-unavailability-crud",
     ),
     path("api/prestataire/stats/", api_prestataire_stats, name="api-prestataire-stats"),
-    # ── CinetPay Mobile Money ────────────────────────────────────────────────
-    path(
-        "api/paiements/cinetpay/initiate/", cinetpay_initiate, name="cinetpay-initiate"
-    ),
-    path(
-        "api/paiements/cinetpay/status/<str:transaction_id>/",
-        cinetpay_status,
-        name="cinetpay-status",
-    ),
-    path("api/paiements/cinetpay/webhook/", cinetpay_webhook, name="cinetpay-webhook"),
     # ── GeniusPay Mobile Money (Wave, Orange, MTN, PawaPay) ─────────────────
     path(
         "api/paiements/geniuspay/initiate/", geniuspay_initiate, name="geniuspay-initiate"
@@ -373,6 +368,11 @@ urlpatterns = [
         "api/admin/reservation/<int:id>/status",
         api_admin_reservation_status,
         name="api-admin-reservation-status",
+    ),
+    path(
+        "api/admin/notifications/mark-all-read",
+        api_admin_notifications_mark_all_read,
+        name="api-admin-notifications-mark-all-read",
     ),
     path(
         "api/auth/delete-account",
@@ -557,4 +557,44 @@ urlpatterns = [
 
     # ── Urgence preview ───────────────────────────────────────────────────────
     path("api/client/reservations/urgence-preview/", api_urgence_preview, name="api-urgence-preview"),
+
+    # ── Masquage téléphonique (ZEGOCLOUD) ─────────────────────────────────────
+    path(
+        "api/reservations/<str:reference>/call/",
+        api_phone_masking_initiate,
+        name="api-phone-masking",
+    ),
+
+    # ── Chat REST API ─────────────────────────────────────────────────────────
+    path(
+        "api/reservations/<str:reference>/chat/",
+        api_chat_history,
+        name="api-chat-history",
+    ),
+    path(
+        "api/reservations/<str:reference>/chat/send/",
+        api_chat_send_message,
+        name="api-chat-send",
+    ),
+
+    # ── Paiement client (alias unifié) ────────────────────────────────────────
+    path(
+        "api/client/reservations/<str:reference>/pay/",
+        api_client_pay,
+        name="api-client-pay",
+    ),
+
+    # ── Admin — Décision litige ───────────────────────────────────────────────
+    path(
+        "api/admin/disputes/decide/",
+        api_admin_decide_dispute,
+        name="api-admin-decide-dispute",
+    ),
+
+    # ── Devis — Alias naming ──────────────────────────────────────────────────
+    path(
+        "api/prestataire/reservations/<str:reference>/devis/send/",
+        api_prestataire_create_devis,
+        name="api-prestataire-send-devis",
+    ),
 ]
