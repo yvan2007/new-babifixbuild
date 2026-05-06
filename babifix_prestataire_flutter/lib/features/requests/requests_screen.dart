@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/payment_method_logo.dart';
@@ -91,12 +92,22 @@ class _RequestsScreenState extends State<RequestsScreen> {
     final completed = items.where((e) => e.status == 'completed').toList();
     final refused = items.where((e) => e.status == 'refused').toList();
     return Scaffold(
+      backgroundColor: BabifixDesign.navy,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
           onPressed: widget.onBack,
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
         ),
-        title: const Text('Exigences'),
+        title: const Text(
+          'Demandes',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
+        ),
       ),
       body: loading
           ? _buildShimmer()
@@ -105,72 +116,156 @@ class _RequestsScreenState extends State<RequestsScreen> {
         children: [
           // Nouvelles demandes (à accepter/refuser)
           if (pending.isNotEmpty) ...[
-            Text(
-              'Nouvelles demandes (${pending.length})',
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 4),
-            const Row(
+            Row(
               children: [
-                Icon(Icons.swipe_rounded, size: 14, color: Color(0xFF94A3B8)),
-                SizedBox(width: 4),
-                Text(
-                  'Glissez \u2192 pour accepter  \u2022  \u2190 pour refuser',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                const Text(
+                  'Nouvelles demandes',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.cyan.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${pending.length}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: BabifixDesign.cyan,
+                    ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
+            const Row(
+              children: [
+                Icon(Icons.swipe_rounded, size: 14, color: Color(0xFF64748B)),
+                SizedBox(width: 4),
+                Text(
+                  'Glissez → pour accepter  •  ← pour refuser',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             ...pending.map((item) => _buildCard(item)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
           ],
           // Devis à préparer (DEVIS_EN_COURS)
           if (devisPending.isNotEmpty) ...[
             const Text(
-              'Devis \u00e0 pr\u00e9parer',
-              style: TextStyle(fontWeight: FontWeight.w800),
+              'Devis à préparer',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                color: Colors.white,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             ...devisPending.map((item) => _buildCard(item)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
           ],
           // Devis envoyés, en attente client
           if (devisSent.isNotEmpty) ...[
             const Text(
-              'Devis envoy\u00e9s, en attente client',
-              style: TextStyle(fontWeight: FontWeight.w800),
+              'Devis envoyés',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                color: Colors.white,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             ...devisSent.map((item) => _buildCard(item)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
           ],
           // Confirmées / en cours
           if (active.isNotEmpty) ...[
             const Text(
-              'Confirm\u00e9es / en cours',
-              style: TextStyle(fontWeight: FontWeight.w800),
+              'Confirmées / en cours',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                color: Colors.white,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             ...active.map((item) => _buildCard(item)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
           ],
           // Terminées
           if (completed.isNotEmpty) ...[
-            Text(
-              'Termin\u00e9es (${completed.length})',
-              style: const TextStyle(fontWeight: FontWeight.w800),
+            Row(
+              children: [
+                const Text(
+                  'Terminées',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${completed.length}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: BabifixDesign.success,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             ...completed.map((item) => _buildCard(item)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
           ],
           // Annulées
           if (refused.isNotEmpty) ...[
-            Text(
-              'Annul\u00e9es (${refused.length})',
-              style: const TextStyle(fontWeight: FontWeight.w800),
+            Row(
+              children: [
+                const Text(
+                  'Annulées',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.error.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${refused.length}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: BabifixDesign.error,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             ...refused.map((item) => _buildCard(item)),
           ],
           // Empty state quand tout est vide
@@ -190,13 +285,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF4CC9F0).withValues(alpha: 0.1),
+                      color: BabifixDesign.cyan.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.assignment_outlined,
                       size: 40,
-                      color: Color(0xFF4CC9F0),
+                      color: BabifixDesign.cyan,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -205,11 +300,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
+                      color: Colors.white,
                     ),
                   ),
-const SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   const Text(
-                    'Vos demandes de clients arreteront ici.',
+                    'Vos demandes de clients apparaîtront ici.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -308,11 +404,15 @@ const SizedBox(height: 8),
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF152A45), Color(0xFF1A3355)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x1AFFFFFF)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,29 +420,49 @@ const SizedBox(height: 8),
           // ── En-tête client + tag ──────────────────────────────────────
           Row(
             children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.cyan.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: BabifixDesign.cyan,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   it.client,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              _Tag(text: tagText),
+              _TagPremium(text: tagText),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(it.service, style: const TextStyle(color: Color(0xFF4B5563))),
           const SizedBox(height: 6),
+          Text(
+            it.service,
+            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               const Icon(
                 Icons.schedule_rounded,
                 size: 14,
-                color: Color(0xFF94A3B8),
+                color: Color(0xFF64748B),
               ),
               const SizedBox(width: 4),
               Text(
                 '${it.date}  ${it.hour}',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
               ),
             ],
           ),
@@ -353,7 +473,7 @@ const SizedBox(height: 8),
               const Icon(
                 Icons.location_on_outlined,
                 size: 14,
-                color: Color(0xFF94A3B8),
+                color: Color(0xFF64748B),
               ),
               const SizedBox(width: 4),
               Expanded(
@@ -361,7 +481,7 @@ const SizedBox(height: 8),
                   it.address,
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF6B7280),
+                    color: Color(0xFF94A3B8),
                   ),
                 ),
               ),
@@ -370,14 +490,14 @@ const SizedBox(height: 8),
 
           // ── Message du client ─────────────────────────────────────────
           if (hasClientMsg) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
+                color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,26 +506,26 @@ const SizedBox(height: 8),
                     children: [
                       Icon(
                         Icons.chat_bubble_outline_rounded,
-                        size: 13,
-                        color: Color(0xFF2563EB),
+                        size: 14,
+                        color: Color(0xFF60A5FA),
                       ),
-                      SizedBox(width: 5),
+                      SizedBox(width: 6),
                       Text(
                         'Message du client',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF2563EB),
+                          color: Color(0xFF60A5FA),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 6),
                   Text(
                     it.clientMessage,
                     style: const TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF374151),
+                      color: Color(0xFFCBD5E1),
                       height: 1.5,
                     ),
                   ),
@@ -416,7 +536,7 @@ const SizedBox(height: 8),
 
           // ── Photos du client ──────────────────────────────────────────
           if (hasPhotos) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -424,29 +544,29 @@ const SizedBox(height: 8),
                   children: [
                     const Icon(
                       Icons.photo_library_outlined,
-                      size: 13,
+                      size: 14,
                       color: Color(0xFF64748B),
                     ),
-                    const SizedBox(width: 5),
+                    const SizedBox(width: 6),
                     Text(
-                      'Photos du problème (${it.clientPhotos.length})',
+                      'Photos (${it.clientPhotos.length})',
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF64748B),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 SizedBox(
                   height: 80,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: it.clientPhotos.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (ctx, i) => ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       child: _SafeImage(src: it.clientPhotos[i], size: 80),
                     ),
                   ),
@@ -457,17 +577,17 @@ const SizedBox(height: 8),
 
           // ── Description (si pas de message client dédié) ──────────────
           if (!hasClientMsg && it.description.isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               it.description,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
             ),
           ],
 
           // ── Paiement ──────────────────────────────────────────────────
           if (it.paymentType.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.only(top: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -485,7 +605,7 @@ const SizedBox(height: 8),
                       'Paiement : ${_paymentLabel(it.paymentType, it.mobileMoneyOperator)}',
                       style: const TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF64748B),
+                        color: Color(0xFF94A3B8),
                       ),
                     ),
                   ),
@@ -493,46 +613,66 @@ const SizedBox(height: 8),
               ),
             ),
 
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.star, size: 15, color: Color(0xFFF59E0B)),
-              Text(' ${it.rating}', style: const TextStyle(fontSize: 12)),
-              const Spacer(),
-              Text(
-                it.amount,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0284C7),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: BabifixDesign.ciOrange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
+                const SizedBox(width: 6),
+                Text(
+                  it.rating.toStringAsFixed(1),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFF59E0B),
+                  ),
                 ),
-              ),
-            ],
+                const Spacer(),
+                Text(
+                  it.amount,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: BabifixDesign.cyan,
+                  ),
+                ),
+              ],
+            ),
           ),
 
           // ── Actions ───────────────────────────────────────────────────
           // Nouvelles demandes: Accepter / Refuser (pas de devis)
           if (it.status == 'pending') ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => _decide(it, 'refuse'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFEF4444),
-                      side: const BorderSide(color: Color(0xFFFCA5A5)),
+                      foregroundColor: BabifixDesign.error,
+                      side: BorderSide(color: BabifixDesign.error.withValues(alpha: 0.3)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Refuser'),
+                    child: const Text('Refuser', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton(
                     onPressed: () => _decide(it, 'accept'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF22C55E),
+                      backgroundColor: BabifixDesign.success,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Accepter'),
+                    child: const Text('Accepter', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -540,10 +680,11 @@ const SizedBox(height: 8),
           ],
           // Devis à préparer: bouton créer devis
           if (it.status == 'devis_pending') ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             if (it.bookingId != null) ...[
               SizedBox(
                 width: double.infinity,
+                height: 48,
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).push<void>(
                     babifixRoute(
@@ -565,13 +706,13 @@ const SizedBox(height: 8),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  icon: const Icon(Icons.request_quote_rounded, size: 18),
+                  icon: const Icon(Icons.request_quote_rounded, size: 20),
                   label: const Text(
-                    'Cr\u00e9er un devis',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                    'Créer un devis',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                   ),
                 ),
               ),
@@ -580,63 +721,115 @@ const SizedBox(height: 8),
           // Devis envoyés: juste info, pas d'actions
           if (it.status == 'devis_sent') ...[
             const SizedBox(height: 10),
-            const Text(
-              'En attente de r\u00e9ponse du client',
-              style: TextStyle(
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-                color: Color(0xFF64748B),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: BabifixDesign.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.hourglass_empty_rounded, size: 16, color: Color(0xFFF59E0B)),
+                  SizedBox(width: 8),
+                  Text(
+                    'En attente de réponse du client',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFF59E0B),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
           // Confirmées / en cours: Démarrer / Terminer
           if (it.status == 'active') ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             if (it.apiStatus == 'DEVIS_ACCEPTE')
               SizedBox(
                 width: double.infinity,
+                height: 48,
                 child: FilledButton.icon(
                   onPressed: () => _demarrerIntervention(it),
-                  icon: const Icon(Icons.play_arrow, size: 20),
-                  label: const Text('Démarrer la prestation'),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                  label: const Text(
+                    'Démarrer la prestation',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: BabifixDesign.ciOrange,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
               ),
             if (it.apiStatus == 'INTERVENTION_EN_COURS')
               SizedBox(
                 width: double.infinity,
+                height: 48,
                 child: FilledButton.icon(
                   onPressed: () async {
                     await _terminerIntervention(it);
                     if (mounted) _navigateToWaitingPayment(it);
                   },
-                  icon: const Icon(Icons.check_circle_outline, size: 20),
-                  label: const Text('Déclarer travaux terminés'),
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+                  label: const Text(
+                    'Déclarer travaux terminés',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: BabifixDesign.success,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
               ),
           ],
           if (it.status == 'completed' && _canConfirmCash(it)) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.tonal(
+              height: 48,
+              child: OutlinedButton(
                 onPressed: () => _confirmCashPayment(it),
-                child: const Text('Confirmer r\u00e9ception des esp\u00e8ces'),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: BabifixDesign.success.withValues(alpha: 0.3)),
+                  foregroundColor: BabifixDesign.success,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text(
+                  'Confirmer réception des espèces',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
           ],
           if (it.status == 'completed') ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push<void>(
-                babifixRoute(
-                  (_) => RateClientScreen(
-                    reservationRef: it.reference,
-                    clientName: it.client,
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push<void>(
+                  babifixRoute(
+                    (_) => RateClientScreen(
+                      reservationRef: it.reference,
+                      clientName: it.client,
+                    ),
                   ),
                 ),
+                icon: const Icon(Icons.star_border_rounded, size: 18),
+                label: const Text(
+                  'Évaluer le client',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: BabifixDesign.warning.withValues(alpha: 0.3)),
+                  foregroundColor: BabifixDesign.warning,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
-              icon: const Icon(Icons.star_border_rounded, size: 18),
-              label: const Text('\u00c9valuer le client'),
             ),
           ],
         ],
@@ -1008,10 +1201,10 @@ class _SafeImage extends StatelessWidget {
     width: sz,
     height: sz,
     decoration: BoxDecoration(
-      color: const Color(0xFFF1F5F9),
+      color: const Color(0xFF152A45),
       borderRadius: BorderRadius.circular(8),
     ),
-    child: const Icon(Icons.photo_outlined, color: Color(0xFFCBD5E1), size: 28),
+    child: const Icon(Icons.photo_outlined, color: Color(0xFF64748B), size: 28),
   );
 
   @override
@@ -1047,11 +1240,14 @@ class _SafeImage extends StatelessWidget {
                 width: size,
                 height: size,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: const Color(0xFF152A45),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: BabifixDesign.cyan,
+                  ),
                 ),
               ),
         errorBuilder: (_, __, ___) => _placeholder(size),
@@ -1076,8 +1272,8 @@ class _SafeImage extends StatelessWidget {
   }
 }
 
-class _Tag extends StatelessWidget {
-  const _Tag({required this.text});
+class _TagPremium extends StatelessWidget {
+  const _TagPremium({required this.text});
   final String text;
 
   @override
@@ -1086,33 +1282,39 @@ class _Tag extends StatelessWidget {
     late Color bg;
     late Color fg;
     if (t.contains('attente')) {
-      bg = const Color(0xFFFEF3C7);
-      fg = const Color(0xFF92400E);
+      bg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
+      fg = const Color(0xFFF59E0B);
     } else if (t.contains('annul')) {
-      bg = const Color(0xFFFEE2E2);
-      fg = const Color(0xFF991B1B);
+      bg = BabifixDesign.error.withValues(alpha: 0.15);
+      fg = BabifixDesign.error;
     } else if (t.contains('termin')) {
-      bg = const Color(0xFFDCFCE7);
-      fg = const Color(0xFF166534);
+      bg = BabifixDesign.success.withValues(alpha: 0.15);
+      fg = BabifixDesign.success;
     } else if (t.contains('cours')) {
-      bg = const Color(0xFFE0E7FF);
-      fg = const Color(0xFF3730A3);
+      bg = const Color(0xFF818CF8).withValues(alpha: 0.15);
+      fg = const Color(0xFF818CF8);
     } else if (t.contains('confirm')) {
-      bg = const Color(0xFFDBEAFE);
-      fg = const Color(0xFF1D4ED8);
+      bg = const Color(0xFF60A5FA).withValues(alpha: 0.15);
+      fg = const Color(0xFF60A5FA);
+    } else if (t.contains('devis')) {
+      bg = BabifixDesign.cyan.withValues(alpha: 0.15);
+      fg = BabifixDesign.cyan;
+    } else if (t.contains('demande')) {
+      bg = const Color(0xFF94A3B8).withValues(alpha: 0.15);
+      fg = const Color(0xFF94A3B8);
     } else {
-      bg = const Color(0xFFF3F4F6);
-      fg = const Color(0xFF374151);
+      bg = const Color(0x1AFFFFFF);
+      fg = const Color(0xFF94A3B8);
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         text,
-        style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
+        style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1156,14 +1358,14 @@ class _ShimmerCardState extends State<_ShimmerCard>
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
               begin: Alignment(_anim.value - 1, 0),
               end: Alignment(_anim.value + 1, 0),
               colors: const [
-                Color(0xFFE2E8F0),
-                Color(0xFFF8FAFC),
-                Color(0xFFE2E8F0),
+                Color(0xFF152A45),
+                Color(0xFF1A3355),
+                Color(0xFF152A45),
               ],
             ),
           ),
@@ -1211,7 +1413,7 @@ class _Box extends StatelessWidget {
       width: w == double.infinity ? null : w,
       height: h,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.6),
+        color: const Color(0x1AFFFFFF),
         borderRadius: BorderRadius.circular(r),
       ),
     );
