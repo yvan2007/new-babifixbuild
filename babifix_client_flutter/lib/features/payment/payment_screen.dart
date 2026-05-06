@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
@@ -83,6 +86,7 @@ class _PaymentScreenState extends State<PaymentScreen>
   // ── données réservation ───────────────────────────────────────────────────
   Map<String, dynamic>? _reservation;
   String? _reservationRef;
+  String? _paymentRef;
   bool _fetching = true;
 
   // ── formulaire Mobile Money ───────────────────────────────────────────────
@@ -286,6 +290,8 @@ class _PaymentScreenState extends State<PaymentScreen>
         }),
       );
       if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        _paymentRef = data['payment_reference'] as String?;
         setState(() {
           _done = true;
           _loading = false;
@@ -339,6 +345,8 @@ class _PaymentScreenState extends State<PaymentScreen>
         }),
       );
       if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        _paymentRef = data['payment_reference'] as String?;
         if (mounted) setState(() { _polling = false; _done = true; });
       } else {
         if (mounted) {
@@ -373,6 +381,45 @@ class _PaymentScreenState extends State<PaymentScreen>
       _polling = false;
       _pollCount = 0;
     });
+  }
+
+  Future<void> _downloadReceipt() async {
+    if (_reservationRef == null || _reservationRef!.isEmpty) return;
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      if (token == null) return;
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/client/invoices/${Uri.encodeComponent(_reservationRef!)}/pdf/',
+      );
+      final headers = {'Authorization': 'Bearer $token'};
+      final res = await http.get(uri, headers: headers);
+      if (res.statusCode == 200) {
+        final tempDir = await getTemporaryDirectory();
+        final file = File(
+          '${tempDir.path}/recu_${_reservationRef}_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        );
+        await file.writeAsBytes(res.bodyBytes);
+        await Share.shareXFiles([XFile(file.path)]);
+      }
+    } catch (_) {}
+  }
+
+  Widget _receiptRow(String label, String value, Color text, Color sub) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 14, color: sub)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: text,
+          ),
+          textAlign: TextAlign.right,
+        ),
+      ],
+    );
   }
 
   // =========================================================================
@@ -1035,6 +1082,55 @@ class _PaymentScreenState extends State<PaymentScreen>
                 textAlign: TextAlign.center,
                 style: TextStyle(color: sub, height: 1.55, fontSize: 15),
               ),
+              const SizedBox(height: 20),
+              // Détails du paiement
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: cs.outlineVariant),
+                ),
+                child: Column(
+                  children: [
+                    _receiptRow('Montant', formatFcfa(_amount), text, sub),
+                    const SizedBox(height: 10),
+                    const Divider(height: 1),
+                    const SizedBox(height: 10),
+                    _receiptRow(
+                      'Méthode',
+                      _method == 'MOBILE_MONEY'
+                          ? _currentOp.label
+                          : 'Espèces',
+                      text,
+                      sub,
+                    ),
+                    if (_paymentRef != null && _paymentRef!.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      const Divider(height: 1),
+                      const SizedBox(height: 10),
+                      _receiptRow(
+                        'Référence',
+                        _paymentRef!,
+                        text,
+                        sub,
+                      ),
+                    ],
+                    if (_reservationRef != null && _reservationRef!.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      const Divider(height: 1),
+                      const SizedBox(height: 10),
+                      _receiptRow(
+                        'Réservation',
+                        _reservationRef!,
+                        text,
+                        sub,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -1068,7 +1164,27 @@ class _PaymentScreenState extends State<PaymentScreen>
                   ],
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 32),
+              // Bouton télécharger le reçu
+              if (_reservationRef != null && _reservationRef!.isNotEmpty)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _downloadReceipt(),
+                    icon: const Icon(Icons.receipt_long_rounded, size: 20),
+                    label: const Text('Télécharger le reçu'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cs.primary,
+                      side: BorderSide(color: cs.primary, width: 1.5),
+                      minimumSize: const Size(double.infinity, 54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              if (_reservationRef != null && _reservationRef!.isNotEmpty)
+                const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(

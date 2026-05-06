@@ -465,7 +465,7 @@ class _ReservationsHistoryScreenState extends State<ReservationsHistoryScreen>
   Future<void> _downloadInvoice(_Reservation r) async {
     final token = await _token();
     final uri = Uri.parse(
-      '$_base/api/bookings/${r.id}/invoice/',
+      '$_base/api/client/invoices/${r.reference}/pdf/',
     ).replace(queryParameters: token != null ? {'token': token} : null);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
