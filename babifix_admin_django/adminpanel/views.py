@@ -1629,19 +1629,35 @@ def api_client_home(request):
     client_name = (user.get_full_name() or user.username) if user else ""
     reservations = []
 
+    _STATUS_LABELS = {
+        "DEMANDE_ENVOYEE": "En attente de devis",
+        "DEVIS_EN_COURS": "Devis en préparation",
+        "DEVIS_ENVOYE": "Devis reçu",
+        "DEVIS_ACCEPTE": "Devis accepté",
+        "INTERVENTION_EN_COURS": "Intervention en cours",
+        "En attente client": "À confirmer",
+        "Confirmee": "Confirmée",
+        "En cours": "En cours",
+        "Terminee": "Terminée",
+        "Annulee": "Annulée",
+        "En attente": "En attente",
+    }
+
     def _push_reservation_row(item):
         has_rating = Rating.objects.filter(reservation=item).exists()
         can_rate = (
             item.statut == "Terminee" and item.client_user_id == uid and not has_rating
         )
+        status_label = _STATUS_LABELS.get(item.statut, item.statut)
         reservations.append(
             {
                 "id": int(item.id),
                 "reference": item.reference,
-                "title": item.reference,
-                "when_label": f"{item.statut} - {item.client}",
+                "title": item.title or item.reference,
+                "when_label": f"{status_label} · {item.client}",
                 "amount": item.montant,
                 "status": item.statut,
+                "status_label": status_label,
                 "payment_type": item.payment_type,
                 "mobile_money_operator": item.mobile_money_operator or "",
                 "cash_flow_status": item.cash_flow_status,
@@ -1655,10 +1671,11 @@ def api_client_home(request):
                 if item.client_confirme_prestation_at
                 else None,
                 "dispute_ouverte": bool(item.dispute_ouverte),
-                "can_confirm_service": item.statut == "En attente client"
-                and item.client_user_id == uid,
-                "can_pay": item.statut == "Terminee"
-                and bool(item.client_confirme_prestation_at)
+                "can_confirm_service": item.statut
+                in (Reservation.Status.WAITING_CLIENT, Reservation.Status.DONE)
+                and item.client_user_id == uid
+                and not item.client_confirme_prestation_at,
+                "can_pay": item.statut == Reservation.Status.DONE
                 and not Payment.objects.filter(
                     reservation=item, etat=Payment.State.COMPLETE
                 ).exists(),

@@ -122,6 +122,7 @@ class ClientReservation {
     this.latitude,
     this.longitude,
     this.addressLabel = '',
+    this.statusLabel = '',
   });
 
   final String title;
@@ -139,6 +140,7 @@ class ClientReservation {
   final bool canViewDevis;
   final bool canAcceptDevis;
   final bool disputeOuverte;
+  final String statusLabel;
 
   /// Lieu d'intervention si enregistré (carte dans l'avis).
   final double? latitude;

@@ -3280,9 +3280,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                 ),
                                 const Spacer(),
                                 StatusPill(
-                                  text: r.status == 'DEVIS_ENVOYE'
-                                      ? 'Devis re\u00e7u'
-                                      : r.status,
+                                  text: r.statusLabel.isNotEmpty
+                                      ? r.statusLabel
+                                      : (r.status == 'DEVIS_ENVOYE'
+                                          ? 'Devis reçu'
+                                          : r.status),
                                 ),
                               ],
                             ),
@@ -4336,6 +4338,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               canViewDevis: jsonBool(item['can_view_devis']),
               canAcceptDevis: jsonBool(item['can_accept_devis']),
               disputeOuverte: jsonBool(item['dispute_ouverte']),
+              statusLabel: '${item['status_label'] ?? ''}'.trim(),
               latitude: jsonDoubleNullable(item['latitude']),
               longitude: jsonDoubleNullable(item['longitude']),
               addressLabel: '${item['address_label'] ?? ''}'.trim(),
@@ -4829,9 +4832,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                   const Spacer(),
                   StatusPill(
-                    text: r.status == 'DEVIS_ENVOYE'
-                        ? 'Devis re\u00e7u'
-                        : r.status,
+                    text: r.statusLabel.isNotEmpty
+                        ? r.statusLabel
+                        : (r.status == 'DEVIS_ENVOYE'
+                            ? 'Devis reçu'
+                            : r.status),
                   ),
                 ],
               ),

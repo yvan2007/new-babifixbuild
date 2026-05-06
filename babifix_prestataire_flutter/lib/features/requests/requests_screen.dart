@@ -596,32 +596,21 @@ const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () =>
-                      _postReservationStatus(it, 'INTERVENTION_EN_COURS'),
+                  onPressed: () => _demarrerIntervention(it),
                   icon: const Icon(Icons.play_arrow, size: 20),
-                  label: const Text('D\u00e9marrer la prestation'),
+                  label: const Text('Démarrer la prestation'),
                 ),
               ),
-            if (it.apiStatus == 'Confirmee')
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _postReservationStatus(it, 'En cours'),
-                  icon: const Icon(Icons.play_arrow, size: 20),
-                  label: const Text('D\u00e9marrer la prestation'),
-                ),
-              ),
-            if (it.apiStatus == 'INTERVENTION_EN_COURS' ||
-                it.apiStatus == 'En cours')
+            if (it.apiStatus == 'INTERVENTION_EN_COURS')
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: () async {
-                    await _postReservationStatus(it, 'En attente client');
+                    await _terminerIntervention(it);
                     if (mounted) _navigateToWaitingPayment(it);
                   },
                   icon: const Icon(Icons.check_circle_outline, size: 20),
-                  label: const Text('D\u00e9clarer travaux termin\u00e9s'),
+                  label: const Text('Déclarer travaux terminés'),
                 ),
               ),
           ],
@@ -806,8 +795,74 @@ const SizedBox(height: 8),
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Impossible de mettre \u00e0 jour le statut'),
+            content: Text('Impossible de mettre à jour le statut'),
           ),
+        );
+      }
+    }
+  }
+
+  Future<void> _demarrerIntervention(_RequestItem item) async {
+    if (authToken == null) return;
+    try {
+      final res = await http.post(
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/demarrer',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: '{}',
+      );
+      if (res.statusCode == 200 && mounted) {
+        setState(() => _applyStatusFromApi(item, 'INTERVENTION_EN_COURS'));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Intervention démarrée')),
+        );
+        _loadRequests();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur ${res.statusCode}')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de démarrer l\'intervention')),
+        );
+      }
+    }
+  }
+
+  Future<void> _terminerIntervention(_RequestItem item) async {
+    if (authToken == null) return;
+    try {
+      final res = await http.post(
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/terminer',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: '{}',
+      );
+      if (res.statusCode == 200 && mounted) {
+        setState(() => _applyStatusFromApi(item, 'En attente client'));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Travaux déclarés terminés')),
+        );
+      } else if (mounted) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${body['error'] ?? 'Erreur ${res.statusCode}'}')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de terminer l\'intervention')),
         );
       }
     }
