@@ -351,6 +351,19 @@ section[id], header[id] { scroll-margin-top: 80px; }
   transform: translateY(-36px);
   transition: opacity .3s ease, transform .3s ease;
 }
+.hero-word-rotator .rw-comma {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: inherit;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--c-sky) 0%, var(--c-orange) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition: left .5s cubic-bezier(.34,1.56,.64,1), transform .5s cubic-bezier(.34,1.56,.64,1);
+  transform: translateX(0);
+}
 .hero-sub {
   font-size: 16px; color: var(--c-mid); line-height: 1.6;
   margin-bottom: 32px; max-width: 480px;
@@ -1242,7 +1255,6 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   .stats-grid, .feats-grid { grid-template-columns: 1fr; }
   .cats-grid { grid-template-columns: repeat(2,1fr); }
   .footer-top { grid-template-columns: 1fr; }
-  /* Trust strip : 2 colonnes sur mobile */
   .trust { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; max-width: 100%; }
   .trust-rating { grid-column: 1 / -1; border-right: none; border-bottom: 1px solid #e8f0f8; flex-direction: row; align-items: center; gap: 12px; padding: 14px 16px; }
   .trust-kpi { padding: 14px 12px; min-width: unset; }
@@ -1255,6 +1267,8 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   .wa-text-wrap { display: none; }
   .wa-icon-wrap { width: 46px; height: 46px; }
   .wa-icon { width: 26px; height: 26px; }
+  .hero-word-rotator { min-width: clamp(140px, 55vw, 260px); }
+  .hero-word-rotator .rw-comma { transition: left .45s cubic-bezier(.34,1.56,.64,1); }
 }
 @media (max-width:480px) {
   .cats-grid { grid-template-columns: repeat(3,1fr); gap: 10px; }
@@ -1342,7 +1356,8 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
               <span class="rw-word">de confiance</span>
               <span class="rw-word">disponibles</span>
               <span class="rw-word">près de vous</span>
-            </span>,<br>
+              <span class="rw-comma" id="heroComma">,</span>
+            </span><br>
             chez vous, en quelques clics
             {% endif %}
           </h1>
@@ -2173,22 +2188,43 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   drawerClose.addEventListener('click', closeDrawer);
   drawer.querySelectorAll('a').forEach(function(a) { a.addEventListener('click', closeDrawer); });
 
-  /* --- Hero word rotator --- */
+  /* --- Hero word rotator with sliding comma --- */
   (function() {
     var rotator = document.getElementById('heroRotator');
     if (!rotator) return;
     var words = rotator.querySelectorAll('.rw-word');
     if (words.length < 2) return;
+    var comma = document.getElementById('heroComma');
     var current = 0;
+
+    function slideCommaTo(wordEl) {
+      var clone = document.createElement('span');
+      clone.style.visibility = 'hidden';
+      clone.style.position = 'absolute'
+      clone.style.left = '0'
+      clone.style.top = '0'
+      clone.style.fontSize = getComputedStyle(wordEl).fontSize
+      clone.style.fontWeight = '900'
+      clone.style.whiteSpace = 'nowrap'
+      clone.textContent = wordEl.textContent
+      rotator.appendChild(clone)
+      var w = clone.getBoundingClientRect().width
+      rotator.removeChild(clone)
+      comma.style.left = w + 'px'
+    }
+
     function next() {
       var prev = current;
       current = (current + 1) % words.length;
       words[prev].classList.add('rw-exit');
       setTimeout(function() {
         words[prev].classList.remove('rw-active', 'rw-exit');
+        slideCommaTo(words[current]);
+        words[current].classList.add('rw-active');
       }, 350);
-      words[current].classList.add('rw-active');
     }
+
+    slideCommaTo(words[0]);
     setInterval(next, 2800);
   })();
 
