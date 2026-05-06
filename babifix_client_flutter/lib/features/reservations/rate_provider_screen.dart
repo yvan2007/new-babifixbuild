@@ -194,7 +194,7 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Mission #${widget.bookingId}',
+                  'Mission #${widget.reservationReference}',
                   style: TextStyle(fontSize: 12, color: cs.outline),
                 ),
               ],

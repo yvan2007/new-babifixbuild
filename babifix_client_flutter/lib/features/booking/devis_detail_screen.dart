@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../shared/services/websocket_push_service.dart';
 import '../../shared/services/confetti_toast_service.dart';
@@ -44,7 +45,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     if (token == null) {
       setState(() {
         _loading = false;
-        _error = 'Non connecté';
+        _error = 'Non connecte';
       });
       return;
     }
@@ -97,10 +98,10 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
       if (resp.statusCode == 200) {
         if (mounted) {
           HapticService.success();
-          ConfettiService.showSuccess(context, 'Devis accepté!');
+          ConfettiService.showSuccess(context, 'Devis accepte!');
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('Devis accepté!')));
+          ).showSnackBar(const SnackBar(content: Text('Devis accepte!')));
           _loadDevis();
         }
       } else {
@@ -128,22 +129,40 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Refuser le devis'),
+        backgroundColor: const Color(0xFF152A45),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Refuser le devis',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
         content: TextField(
           controller: motifController,
+          style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
             labelText: 'Motif du refus',
+            labelStyle: TextStyle(color: Color(0xFF94A3B8)),
             hintText: 'Pourquoi refusez-vous ce devis?',
+            hintStyle: TextStyle(color: Color(0xFF64748B)),
+            filled: true,
+            fillColor: Color(0xFF0F1D32),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide.none,
+            ),
           ),
           maxLines: 3,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annuler'),
+            child: const Text('Annuler', style: TextStyle(color: Color(0xFF94A3B8))),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, motifController.text),
+            style: FilledButton.styleFrom(
+              backgroundColor: BabifixDesign.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             child: const Text('Refuser'),
           ),
         ],
@@ -174,7 +193,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('Devis refusé')));
+          ).showSnackBar(const SnackBar(content: Text('Devis refuse')));
           _loadDevis();
         }
       }
@@ -218,7 +237,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final prestataire = (devis['prestataire'] as Map<String, dynamic>?) ?? {};
     final lignes = (devis['lignes'] as List?) ?? [];
     final diagnostic = devis['diagnostic'] as String? ?? '';
-    final dateProposee = devis['date_proposee'] as String? ?? 'Non précisée';
+    final dateProposee = devis['date_proposee'] as String? ?? 'Non precisee';
     final sousTotal = (devis['sous_total'] as num?) ?? 0;
     final commission = (devis['commission_montant'] as num?) ?? 0;
     final total = (devis['total_ttc'] as num?) ?? 0;
@@ -311,7 +330,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
                   child: pw.Text(
-                    'Qté',
+                    'Qte',
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                   ),
                 ),
@@ -387,7 +406,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           ),
         ),
         pw.SizedBox(height: 20),
-        pw.Text('Date proposée: $dateProposee'),
+        pw.Text('Date proposee: $dateProposee'),
         pw.SizedBox(height: 10),
         pw.Text(
           'Conditions: Devis valable 7 jours, Prix TTC, Commission incluse',
@@ -410,33 +429,88 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        backgroundColor: BabifixDesign.navy,
         appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: widget.onBack,
           ),
-          title: const Text('Devis'),
+          title: const Text(
+            'Devis',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+            ),
+          ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.picture_as_pdf),
+              icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
               tooltip: 'Exporter en PDF',
               onPressed: _devis != null ? _exportPdf : null,
             ),
           ],
           bottom: const TabBar(
+            dividerColor: Color(0x1AFFFFFF),
+            indicatorColor: BabifixDesign.cyan,
+            labelColor: BabifixDesign.cyan,
+            unselectedLabelColor: Color(0xFF94A3B8),
             tabs: [
-              Tab(text: 'Détails'),
+              Tab(text: 'Details'),
               Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Chat'),
             ],
           ),
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator(color: BabifixDesign.cyan))
             : _error != null
-            ? Center(child: Text(_error!))
+            ? _buildError()
             : _devis == null
-            ? const Center(child: Text('Aucun devis disponible'))
+            ? const Center(
+                child: Text(
+                  'Aucun devis disponible',
+                  style: TextStyle(color: Color(0xFF94A3B8)),
+                ),
+              )
             : TabBarView(children: [_buildDevisContent(), _buildChatSection()]),
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: BabifixDesign.error.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.error_outline, size: 48, color: BabifixDesign.error),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _error ?? 'Erreur inconnue',
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: _loadDevis,
+              style: FilledButton.styleFrom(
+                backgroundColor: BabifixDesign.cyan,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Reessayer'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -447,23 +521,22 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final statut = devis['statut'] as String? ?? '';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildStatutBanner(statut),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           _buildPrestataireInfo(devis),
           const SizedBox(height: 16),
           _buildDiagnostic(devis),
-          const SizedBox(height: 16),
           _buildDateInfo(devis),
           const SizedBox(height: 16),
           _buildLignes(lignes),
           const SizedBox(height: 16),
           _buildTotal(devis),
           if (statut == 'ENVOYE') ...[
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             _buildActionButtons(),
           ],
           const SizedBox(height: 40),
@@ -473,64 +546,87 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
   }
 
   Widget _buildStatutBanner(String statut) {
-    Color bgColor;
-    Color textColor;
+    late Color bgColor;
+    late Color fgColor;
+    late IconData icon;
     String label;
 
     switch (statut) {
       case 'ACCEPTE':
-        bgColor = Colors.green.withValues(alpha: 0.2);
-        textColor = Colors.green;
-        label = 'Devis accepté';
+        bgColor = BabifixDesign.success.withValues(alpha: 0.12);
+        fgColor = BabifixDesign.success;
+        icon = Icons.check_circle_rounded;
+        label = 'Devis accepte';
         break;
       case 'REFUSE':
-        bgColor = Colors.red.withValues(alpha: 0.2);
-        textColor = Colors.red;
-        label = 'Devis refusé';
+        bgColor = BabifixDesign.error.withValues(alpha: 0.12);
+        fgColor = BabifixDesign.error;
+        icon = Icons.cancel_rounded;
+        label = 'Devis refuse';
         break;
       case 'ENVOYE':
-        bgColor = Colors.blue.withValues(alpha: 0.2);
-        textColor = Colors.blue;
-        label = 'En attente de votre décision';
+        bgColor = BabifixDesign.cyan.withValues(alpha: 0.12);
+        fgColor = BabifixDesign.cyan;
+        icon = Icons.hourglass_empty_rounded;
+        label = 'En attente de votre decision';
         break;
       default:
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey;
+        bgColor = const Color(0x1AFFFFFF);
+        fgColor = const Color(0xFF94A3B8);
+        icon = Icons.info_outline;
         label = statut;
     }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: fgColor.withValues(alpha: 0.2)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
-        textAlign: TextAlign.center,
+      child: Row(
+        children: [
+          Icon(icon, color: fgColor, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: fgColor,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildPrestataireInfo(Map<String, dynamic> devis) {
     final prestataire = (devis['prestataire'] as Map<String, dynamic>?) ?? {};
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Prestataire',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+    return _SectionCard(
+      icon: Icons.person_outline_rounded,
+      title: 'Prestataire',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            prestataire['nom'] ?? 'Inconnu',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
             ),
-            const SizedBox(height: 8),
-            Text(prestataire['nom'] ?? 'Inconnu'),
-            Text(prestataire['specialite'] ?? ''),
-          ],
-        ),
+          ),
+          if (prestataire['specialite'] != null && prestataire['specialite'].toString().isNotEmpty)
+            Text(
+              prestataire['specialite'],
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+            ),
+        ],
       ),
     );
   }
@@ -539,19 +635,15 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final diagnostic = devis['diagnostic'] as String? ?? '';
     if (diagnostic.isEmpty) return const SizedBox.shrink();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Diagnostic',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(diagnostic),
-          ],
+    return _SectionCard(
+      icon: Icons.medical_services_outlined,
+      title: 'Diagnostic',
+      child: Text(
+        diagnostic,
+        style: const TextStyle(
+          color: Color(0xFFCBD5E1),
+          fontSize: 14,
+          height: 1.5,
         ),
       ),
     );
@@ -562,24 +654,26 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final heureDebut = devis['heure_debut'] as String?;
     final heureFin = devis['heure_fin'] as String?;
 
-    if (dateProposee == null && heureDebut == null)
-      return const SizedBox.shrink();
+    if (dateProposee == null && heureDebut == null) return const SizedBox.shrink();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Date proposée',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+    return _SectionCard(
+      icon: Icons.calendar_today_outlined,
+      title: 'Date proposee',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            dateProposee ?? 'Non definie',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+          ),
+          if (heureDebut != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'De $heureDebut a $heureFin',
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
             ),
-            const SizedBox(height: 8),
-            Text(dateProposee ?? 'Non définie'),
-            if (heureDebut != null) Text('De $heureDebut à $heureFin'),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -587,39 +681,57 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
   Widget _buildLignes(List<dynamic> lignes) {
     if (lignes.isEmpty) return const SizedBox.shrink();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Détails du devis',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            ...lignes.map(
-              (l) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+    return _SectionCard(
+      icon: Icons.format_list_bulleted,
+      title: 'Details du devis',
+      child: Column(
+        children: lignes
+            .map(
+              (l) => Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(0x1AFFFFFF),
+                      width: l == lignes.last ? 0 : 1,
+                    ),
+                  ),
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        '${l['description']} (x${l['quantite']})',
-                        style: const TextStyle(fontSize: 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${l['description']}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            'x${l['quantite']}',
+                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          ),
+                        ],
                       ),
                     ),
                     Text(
-                      '${l['total'].toStringAsFixed(0)} francs CFA',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      '${l['total'].toStringAsFixed(0)} FCFA',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: BabifixDesign.cyan,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
+            )
+            .toList(),
       ),
     );
   }
@@ -630,63 +742,74 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final total = (devis['total_ttc'] as num?) ?? 0;
     final commissionRate = (devis['commission_rate'] as num?) ?? 0;
 
-    return Card(
-      color: const Color(0xFF0A1628),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Sous-total',
-                  style: TextStyle(color: Colors.white70),
-                ),
-                Text(
-                  '${sousTotal.toStringAsFixed(0)} francs CFA',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Commission ($commissionRate%)',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                Text(
-                  '${commission.toStringAsFixed(0)} francs CFA',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ],
-            ),
-            const Divider(color: Colors.white30),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Total',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
-                Text(
-                  '${total.toStringAsFixed(0)} francs CFA',
-                  style: const TextStyle(
-                    color: Color(0xFF4CC9F0),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-              ],
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0A1628), Color(0xFF152A45)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x22FFFFFF)),
+        boxShadow: BabifixDesign.cyanGlowShadow(opacity: 0.08),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Sous-total',
+                style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+              ),
+              Text(
+                '${sousTotal.toStringAsFixed(0)} FCFA',
+                style: const TextStyle(fontSize: 14, color: Colors.white),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Commission ($commissionRate%)',
+                style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+              ),
+              Text(
+                '${commission.toStringAsFixed(0)} FCFA',
+                style: const TextStyle(fontSize: 14, color: Color(0xFFB4C2D9)),
+              ),
+            ],
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 14),
+            height: 1,
+            color: const Color(0x22FFFFFF),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total TTC',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                '${total.toStringAsFixed(0)} FCFA',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: BabifixDesign.cyan,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -698,18 +821,46 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           child: OutlinedButton(
             onPressed: _refusing ? null : _refuseDevis,
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red),
+              foregroundColor: BabifixDesign.error,
+              side: BorderSide(color: BabifixDesign.error.withValues(alpha: 0.3)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
-            child: Text(_refusing ? '...' : 'Refuser'),
+            child: _refusing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: BabifixDesign.error,
+                    ),
+                  )
+                : const Text('Refuser', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           flex: 2,
           child: FilledButton(
             onPressed: _accepting ? null : _acceptDevis,
-            child: Text(_accepting ? '...' : 'Accepter le devis'),
+            style: FilledButton.styleFrom(
+              backgroundColor: BabifixDesign.ciOrange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: _accepting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Accepter le devis',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  ),
           ),
         ),
       ],
@@ -807,11 +958,29 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
       children: [
         Expanded(
           child: _messages.isEmpty
-              ? const Center(
-                  child: Text(
-                    'Aucun message.\nCommencez la conversation !',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: BabifixDesign.cyan.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 40,
+                          color: BabifixDesign.cyan,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Aucun message.\nCommencez la conversation !',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+                      ),
+                    ],
                   ),
                 )
               : ListView.builder(
@@ -829,19 +998,23 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.75,
                         ),
                         decoration: BoxDecoration(
                           color: isMe
-                              ? Theme.of(context).primaryColor
-                              : Colors.grey.shade200,
+                              ? BabifixDesign.ciOrange
+                              : const Color(0xFF152A45),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
                           msg['message'] ?? '',
                           style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black,
+                            color: isMe ? Colors.white : const Color(0xFFCBD5E1),
+                            fontSize: 14,
                           ),
                         ),
                       ),
@@ -850,38 +1023,46 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                 ),
         ),
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 4,
-                offset: const Offset(0, -2),
-              ),
-            ],
+            color: const Color(0xFF152A45),
+            border: Border(
+              top: BorderSide(color: const Color(0x1AFFFFFF)),
+            ),
           ),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _chatController,
-                  decoration: const InputDecoration(
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
                     hintText: 'Envoyer un message...',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                    hintStyle: const TextStyle(color: Color(0xFF64748B)),
+                    filled: true,
+                    fillColor: const Color(0xFF0F1D32),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
                     ),
                   ),
                   onSubmitted: (_) => _sendMessage(),
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.send),
-                color: Theme.of(context).primaryColor,
-                onPressed: _sendMessage,
+              Container(
+                decoration: BoxDecoration(
+                  color: BabifixDesign.ciOrange,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                  onPressed: _sendMessage,
+                ),
               ),
             ],
           ),
@@ -896,5 +1077,58 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     _chatScrollController.dispose();
     _wsSubscription?.cancel();
     super.dispose();
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget child;
+
+  const _SectionCard({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF152A45),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x1AFFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.cyan.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: BabifixDesign.cyan),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
   }
 }
