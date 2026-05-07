@@ -320,8 +320,8 @@ CINETPAY_RETURN_URL = os.getenv("CINETPAY_RETURN_URL", "")
 # Live     : pk_live_RuhR13Fw4ETRmbjmONk2ZGBWeObzSet2
 # Base URL : https://pay.genius.ci/api/v1/merchant
 # =============================================================================
-GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  "REDACTED")
-GENIUSPAY_SECRET_KEY  = os.getenv("GENIUSPAY_SECRET_KEY",  "sk_sandbox_908436f4937be4839ffc824e05dbf4307770f3eb2aa3e459faafa96f166b717d")
+GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  "")
+GENIUSPAY_SECRET_KEY  = os.getenv("GENIUSPAY_SECRET_KEY",  "")
 GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", "")   # ex: https://api.babifix.ci/api/paiements/geniuspay/webhook/
 GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", "")   # ex: https://app.babifix.ci/payment-success
 GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   "")   # ex: https://app.babifix.ci/payment-error
