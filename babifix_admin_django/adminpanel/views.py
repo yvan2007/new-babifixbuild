@@ -3301,27 +3301,41 @@ def api_prestataire_earnings(request):
     period = request.GET.get("period", "month")
     prov = _prestataire_provider_for_user(request.api_user_id)
     name = prov.nom if prov else ""
-    payments = (
-        Payment.objects.filter(prestataire=name) if name else Payment.objects.none()
-    )
+    payments = Payment.objects.filter(
+        prestataire=name, etat=Payment.State.COMPLETE
+    ) if name else Payment.objects.none()
 
     total = 0.0
     for pay in payments:
-        raw = pay.montant.replace("€", "").replace("FCFA", "").strip()
+        raw = str(pay.montant or "0").replace("€", "").replace("FCFA", "").strip()
         try:
             total += float(raw)
         except ValueError:
             pass
 
+    from adminpanel.services.wallet_service import WalletService
+    wallet = WalletService.get_wallet_summary(prov.pk) if prov else {}
+    wallet_txs = wallet.get("transactions", [])
+    wallet_solde = wallet.get("solde_fcfa", 0)
+
     transactions = []
     for x in payments[:20]:
+        net_amount = 0.0
+        raw_montant = str(x.montant or "0").replace("€", "").replace("FCFA", "").strip()
+        try:
+            gross = float(raw_montant)
+            raw_commission = str(x.commission or "0").replace("€", "").replace("FCFA", "").strip()
+            commission = float(raw_commission)
+            net_amount = gross - commission
+        except ValueError:
+            net_amount = 0.0
         transactions.append(
             {
                 "client": x.client,
                 "service": "Prestation",
-                "gross": x.montant,
-                "commission": x.commission,
-                "net": x.montant,
+                "gross": raw_montant,
+                "commission": str(x.commission or "0"),
+                "net": str(int(net_amount)),
                 "status": x.etat,
             }
         )
@@ -3334,7 +3348,11 @@ def api_prestataire_earnings(request):
         "month": {"total": month_total, "count": pc},
     }
     data = summary.get(period, summary["month"])
-    return JsonResponse({"summary": data, "transactions": transactions})
+    return JsonResponse({
+        "summary": data,
+        "transactions": transactions,
+        "wallet_balance": wallet_solde,
+    })
 
 
 @require_GET

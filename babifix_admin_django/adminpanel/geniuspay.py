@@ -190,14 +190,29 @@ def geniuspay_initiate(request):
         logger.warning("GeniusPay : clés API non configurées — mode simulation")
         simulated_ref = "MTX-SIMUL-" + uuid.uuid4().hex[:8].upper()
         payment.reference_externe = simulated_ref
-        payment.save(update_fields=["reference_externe"])
+        payment.etat = Payment.State.COMPLETE
+        payment.valide_par_admin = True
+        from decimal import Decimal
+        from adminpanel.models import SystemSetting
+        setting = SystemSetting.objects.first()
+        commission_pct = setting.commission if setting else 18
+        commission_rate = Decimal(str(commission_pct)) / Decimal("100")
+        gross = Decimal(str(payment.montant or 0))
+        commission = (gross * commission_rate).quantize(Decimal("1"))
+        payment.commission = str(commission)
+        payment.save(update_fields=["reference_externe", "etat", "valide_par_admin", "commission"])
+        if payment.reservation:
+            payment.reservation.cash_flow_status = Reservation.CashFlowStatus.PENDING_ADMIN
+            payment.reservation.save(update_fields=["cash_flow_status"])
+        from adminpanel.services.wallet_service import WalletService
+        WalletService.credit_provider(payment)
         return JsonResponse({
             "transaction_id": simulated_ref,
             "payment_id":     payment.pk,
             "payment_url":    "",
             "checkout_url":   "",
-            "status":         "pending",
-            "message":        "Mode simulation (clés API manquantes).",
+            "status":         "completed",
+            "message":        "Paiement simulé avec succès (développement).",
         })
 
     # Construire le payload GeniusPay
@@ -271,6 +286,17 @@ def geniuspay_status(request, reference: str):
         Payment.State.COMPLETE: "completed",
         Payment.State.DISPUTE:  "failed",
     }
+
+    # Si déjà complété localement, retourner immédiatement
+    if payment.etat == Payment.State.COMPLETE:
+        return JsonResponse({
+            "reference":     reference,
+            "payment_id":    payment.pk,
+            "status":        "completed",
+            "remote_status": "completed",
+            "amount":        str(payment.montant),
+            "payment_ref":   payment.reference,
+        })
 
     # Interroger GeniusPay uniquement si paiement encore PENDING
     remote_status = None

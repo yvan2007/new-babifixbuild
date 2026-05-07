@@ -208,6 +208,11 @@ class _PaymentScreenState extends State<PaymentScreen>
         return;
       }
 
+      if (result.status == 'completed') {
+        await _registerPaymentAfterGeniusPay();
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
       if (result.transactionId.isNotEmpty) {
         setState(() {
           _loading = false;

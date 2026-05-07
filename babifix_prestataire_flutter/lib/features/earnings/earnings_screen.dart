@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
+import 'payment_history_screen.dart';
 
 Future<String?> _getToken() async {
   return readStoredApiToken();
@@ -222,6 +223,15 @@ class _EarningsScreenState extends State<EarningsScreen>
           style: TextStyle(fontWeight: FontWeight.w800, color: text),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Historique des paiements',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PaymentHistoryScreen(paletteMode: widget.paletteMode),
+              ),
+            ),
+            icon: Icon(Icons.history_rounded, color: text),
+          ),
           IconButton(
             tooltip: 'Exporter CSV',
             onPressed: _loading ? null : _exportCsv,

@@ -1092,6 +1092,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
                           'client': it.client,
                           'title': it.service,
                           'description_probleme': it.clientMessage,
+                          'address': it.address ?? '',
+                          'payment_type': it.paymentType ?? '',
+                          'mobile_money_operator': it.mobileMoneyOperator ?? '',
+                          'disponibilites': it.disponibilitesClient ?? '',
+                          'is_urgent': it.isUrgent,
+                          'prix_propose': it.prixPropose,
                         },
                         onBack: () => Navigator.pop(context),
                         onDevisCreated: () {

@@ -36,6 +36,7 @@ from .views_extra import (
     api_prestataire_ratings,
     api_prestataire_stats,
     api_prestataire_unavailability_crud,
+    api_prestataire_payments_history,
     api_prestataire_wallet,
     api_prestataire_wallet_withdraw,
     api_prestataire_wallet_update_info,
@@ -520,6 +521,7 @@ urlpatterns = [
         name="api-admin-financial-summary",
     ),
     # ── Wallet prestataire ─────────────────────────────────────────────────────
+    path("api/prestataire/payments/history/", api_prestataire_payments_history, name="api-prestataire-payments-history"),
     path("api/prestataire/wallet/", api_prestataire_wallet, name="api-prestataire-wallet"),
     path("api/prestataire/wallet/withdraw/", api_prestataire_wallet_withdraw, name="api-prestataire-wallet-withdraw"),
     path("api/prestataire/wallet/info/", api_prestataire_wallet_update_info, name="api-prestataire-wallet-info"),

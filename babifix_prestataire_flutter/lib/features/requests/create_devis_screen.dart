@@ -36,6 +36,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
 
   final List<_LigneDevis> _lignes = [];
   double _commissionRate = 0.18;
+  bool get _isUrgent => widget.reservationDetails['is_urgent'] == true;
 
   @override
   void initState() {
@@ -98,6 +99,12 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
       );
       return;
     }
+    if (!_isUrgent && _dateProposee == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez choisir une date pour l\'intervention')),
+      );
+      return;
+    }
 
     setState(() => _submitting = true);
 
@@ -119,10 +126,11 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
 
       final payload = {
         'diagnostic': _diagnosticCtrl.text.trim(),
-        if (_dateProposee != null)
+        'is_urgent': _isUrgent,
+        if (!_isUrgent && _dateProposee != null)
           'date_proposee': _dateProposee!.toIso8601String().split('T')[0],
-        if (_heureDebut != null) 'heure_debut': _heureDebut!.format(context),
-        if (_heureFin != null) 'heure_fin': _heureFin!.format(context),
+        if (!_isUrgent && _heureDebut != null) 'heure_debut': _heureDebut!.format(context),
+        if (!_isUrgent && _heureFin != null) 'heure_fin': _heureFin!.format(context),
         'validite_jours': _validiteJours,
         'note_prestataire': _noteCtrl.text.trim(),
         'lignes': _lignes
@@ -207,8 +215,8 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                 const SizedBox(height: 20),
                 _buildDiagnosticSection(),
                 const SizedBox(height: 20),
-                _buildDateTimeSection(),
-                const SizedBox(height: 20),
+                if (!_isUrgent) _buildDateTimeSection(),
+                if (!_isUrgent) const SizedBox(height: 20),
                 _buildLignesSection(),
                 const SizedBox(height: 20),
                 _buildValiditeSection(),
@@ -695,26 +703,58 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
             onChanged: (v) => ligne.description = v,
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _PremiumTextField(
-                  hint: 'Qte',
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => ligne.quantite = int.tryParse(v) ?? 1,
+          if (ligne.type == 'MAIN_OEUVRE')
+            Row(
+              children: [
+                Expanded(
+                  child: _PremiumTextField(
+                    hint: 'Nb heures',
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => ligne.quantite = int.tryParse(v) ?? 1,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _PremiumTextField(
-                  hint: 'Prix unitaire',
-                  keyboardType: TextInputType.number,
-                  suffix: 'FCFA',
-                  onChanged: (v) => ligne.prixUnitaire = double.tryParse(v) ?? 0,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PremiumTextField(
+                    hint: 'Taux horaire',
+                    keyboardType: TextInputType.number,
+                    suffix: 'FCFA',
+                    onChanged: (v) => ligne.prixUnitaire = double.tryParse(v) ?? 0,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else if (ligne.type == 'DEPLACEMENT')
+            _PremiumTextField(
+              hint: 'Frais de déplacement',
+              keyboardType: TextInputType.number,
+              suffix: 'FCFA',
+              onChanged: (v) {
+                ligne.quantite = 1;
+                ligne.prixUnitaire = double.tryParse(v) ?? 0;
+              },
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _PremiumTextField(
+                    hint: 'Qté',
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => ligne.quantite = int.tryParse(v) ?? 1,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PremiumTextField(
+                    hint: 'Prix unitaire',
+                    keyboardType: TextInputType.number,
+                    suffix: 'FCFA',
+                    onChanged: (v) => ligne.prixUnitaire = double.tryParse(v) ?? 0,
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,

@@ -1669,3 +1669,65 @@ def api_prestataire_ratings(request):
     return JsonResponse({"ratings": ratings})
 
 
+# =============================================================================
+# PRESTATAIRE — Historique des paiements
+# =============================================================================
+@csrf_exempt
+@require_api_auth(["prestataire", "admin"])
+@require_GET
+def api_prestataire_payments_history(request):
+    """
+    GET /api/prestataire/payments/history/
+    Retourne tous les paiements du prestataire avec détails (réservation, client, etc.).
+    """
+    user_id = request.api_user_id
+    provider = Provider.objects.filter(user_id=user_id).first()
+    if not provider:
+        return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
+
+    payments = Payment.objects.filter(prestataire=provider.nom).order_by("-created_at")[:100]
+    result = []
+    for pay in payments:
+        res = pay.reservation
+        client_name = ""
+        service_title = ""
+        reference = ""
+        if res:
+            reference = res.reference
+            service_title = getattr(res, "titre", None) or getattr(res, "title", "") or ""
+            if res.client_user:
+                client_name = res.client_user.get_full_name() or res.client_user.username
+            elif res.client:
+                client_name = res.client
+
+        raw_montant = str(pay.montant or "0").replace("€", "").replace("FCFA", "").strip()
+        try:
+            gross_val = float(raw_montant)
+        except ValueError:
+            gross_val = 0.0
+
+        raw_commission = str(pay.commission or "0").replace("€", "").replace("FCFA", "").strip()
+        try:
+            commission_val = float(raw_commission)
+        except ValueError:
+            commission_val = 0.0
+
+        net_val = gross_val - commission_val
+
+        result.append({
+            "id": pay.pk,
+            "reference": pay.reference,
+            "reservation_reference": reference,
+            "client_name": client_name,
+            "service_title": service_title,
+            "montant_brut": int(gross_val),
+            "commission": int(commission_val),
+            "net": int(net_val),
+            "etat": pay.etat,
+            "type_paiement": pay.type_paiement,
+            "date": pay.created_at.isoformat() if pay.created_at else None,
+        })
+
+    return JsonResponse({"payments": result})
+
+
