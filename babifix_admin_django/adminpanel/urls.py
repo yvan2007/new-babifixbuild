@@ -87,6 +87,7 @@ from .views import (
     api_client_prestataire_detail,
     api_client_rate_reservation,
     api_client_refuse_devis,
+    api_client_receipt_pdf,
     api_messages,
     api_messages_by_reservation,
     api_messages_send_by_reservation,
@@ -457,6 +458,11 @@ urlpatterns = [
         "api/client/reservations/<str:reference>/devis/refuse",
         api_client_refuse_devis,
         name="api-client-refuse-devis",
+    ),
+    path(
+        "api/client/reservations/<str:reference>/receipt/pdf/",
+        api_client_receipt_pdf,
+        name="api-client-receipt-pdf",
     ),
     # ── Demandes et intervention ───────────────────────────────────────────────
     # Prestataire

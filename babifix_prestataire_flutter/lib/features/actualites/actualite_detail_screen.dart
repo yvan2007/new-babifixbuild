@@ -45,7 +45,7 @@ class PrestataireActuDetailScreen extends StatelessWidget {
                       item.categorieTag.replaceAll('_', ' '),
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF0284C7),
+                        color: Color(0xFF4CC9F0),
                         fontSize: 13,
                       ),
                     ),

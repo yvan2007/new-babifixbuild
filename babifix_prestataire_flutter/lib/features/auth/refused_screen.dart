@@ -44,7 +44,6 @@ class _ProviderRefusedScreenState extends State<ProviderRefusedScreen>
 
   @override
   Widget build(BuildContext context) {
-    const brandNavy = Color(0xFF0B1B34);
     const refusedBg = Color(0xFFFFF8F6);
     final theme = Theme.of(context);
     final reasonText = widget.reason.isEmpty
@@ -119,7 +118,7 @@ class _ProviderRefusedScreenState extends State<ProviderRefusedScreen>
                         textAlign: TextAlign.center,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: brandNavy,
+                          color: BabifixDesign.navy,
                           letterSpacing: -0.5,
                           height: 1.25,
                         ),
@@ -244,7 +243,7 @@ class _ProviderRefusedScreenState extends State<ProviderRefusedScreen>
                               ),
                               child: const Icon(
                                 Icons.lightbulb_rounded,
-                                color: Color(0xFF0284C7),
+                                color: Color(0xFF4CC9F0),
                                 size: 20,
                               ),
                             ),
@@ -317,9 +316,9 @@ class _ProviderRefusedScreenState extends State<ProviderRefusedScreen>
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: brandNavy,
+                            foregroundColor: BabifixDesign.navy,
                             side: BorderSide(
-                              color: brandNavy.withValues(alpha: 0.35),
+                              color: BabifixDesign.navy.withValues(alpha: 0.35),
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(

@@ -209,7 +209,7 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
                                             a.categorieTag.replaceAll('_', ' '),
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w700,
-                                              color: Color(0xFF0284C7),
+                                              color: Color(0xFF4CC9F0),
                                               fontSize: 12,
                                             ),
                                           ),

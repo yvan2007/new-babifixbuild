@@ -203,7 +203,7 @@ class _PrestataireFloatingNavItem extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 4),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(99),
-                  color: isLight ? const Color(0xFF0284C7) : const Color(0xFFA6EBFF),
+                  color: isLight ? const Color(0xFF4CC9F0) : const Color(0xFFA6EBFF),
                 ),
               ),
               iconOverride != null

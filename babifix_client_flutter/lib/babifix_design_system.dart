@@ -7,17 +7,23 @@ abstract final class BabifixDesign {
 
   // ─── Couleurs principales ────────────────────────────────────────────────
   static const Color navy = Color(0xFF0B1B34);
-  static const Color darkNavy = Color(0xFF0A0F1A);
   static const Color cyan = Color(0xFF4CC9F0);
   static const Color ciOrange = Color(0xFFE87722);
-  static const Color ciGreen = Color(0xFF009A44);
-  static const Color ciBlue = Color(0xFF0066B3);
 
   // ─── Couleurs sémantiques ────────────────────────────────────────────────
   static const Color success = Color(0xFF22C55E);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
-  static const Color info = Color(0xFF3B82F6);
+
+  // ─── Alias CI (compatibilité temporaire) → pointent vers les couleurs unifiées
+  /// @deprecated Utiliser [cyan] à la place
+  static const Color ciBlue = cyan;
+  /// @deprecated Utiliser [success] à la place
+  static const Color ciGreen = success;
+  /// @deprecated Utiliser [navy] à la place
+  static const Color darkNavy = navy;
+  /// @deprecated Utiliser [cyan] à la place
+  static const Color info = cyan;
 
   // ─── Spacing constants ──────────────────────────────────────────────────
   /// 4dp — micro espacement (icônes, puces)
@@ -95,12 +101,12 @@ abstract final class BabifixDesign {
     colors: [Color(0xFFFFF1F0), Color(0xFFFFF7ED), Color(0xFFF8FAFC)],
   );
 
-  /// Dégradé accent cyan → bleu pour boutons et éléments actifs.
+  /// Dégradé accent cyan → navy pour boutons et éléments actifs.
   static const LinearGradient accentGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [cyan, Color(0xFF2563EB), navy],
-    stops: [0.0, 0.5, 1.0],
+    colors: [cyan, navy],
+    stops: [0.0, 1.0],
   );
 
   // ─── Ombres ─────────────────────────────────────────────────────────────

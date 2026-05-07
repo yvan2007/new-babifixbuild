@@ -27,12 +27,38 @@ class _RequestsScreenState extends State<RequestsScreen> {
   bool loading = false;
   String? authToken;
   late List<_RequestItem> items;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  String? _selectedBucket;
 
   @override
   void initState() {
     super.initState();
     items = <_RequestItem>[];
     _initSession();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<_RequestItem> get _filteredItems {
+    if (_searchQuery.isEmpty && _selectedBucket == null) return items;
+    return items.where((item) {
+      final matchesSearch = _searchQuery.isEmpty ||
+          item.client.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          item.service.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          item.reference.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          item.description.toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesBucket =
+          _selectedBucket == null ||
+          (_selectedBucket == 'devis'
+              ? (item.status == 'devis_pending' || item.status == 'devis_sent')
+              : item.status == _selectedBucket);
+      return matchesSearch && matchesBucket;
+    }).toList();
   }
 
   /// Align\u00e9 UML / API : nouveau flow devis
@@ -100,24 +126,28 @@ class _RequestsScreenState extends State<RequestsScreen> {
         count: pending.length,
         icon: Icons.notifications_active_rounded,
         color: pending.isNotEmpty ? const Color(0xFF38BDF8) : const Color(0xFF475569),
+        bucket: 'pending',
       ),
       _KanbanStep(
         label: 'Devis',
         count: devisPending.length + devisSent.length,
         icon: Icons.request_quote_rounded,
         color: (devisPending.isNotEmpty || devisSent.isNotEmpty) ? const Color(0xFF60A5FA) : const Color(0xFF475569),
+        bucket: 'devis',
       ),
       _KanbanStep(
         label: 'En cours',
         count: active.length,
         icon: Icons.build_rounded,
         color: active.isNotEmpty ? const Color(0xFFA78BFA) : const Color(0xFF475569),
+        bucket: 'active',
       ),
       _KanbanStep(
         label: 'Terminé',
         count: completed.length,
         icon: Icons.task_alt_rounded,
-        color: completed.isNotEmpty ? const Color(0xFF34D399) : const Color(0xFF475569),
+        color: completed.isNotEmpty ? const Color(0xFF22C55E) : const Color(0xFF475569),
+        bucket: 'completed',
       ),
     ];
 
@@ -177,46 +207,64 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 children: [
                   for (int i = 0; i < steps.length; i++) ...[
                     Expanded(
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: steps[i].color.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: steps[i].color.withValues(alpha: steps[i].count > 0 ? 0.5 : 0.15),
-                                width: steps[i].count > 0 ? 2 : 1,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedBucket = _selectedBucket == steps[i].bucket
+                                ? null
+                                : steps[i].bucket;
+                          });
+                        },
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: steps[i].color.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: steps[i].color.withValues(alpha: steps[i].count > 0 ? 0.5 : 0.15),
+                                  width: steps[i].count > 0 ? 2 : 1,
+                                ),
+                              ),
+                              child: Icon(
+                                steps[i].icon,
+                                size: 18,
+                                color: steps[i].color,
                               ),
                             ),
-                            child: Icon(
-                              steps[i].icon,
-                              size: 18,
-                              color: steps[i].color,
+                            const SizedBox(height: 6),
+                            Text(
+                              '${steps[i].count}',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: steps[i].color,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${steps[i].count}',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: steps[i].color,
+                            const SizedBox(height: 2),
+                            Text(
+                              steps[i].label,
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: steps[i].count > 0
+                                    ? Colors.white.withValues(alpha: 0.6)
+                                    : const Color(0xFF64748B),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            steps[i].label,
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                              color: steps[i].count > 0
-                                  ? Colors.white.withValues(alpha: 0.6)
-                                  : const Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
+                            if (_selectedBucket == steps[i].bucket)
+                              Container(
+                                height: 3,
+                                margin: const EdgeInsets.only(top: 4),
+                                decoration: BoxDecoration(
+                                  color: steps[i].color,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                     if (i < steps.length - 1)
@@ -241,29 +289,150 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ),
           ),
+          // Search bar
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _searchQuery = v),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Rechercher client, service, reference…',
+                  hintStyle: TextStyle(color: const Color(0xFF64748B).withValues(alpha: 0.8)),
+                  prefixIcon: const Icon(Icons.search_rounded, color: BabifixDesign.cyan, size: 20),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, color: Color(0xFF64748B), size: 18),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: const Color(0xFF151D2E),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: BabifixDesign.cyan.withValues(alpha: 0.25)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: BabifixDesign.cyan, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      // Nouvelles demandes (à accepter/refuser)
-                      if (pending.isNotEmpty) ...[
-                        _buildKanbanSectionHeader(
-                          title: 'Nouvelles demandes',
-                          subtitle: 'Glissez → accepter  •  ← refuser',
-                          count: pending.length,
-                          color: const Color(0xFF38BDF8),
-                          icon: Icons.notifications_active_rounded,
-                          accentGradient: const LinearGradient(
-                            colors: [Color(0xFF38BDF8), Color(0xFF0EA5E9)],
+                      if (_filteredItems.isEmpty && (items.isNotEmpty))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
+                          child: Center(
+                            child: Text(
+                              'Aucun résultat pour votre recherche.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: const Color(0xFF64748B),
+                              ),
+                            ),
                           ),
                         ),
-...pending.map((item) => _buildCardTappable(item)),
-...devisPending.map((item) => _buildCardTappable(item)),
-...devisSent.map((item) => _buildCardTappable(item)),
-...active.map((item) => _buildCardTappable(item)),
-...completed.map((item) => _buildCardTappable(item)),
-...refused.map((item) => _buildCardTappable(item)),
-                      ],
+                      if (_selectedBucket != null)
+                        // Flat list when a bucket is selected
+                        ..._filteredItems.map((item) => _buildCardTappable(item)),
+                      if (_selectedBucket == null && _searchQuery.isEmpty)
+                        // Full grouped view when no filter
+                        ...[
+                          if (pending.isNotEmpty) ...[
+                            _buildKanbanSectionHeader(
+                              title: 'Nouvelles demandes',
+                              subtitle: 'Glissez → accepter  •  ← refuser',
+                              count: pending.length,
+                              color: const Color(0xFF38BDF8),
+                              icon: Icons.notifications_active_rounded,
+                              accentGradient: const LinearGradient(
+                                colors: [Color(0xFF38BDF8), Color(0xFF0EA5E9)],
+                              ),
+                            ),
+                            ...pending.map((item) => _buildCardTappable(item)),
+                          ],
+                          if (devisPending.isNotEmpty || devisSent.isNotEmpty) ...[
+                            _buildKanbanSectionHeader(
+                              title: 'Devis',
+                              subtitle: devisPending.isNotEmpty && devisSent.isNotEmpty
+                                  ? '${devisPending.length} à faire  •  ${devisSent.length} envoyés'
+                                  : devisPending.isNotEmpty
+                                      ? 'Devis à rédiger'
+                                      : 'Devis envoyés en attente',
+                              count: devisPending.length + devisSent.length,
+                              color: const Color(0xFF60A5FA),
+                              icon: Icons.request_quote_rounded,
+                              accentGradient: const LinearGradient(
+                                colors: [Color(0xFF60A5FA), Color(0xFF3B82F6)],
+                              ),
+                            ),
+                            ...devisPending.map((item) => _buildCardTappable(item)),
+                            ...devisSent.map((item) => _buildCardTappable(item)),
+                          ],
+                          if (active.isNotEmpty) ...[
+                            _buildKanbanSectionHeader(
+                              title: 'En cours',
+                              subtitle: 'Interventions actives',
+                              count: active.length,
+                              color: const Color(0xFFA78BFA),
+                              icon: Icons.build_rounded,
+                              accentGradient: const LinearGradient(
+                                colors: [Color(0xFFA78BFA), Color(0xFF8B5CF6)],
+                              ),
+                            ),
+                            ...active.map((item) => _buildCardTappable(item)),
+                          ],
+                          if (completed.isNotEmpty) ...[
+                            _buildKanbanSectionHeader(
+                              title: 'Terminées',
+                              subtitle: 'Missions achevées',
+                              count: completed.length,
+                              color: const Color(0xFF22C55E),
+                              icon: Icons.task_alt_rounded,
+                              accentGradient: const LinearGradient(
+                                colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                              ),
+                            ),
+                            ...completed.map((item) => _buildCardTappable(item)),
+                          ],
+                          if (refused.isNotEmpty) ...[
+                            _buildKanbanSectionHeader(
+                              title: 'Refusées / Annulées',
+                              subtitle: 'Demandes non retenues',
+                              count: refused.length,
+                              color: const Color(0xFFEF4444),
+                              icon: Icons.cancel_rounded,
+                              accentGradient: const LinearGradient(
+                                colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                              ),
+                            ),
+                            ...refused.map((item) => _buildCardTappable(item)),
+                          ],
+                          if (_filteredItems.isEmpty && items.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 40),
+                              child: Center(
+                                child: Text(
+                                  'Aucun résultat pour votre recherche.',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       // Empty state quand tout est vide
                       if (items.isEmpty)
                         Padding(
@@ -724,9 +893,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                color: const Color(0xFF4CC9F0).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.2)),
+                border: Border.all(color: const Color(0xFF4CC9F0).withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -933,7 +1102,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     ),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
+                    backgroundColor: const Color(0xFF4CC9F0),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1604,7 +1773,8 @@ class _KanbanStep {
   final int count;
   final IconData icon;
   final Color color;
-  _KanbanStep({required this.label, required this.count, required this.icon, required this.color});
+  final String? bucket;
+  _KanbanStep({required this.label, required this.count, required this.icon, required this.color, this.bucket});
 }
 
 class _ShimmerCard extends StatefulWidget {

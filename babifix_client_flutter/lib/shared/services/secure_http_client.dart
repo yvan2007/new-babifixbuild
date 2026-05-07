@@ -1,7 +1,6 @@
 /// Certificate Pinning pour Flutter — Securite HTTPS
 /// Empeche les attaques MITM sur les paiements.
 import 'dart:io';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 

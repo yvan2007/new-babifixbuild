@@ -531,7 +531,7 @@ class _EarningsScreenState extends State<EarningsScreen>
                                 top: Radius.circular(6),
                               ),
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF4CC9F0), Color(0xFF2563EB)],
+                                colors: [Color(0xFF4CC9F0), Color(0xFF4CC9F0)],
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                               ),

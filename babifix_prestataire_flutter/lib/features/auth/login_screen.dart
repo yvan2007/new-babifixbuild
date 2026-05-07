@@ -32,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   static const _navyDeep = Color(0xFF060E1C);
   static const _cyan = Color(0xFF4CC9F0);
-  static const _blue = Color(0xFF2563EB);
+  static const _blue = Color(0xFF4CC9F0);
 
   @override
   void initState() {
@@ -112,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen>
     return Theme(
       data: ThemeData.dark().copyWith(
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF2563EB),
+          primary: Color(0xFF4CC9F0),
           secondary: Color(0xFF4CC9F0),
           surface: Color(0xFF0A1628),
         ),
@@ -344,7 +344,7 @@ class _LoginScreenState extends State<LoginScreen>
                                       gradient: const LinearGradient(
                                         colors: [
                                           Color(0xFF4CC9F0),
-                                          Color(0xFF0284C7),
+                                          Color(0xFF4CC9F0),
                                         ],
                                       ),
                                     ),

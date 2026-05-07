@@ -109,11 +109,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
     const palette = [
       Color(0xFF4CC9F0),
       Color(0xFFF97316),
-      Color(0xFF10B981),
+      Color(0xFF22C55E),
       Color(0xFF8B5CF6),
       Color(0xFFF59E0B),
       Color(0xFFEF4444),
-      Color(0xFF0284C7),
+      Color(0xFF4CC9F0),
       Color(0xFF7C3AED),
     ];
     final idx = name.isNotEmpty ? name.codeUnitAt(0) % palette.length : 0;

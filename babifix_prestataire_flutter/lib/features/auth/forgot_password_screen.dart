@@ -65,7 +65,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.mark_email_read_outlined, size: 64, color: Color(0xFF10B981)),
+        const Icon(Icons.mark_email_read_outlined, size: 64, color: Color(0xFF22C55E)),
         const SizedBox(height: 20),
         const Text(
           'Email envoyé !',

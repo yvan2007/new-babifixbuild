@@ -501,7 +501,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   shape: BoxShape.circle,
                                                   gradient: const LinearGradient(
                                                     begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                                    colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)],
+                                                    colors: [Color(0xFF4CC9F0), Color(0xFF4CC9F0)],
                                                   ),
                                                   boxShadow: [
                                                     BoxShadow(
@@ -546,10 +546,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   child: Container(
                                                     width: 18, height: 18,
                                                     decoration: BoxDecoration(
-                                                      color: const Color(0xFF10B981),
+                                                      color: const Color(0xFF22C55E),
                                                       shape: BoxShape.circle,
                                                       border: Border.all(color: const Color(0xFF0B1B34), width: 2.5),
-                                                      boxShadow: [BoxShadow(color: const Color(0xFF10B981).withValues(alpha: 0.6), blurRadius: 8)],
+                                                      boxShadow: [BoxShadow(color: const Color(0xFF22C55E).withValues(alpha: 0.6), blurRadius: 8)],
                                                     ),
                                                   ),
                                                 ),
@@ -602,7 +602,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               child: Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                                 decoration: BoxDecoration(
-                                                  gradient: const LinearGradient(colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)]),
+                                                  gradient: const LinearGradient(colors: [Color(0xFF4CC9F0), Color(0xFF4CC9F0)]),
                                                   borderRadius: BorderRadius.circular(20),
                                                   boxShadow: [BoxShadow(color: const Color(0xFF4CC9F0).withValues(alpha: 0.4), blurRadius: 10, offset: const Offset(0, 4))],
                                                 ),
@@ -619,18 +619,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                                           decoration: BoxDecoration(
                                             gradient: LinearGradient(colors: [
-                                              const Color(0xFF10B981).withValues(alpha: 0.2),
+                                              const Color(0xFF22C55E).withValues(alpha: 0.2),
                                               const Color(0xFF059669).withValues(alpha: 0.1),
                                             ]),
                                             borderRadius: BorderRadius.circular(20),
-                                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                                            border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.4)),
                                           ),
                                           child: const Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 16),
+                                              Icon(Icons.verified_rounded, color: Color(0xFF22C55E), size: 16),
                                               SizedBox(width: 6),
-                                              Text('Prestataire Vérifié BABIFIX', style: TextStyle(color: Color(0xFF34D399), fontSize: 12, fontWeight: FontWeight.w700)),
+                                              Text('Prestataire Vérifié BABIFIX', style: TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w700)),
                                             ],
                                           ),
                                         ),
@@ -654,7 +654,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           const SizedBox(width: 8),
                                           _StatChip(label: 'Avis', value: '$rc', icon: Icons.chat_bubble_rounded, color: const Color(0xFF4CC9F0), isLight: isLight),
                                           const SizedBox(width: 8),
-                                          _StatChip(label: 'Missions', value: '${jsonInt(_stats['reservations_total'])}', icon: Icons.task_alt_rounded, color: const Color(0xFF10B981), isLight: isLight),
+                                          _StatChip(label: 'Missions', value: '${jsonInt(_stats['reservations_total'])}', icon: Icons.task_alt_rounded, color: const Color(0xFF22C55E), isLight: isLight),
                                           const SizedBox(width: 8),
                                           _StatChip(label: 'Taux', value: '${jsonInt(_stats['taux_completion'])}%', icon: Icons.trending_up_rounded, color: const Color(0xFFF97316), isLight: isLight),
                                         ],
@@ -810,12 +810,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Row(children: [
                                   Icon(_prov['disponible'] == true ? Icons.circle : Icons.circle_outlined,
                                       size: 10,
-                                      color: _prov['disponible'] == true ? const Color(0xFF10B981) : Colors.grey),
+                                      color: _prov['disponible'] == true ? const Color(0xFF22C55E) : Colors.grey),
                                   const SizedBox(width: 6),
                                   Text(
                                     _prov['disponible'] == true ? 'Disponible' : 'Indisponible',
                                     style: TextStyle(
-                                        color: _prov['disponible'] == true ? const Color(0xFF10B981) : textSecondary,
+                                        color: _prov['disponible'] == true ? const Color(0xFF22C55E) : textSecondary,
                                         fontSize: 12, fontWeight: FontWeight.w600),
                                   ),
                                 ]),
@@ -973,7 +973,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Section : Support
                           const SizedBox(height: 20),
-                          _PrestSectionLabel(label: 'SUPPORT & AIDE', icon: Icons.support_agent_rounded, color: const Color(0xFF10B981), isLight: isLight),
+                          _PrestSectionLabel(label: 'SUPPORT & AIDE', icon: Icons.support_agent_rounded, color: const Color(0xFF22C55E), isLight: isLight),
                           const SizedBox(height: 8),
                           _PrestProfileActionTile(
                             icon: Icons.support_agent_rounded,
@@ -1155,7 +1155,7 @@ class _PrestProfileActionTile extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 20,
-              backgroundColor: (iconColor ?? (isLight ? const Color(0xFF0284C7) : const Color(0xFF7EC8E3))).withValues(alpha: 0.12),
+              backgroundColor: (iconColor ?? (isLight ? const Color(0xFF4CC9F0) : const Color(0xFF7EC8E3))).withValues(alpha: 0.12),
               child: Icon(icon, color: iconColor ?? (isLight ? const Color(0xFF0369A1) : const Color(0xFF9FE6FF))),
             ),
             const SizedBox(width: 10),
@@ -1257,7 +1257,7 @@ class _PrestHelpRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 22, color: const Color(0xFF0284C7)),
+          Icon(icon, size: 22, color: const Color(0xFF4CC9F0)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

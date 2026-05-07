@@ -97,7 +97,7 @@ class BabifixNotificationSoundService {
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
-        sound: 'notification_soft.caf',
+        sound: 'notification_soft.mp3',
       );
 
       const details = NotificationDetails(

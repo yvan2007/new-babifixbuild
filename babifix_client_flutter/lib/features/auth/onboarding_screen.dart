@@ -473,7 +473,7 @@ class _PremiumOnboardingCta extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 BabifixDesign.cyan,
-                const Color(0xFF2563EB),
+                const Color(0xFF4CC9F0),
                 BabifixDesign.navy,
               ],
               stops: const [0.0, 0.5, 1.0],

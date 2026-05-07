@@ -558,7 +558,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                   ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [BabifixDesign.cyan, Color(0xFF2563EB)],
+                      colors: [BabifixDesign.cyan, Color(0xFF4CC9F0)],
                     ),
                     borderRadius: BorderRadius.circular(10),
                   ),

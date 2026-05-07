@@ -27,9 +27,9 @@ import '../../shared/widgets/address_search_field.dart';
 const _kNavyDeep = Color(0xFF050D1A);
 const _kNavy = Color(0xFF0A1628);
 const _kCyan = Color(0xFF4CC9F0);
-const _kBlue = Color(0xFF2563EB);
+const _kBlue = Color(0xFF4CC9F0);
 const _kBlueDark = Color(0xFF1D4ED8);
-const _kGreen = Color(0xFF10B981);
+const _kGreen = Color(0xFF22C55E);
 const _kBlueDeep = Color(0xFF1E40AF);
 
 class RegistrationScreen extends StatefulWidget {
@@ -485,7 +485,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                   child: Container(
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [_kCyan, Color(0xFF0284C7)],
+                        colors: [_kCyan, Color(0xFF4CC9F0)],
                       ),
                       borderRadius: BorderRadius.all(Radius.circular(4)),
                     ),
@@ -514,7 +514,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                 decoration: BoxDecoration(
                   gradient: filled
                       ? const LinearGradient(
-                          colors: [_kCyan, Color(0xFF0284C7)],
+                          colors: [_kCyan, Color(0xFF4CC9F0)],
                         )
                       : null,
                   color: filled ? null : Colors.white.withValues(alpha: 0.1),
@@ -535,7 +535,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                   shape: BoxShape.circle,
                   gradient: active
                       ? const LinearGradient(
-                          colors: [_kCyan, Color(0xFF0284C7)],
+                          colors: [_kCyan, Color(0xFF4CC9F0)],
                         )
                       : null,
                   color: done
@@ -1188,7 +1188,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                     ? const LinearGradient(
                         colors: [Color(0xFF475569), Color(0xFF334155)],
                       )
-                    : const LinearGradient(colors: [_kCyan, Color(0xFF0284C7)]),
+                    : const LinearGradient(colors: [_kCyan, Color(0xFF4CC9F0)]),
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: _submitting
                     ? []
@@ -1775,7 +1775,7 @@ class _DarkGradientButton extends StatelessWidget {
       child: Container(
         height: 54,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [_kCyan, Color(0xFF0284C7)]),
+          gradient: const LinearGradient(colors: [_kCyan, Color(0xFF4CC9F0)]),
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(

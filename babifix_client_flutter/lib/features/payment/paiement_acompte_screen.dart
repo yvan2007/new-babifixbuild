@@ -200,7 +200,6 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
   Widget build(BuildContext context) {
     final text = Colors.white;
     final sub = Colors.white70;
-    final cs = Theme.of(context).colorScheme;
 
     if (_done) {
       return _buildSuccessScreen(text, sub);

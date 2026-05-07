@@ -8,7 +8,6 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../babifix_api_config.dart';
-import '../../babifix_design_system.dart';
 import '../../services/zego_call_service.dart';
 import '../../user_store.dart';
 import 'biometric_login_screen.dart';
@@ -46,7 +45,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   bool _showBiometricLogin = false;
   bool _isLoading = true;
 
-  static const _blue = Color(0xFF2563EB);
+  static const _blue = Color(0xFF4CC9F0);
   static const _blueDeep = Color(0xFF1D4ED8);
   static const _navy = Color(0xFF0B1B34);
   static const _cyan = Color(0xFF4CC9F0);
@@ -331,7 +330,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     return Theme(
       data: ThemeData.dark().copyWith(
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF2563EB),
+          primary: Color(0xFF4CC9F0),
           secondary: Color(0xFF4CC9F0),
           surface: Color(0xFF0A1628),
         ),
@@ -813,7 +812,7 @@ class _PremiumField extends StatelessWidget {
             fontSize: 14,
           ),
           floatingLabelStyle: const TextStyle(
-            color: Color(0xFF2563EB),
+            color: Color(0xFF4CC9F0),
             fontSize: 12,
           ),
           errorStyle: const TextStyle(
@@ -872,14 +871,14 @@ class _GradientButton extends StatelessWidget {
                   colors: [Color(0xFF374151), Color(0xFF1F2937)],
                 )
               : const LinearGradient(
-                  colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                  colors: [Color(0xFF4CC9F0), Color(0xFF1D4ED8)],
                 ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: loading
               ? []
               : [
                   BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.45),
+                    color: const Color(0xFF4CC9F0).withValues(alpha: 0.45),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),

@@ -169,7 +169,7 @@ class RequestDetailScreen extends StatelessWidget {
                     icon: Icons.chat_bubble_rounded,
                     title: 'Message du client',
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF60A5FA), Color(0xFF3B82F6)],
+                      colors: [Color(0xFF60A5FA), Color(0xFF4CC9F0)],
                     ),
                     children: [
                       Text(
@@ -192,7 +192,7 @@ class RequestDetailScreen extends StatelessWidget {
                     title: 'Photos du client',
                     subtitle: '${clientPhotos.length} photo(s)',
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF34D399), Color(0xFF10B981)],
+                      colors: [Color(0xFF22C55E), Color(0xFF22C55E)],
                     ),
                     children: [
                       GridView.builder(
@@ -354,7 +354,7 @@ class _StatusBadge extends StatelessWidget {
     if (s.contains('attente') || s.contains('demande')) return const Color(0xFFF59E0B);
     if (s.contains('devis')) return const Color(0xFF60A5FA);
     if (s.contains('cours')) return const Color(0xFFA78BFA);
-    if (s.contains('termin')) return const Color(0xFF34D399);
+    if (s.contains('termin')) return const Color(0xFF22C55E);
     if (s.contains('annul')) return const Color(0xFFF87171);
     if (s.contains('confirm')) return const Color(0xFF22C55E);
     return const Color(0xFF94A3B8);

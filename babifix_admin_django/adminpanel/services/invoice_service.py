@@ -1,236 +1,494 @@
 """
-PDF Invoice Service — Generation de factures PDF
-Apres paiement, le client peut telecharger sa facture.
+PDF Invoice/Receipt Service — Generation de factures et recus PDF
+Apres paiement, le client peut telecharger sa facture/recu complet.
 """
 import logging
 import io
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.db.models import Sum
 from django.utils import timezone
 
-from ..models import Payment, Reservation, Provider
+from ..models import Payment, Reservation, Provider, Devis, LigneDevis, SystemSetting
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
+class LineItemData:
+    """Une ligne de devis/facture."""
+    type_ligne: str  # FOURNITURE, MAIN_OEUVRE, DEPLACEMENT, AUTRE
+    description: str
+    quantite: int
+    prix_unitaire: float
+    total: float
+
+    @property
+    def type_label(self) -> str:
+        labels = {
+            "FOURNITURE": "Fourniture",
+            "MAIN_OEUVRE": "Main d'œuvre",
+            "DEPLACEMENT": "Déplacement",
+            "AUTRE": "Autre",
+        }
+        return labels.get(self.type_ligne, self.type_ligne)
+
+
+@dataclass
 class InvoiceData:
-    """Donnees pour la facture."""
+    """Donnees completes pour la facture/recu."""
     invoice_number: str
     date: str
     client_name: str
     client_email: str
     provider_name: str
-    provider_address: str
+    provider_specialite: str
+    provider_phone: str
     reservation_ref: str
+    reservation_title: str
     intervention_date: str
-    description: str
-    items: list  # [{"description", "qty", "unit_price", "total"}]
+    diagnostic: str
+    items: list  # List[LineItemData]
     subtotal: float
     commission_pct: float
     commission_amount: float
     total_paid: float
     payment_method: str
+    payment_reference: str
+    operator: str = ""
+    provider_net: float = 0  # Prestataire part (apres commission)
 
 
 class InvoiceService:
-    """Service de generation de factures PDF."""
-    
+    """Service de generation de factures et recus PDF."""
+
     INVOICE_PREFIX = "FAC"
-    
+    RECEIPT_PREFIX = "REC"
+
     @classmethod
     def generate_invoice_number(cls, payment: Payment) -> str:
         """Genere un numero de facture sequentiel."""
         year = payment.paid_at.strftime("%Y") if payment.paid_at else "0000"
-        # Sequence simple - en prod, utiliser une table de sequence
         seq = payment.id or 1
         return f"{cls.INVOICE_PREFIX}-{year}-{seq:05d}"
-    
+
+    @classmethod
+    def generate_receipt_number(cls, payment: Payment) -> str:
+        """Genere un numero de recu sequentiel."""
+        year = payment.paid_at.strftime("%Y") if payment.paid_at else "0000"
+        seq = payment.id or 1
+        return f"{cls.RECEIPT_PREFIX}-{year}-{seq:05d}"
+
+    @classmethod
+    def _get_commission_rate(cls, payment: Payment) -> tuple:
+        """Retourne (commission_pct, commission_amount)."""
+        if payment.commission and payment.montant:
+            montant = Decimal(str(payment.montant))
+            commission = Decimal(str(payment.commission))
+            if montant > 0:
+                pct = float(commission / montant * 100)
+                return pct, float(commission)
+
+        # Fallback: essayer via la reservation
+        if payment.reservation:
+            res = payment.reservation
+            if res.commission and res.montant:
+                montant = Decimal(str(res.montant))
+                commission = Decimal(str(res.commission))
+                if montant > 0:
+                    pct = float(commission / montant * 100)
+                    return pct, float(commission)
+
+            # Essayer via le devis
+            devis = Devis.objects.filter(
+                reservation=res, statut=Devis.Statut.ACCEPTE
+            ).first()
+            if devis:
+                return devis.commission_rate, float(devis.commission_montant)
+
+        # Fallback system setting
+        try:
+            setting = SystemSetting.objects.first()
+            pct = setting.commission if setting else 18
+        except Exception:
+            pct = 18
+
+        total = float(payment.montant or 0)
+        amount = total * (pct / 100)
+        return pct, amount
+
+    @classmethod
+    def _get_devis_items(cls, reservation: Reservation) -> list:
+        """Recupere les lignes du devis accepte pour cette reservation."""
+        devis = Devis.objects.filter(
+            reservation=reservation, statut=Devis.Statut.ACCEPTE
+        ).first()
+
+        if not devis:
+            # Fallback: essayer le dernier devis envoye
+            devis = Devis.objects.filter(
+                reservation=reservation
+            ).order_by("-created_at").first()
+
+        if not devis:
+            return []
+
+        items = []
+        for ligne in LigneDevis.objects.filter(devis=devis).select_related("devis"):
+            items.append(LineItemData(
+                type_ligne=ligne.type_ligne,
+                description=ligne.description,
+                quantite=ligne.quantite,
+                prix_unitaire=float(ligne.prix_unitaire),
+                total=float(ligne.total),
+            ))
+
+        return items
+
     @classmethod
     def get_invoice_data(cls, payment: Payment) -> Optional[InvoiceData]:
-        """Recupere les donnees pour la facture."""
+        """Recupere les donnees completes pour la facture/recu."""
         if not payment.reservation:
             return None
-        
+
         res = payment.reservation
-        client = res.client
-        provider = res.provider
-        
-        # Calculer les items
-        items = []
-        
-        # Frais de main d'oeuvre
-        items.append({
-            "description": f"Intervention - {res.title}",
-            "qty": 1,
-            "unit_price": float(res.prix_propose or 0),
-            "total": float(res.prix_propose or 0),
-        })
-        
-        # Calcul commission (utilise la commission du paiement si disponible)
-        base_amount = float(res.prix_propose or 0)
-        if payment.commission:
-            commission_amount = float(payment.commission)
-            commission_pct = (commission_amount / base_amount * 100) if base_amount > 0 else 0
-        else:
-            from adminpanel.models import SystemSetting
-            setting = SystemSetting.objects.first()
-            commission_pct = setting.commission if setting else 18
-            commission_amount = base_amount * (commission_pct / 100)
-        total_paid = float(payment.amount)
-        
+        client_user = res.client_user
+        provider = res.assigned_provider
+
+        # Client info
+        client_name = "Client"
+        client_email = ""
+        if client_user:
+            client_name = client_user.get_full_name() or client_user.username
+            client_email = client_user.email or ""
+
+        # Provider info
+        provider_name = provider.nom if provider else (res.prestataire or "BABIFIX")
+        provider_specialite = provider.specialite if provider else ""
+        provider_phone = ""
+        if provider and provider.user:
+            provider_phone = provider.user.username if provider.user.username != provider.user.email else ""
+
+        # Lignes du devis
+        items = cls._get_devis_items(res)
+
+        # Si pas de lignes devis, fallback sur le montant reservation
+        if not items:
+            items.append(LineItemData(
+                type_ligne="MAIN_OEUVRE",
+                description=f"Intervention - {res.title or res.description_probleme or 'Service'}",
+                quantite=1,
+                prix_unitaire=float(res.montant or 0),
+                total=float(res.montant or 0),
+            ))
+
+        # Commission
+        commission_pct, commission_amount = cls._get_commission_rate(payment)
+        subtotal = float(res.montant or 0)
+        total_paid = float(payment.montant or 0)
+        provider_net = total_paid - commission_amount
+
+        # Date d'intervention
+        intervention_date = ""
+        if res.prestation_terminee_at:
+            intervention_date = res.prestation_terminee_at.strftime("%d/%m/%Y")
+        elif res.updated_at:
+            intervention_date = res.updated_at.strftime("%d/%m/%Y")
+
+        # Diagnostic
+        diagnostic = ""
+        devis = Devis.objects.filter(
+            reservation=res, statut=Devis.Statut.ACCEPTE
+        ).first()
+        if devis:
+            diagnostic = devis.diagnostic or ""
+
+        # Payment method display
+        method_display = {
+            "ESPECES": "Espèces",
+            "MOBILE_MONEY": "Mobile Money",
+            "CARTE": "Carte bancaire",
+        }.get(payment.type_paiement or "", payment.type_paiement or "Espèces")
+
+        # Operator info
+        operator = ""
+        if payment.type_paiement == "MOBILE_MONEY" and res.mobile_money_operator:
+            operator_display = {
+                "ORANGE_MONEY": "Orange Money",
+                "MTN_MOMO": "MTN MoMo",
+                "WAVE": "Wave",
+                "MOOV": "Moov Money",
+            }
+            operator = operator_display.get(res.mobile_money_operator, res.mobile_money_operator)
+
         return InvoiceData(
             invoice_number=cls.generate_invoice_number(payment),
-            date=payment.paid_at.strftime("%d/%m/%Y") if payment.paid_at else "",
-            client_name=client.get_full_name() or client.username,
-            client_email=client.email or "",
-            provider_name=provider.nom if provider else "BABIFIX",
-            provider_address=provider.adresse if provider else "",
+            date=payment.paid_at.strftime("%d/%m/%Y %H:%M") if payment.paid_at else "",
+            client_name=client_name,
+            client_email=client_email,
+            provider_name=provider_name,
+            provider_specialite=provider_specialite,
+            provider_phone=provider_phone,
             reservation_ref=res.reference,
-            intervention_date=res.updated_at.strftime("%d/%m/%Y") if res.updated_at else "",
-            description=res.description or res.title,
+            reservation_title=res.title or "Intervention",
+            intervention_date=intervention_date,
+            diagnostic=diagnostic,
             items=items,
-            subtotal=base_amount,
+            subtotal=subtotal,
             commission_pct=commission_pct,
             commission_amount=commission_amount,
             total_paid=total_paid,
-            payment_method=payment.payment_method or "ESPECES",
+            payment_method=method_display,
+            payment_reference=payment.reference,
+            operator=operator,
+            provider_net=provider_net,
         )
-    
+
     @classmethod
-    def generate_pdf(cls, payment: Payment) -> Optional[bytes]:
-        """Genere un PDF de la facture.
-        
-        Utilise ReportLab ou WeasyPrint en production.
-        En dev, retourne un PDF minimal.
-        """
+    def generate_pdf(cls, payment: Payment, doc_type: str = "receipt") -> Optional[bytes]:
+        """Genere un PDF de la facture ou du recu."""
         data = cls.get_invoice_data(payment)
         if not data:
             return None
-        
-        # Import dynamique pour eviter dependance obligatoire
+
         try:
             from reportlab.lib.pagesizes import A4
             from reportlab.pdfgen import canvas
             from reportlab.lib.units import mm
-            
+            from reportlab.lib import colors
+
             buffer = io.BytesIO()
             c = canvas.Canvas(buffer, pagesize=A4)
             width, height = A4
-            
-            # En-tete
-            c.setFont("Helvetica-Bold", 18)
-            c.drawString(20*mm, height - 30*mm, "FACTURE")
-            
+
+            # ── Header avec gradient bleu ──
+            c.setFillColorRGB(0.04, 0.1, 0.2)  # Navy #0B1B34
+            c.rect(0, height - 55*mm, width, 55*mm, fill=1, stroke=0)
+
+            # Logo BABIFIX
+            c.setFillColorRGB(0.14, 0.55, 0.86)  # Cyan
+            c.setFont("Helvetica-Bold", 24)
+            c.drawString(20*mm, height - 25*mm, "BABIFIX")
+
+            # Titre document
+            if doc_type == "receipt":
+                doc_title = "RECU DE PAIEMENT"
+            else:
+                doc_title = "FACTURE"
+
+            c.setFillColorRGB(1, 1, 1)
+            c.setFont("Helvetica-Bold", 16)
+            c.drawRightString(width - 20*mm, height - 25*mm, doc_title)
+
             c.setFont("Helvetica", 10)
-            c.drawString(20*mm, height - 45*mm, f"Numero: {data.invoice_number}")
-            c.drawString(20*mm, height - 52*mm, f"Date: {data.date}")
-            
+            c.drawRightString(width - 20*mm, height - 35*mm, f"N° {data.invoice_number}")
+            c.drawRightString(width - 20*mm, height - 42*mm, f"Date: {data.date}")
+
+            # ── Infos Client & Prestataire ──
+            y = height - 70*mm
+
             # Client
-            c.drawString(120*mm, height - 30*mm, "Client:")
-            c.drawString(120*mm, height - 37*mm, data.client_name)
-            c.drawString(120*mm, height - 44*mm, data.client_email)
-            
+            c.setFillColorRGB(0.06, 0.12, 0.22)
+            c.roundRect(20*mm, y - 35*mm, 75*mm, 35*mm, 3*mm, fill=1, stroke=0)
+            c.setFillColorRGB(0.57, 0.64, 0.72)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(25*mm, y - 5*mm, "CLIENT")
+            c.setFillColorRGB(1, 1, 1)
+            c.setFont("Helvetica", 10)
+            c.drawString(25*mm, y - 15*mm, data.client_name)
+            if data.client_email:
+                c.setFont("Helvetica", 8)
+                c.drawString(25*mm, y - 23*mm, data.client_email)
+
             # Prestataire
-            c.drawString(20*mm, height - 65*mm, "Prestataire:")
-            c.drawString(20*mm, height - 72*mm, data.provider_name)
-            c.drawString(20*mm, height - 79*mm, data.provider_address)
-            
-            # Reference reservation
-            c.drawString(120*mm, height - 65*mm, "Reservation:")
-            c.drawString(120*mm, height - 72*mm, data.reservation_ref)
-            
-            # Tableau des produits
-            y = height - 110*mm
-            c.setFont("Helvetica-Bold", 10)
-            c.drawString(20*mm, y, "Description")
-            c.drawString(100*mm, y, "Qte")
-            c.drawString(120*mm, y, "Prix unit.")
-            c.drawString(155*mm, y, "Total")
-            
-            y -= 10*mm
+            c.setFillColorRGB(0.06, 0.12, 0.22)
+            c.roundRect(105*mm, y - 35*mm, 85*mm, 35*mm, 3*mm, fill=1, stroke=0)
+            c.setFillColorRGB(0.57, 0.64, 0.72)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(110*mm, y - 5*mm, "PRESTATAIRE")
+            c.setFillColorRGB(1, 1, 1)
+            c.setFont("Helvetica", 10)
+            c.drawString(110*mm, y - 15*mm, data.provider_name)
+            if data.provider_specialite:
+                c.setFont("Helvetica", 8)
+                c.drawString(110*mm, y - 23*mm, data.provider_specialite)
+
+            # ── Reference reservation ──
+            y -= 50*mm
+            c.setFillColorRGB(0.08, 0.16, 0.28)
+            c.roundRect(20*mm, y - 10*mm, width - 40*mm, 10*mm, 2*mm, fill=1, stroke=0)
+            c.setFillColorRGB(0.94, 0.94, 0.96)
             c.setFont("Helvetica", 9)
-            for item in data.items:
-                c.drawString(20*mm, y, item["description"][:40])
-                c.drawString(100*mm, y, str(item["qty"]))
-                c.drawString(120*mm, y, f"{item['unit_price']:.0f} CFA")
-                c.drawString(155*mm, y, f"{item['total']:.0f} CFA")
-                y -= 8*mm
-            
-            # Totaux
-            y -= 15*mm
-            c.drawString(120*mm, y, "Sous-total:")
-            c.drawString(155*mm, y, f"{data.subtotal:.0f} CFA")
-            
-            y -= 8*mm
-            c.drawString(120*mm, y, f"Commission ({data.commission_pct}%):")
-            c.drawString(155*mm, y, f"-{data.commission_amount:.0f} CFA")
-            
+            c.drawString(25*mm, y - 6*mm, f"Reservation: {data.reservation_ref}")
+            c.drawRightString(width - 25*mm, y - 6*mm, f"Intervention: {data.intervention_date}")
+
+            # ── Tableau des lignes ──
+            y -= 25*mm
+            table_y = y
+
+            # Header du tableau
+            c.setFillColorRGB(0.14, 0.55, 0.86)  # Cyan header
+            c.roundRect(20*mm, y - 8*mm, width - 40*mm, 8*mm, 2*mm, fill=1, stroke=0)
+            c.setFillColorRGB(1, 1, 1)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(25*mm, y - 5*mm, "DESIGNATION")
+            c.drawString(95*mm, y - 5*mm, "TYPE")
+            c.drawRightString(120*mm, y - 5*mm, "QTE")
+            c.drawRightString(145*mm, y - 5*mm, "PRIX UNIT.")
+            c.drawRightString(width - 25*mm, y - 5*mm, "TOTAL")
+
+            y -= 12*mm
+            c.setFont("Helvetica", 9)
+
+            for i, item in enumerate(data.items):
+                bg_color = 0.96 if i % 2 == 0 else 0.92
+                c.setFillColorRGB(bg_color, bg_color, bg_color + 0.02)
+                row_height = 10*mm
+                c.rect(20*mm, y - row_height, width - 40*mm, row_height, fill=1, stroke=0)
+
+                c.setFillColorRGB(0.1, 0.1, 0.15)
+                c.drawString(25*mm, y - 7*mm, item.description[:40])
+
+                c.setFillColorRGB(0.4, 0.4, 0.5)
+                c.drawString(95*mm, y - 7*mm, item.type_label[:12])
+
+                c.drawRightString(120*mm, y - 7*mm, str(item.quantite))
+                c.drawRightString(145*mm, y - 7*mm, f"{item.prix_unitaire:,.0f}")
+                c.drawRightString(width - 25*mm, y - 7*mm, f"{item.total:,.0f}")
+
+                y -= row_height
+
+            # ── Totaux ──
             y -= 10*mm
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(120*mm, y, "Total paye:")
-            c.drawString(155*mm, y, f"{data.total_paid:.0f} CFA")
-            
-            # Methode de paiement
-            y -= 15*mm
+            c.setFillColorRGB(0.06, 0.12, 0.22)
+            c.roundRect(110*mm, y - 30*mm, 80*mm, 30*mm, 3*mm, fill=1, stroke=0)
+
+            c.setFont("Helvetica", 9)
+            c.setFillColorRGB(0.6, 0.65, 0.75)
+            c.drawString(115*mm, y - 7*mm, "Sous-total:")
+            c.setFillColorRGB(1, 1, 1)
+            c.drawRightString(width - 25*mm, y - 7*mm, f"{data.subtotal:,.0f} FCFA")
+
+            c.setFillColorRGB(0.6, 0.65, 0.75)
+            c.drawString(115*mm, y - 15*mm, f"Commission BABIFIX ({data.commission_pct:.0f}%):")
+            c.setFillColorRGB(1, 1, 1)
+            c.drawRightString(width - 25*mm, y - 15*mm, f"{data.commission_amount:,.0f} FCFA")
+
+            # Total final avec accent cyan
+            y -= 2*mm
+            c.setFillColorRGB(0.14, 0.55, 0.86)
+            c.rect(110*mm, y - 10*mm, 80*mm, 0.5*mm, fill=1, stroke=0)
+
+            c.setFont("Helvetica-Bold", 11)
+            c.setFillColorRGB(0.14, 0.55, 0.86)
+            c.drawString(115*mm, y - 18*mm, "TOTAL PAYE:")
+            c.drawRightString(width - 25*mm, y - 18*mm, f"{data.total_paid:,.0f} FCFA")
+
+            # ── Part prestataire ──
+            y -= 20*mm
+            c.setFillColorRGB(0.1, 0.3, 0.15)
+            c.roundRect(20*mm, y - 10*mm, width - 40*mm, 10*mm, 2*mm, fill=1, stroke=0)
+            c.setFillColorRGB(0.5, 0.9, 0.6)
+            c.setFont("Helvetica", 9)
+            c.drawString(25*mm, y - 6*mm, f"Part prestataire: {data.provider_net:,.0f} FCFA")
+            c.drawRightString(width - 25*mm, y - 6*mm, f"Commission BABIFIX: {data.commission_amount:,.0f} FCFA")
+
+            # ── Details paiement ──
+            y -= 20*mm
+            c.setFillColorRGB(0.57, 0.64, 0.72)
             c.setFont("Helvetica", 8)
-            c.drawString(20*mm, y, f"Paiement: {data.payment_method}")
-            
-            # Pied de page
-            c.setFont("Helvetica", 8)
-            c.drawString(20*mm, 20*mm, "BABIFIX - contact@babifix.ci - www.babifix.ci")
-            
+            c.drawString(20*mm, y, f"Mode de paiement: {data.payment_method}")
+            if data.operator:
+                c.drawString(90*mm, y, f"Operateur: {data.operator}")
+            c.drawString(20*mm, y - 5*mm, f"Reference: {data.payment_reference}")
+
+            # ── Diagnostic (si present) ──
+            if data.diagnostic:
+                y -= 15*mm
+                c.setFillColorRGB(0.06, 0.12, 0.22)
+                c.roundRect(20*mm, y - 20*mm, width - 40*mm, 20*mm, 3*mm, fill=1, stroke=0)
+                c.setFillColorRGB(0.57, 0.64, 0.72)
+                c.setFont("Helvetica-Bold", 8)
+                c.drawString(25*mm, y - 5*mm, "DIAGNOSTIC")
+                c.setFillColorRGB(0.8, 0.85, 0.92)
+                c.setFont("Helvetica", 8)
+                diag_text = data.diagnostic[:200]
+                c.drawString(25*mm, y - 13*mm, diag_text)
+
+            # ── Pied de page ──
+            c.setFillColorRGB(0.04, 0.1, 0.2)
+            c.rect(0, 15*mm, width, 15*mm, fill=1, stroke=0)
+            c.setFillColorRGB(0.4, 0.45, 0.55)
+            c.setFont("Helvetica", 7)
+            c.drawString(20*mm, 20*mm, "BABIFIX - Plateforme de services a domicile")
+            c.drawRightString(width - 20*mm, 20*mm, "contact@babifix.ci - www.babifix.ci")
+            c.drawCentredString(width / 2, 17*mm, "Document genere automatiquement - Fait foi de recu de paiement")
+
             c.showPage()
             c.save()
-            
+
             buffer.seek(0)
             return buffer.getvalue()
-            
+
         except ImportError:
             logger.warning("reportlab non installe - generation PDF ignoree")
             return None
         except Exception as e:
             logger.exception(f"Erreur generation PDF: {e}")
             return None
-    
+
     @classmethod
     def get_client_invoices(cls, user: User) -> list:
-        """Lister les factures d'un client."""
+        """Lister les factures/recus d'un client."""
         payments = Payment.objects.filter(
-            reservation__client=user,
+            reservation__client_user=user,
             etat=Payment.State.COMPLETE,
-        ).order_by("-paid_at")
-        
-        return [
-            {
+        ).select_related("reservation").order_by("-paid_at")
+
+        results = []
+        for p in payments:
+            commission_pct, commission_amount = cls._get_commission_rate(p)
+            results.append({
                 "invoice_number": cls.generate_invoice_number(p),
                 "date": p.paid_at.strftime("%d/%m/%Y") if p.paid_at else "",
                 "reservation": p.reservation.reference if p.reservation else "",
-                "amount": float(p.amount),
-                "total": float(p.amount),
-            }
-            for p in payments
-        ]
-    
+                "reservation_title": (p.reservation.title if p.reservation else "") or "Intervention",
+                "amount": float(p.montant),
+                "commission_amount": commission_amount,
+                "commission_pct": commission_pct,
+                "total": float(p.montant),
+                "payment_method": p.get_type_paiement_display(),
+            })
+
+        return results
+
     @classmethod
     def get_provider_invoices(cls, provider: Provider) -> list:
-        """Lister les factures d'un prestataire."""
+        """Lister les factures/recus d'un prestataire."""
         payments = Payment.objects.filter(
-            provider=provider,
+            reservation__assigned_provider=provider,
             etat=Payment.State.COMPLETE,
-        ).order_by("-paid_at")
-        
-        return [
-            {
+        ).select_related("reservation").order_by("-paid_at")
+
+        results = []
+        for p in payments:
+            commission_pct, commission_amount = cls._get_commission_rate(p)
+            total = float(p.montant)
+            net = total - commission_amount
+
+            results.append({
                 "invoice_number": cls.generate_invoice_number(p),
                 "date": p.paid_at.strftime("%d/%m/%Y") if p.paid_at else "",
                 "reservation": p.reservation.reference if p.reservation else "",
-                "client": p.reservation.client.username if p.reservation else "",
-                "amount": float(p.amount),
-                "net": float(p.amount) * 0.82,  # Apres commission
-            }
-            for p in payments
-        ]
+                "client": p.reservation.client if p.reservation else "",
+                "amount": total,
+                "commission_amount": commission_amount,
+                "commission_pct": commission_pct,
+                "net": net,
+                "payment_method": p.get_type_paiement_display(),
+            })
+
+        return results

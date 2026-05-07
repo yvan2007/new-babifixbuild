@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
+import '../payment/payment_screen.dart';
 
 class ReservationAcceptedScreen extends StatefulWidget {
   final String reservationReference;
@@ -29,7 +30,7 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
   late Animation<double> _fadeAnimation;
 
   static const _navy = Color(0xFF0F172A);
-  static const _emerald = Color(0xFF10B981);
+  static const _emerald = Color(0xFF22C55E);
   static const _slate50 = Color(0xFFF8FAFC);
   static const _slate400 = Color(0xFF94A3B8);
 
@@ -161,8 +162,6 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
                 ),
               ) ??
               0;
-    final commission = (amount * 0.18).round();
-    final total = amount + commission;
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -239,17 +238,9 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
                     _reservation?['reference'] ?? widget.reservationReference,
                   ),
                   const Divider(height: 24),
-                  _summaryRow('Montant prestation', _formatFcfa(amount)),
-                  const Divider(height: 24),
                   _summaryRow(
-                    'Commission BABIFIX (18%)',
-                    '- ${_formatFcfa(commission)}',
-                    isNegative: true,
-                  ),
-                  const Divider(height: 24),
-                  _summaryRow(
-                    'Total à payer',
-                    _formatFcfa(total),
+                    'Total à payer (incl. commission BABIFIX)',
+                    _formatFcfa(amount),
                     isBold: true,
                   ),
                 ],
@@ -316,7 +307,6 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
     String label,
     String value, {
     bool isBold = false,
-    bool isNegative = false,
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -327,7 +317,7 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
           style: TextStyle(
             fontSize: 16,
             fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-            color: isNegative ? _emerald : _navy,
+            color: _navy,
           ),
         ),
       ],
@@ -346,31 +336,21 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
 
   void _proceedToPayment() {
     if (_reservation == null) return;
+    final montant = _reservation!['montant'] is int
+        ? _reservation!['montant'] as int
+        : int.tryParse(
+                '${_reservation!['montant'] ?? 0}'.replaceAll(RegExp(r'\D'), ''),
+              ) ??
+              0;
     Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => _PaymentScreenPlaceholder(
+        builder: (_) => PaymentScreen(
           reservationId: _reservation!['id'] ?? 0,
+          amount: montant,
           serviceTitle: _reservation!['title'] ?? 'Service BABIFIX',
+          providerName: _reservation!['prestataire'] ?? 'Prestataire',
         ),
       ),
-    );
-  }
-}
-
-class _PaymentScreenPlaceholder extends StatelessWidget {
-  final int reservationId;
-  final String serviceTitle;
-
-  const _PaymentScreenPlaceholder({
-    required this.reservationId,
-    required this.serviceTitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Paiement')),
-      body: Center(child: Text('Écran de paiement pour $serviceTitle')),
     );
   }
 }

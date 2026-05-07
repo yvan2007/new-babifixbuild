@@ -268,7 +268,7 @@ class _EditProfilePrestataireScreenState
             icon: Icons.photo_library_rounded,
             title: 'Galerie de realisations',
             subtitle: 'Photos de vos travaux',
-            color: const Color(0xFF10B981),
+            color: const Color(0xFF22C55E),
             child: _PortfolioEditorPremium(apiBase: _base, authToken: widget.authToken),
           ),
         ],
@@ -414,7 +414,7 @@ class _PremiumTextField extends StatelessWidget {
   final String label;
   final String hint;
   final int maxLines;
-  final int maxLength;
+  final int? maxLength;
 
   const _PremiumTextField({
     required this.controller, required this.label, required this.hint,

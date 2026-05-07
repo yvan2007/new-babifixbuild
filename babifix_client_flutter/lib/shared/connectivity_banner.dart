@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
-import '../babifix_design_system.dart';
-
 /// Bandeau rouge affiché en haut de page quand la connexion est perdue.
 class ConnectivityBanner extends StatefulWidget {
   const ConnectivityBanner({super.key, required this.child});

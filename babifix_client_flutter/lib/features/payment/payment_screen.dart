@@ -389,7 +389,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       final token = await BabifixUserStore.getApiToken();
       if (token == null) return;
       final uri = Uri.parse(
-        '${babifixApiBaseUrl()}/api/client/invoices/${Uri.encodeComponent(_reservationRef!)}/pdf/',
+        '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(_reservationRef!)}/receipt/pdf/',
       );
       final headers = {'Authorization': 'Bearer $token'};
       final res = await http.get(uri, headers: headers);

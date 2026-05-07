@@ -141,13 +141,13 @@ Color babifixNotifCategoryColor(String category) {
     case 'litige':
       return const Color(0xFFDC2626);
     case 'message':
-      return const Color(0xFF2563EB);
+      return const Color(0xFF4CC9F0);
     case 'compte':
       return const Color(0xFF059669);
     case 'actu':
-      return const Color(0xFF2563EB);
+      return const Color(0xFF4CC9F0);
     case 'paiement':
-      return const Color(0xFF009A44);
+      return const Color(0xFF22C55E);
     case 'prestataire':
       return const Color(0xFF1D4ED8);
     default:

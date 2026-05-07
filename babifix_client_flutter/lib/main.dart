@@ -1888,14 +1888,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
   // ── ACCUEIL : Comment ca marche (3 etapes) ───────────────────────────────
   Widget _buildHowItWorksSection() {
     const steps = [
-      (Icons.search_rounded, 'Recherchez', '0xFF0066B3'),
+      (Icons.search_rounded, 'Recherchez', '0xFF4CC9F0'),
       (Icons.calendar_today_rounded, 'Reservez', '0xFFE87722'),
-      (Icons.verified_rounded, 'Profitez', '0xFF009A44'),
+      (Icons.verified_rounded, 'Profitez', '0xFF22C55E'),
     ];
     const stepColors = [
-      Color(0xFF0066B3),
+      Color(0xFF4CC9F0),
       Color(0xFFE87722),
-      Color(0xFF009A44),
+      Color(0xFF22C55E),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -3244,7 +3244,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           title: 'En cours',
                           subtitle: 'Intervention programmee ou en cours',
                           count: active.length,
-                          color: const Color(0xFF3B82F6),
+                          color: const Color(0xFF4CC9F0),
                           icon: Icons.play_circle_rounded,
                         ),
                         ...active.map((r) => _buildReservationCard(r, isActive: true)),
@@ -3301,7 +3301,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         label: 'En cours',
         count: active,
         icon: Icons.build_rounded,
-        color: active > 0 ? const Color(0xFF3B82F6) : const Color(0xFF475569),
+        color: active > 0 ? const Color(0xFF4CC9F0) : const Color(0xFF475569),
         active: active > 0,
       ),
       _PipelineStep(
@@ -3509,7 +3509,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             color: isPending
                 ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
                 : isActive
-                    ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
+                    ? const Color(0xFF4CC9F0).withValues(alpha: 0.2)
                     : isCancelled
                         ? _isLight
                             ? const Color(0x0A0F172A)
@@ -3570,20 +3570,20 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                                  color: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.play_circle_rounded, size: 10, color: Color(0xFF3B82F6)),
+                                    Icon(Icons.play_circle_rounded, size: 10, color: Color(0xFF4CC9F0)),
                                     SizedBox(width: 3),
                                     Text(
                                       'ACTIF',
                                       style: TextStyle(
                                         fontSize: 9,
                                         fontWeight: FontWeight.w800,
-                                        color: Color(0xFF3B82F6),
+                                        color: Color(0xFF4CC9F0),
                                         letterSpacing: 0.5,
                                       ),
                                     ),
@@ -3729,7 +3729,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       _QuickActionChip(
                         icon: Icons.payment_rounded,
                         label: 'Payer',
-                        color: const Color(0xFF3B82F6),
+                        color: const Color(0xFF4CC9F0),
                         onTap: () {
                           if (r.id > 0) {
                             Navigator.of(context).push<void>(
@@ -3749,7 +3749,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       _QuickActionChip(
                         icon: Icons.money_rounded,
                         label: 'Espece',
-                        color: const Color(0xFF10B981),
+                        color: const Color(0xFF22C55E),
                         onTap: () => _declareCashPayment(r),
                       ),
                     if (r.canRate && !r.rated)
@@ -3855,7 +3855,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                         style: TextStyle(
                                           fontSize: 0.75 * 16,
                                           fontWeight: FontWeight.w700,
-                                          color: const Color(0xFF0284C7),
+                                          color: const Color(0xFF4CC9F0),
                                         ),
                                       ),
                                       const SizedBox(height: 6),
@@ -3985,7 +3985,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF4CC9F0), Color(0xFF0284C7)],
+                                colors: [Color(0xFF4CC9F0), Color(0xFF4CC9F0)],
                               ),
                               boxShadow: [
                                 BoxShadow(
@@ -4080,7 +4080,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                 gradient: const LinearGradient(
                                   colors: [
                                     Color(0xFF4CC9F0),
-                                    Color(0xFF0284C7),
+                                    Color(0xFF4CC9F0),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(20),
@@ -4124,7 +4124,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                   ? formatFcfa(totalEscrow)
                                   : '0 F',
                               icon: Icons.pending_actions_rounded,
-                              color: const Color(0xFF10B981),
+                              color: const Color(0xFF22C55E),
                               isLight: _isLight,
                             ),
                           ],
@@ -4266,7 +4266,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
                 // ── Section : Support & Aide ─────────────────────────
                 const SizedBox(height: 20),
-                _SectionLabel(label: 'SUPPORT & AIDE', icon: Icons.support_agent_rounded, color: const Color(0xFF10B981), isLight: _isLight),
+                _SectionLabel(label: 'SUPPORT & AIDE', icon: Icons.support_agent_rounded, color: const Color(0xFF22C55E), isLight: _isLight),
                 const SizedBox(height: 8),
                 _PremiumActionTile(
                   icon: Icons.support_agent_rounded,
@@ -5876,7 +5876,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(99),
                   color: _isLight
-                      ? const Color(0xFF0284C7)
+                      ? const Color(0xFF4CC9F0)
                       : const Color(0xFFA6EBFF),
                 ),
               ),
@@ -5931,8 +5931,8 @@ class _ReservationStatusPill extends StatelessWidget {
       bg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
       fg = const Color(0xFFF59E0B);
     } else if (status == 'Confirmee' || status == 'DEVIS_ACCEPTE') {
-      bg = const Color(0xFF3B82F6).withValues(alpha: 0.15);
-      fg = const Color(0xFF3B82F6);
+      bg = const Color(0xFF4CC9F0).withValues(alpha: 0.15);
+      fg = const Color(0xFF4CC9F0);
     } else if (status == 'INTERVENTION_EN_COURS') {
       bg = const Color(0xFF8B5CF6).withValues(alpha: 0.15);
       fg = const Color(0xFF8B5CF6);
@@ -6295,7 +6295,7 @@ class _HelpRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 22, color: const Color(0xFF0284C7)),
+          Icon(icon, size: 22, color: const Color(0xFF4CC9F0)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

@@ -143,12 +143,12 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+              color: const Color(0xFF4CC9F0).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.check_circle_outline,
-              color: Color(0xFF2563EB),
+              color: Color(0xFF4CC9F0),
               size: 48,
             ),
           ),
@@ -287,7 +287,7 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
             child: FilledButton(
               onPressed: _confirming ? null : _confirmTravaux,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: const Color(0xFF4CC9F0),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _confirming

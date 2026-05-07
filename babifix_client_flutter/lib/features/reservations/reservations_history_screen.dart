@@ -11,9 +11,9 @@ import '../../user_store.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 const _kNavy = Color(0xFF050D1A);
 const _kCard = Color(0xFF0D1B2E);
-const _kBlue = Color(0xFF2563EB);
+const _kBlue = Color(0xFF4CC9F0);
 const _kCyan = Color(0xFF4CC9F0);
-const _kGreen = Color(0xFF10B981);
+const _kGreen = Color(0xFF22C55E);
 const _kAmber = Color(0xFFF59E0B);
 const _kRed = Color(0xFFEF4444);
 const _kPurple = Color(0xFF8B5CF6);
@@ -608,7 +608,7 @@ class _PremiumFilterBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 gradient: active
-                    ? const LinearGradient(colors: [_kCyan, Color(0xFF0284C7)])
+                    ? const LinearGradient(colors: [_kCyan, Color(0xFF4CC9F0)])
                     : null,
                 color: active ? null : Colors.white.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(20),

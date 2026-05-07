@@ -54,4 +54,12 @@ node_modules/
 # Docs (optionnel)
 *.docx
 *.doc
-*.pdfbabifix-firebase-adminsdk.json
+*.pdf
+
+# Firebase
+babifix-firebase-adminsdk.json
+*firebase-adminsdk*.json
+
+# Temp / Claude
+.claude/
+_showReservationDetails_temp.txt

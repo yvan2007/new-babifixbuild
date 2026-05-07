@@ -157,7 +157,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           style: const TextStyle(fontSize: 12),
         ),
         duration: const Duration(seconds: 2),
-        backgroundColor: const Color(0xFF3B82F6),
+        backgroundColor: const Color(0xFF4CC9F0),
       ),
     );
 
@@ -292,7 +292,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   }
 
   static const _kNavy = Color(0xFF050D1A);
-  static const _kBlue = Color(0xFF2563EB);
+  static const _kBlue = Color(0xFF4CC9F0);
   static const _kCyan = Color(0xFF4CC9F0);
 
   @override
@@ -445,7 +445,7 @@ class _StepProbleme extends StatelessWidget {
   final double? providerRating;
 
   static const _kNavy = Color(0xFF050D1A);
-  static const _kBlue = Color(0xFF2563EB);
+  static const _kBlue = Color(0xFF4CC9F0);
   static const _kBlueDark = Color(0xFF1D4ED8);
   static const _kCyan = Color(0xFF4CC9F0);
 
@@ -739,7 +739,7 @@ class _PremiumPickerCard extends StatelessWidget {
   final bool isSet;
   final VoidCallback onTap;
 
-  static const _kBlue = Color(0xFF2563EB);
+  static const _kBlue = Color(0xFF4CC9F0);
   static const _kCyan = Color(0xFF4CC9F0);
 
   @override
@@ -864,7 +864,7 @@ class _StepAddressState extends State<_StepAddress> {
   bool _showDetails = false;
 
   static const _kNavy = Color(0xFF050D1A);
-  static const _kBlue = Color(0xFF2563EB);
+  static const _kBlue = Color(0xFF4CC9F0);
   static const _kBlueDark = Color(0xFF1D4ED8);
   static const _kCyan = Color(0xFF4CC9F0);
 
@@ -1300,7 +1300,7 @@ class _StepDisponibilite extends StatelessWidget {
   final Future<void> Function(DateTime)? onCheckAvailability;
 
   static const _kNavy = Color(0xFF050D1A);
-  static const _kBlue = Color(0xFF2563EB);
+  static const _kBlue = Color(0xFF4CC9F0);
   static const _kBlueDark = Color(0xFF1D4ED8);
   static const _kCyan = Color(0xFF4CC9F0);
   static const _kRed = Color(0xFFDC2626);
@@ -2173,7 +2173,7 @@ class _PaymentOption extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFF2563EB).withValues(alpha: 0.2)
+              ? const Color(0xFF4CC9F0).withValues(alpha: 0.2)
               : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(

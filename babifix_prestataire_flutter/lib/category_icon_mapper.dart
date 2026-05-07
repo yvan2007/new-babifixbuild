@@ -4,11 +4,11 @@ class CategoryIconMapper {
   CategoryIconMapper._();
 
   static const _defaultIcon = Icons.home_repair_service_rounded;
-  static const _defaultColor = Color(0xFF0284C7);
+  static const _defaultColor = Color(0xFF4CC9F0);
 
   static final Map<String, _CatMeta> _map = {
     // Admin constants.py - CATEGORY_ICON_SLUGS
-    'goutte': _CatMeta(Icons.water_drop_rounded, Color(0xFF3B82F6)),
+    'goutte': _CatMeta(Icons.water_drop_rounded, Color(0xFF4CC9F0)),
     'eclair': _CatMeta(Icons.bolt_rounded, Color(0xFFF59E0B)),
     'climatisation': _CatMeta(Icons.ac_unit_rounded, Color(0xFF0EA5E9)),
     'chauffage': _CatMeta(Icons.whatshot_rounded, Color(0xFFDC2626)),
@@ -43,7 +43,7 @@ class CategoryIconMapper {
     'telephone': _CatMeta(Icons.smartphone_rounded, Color(0xFF1D4ED8)),
     'vitrage': _CatMeta(Icons.window_rounded, Color(0xFF7C3AED)),
     'desinfection': _CatMeta(Icons.pest_control_rounded, Color(0xFF65A30D)),
-    'piscine': _CatMeta(Icons.pool_rounded, Color(0xFF0284C7)),
+    'piscine': _CatMeta(Icons.pool_rounded, Color(0xFF4CC9F0)),
     'arrosage': _CatMeta(Icons.water_rounded, Color(0xFF0369A1)),
     'maison': _CatMeta(Icons.home_rounded, Color(0xFF78716C)),
     'inspection': _CatMeta(Icons.search_rounded, Color(0xFF64748B)),
@@ -62,14 +62,14 @@ class CategoryIconMapper {
     'metallier': _CatMeta(Icons.fence_rounded, Color(0xFF475569)),
     'stores-volets': _CatMeta(Icons.blinds_rounded, Color(0xFF64748B)),
     'placo': _CatMeta(Icons.wallpaper_rounded, Color(0xFF78716C)),
-    'etancheite': _CatMeta(Icons.water_drop_rounded, Color(0xFF0284C7)),
+    'etancheite': _CatMeta(Icons.water_drop_rounded, Color(0xFF4CC9F0)),
     'cloture': _CatMeta(Icons.fence_rounded, Color(0xFF475569)),
     'forage': _CatMeta(Icons.water_drop_rounded, Color(0xFF0369A1)),
     'demoussage': _CatMeta(Icons.cleaning_services_rounded, Color(0xFF16A34A)),
     'taille-haies': _CatMeta(Icons.content_cut_rounded, Color(0xFF22C55E)),
     'engazonnement': _CatMeta(Icons.grass_rounded, Color(0xFF22C55E)),
     'potager': _CatMeta(Icons.eco_rounded, Color(0xFF16A34A)),
-    'bassin': _CatMeta(Icons.water_rounded, Color(0xFF0284C7)),
+    'bassin': _CatMeta(Icons.water_rounded, Color(0xFF4CC9F0)),
     'repassage': _CatMeta(Icons.iron_rounded, Color(0xFFDB2777)),
     'courses': _CatMeta(Icons.shopping_cart_rounded, Color(0xFFF59E0B)),
     'conciergerie': _CatMeta(Icons.key_rounded, Color(0xFF64748B)),
@@ -96,7 +96,7 @@ class CategoryIconMapper {
     'soudure': _CatMeta(Icons.construction_rounded, Color(0xFF78716C)),
 
     // Additional slugs from fixtures/admin
-    'plomberie': _CatMeta(Icons.water_drop_rounded, Color(0xFF3B82F6)),
+    'plomberie': _CatMeta(Icons.water_drop_rounded, Color(0xFF4CC9F0)),
     'electricite': _CatMeta(Icons.bolt_rounded, Color(0xFFF59E0B)),
     'informatique': _CatMeta(Icons.computer_rounded, Color(0xFF1D4ED8)),
     'wifi': _CatMeta(Icons.wifi_rounded, Color(0xFF0891B2)),
@@ -136,7 +136,6 @@ class CategoryIconMapper {
     'elagation': _CatMeta(Icons.forest_rounded, Color(0xFF92400E)),
     'elamage': _CatMeta(Icons.forest_rounded, Color(0xFF92400E)),
     'tonte-pelouse': _CatMeta(Icons.grass_rounded, Color(0xFF16A34A)),
-    'engazonnement': _CatMeta(Icons.grass_rounded, Color(0xFF22C55E)),
   };
 
   static IconData icon(String slug) => _map[slug]?.icon ?? _defaultIcon;

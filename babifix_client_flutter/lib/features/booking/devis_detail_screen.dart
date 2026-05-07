@@ -11,6 +11,7 @@ import '../../user_store.dart';
 import '../../shared/services/websocket_push_service.dart';
 import '../../shared/services/confetti_toast_service.dart';
 import '../../shared/services/haptic_service.dart';
+import '../payment/payment_screen.dart';
 
 class DevisDetailScreen extends StatefulWidget {
   final String reservationReference;
@@ -96,13 +97,35 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
       );
 
       if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        final montant = (data['montant'] as num?)?.toInt() ?? 0;
+
         if (mounted) {
           HapticService.success();
           ConfettiService.showSuccess(context, 'Devis accepte!');
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('Devis accepte!')));
-          _loadDevis();
+          ).showSnackBar(const SnackBar(content: Text('Devis accepte! Redirection vers le paiement...')));
+
+          await Future.delayed(const Duration(milliseconds: 800));
+
+          if (mounted) {
+            final reservationId = (data['reservation_id'] as num?)?.toInt();
+            if (reservationId != null && reservationId > 0) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute<void>(
+                  builder: (_) => PaymentScreen(
+                    reservationId: reservationId,
+                    amount: montant,
+                    serviceTitle: 'Devis ${widget.reservationReference}',
+                    providerName: _devis?['prestataire']?['nom'] ?? 'Prestataire',
+                  ),
+                ),
+              );
+            } else {
+              _loadDevis();
+            }
+          }
         }
       } else {
         if (mounted) {
@@ -681,57 +704,103 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
   Widget _buildLignes(List<dynamic> lignes) {
     if (lignes.isEmpty) return const SizedBox.shrink();
 
+    final typeColors = {
+      'FOURNITURE': BabifixDesign.cyan,
+      'MAIN_OEUVRE': BabifixDesign.ciOrange,
+      'DEPLACEMENT': const Color(0xFF8B5CF6),
+      'AUTRE': const Color(0xFF64748B),
+    };
+
+    final typeLabels = {
+      'FOURNITURE': 'Fourniture',
+      'MAIN_OEUVRE': "Main d'oeuvre",
+      'DEPLACEMENT': 'Deplacement',
+      'AUTRE': 'Autre',
+    };
+
     return _SectionCard(
       icon: Icons.format_list_bulleted,
       title: 'Details du devis',
       child: Column(
-        children: lignes
-            .map(
-              (l) => Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: const Color(0x1AFFFFFF),
-                      width: l == lignes.last ? 0 : 1,
+        children: [
+          ...lignes.asMap().entries.map((entry) {
+            final i = entry.key;
+            final l = entry.value;
+            final lineColor = typeColors[l['type_ligne']] ?? typeColors['AUTRE']!;
+            final lineLabel = typeLabels[l['type_ligne']] ?? l['type_ligne'];
+
+            return Container(
+              margin: EdgeInsets.only(bottom: i < lignes.length - 1 ? 16 : 0),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F1D32),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: lineColor.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: lineColor,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${l['description']}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${l['description']}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: lineColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                lineLabel,
+                                style: TextStyle(
+                                  color: lineColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
-                          ),
-                          Text(
-                            'x${l['quantite']}',
-                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'x${l['quantite']} a ${_formatMontant(l['prix_unitaire'])}',
+                              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    Text(
-                      '${l['total'].toStringAsFixed(0)} FCFA',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: BabifixDesign.cyan,
-                        fontSize: 14,
-                      ),
+                  ),
+                  Text(
+                    '${_formatMontant(l['total'])}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: lineColor,
+                      fontSize: 15,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            )
-            .toList(),
+            );
+          }).toList(),
+        ],
       ),
     );
   }

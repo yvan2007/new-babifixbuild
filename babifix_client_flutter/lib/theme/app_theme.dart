@@ -6,14 +6,11 @@ enum AppPaletteMode { blue, light }
 abstract final class BabifixTheme {
   BabifixTheme._();
 
-  static const Color brandNavy = Color(0xFF0B1B34);
-  static const Color brandCyan = Color(0xFF4CC9F0);
-
   static ThemeData forMode(AppPaletteMode mode) {
     final base = ThemeData(useMaterial3: true);
     final isLight = mode == AppPaletteMode.light;
-    final bg = isLight ? const Color(0xFFF6F8FC) : brandNavy;
-    final seed = isLight ? BabifixDesign.ciBlue : brandCyan;
+    final bg = isLight ? const Color(0xFFF6F8FC) : BabifixDesign.navy;
+    final seed = BabifixDesign.cyan;
     final onBg = isLight ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final muted = isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
     final surface = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF151D2E);
@@ -23,7 +20,7 @@ abstract final class BabifixTheme {
     ).copyWith(
       surface: surface,
       secondary: BabifixDesign.ciOrange,
-      tertiary: BabifixDesign.ciGreen,
+      tertiary: BabifixDesign.success,
     );
     return base.copyWith(
       scaffoldBackgroundColor: bg,
@@ -45,38 +42,38 @@ abstract final class BabifixTheme {
         fillColor: isLight ? const Color(0xFFF1F5F9) : const Color(0xFF1A2438),
         labelStyle: TextStyle(color: muted),
         hintStyle: TextStyle(color: muted.withValues(alpha: 0.85)),
-        prefixIconColor: brandCyan,
+        prefixIconColor: BabifixDesign.cyan,
         suffixIconColor: muted,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: brandCyan.withValues(alpha: isLight ? 0.35 : 0.5),
+            color: BabifixDesign.cyan.withValues(alpha: isLight ? 0.35 : 0.5),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: brandCyan, width: 2),
+          borderSide: const BorderSide(color: BabifixDesign.cyan, width: 2),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: onBg,
-          side: BorderSide(color: brandCyan.withValues(alpha: 0.65)),
+          side: BorderSide(color: BabifixDesign.cyan.withValues(alpha: 0.65)),
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: brandCyan,
-          foregroundColor: brandNavy,
+          backgroundColor: BabifixDesign.cyan,
+          foregroundColor: BabifixDesign.navy,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: brandCyan),
+        style: TextButton.styleFrom(foregroundColor: BabifixDesign.cyan),
       ),
       cardTheme: CardThemeData(
         color: surface,
@@ -105,7 +102,7 @@ abstract final class BabifixTheme {
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: brandCyan,
+        selectedItemColor: BabifixDesign.cyan,
         unselectedItemColor: muted,
       ),
     );

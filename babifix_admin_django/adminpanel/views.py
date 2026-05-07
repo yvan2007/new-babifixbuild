@@ -965,9 +965,10 @@ def _sync_missing_clients():
         Client.objects.bulk_create(to_create, ignore_conflicts=True)
 
 
-def _filter_lists_for_section(section, search_q):
+def _filter_lists_for_section(section, search_q, statut=None, date_start=None, date_end=None):
     """
-    Filtre les listes selon la section courante et le paramètre GET q=.
+    Filtre les listes selon la section et les paramètres GET.
+    Supporte recherche full-text, filtre par statut, et plage de dates.
     """
     q = (search_q or "").strip()
     providers = Provider.objects.filter(is_deleted=False).select_related(
@@ -975,12 +976,35 @@ def _filter_lists_for_section(section, search_q):
     )
     reservations = Reservation.objects.all()
     litiges = Dispute.objects.all()
-    # Synchroniser les clients réels depuis UserProfile (rattrapage des inscriptions passées)
     _sync_missing_clients()
     clients = Client.objects.all()
     paiements = Payment.objects.all()
     categories = Category.objects.all()
-    notifications = Notification.objects.all()[:20]
+    notifications = Notification.objects.all()
+
+    # Filtre par statut (réservations, paiements, prestataires)
+    if statut:
+        statut = statut.strip()
+        if section == "reservations":
+            reservations = reservations.filter(statut=statut)
+        elif section == "paiements":
+            paiements = paiements.filter(etat=statut)
+        elif section == "prestataires":
+            providers = providers.filter(statut=statut)
+
+    # Filtre par plage de dates
+    if date_start:
+        try:
+            reservations = reservations.filter(created_at__gte=date_start)
+            paiements = paiements.filter(created_at__gte=date_start)
+        except Exception:
+            pass
+    if date_end:
+        try:
+            reservations = reservations.filter(created_at__lte=f"{date_end} 23:59:59")
+            paiements = paiements.filter(created_at__lte=f"{date_end} 23:59:59")
+        except Exception:
+            pass
 
     if not q:
         return (
@@ -1051,7 +1075,7 @@ def _filter_lists_for_section(section, search_q):
     elif section == "notifications":
         notifications = Notification.objects.filter(
             Q(title__icontains=q) | Q(time__icontains=q)
-        )[:20]
+        )
 
     return (
         providers,
@@ -1199,6 +1223,26 @@ def export_dashboard_csv(request, kind):
             )
 
     return response
+
+
+def _build_page_range(current, total, max_visible=9):
+    """Build a compact page range for pagination, showing ellipsis gaps."""
+    if total <= max_visible:
+        return list(range(1, total + 1))
+    half = max_visible // 2
+    start = max(1, current - half)
+    end = min(total, current + half)
+    if end - start < max_visible - 1:
+        if start == 1:
+            end = min(total, start + max_visible - 1)
+        else:
+            start = max(1, end - max_visible + 1)
+    pages = list(range(start, end + 1))
+    if pages[0] > 1:
+        pages = [1, "..."] + pages
+    if pages[-1] < total:
+        pages = pages + ["...", total]
+    return pages
 
 
 @login_required(login_url="/admin/login/")
@@ -1467,13 +1511,51 @@ def dashboard(request):
         return redirect(f"/?section={section}")
 
     search_q = request.GET.get("q", "").strip()
+    statut = request.GET.get("statut", "").strip()
+    date_start = request.GET.get("date_start", "").strip()
+    date_end = request.GET.get("date_end", "").strip()
+    page_str = request.GET.get("page", "1").strip()
+    current_page = 1
+    try:
+        current_page = max(1, int(page_str))
+    except (ValueError, TypeError):
+        current_page = 1
+
+    from django.core.paginator import Paginator
+    PAGE_SIZE = 20
+
     stats, kpi, kpi_chart = _dashboard_kpi_payload()
     providers, reservations, litiges, clients, paiements, categories, notifications = (
         _filter_lists_for_section(
             section,
             search_q,
+            statut=statut,
+            date_start=date_start,
+            date_end=date_end,
         )
     )
+
+    total_pages = 1
+    page_range = [1]
+    if section == "reservations":
+        paginator = Paginator(reservations, PAGE_SIZE)
+        total_pages = paginator.num_pages
+        current_page = min(current_page, total_pages) if total_pages > 0 else 1
+        reservations = paginator.get_page(current_page)
+        page_range = _build_page_range(current_page, total_pages)
+    elif section == "paiements":
+        paginator = Paginator(paiements, PAGE_SIZE)
+        total_pages = paginator.num_pages
+        current_page = min(current_page, total_pages) if total_pages > 0 else 1
+        paiements = paginator.get_page(current_page)
+        page_range = _build_page_range(current_page, total_pages)
+    elif section == "prestataires":
+        paginator = Paginator(providers, PAGE_SIZE)
+        total_pages = paginator.num_pages
+        current_page = min(current_page, total_pages) if total_pages > 0 else 1
+        providers = paginator.get_page(current_page)
+        page_range = _build_page_range(current_page, total_pages)
+
     actualites = Actualite.objects.filter(publie=True).order_by("-date_publication")[:20]
     if section == "actualites" and search_q:
         actualites = Actualite.objects.all().order_by("-date_publication").filter(
@@ -1588,6 +1670,9 @@ def dashboard(request):
         "unified_notifications": unified_notifications,
         "actualites": actualites,
         "params": settings_obj,
+        "page": current_page,
+        "total_pages": total_pages,
+        "page_range": page_range,
     }
     context.update(_dashboard_forms_context(request, section))
     return render(request, "adminpanel/dashboard.html", context)
@@ -3328,7 +3413,7 @@ def api_prestataire_me(request):
     payments = Payment.objects.filter(prestataire=prov.nom)
     pay_sum = 0.0
     for pay in payments:
-        raw = pay.montant.replace("€", "").replace("FCFA", "").strip()
+        raw = str(pay.montant or "0").replace("€", "").replace("FCFA", "").strip()
         try:
             pay_sum += float(raw)
         except ValueError:

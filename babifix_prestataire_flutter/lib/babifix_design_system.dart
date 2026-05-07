@@ -8,11 +8,16 @@ abstract final class BabifixDesign {
   static const Color navy = Color(0xFF0B1B34);
   static const Color cyan = Color(0xFF4CC9F0);
   static const Color ciOrange = Color(0xFFE87722);
-  static const Color ciGreen = Color(0xFF009A44);
-  static const Color ciBlue = Color(0xFF0066B3);
   static const Color success = Color(0xFF22C55E);
   static const Color error = Color(0xFFEF4444);
   static const Color warning = Color(0xFFF59E0B);
+
+  /// @deprecated Utiliser [cyan] à la place
+  static const Color ciBlue = cyan;
+  /// @deprecated Utiliser [success] à la place
+  static const Color ciGreen = success;
+  /// @deprecated Utiliser [navy] à la place
+  static const Color darkNavy = navy;
 
   static const double radiusMD = 12.0;
 
@@ -51,8 +56,8 @@ abstract final class BabifixDesign {
   static const LinearGradient accentGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [cyan, Color(0xFF2563EB), navy],
-    stops: [0.0, 0.5, 1.0],
+    colors: [cyan, navy],
+    stops: [0.0, 1.0],
   );
 
   static List<BoxShadow> cyanGlowShadow({double opacity = 0.35}) => [

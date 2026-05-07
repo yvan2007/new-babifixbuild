@@ -33,7 +33,7 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
   late Animation<double> _pulseAnimation;
 
   static const _navy = Color(0xFF0F172A);
-  static const _emerald = Color(0xFF10B981);
+  static const _emerald = Color(0xFF22C55E);
   static const _amber = Color(0xFFF59E0B);
   static const _slate50 = Color(0xFFF8FAFC);
   static const _slate400 = Color(0xFF94A3B8);

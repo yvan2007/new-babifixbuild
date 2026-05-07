@@ -96,7 +96,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen> {
         return;
       }
       final data = jsonDecode(res.body);
-      final list = (data is List ? data : (data['results'] as List? ?? [])) as List<dynamic>;
+      final list = data is List ? data : (data['results'] as List? ?? []);
       final providers = <_Provider>[];
       for (final item in list) {
         final m = item as Map<String, dynamic>;

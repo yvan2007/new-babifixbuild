@@ -687,7 +687,7 @@ class ChatBubble extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: me
             ? LinearGradient(
-                colors: [BabifixDesign.cyan, const Color(0xFF2563EB)],
+                colors: [BabifixDesign.cyan, const Color(0xFF4CC9F0)],
               )
             : null,
         color: me ? null : cs.surfaceContainerHighest,

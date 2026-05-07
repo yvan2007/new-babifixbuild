@@ -557,7 +557,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
             value: tauxReussite > 0 ? '$tauxReussite%' : '—',
             label: 'Réussite',
             icon: Icons.thumb_up_rounded,
-            color: const Color(0xFF10B981),
+            color: const Color(0xFF22C55E),
           ),
           _divider(),
           _StatCell(
@@ -683,7 +683,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
           ...services.asMap().entries.map((entry) {
             final i = entry.key;
             final s = entry.value;
-            final colors = [BabifixDesign.cyan, BabifixDesign.ciBlue, const Color(0xFF10B981), const Color(0xFF8B5CF6)];
+            final colors = [BabifixDesign.cyan, BabifixDesign.ciBlue, const Color(0xFF22C55E), const Color(0xFF8B5CF6)];
             final color = colors[i % colors.length];
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -1047,9 +1047,9 @@ class _VerifiedBadge extends StatelessWidget {
       width: 22,
       height: 22,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)]),
+        gradient: const LinearGradient(colors: [Color(0xFF4CC9F0), Color(0xFF1D4ED8)]),
         shape: BoxShape.circle,
-        boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withValues(alpha: 0.4), blurRadius: 6)],
+        boxShadow: [BoxShadow(color: const Color(0xFF4CC9F0).withValues(alpha: 0.4), blurRadius: 6)],
       ),
       child: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
     );

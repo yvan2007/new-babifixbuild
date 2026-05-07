@@ -81,10 +81,8 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
   ThemeData _themeForMode(AppPaletteMode mode) {
     final base = ThemeData(useMaterial3: true);
     final isLight = mode == AppPaletteMode.light;
-    const brandNavy = Color(0xFF0B1B34);
-    const brandCyan = Color(0xFF4CC9F0);
-    final bg = isLight ? const Color(0xFFF6F8FC) : brandNavy;
-    final seed = isLight ? BabifixDesign.ciBlue : brandCyan;
+    final bg = isLight ? const Color(0xFFF6F8FC) : BabifixDesign.navy;
+    final seed = BabifixDesign.cyan;
     final onBg = isLight ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final muted = isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
     final surface = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF151D2E);
@@ -95,7 +93,7 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
         ).copyWith(
           surface: surface,
           secondary: BabifixDesign.ciOrange,
-          tertiary: BabifixDesign.ciGreen,
+          tertiary: BabifixDesign.success,
         );
     return base.copyWith(
       scaffoldBackgroundColor: bg,
@@ -118,14 +116,14 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,
-        indicatorColor: brandCyan.withValues(alpha: isLight ? 0.35 : 0.5),
+        indicatorColor: BabifixDesign.cyan.withValues(alpha: isLight ? 0.35 : 0.5),
         surfaceTintColor: Colors.transparent,
         labelTextStyle: WidgetStateProperty.resolveWith((s) {
           final bold = s.contains(WidgetState.selected);
           return TextStyle(
             fontSize: 12,
             fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-            color: bold ? brandNavy : muted,
+            color: bold ? BabifixDesign.navy : muted,
           );
         }),
       ),
@@ -135,36 +133,36 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
         fillColor: isLight ? const Color(0xFFF1F5F9) : const Color(0xFF1A2438),
         labelStyle: TextStyle(color: muted),
         hintStyle: TextStyle(color: muted.withValues(alpha: 0.85)),
-        prefixIconColor: brandCyan,
+        prefixIconColor: BabifixDesign.cyan,
         suffixIconColor: muted,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: brandCyan.withValues(alpha: isLight ? 0.35 : 0.5),
+            color: BabifixDesign.cyan.withValues(alpha: isLight ? 0.35 : 0.5),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: brandCyan, width: 2),
+          borderSide: const BorderSide(color: BabifixDesign.cyan, width: 2),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: onBg,
-          side: BorderSide(color: brandCyan.withValues(alpha: 0.65)),
+          side: BorderSide(color: BabifixDesign.cyan.withValues(alpha: 0.65)),
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: brandCyan,
-          foregroundColor: brandNavy,
+          backgroundColor: BabifixDesign.cyan,
+          foregroundColor: BabifixDesign.navy,
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: brandCyan),
+        style: TextButton.styleFrom(foregroundColor: BabifixDesign.cyan),
       ),
     );
   }
@@ -476,7 +474,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
                   ),
                   child: const Icon(
                     Icons.auto_awesome_rounded,
-                    color: Color(0xFF0284C7),
+                    color: Color(0xFF4CC9F0),
                   ),
                 ),
                 const SizedBox(width: 10),

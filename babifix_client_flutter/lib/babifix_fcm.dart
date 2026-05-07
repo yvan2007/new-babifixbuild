@@ -8,10 +8,19 @@ import 'package:http/http.dart' as http;
 
 import 'babifix_api_config.dart';
 import 'firebase_options.dart';
+import 'services/notification_sound_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> babifixFcmBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await BabifixNotificationSoundService.ensureInitialized();
+  final data = message.data;
+  await BabifixNotificationSoundService.showNotification(
+    id: DateTime.now().millisecondsSinceEpoch % 100000,
+    title: message.notification?.title ?? data['title'] ?? 'BABIFIX',
+    body: message.notification?.body ?? data['body'] ?? '',
+    payload: data['route'] ?? data['type'] ?? '',
+  );
 }
 
 /// Enregistrement FCM → API Django `POST /api/auth/fcm-token`.
@@ -33,9 +42,22 @@ class BabifixFcm {
         badge: true,
         sound: true,
       );
+      await BabifixNotificationSoundService.ensureInitialized();
+
+      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
     } catch (e) {
       debugPrint('BABIFIX FCM: init ignorée ($e) — exécutez `flutterfire configure` et ajoutez google-services.json.');
     }
+  }
+
+  static Future<void> _onForegroundMessage(RemoteMessage message) async {
+    final data = message.data;
+    await BabifixNotificationSoundService.showNotification(
+      id: DateTime.now().millisecondsSinceEpoch % 100000,
+      title: message.notification?.title ?? data['title'] ?? 'BABIFIX',
+      body: message.notification?.body ?? data['body'] ?? '',
+      payload: data['route'] ?? data['type'] ?? '',
+    );
   }
 
   static String _platformLabel() {

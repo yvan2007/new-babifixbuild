@@ -9,7 +9,7 @@ import '../../user_store.dart';
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kNavyDeep = Color(0xFF050D1A);
 const _kNavy     = Color(0xFF0A1628);
-const _kBlue     = Color(0xFF2563EB);
+const _kBlue     = Color(0xFF4CC9F0);
 const _kBlueDark = Color(0xFF1D4ED8);
 const _kCyan     = Color(0xFF4CC9F0);
 
