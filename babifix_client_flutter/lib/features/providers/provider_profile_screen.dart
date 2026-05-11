@@ -800,7 +800,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
               Row(
                 children: [
                   ZegoCallBtn(
-                    targetUserID: 'babifix_prestataire_${widget.providerId}',
+                    targetUserID: 'prestataire_${widget.providerId}',
                     targetUserName: name,
                     reservationRef: 'prestaire_${widget.providerId}',
                   ),

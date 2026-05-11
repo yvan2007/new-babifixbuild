@@ -1,4 +1,16 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+int _envInt(String key, int defaultValue) {
+  final v = dotenv.env[key];
+  if (v == null || v.isEmpty) return defaultValue;
+  final parsed = int.tryParse(v);
+  return parsed ?? defaultValue;
+}
+
+String _envString(String key, String defaultValue) {
+  return dotenv.env[key] ?? defaultValue;
+}
 
 // ── Dart-define environment variables ────────────────────────────────────────
 // Usage :
@@ -19,6 +31,14 @@ const kBabifixSentryDsn = String.fromEnvironment(
   'BABIFIX_SENTRY_DSN',
   defaultValue: '',
 );
+
+/// ZEGOCLOUD Voice/Video Call (Appels masqués client-prestataire)
+/// Obtenez ces valeurs sur https://console.zegocloud.com/
+/// Peut être défini via --dart-define ou fichier .env
+int get kZegoAppID => _envInt('ZEGO_APP_ID', const int.fromEnvironment('ZEGO_APP_ID', defaultValue: 0));
+String get kZegoAppSign => _envString('ZEGO_APP_SIGN', const String.fromEnvironment('ZEGO_APP_SIGN', defaultValue: ''));
+
+bool get isZegoConfigured => kZegoAppID != 0 && kZegoAppSign.isNotEmpty;
 
 /// Port du `python manage.py runserver` (aligné doc BABIFIX).
 const int kBabifixApiPort = 8002;

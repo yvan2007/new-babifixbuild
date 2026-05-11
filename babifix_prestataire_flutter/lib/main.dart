@@ -7,6 +7,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';
+import 'package:zego_uikit_signaling_plugin/zego_uikit_signaling_plugin.dart';
 
 import 'babifix_design_system.dart';
 import 'babifix_api_config.dart';
@@ -18,6 +21,7 @@ import 'shared/app_palette_mode.dart';
 import 'shared/auth_utils.dart';
 import 'shared/in_app_notifications.dart';
 import 'services/notification_sound_service.dart';
+import 'services/zego_call_service.dart';
 
 import 'features/earnings/earnings_screen.dart' as earnings_feature;
 import 'features/auth/landing_screen.dart';
@@ -34,9 +38,21 @@ import 'features/profile/profile_screen.dart';
 import 'features/actualites/actualites_screen.dart';
 import 'features/wallet/wallet_screen.dart' as wallet_feature;
 
+final GlobalKey<NavigatorState> zegoNavigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {}
+  
   await BabifixFcm.ensureInitialized();
+  
+  if (isZegoConfigured) {
+    ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
+  }
+  
   runApp(const BabifixPrestataireApp());
 }
 
@@ -173,6 +189,7 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
       return const BabifixPrestataireSplashScreen();
     }
     return MaterialApp(
+      navigatorKey: zegoNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'BABIFIX Prestataire',
       theme: _themeForMode(paletteMode),
@@ -422,6 +439,24 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final prov = data['provider'] as Map<String, dynamic>? ?? {};
+      
+      final provId = prov['id'] as int?;
+      final provName = '${prov['nom'] ?? prov['prenom'] ?? 'Prestataire'}'.trim();
+      if (provName.isNotEmpty && provId != null) {
+        await babifixSaveProfile(
+          name: provName,
+          email: '${prov['email'] ?? ''}',
+          id: provId,
+        );
+        if (isZegoConfigured && mounted) {
+          await BabifixZegoService.init(
+            userId: provId,
+            userName: provName,
+            context: context,
+          );
+        }
+      }
+      
       final st = '${prov['statut'] ?? ''}';
       final unread = jsonInt(data['unread_chat_messages']);
       _unreadChat.value = unread;
@@ -842,6 +877,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         paletteMode: widget.paletteMode,
         onPaletteChanged: widget.onPaletteChanged,
         onLogout: () async {
+          await BabifixZegoService.uninit();
           await writeStoredApiToken(null);
           if (mounted) setState(() => current = 'landing');
         },

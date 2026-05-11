@@ -1,42 +1,79 @@
 import 'package:flutter/material.dart';
+import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';
+import 'package:zego_uikit_signaling_plugin/zego_uikit_signaling_plugin.dart';
 
+import '../babifix_api_config.dart';
 import '../babifix_design_system.dart';
 
 class BabifixZegoService {
   static bool _isInitialized = false;
 
+  static bool get isInitialized => _isInitialized;
+
   static Future<void> init({
-    required String userID,
+    required int userId,
     required String userName,
+    required BuildContext? context,
   }) async {
-    _isInitialized = true;
-    debugPrint('ZEGO init: $userID ($userName)');
+    if (!isZegoConfigured) {
+      debugPrint('[Zego] Zego not configured (missing AppID/AppSign)');
+      return;
+    }
+
+    final zegoUserID = 'client_$userId';
+
+    debugPrint('[Zego] Initializing for client: $zegoUserID ($userName)');
+
+    try {
+      await ZegoUIKitPrebuiltCallInvitationService().init(
+        appID: kZegoAppID,
+        appSign: kZegoAppSign,
+        userID: zegoUserID,
+        userName: userName,
+        plugins: [ZegoUIKitSignalingPlugin()],
+        config: ZegoCallInvitationConfig(
+          useSystemCallingUI: false,
+        ),
+        events: ZegoUIKitPrebuiltCallEvents(
+          onCallEnd: (ZegoCallEndEvent event, VoidCallback defaultAction) {
+            debugPrint('[Zego] Call ended: ${event.reason}');
+            defaultAction.call();
+          },
+        ),
+        invitationEvents: ZegoUIKitPrebuiltCallInvitationEvents(
+          onIncomingCallReceived: (
+            String callID,
+            ZegoCallUser caller,
+            ZegoCallType callType,
+            Map<String, String> customData,
+          ) {
+            debugPrint('[Zego] Incoming call from: ${caller.name}');
+          },
+          onOutgoingCallTimeout: (
+            String callID,
+            List<ZegoCallUser> callees,
+            ZegoCallType callType,
+          ) {
+            debugPrint('[Zego] Outgoing call timeout');
+          },
+        ),
+      );
+      _isInitialized = true;
+      debugPrint('[Zego] Initialized successfully');
+    } catch (e) {
+      debugPrint('[Zego] Init error: $e');
+    }
   }
 
-  static void startVoiceCall({
-    required BuildContext context,
-    required String callID,
-    required String targetUserID,
-    required String targetUserName,
-  }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Appel vocal vers $targetUserName (ID: $targetUserID)'),
-      ),
-    );
-  }
-
-  static void startVideoCall({
-    required BuildContext context,
-    required String callID,
-    required String targetUserID,
-    required String targetUserName,
-  }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Appel vidéo vers $targetUserName (ID: $targetUserID)'),
-      ),
-    );
+  static Future<void> uninit() async {
+    if (!_isInitialized) return;
+    try {
+      await ZegoUIKitPrebuiltCallInvitationService().uninit();
+      _isInitialized = false;
+      debugPrint('[Zego] Uninitialized');
+    } catch (e) {
+      debugPrint('[Zego] Uninit error: $e');
+    }
   }
 }
 
@@ -56,45 +93,59 @@ class ZegoCallBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: () {
-        final callID =
-            'call_${reservationRef}_${DateTime.now().millisecondsSinceEpoch}';
-        if (isVideoCall) {
-          BabifixZegoService.startVideoCall(
-            context: context,
-            callID: callID,
-            targetUserID: targetUserID,
-            targetUserName: targetUserName,
+    if (!isZegoConfigured) {
+      return OutlinedButton.icon(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Service d\'appel non configuré'),
+              behavior: SnackBarBehavior.floating,
+            ),
           );
-        } else {
-          BabifixZegoService.startVoiceCall(
-            context: context,
-            callID: callID,
-            targetUserID: targetUserID,
-            targetUserName: targetUserName,
+        },
+        icon: Icon(
+          isVideoCall ? Icons.videocam : Icons.phone,
+          size: 20,
+        ),
+        label: Text(isVideoCall ? 'Vidéo' : 'Appel'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.grey,
+          side: BorderSide(color: Colors.grey.shade300),
+          minimumSize: const Size(0, 54),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      );
+    }
+
+    return ZegoSendCallInvitationButton(
+      isVideoCall: isVideoCall,
+      iconSize: const Size(24, 24),
+      buttonSize: const Size(80, 54),
+      icon: ButtonIcon(
+        icon: isVideoCall ? Icons.videocam : Icons.phone,
+      ),
+      text: isVideoCall ? 'Vidéo' : 'Appel',
+      textStyle: TextStyle(
+        color: isVideoCall ? BabifixDesign.navy : Colors.white,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+      invitees: [
+        ZegoUIKitUser(
+          id: targetUserID,
+          name: targetUserName,
+        ),
+      ],
+      onPressed: (String code, String message, List<String> errorInvitees) {
+        if (errorInvitees.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$targetUserName ne répond pas...'),
+              behavior: SnackBarBehavior.floating,
+            ),
           );
         }
       },
-      icon: Icon(
-        isVideoCall ? Icons.videocam : Icons.phone,
-        color: Colors.white,
-      ),
-      label: Text(
-        isVideoCall ? 'Appel Vidéo' : 'Appeler via Babifix',
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isVideoCall
-            ? BabifixDesign.ciBlue
-            : BabifixDesign.ciGreen,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
     );
   }
 }

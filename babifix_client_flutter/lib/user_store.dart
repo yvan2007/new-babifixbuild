@@ -23,6 +23,7 @@ class BabifixUserStore {
   static const _kPhone = 'babifix_profile_phone';
   static const _kAddress = 'babifix_profile_address';
   static const _kAvatarB64 = 'babifix_profile_avatar_b64';
+  static const _kUserId = 'babifix_user_id';
 
   static final FlutterSecureStorage _secureStorage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),

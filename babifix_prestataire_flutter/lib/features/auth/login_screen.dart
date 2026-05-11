@@ -72,11 +72,6 @@ class _LoginScreenState extends State<LoginScreen>
           await writeStoredApiToken(tok);
           if (refresh != null) await writeStoredRefreshToken(refresh);
           babifixRegisterFcm(tok);
-          final profile = await babifixLoadProfile();
-          await VoiceCallService.initialize(
-            'babifix_prestataire_$email',
-            profile['name'] ?? profile['email'] ?? 'Prestataire',
-          );
           if (mounted) widget.onSuccess();
           return;
         }

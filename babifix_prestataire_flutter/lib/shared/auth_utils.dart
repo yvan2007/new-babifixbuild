@@ -10,6 +10,27 @@ const kBabifixApiToken = 'babifix_api_token';
 const _kRefreshToken = 'babifix_refresh_token';
 const _kProfileName = 'babifix_profile_name';
 const _kProfileEmail = 'babifix_profile_email';
+const _kProfileId = 'babifix_profile_id';
+
+Future<void> babifixSaveProfile({
+  required String name,
+  required String email,
+  int? id,
+}) async {
+  final p = await SharedPreferences.getInstance();
+  await p.setString(_kProfileName, name);
+  await p.setString(_kProfileEmail, email);
+  if (id != null) await p.setInt(_kProfileId, id);
+}
+
+Future<Map<String, dynamic>> babifixLoadProfileFull() async {
+  final p = await SharedPreferences.getInstance();
+  return {
+    'name': p.getString(_kProfileName) ?? '',
+    'email': p.getString(_kProfileEmail) ?? '',
+    'id': p.getInt(_kProfileId),
+  };
+}
 
 const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
   aOptions: AndroidOptions(encryptedSharedPreferences: true),

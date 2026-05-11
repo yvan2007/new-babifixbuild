@@ -12,6 +12,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';
+import 'package:zego_uikit_signaling_plugin/zego_uikit_signaling_plugin.dart';
 
 import 'babifix_design_system.dart';
 import 'babifix_api_config.dart';
@@ -24,6 +27,7 @@ import 'models/client_models.dart';
 import 'shared/in_app_notifications.dart';
 import 'shared/offline_cache.dart';
 import 'services/notification_sound_service.dart';
+import 'services/zego_call_service.dart';
 import 'shared/widgets/status_pill.dart';
 import 'shared/widgets/category_strip.dart';
 import 'shared/services/real_time_sync.dart';
@@ -49,6 +53,8 @@ import 'theme/app_theme.dart';
 import 'router/babifix_client_router.dart';
 import 'splash_screen.dart';
 
+final GlobalKey<NavigatorState> zegoNavigatorKey = GlobalKey<NavigatorState>();
+
 /// Aligne sur [adminpanel.views._normalize_category_key] : espaces → underscores, max 24.
 String babifixCategoryFilterKey(String nom) {
   final x = nom.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '_');
@@ -73,8 +79,46 @@ String reservationWhenLabelFromFlowData(Map<String, dynamic> flowData) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {}
+  
   await BabifixFcm.ensureInitialized();
+  
+  if (isZegoConfigured) {
+    ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
+  }
+  
   runApp(const BabifixClientApp());
+}
+
+Future<void> _initZegoForClientIfNeeded(String? authToken, BuildContext? context) async {
+  if (!isZegoConfigured) return;
+  if (authToken == null || authToken.isEmpty) return;
+  if (BabifixZegoService.isInitialized) return;
+  
+  try {
+    final res = await http.get(
+      Uri.parse('${babifixApiBaseUrl()}/api/auth/me'),
+      headers: {'Authorization': 'Bearer $authToken'},
+    );
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final userId = data['id'] as int?;
+      final userName = '${data['username'] ?? 'Client'}';
+      
+      if (userId != null) {
+        await BabifixZegoService.init(
+          userId: userId,
+          userName: userName,
+          context: context,
+        );
+      }
+    }
+  } catch (e) {
+    debugPrint('[Zego] Client init error: $e');
+  }
 }
 
 // AppPaletteMode is defined in theme/app_theme.dart
@@ -209,6 +253,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
           DevisDetailScreen(reservationReference: ref, onBack: () {}),
     );
     return MaterialApp.router(
+      navigatorKey: zegoNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'BABIFIX Client',
       theme: _themeForMode(paletteMode),
@@ -857,6 +902,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     _clientWsSub?.cancel();
     _clientFcmSub?.cancel();
     _clientFcmOpenedSub?.cancel();
+    await BabifixZegoService.uninit();
     await BabifixUserStore.logout();
     authToken = null;
     if (mounted) {
@@ -4455,6 +4501,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _initSession() async {
     authToken = await BabifixUserStore.getApiToken();
+    await _initZegoForClientIfNeeded(authToken, context);
     await _loadRemoteData();
     await _refreshUnreadChat();
     await _attachClientRealtime();
