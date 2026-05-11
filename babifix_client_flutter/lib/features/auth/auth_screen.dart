@@ -113,11 +113,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       _snack(err);
       return;
     }
-    final profile = await BabifixUserStore.loadProfile();
-    await BabifixZegoService.init(
-      userID: 'babifix_client_${profile['email']}',
-      userName: profile['name'] ?? profile['email'] ?? 'Client',
-    );
     widget.onAuthSuccess();
   }
 
@@ -163,11 +158,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       _snack(err);
       return;
     }
-    final profile = await BabifixUserStore.loadProfile();
-    await BabifixZegoService.init(
-      userID: 'babifix_client_${profile['email']}',
-      userName: profile['name'] ?? profile['email'] ?? 'Client',
-    );
     widget.onAuthSuccess();
   }
 
@@ -178,11 +168,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       _snack(err);
       return;
     }
-    final profile = await BabifixUserStore.loadProfile();
-    await BabifixZegoService.init(
-      userID: 'babifix_client_${profile['email']}',
-      userName: profile['name'] ?? profile['email'] ?? 'Client',
-    );
     widget.onAuthSuccess();
   }
 

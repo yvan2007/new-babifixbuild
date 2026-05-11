@@ -31,9 +31,6 @@ class BabifixZegoService {
         userID: zegoUserID,
         userName: userName,
         plugins: [ZegoUIKitSignalingPlugin()],
-        config: ZegoCallInvitationConfig(
-          useSystemCallingUI: false,
-        ),
         events: ZegoUIKitPrebuiltCallEvents(
           onCallEnd: (ZegoCallEndEvent event, VoidCallback defaultAction) {
             debugPrint('[Zego] Call ended: ${event.reason}');
@@ -44,15 +41,16 @@ class BabifixZegoService {
           onIncomingCallReceived: (
             String callID,
             ZegoCallUser caller,
-            ZegoCallType callType,
-            Map<String, String> customData,
+            ZegoCallInvitationType callType,
+            List<ZegoCallUser> callees,
+            String customData,
           ) {
             debugPrint('[Zego] Incoming call from: ${caller.name}');
           },
           onOutgoingCallTimeout: (
             String callID,
             List<ZegoCallUser> callees,
-            ZegoCallType callType,
+            bool isVideoCall,
           ) {
             debugPrint('[Zego] Outgoing call timeout');
           },
@@ -121,9 +119,6 @@ class ZegoCallBtn extends StatelessWidget {
       isVideoCall: isVideoCall,
       iconSize: const Size(24, 24),
       buttonSize: const Size(80, 54),
-      icon: ButtonIcon(
-        icon: isVideoCall ? Icons.videocam : Icons.phone,
-      ),
       text: isVideoCall ? 'Vidéo' : 'Appel',
       textStyle: TextStyle(
         color: isVideoCall ? BabifixDesign.navy : Colors.white,
@@ -131,7 +126,7 @@ class ZegoCallBtn extends StatelessWidget {
         fontWeight: FontWeight.w600,
       ),
       invitees: [
-        ZegoUIKitUser(
+        ZegoCallUser(
           id: targetUserID,
           name: targetUserName,
         ),

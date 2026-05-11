@@ -131,11 +131,6 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen>
 
       if (didAuthenticate) {
         HapticFeedback.mediumImpact();
-        final profile = await BabifixUserStore.loadProfile();
-        await BabifixZegoService.init(
-          userID: 'babifix_client_${profile['email']}',
-          userName: profile['name'] ?? profile['email'] ?? 'Client',
-        );
         widget.onSuccess();
       } else {
         _showErrorMessage('Authentification annulée');

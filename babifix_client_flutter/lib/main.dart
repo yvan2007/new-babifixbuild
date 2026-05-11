@@ -251,9 +251,9 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
       ),
       devisDetailBuilder: (_, ref) =>
           DevisDetailScreen(reservationReference: ref, onBack: () {}),
+      navigatorKey: zegoNavigatorKey,
     );
     return MaterialApp.router(
-      navigatorKey: zegoNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'BABIFIX Client',
       theme: _themeForMode(paletteMode),

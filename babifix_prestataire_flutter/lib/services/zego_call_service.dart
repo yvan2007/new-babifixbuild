@@ -31,9 +31,6 @@ class BabifixZegoService {
         userID: zegoUserID,
         userName: userName,
         plugins: [ZegoUIKitSignalingPlugin()],
-        config: ZegoCallInvitationConfig(
-          useSystemCallingUI: false,
-        ),
         events: ZegoUIKitPrebuiltCallEvents(
           onCallEnd: (ZegoCallEndEvent event, VoidCallback defaultAction) {
             debugPrint('[Zego] Call ended: ${event.reason}');
@@ -44,50 +41,55 @@ class BabifixZegoService {
           onIncomingCallReceived: (
             String callID,
             ZegoCallUser caller,
-            ZegoCallType callType,
-            Map<String, String> customData,
+            ZegoCallInvitationType callType,
+            List<ZegoCallUser> callees,
+            String customData,
           ) {
             debugPrint('[Zego] Incoming call from: ${caller.name} (type: $callType)');
           },
           onIncomingCallAccepted: (
             String callID,
             ZegoCallUser caller,
-            ZegoCallType callType,
-            Map<String, String> customData,
+            ZegoCallInvitationType callType,
+            List<ZegoCallUser> callees,
+            String customData,
           ) {
             debugPrint('[Zego] Incoming call accepted');
           },
           onIncomingCallRejected: (
             String callID,
             ZegoCallUser caller,
-            ZegoCallType callType,
-            Map<String, String> customData,
+            ZegoCallInvitationType callType,
+            List<ZegoCallUser> callees,
+            String customData,
           ) {
             debugPrint('[Zego] Incoming call rejected');
           },
           onOutgoingCallAccepted: (
             String callID,
             ZegoCallUser callee,
-            ZegoCallType callType,
+            ZegoCallInvitationType callType,
+            List<ZegoCallUser> callees,
           ) {
             debugPrint('[Zego] Outgoing call accepted by: ${callee.name}');
           },
           onOutgoingCallRejected: (
             String callID,
             ZegoCallUser callee,
-            ZegoCallType callType,
             String code,
             String message,
+            List<ZegoCallUser> callees,
           ) {
             debugPrint('[Zego] Outgoing call rejected: $message');
           },
           onOutgoingCallTimeout: (
             String callID,
             List<ZegoCallUser> callees,
-            ZegoCallType callType,
+            bool isVideoCall,
           ) {
             debugPrint('[Zego] Outgoing call timeout');
-            if (callees.isNotEmpty) {
+            if (callees.isNotEmpty &&
+                ZegoUIKitPrebuiltCallInvitationService().navigatorKey.currentContext != null) {
               ScaffoldMessenger.of(
                 ZegoUIKitPrebuiltCallInvitationService().navigatorKey.currentContext!,
               ).showSnackBar(
@@ -128,7 +130,7 @@ class BabifixZegoService {
       return false;
     }
 
-    try {
+     try {
       final result = await ZegoUIKitPrebuiltCallInvitationService().send(
         invitees: [
           ZegoCallUser(
@@ -197,9 +199,6 @@ class CallButton extends StatelessWidget {
       isVideoCall: isVideo,
       iconSize: const Size(32, 32),
       buttonSize: const Size(80, 54),
-      icon: ButtonIcon(
-        icon: isVideo ? Icons.videocam : Icons.phone,
-      ),
       text: isVideo ? 'Vidéo' : 'Appel',
       textStyle: const TextStyle(
         color: Colors.white,
@@ -207,7 +206,7 @@ class CallButton extends StatelessWidget {
         fontWeight: FontWeight.w600,
       ),
       invitees: [
-        ZegoUIKitUser(
+        ZegoCallUser(
           id: targetUserID,
           name: targetUserName,
         ),

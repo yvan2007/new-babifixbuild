@@ -62,10 +62,10 @@ GoRouter createBabifixClientRouter({
   required Widget Function(BuildContext, String prestataireId) chatRoomBuilder,
   required Widget Function(BuildContext) editProfileBuilder,
   required Widget Function(BuildContext, String reference) devisDetailBuilder,
+  GlobalKey<NavigatorState>? navigatorKey,
 }) {
-  // Pour simplifier, on commence toujours par /home
-  // L'app décidera si afficher onboarding ou non
   return GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: '/home',
     refreshListenable: refreshListenable,
     routes: [
