@@ -46,8 +46,8 @@ dependencies:
   # sentry_flutter: ^9.16.0  # désactivé (échec build)
   connectivity_plus: ^6.1.4
   google_sign_in: ^6.2.1
-  zego_uikit_prebuilt_call: ^4.14.3
-  zego_uikit_signaling_plugin: ^2.8.21
+  zego_uikit_prebuilt_call: ^4.17.13
+  zego_uikit_signaling_plugin: ^2.8.0
   flutter_dotenv: ^5.2.1
   sign_in_with_apple: ^6.1.0
   crypto: ^3.0.6

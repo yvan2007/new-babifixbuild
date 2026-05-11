@@ -48,8 +48,8 @@ dependencies:
   go_router: ^14.6.3
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  zego_uikit_prebuilt_call: ^4.14.3
-  zego_uikit_signaling_plugin: ^2.8.21
+  zego_uikit_prebuilt_call: ^4.17.13
+  zego_uikit_signaling_plugin: ^2.8.0
   flutter_dotenv: ^5.2.1
   # sentry_flutter: ^9.16.0  # desactive (echec build)
   share_plus: ^10.0.3
