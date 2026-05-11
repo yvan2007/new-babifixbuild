@@ -54,7 +54,9 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>BABIFIX utilise votre position pour l&apos;adresse d&apos;intervention.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Prendre une photo pour le profil ou le chat.</string>
+	<string>Prendre une photo pour le profil, le chat ou les appels vidéo.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Accès au micro pour les appels vocaux et vidéo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Choisir une photo pour le profil ou le chat.</string>
 </dict>
