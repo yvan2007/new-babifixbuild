@@ -64,6 +64,9 @@ babifix-firebase-adminsdk.json
 .claude/
 _showReservationDetails_temp.txt
 
+# GitHub
+.github/
+
 # Environment files
 .env
 .env.*
