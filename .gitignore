@@ -68,3 +68,6 @@ _showReservationDetails_temp.txt
 .env
 .env.*
 !.env.example
+
+# Media uploads
+babifix_admin_django/media/babifix_uploads/
