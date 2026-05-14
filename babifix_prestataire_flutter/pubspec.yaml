@@ -43,12 +43,10 @@ dependencies:
   web_socket_channel: ^3.0.1
   fl_chart: ^0.70.2
   latlong2: ^0.9.1
-  # sentry_flutter: ^9.16.0  # désactivé (échec build)
-  connectivity_plus: ^6.1.4
-  google_sign_in: ^6.2.1
-  zego_uikit_prebuilt_call: ^4.17.13
-  zego_uikit_signaling_plugin: ^2.8.0
+  livekit_client: ^2.7.0
+  dart_jsonwebtoken: ^3.4.1
   flutter_dotenv: ^5.2.1
+  google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.0
   crypto: ^3.0.6
   local_auth: ^2.3.0
@@ -72,6 +70,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+# dependency_overrides:
+#   zego_uikit: 2.28.23 (disabled - internal package incompatibilities)
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

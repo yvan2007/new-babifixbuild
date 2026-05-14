@@ -426,23 +426,25 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           final hasUnread = unread > 0;
                           final avatarColor = _avatarColor(name);
 
-                          return InkWell(
-                            onTap: () async {
-                              final fresh =
-                                  await BabifixUserStore.getApiToken();
-                              if (!context.mounted) return;
-                              await Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => ChatRoomScreen(
-                                    name: name,
-                                    peerUserId: pid,
-                                    authToken: fresh,
-                                    apiBase: widget.apiBase,
-                                  ),
-                                ),
-                              );
-                              _load();
-                            },
+                           return InkWell(
+                             onTap: () async {
+                               final fresh =
+                                   await BabifixUserStore.getApiToken();
+                               if (!context.mounted) return;
+                               final convId = jsonInt(r['id']);
+                               await Navigator.of(context).push(
+                                 MaterialPageRoute<void>(
+                                   builder: (_) => ChatRoomScreen(
+                                     name: name,
+                                     peerUserId: pid,
+                                     conversationId: convId > 0 ? convId : null,
+                                     authToken: fresh,
+                                     apiBase: widget.apiBase,
+                                   ),
+                                 ),
+                               );
+                               _load();
+                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,

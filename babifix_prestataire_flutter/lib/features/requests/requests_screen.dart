@@ -10,6 +10,8 @@ import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import 'create_devis_screen.dart';
+import 'devis_kanban_editor_screen.dart';
+import 'client_journal_viewer.dart';
 import 'rate_client_screen.dart';
 import 'request_detail_screen.dart';
 import 'waiting_payment_screen.dart';
@@ -1086,27 +1088,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).push<void>(
                     babifixRoute(
-                      (_) => CreateDevisScreen(
+                      (_) => DevisKanbanEditorScreen(
                         reservationReference: it.reference,
-                        reservationDetails: {
-                          'client': it.client,
-                          'title': it.service,
-                          'description_probleme': it.clientMessage,
-                          'address': it.address ?? '',
-                          'payment_type': it.paymentType ?? '',
-                          'mobile_money_operator': it.mobileMoneyOperator ?? '',
-                          'disponibilites': it.disponibilitesClient ?? '',
-                          'is_urgent': it.isUrgent,
-                          'prix_propose': it.prixPropose,
-                        },
-                        onBack: () => Navigator.pop(context),
-                        onDevisCreated: () {
-                          Navigator.pop(context);
-                          _loadRequests();
-                        },
+                        reservationTitle: it.service ?? '',
                       ),
                     ),
-                  ),
+                  ).then((_) => _loadRequests()),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF4CC9F0),
                     shape: RoundedRectangleBorder(
@@ -1361,34 +1348,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
             '${body['status'] ?? (decision == 'accept' ? 'DEVIS_EN_COURS' : 'Annulee')}';
         setState(() => _applyStatusFromApi(item, st));
 
-        // Si acceptation → rediriger directement vers CreateDevisScreen
+        // Si acceptation → rediriger directement vers le nouvel éditeur Kanban
         if (decision == 'accept') {
           if (!mounted) return;
           await Navigator.of(context).push<void>(
             babifixRoute(
-              (_) => CreateDevisScreen(
+              (_) => DevisKanbanEditorScreen(
                 reservationReference: item.reference,
-                reservationDetails: {
-                  'client': item.client,
-                  'title': item.service,
-                  'description_probleme': item.clientMessage,
-                  'address': item.address,
-                  'payment_type': item.paymentType,
-                  'mobile_money_operator': item.mobileMoneyOperator,
-                  'disponibilites': item.disponibilitesClient,
-                  'is_urgent': item.isUrgent,
-                  'prix_propose': item.prixPropose,
-                  'date': item.date,
-                  'hour': item.hour,
-                },
-                onBack: () => Navigator.pop(context),
-                onDevisCreated: () {
-                  Navigator.pop(context);
-                  _loadRequests();
-                },
+                reservationTitle: item.service ?? '',
               ),
             ),
           );
+          if (mounted) _loadRequests();
         }
       }
     } catch (_) {

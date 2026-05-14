@@ -13,7 +13,12 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../user_store.dart';
+import '../../services/call_service.dart';
+import '../../services/livekit_call_service.dart';
+import '../../services/livekit_call_screen.dart';
+import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../auth/biometric_login_screen.dart';
+import '../booking/devis_kanban_screen.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +34,8 @@ class ClientChatMsg {
     this.serverMessageId,
     this.replyToServerId,
     this.isRead = false,
+    this.kind = 'USER',
+    this.payloadJson,
   });
 
   final int id;
@@ -40,9 +47,10 @@ class ClientChatMsg {
   final bool? replyToWasMe;
   final int? serverMessageId;
   final int? replyToServerId;
-
-  /// Lu par le destinataire (champ `lu` côté API).
   final bool isRead;
+  // Phase C : kind = USER | DEVIS_CARD | SYSTEM
+  final String kind;
+  final Map<String, dynamic>? payloadJson;
 
   bool get hasContent =>
       (text != null && text!.trim().isNotEmpty) ||
@@ -66,17 +74,23 @@ class ChatRoomScreen extends StatefulWidget {
     required this.name,
     this.seed = const [],
     this.peerUserId,
+    this.conversationId,
     this.authToken,
     this.apiBase,
+    this.reservationReference,
   });
 
   final String name;
   final List<(String, bool)> seed;
   final int? peerUserId;
+  final int? conversationId;
   final String? authToken;
   final String? apiBase;
+  /// Phase D — Si fourni, le bouton "Appel" passe par /api/calls/initiate
+  /// (FCM ring + token serveur) au lieu du legacy LiveKit direct.
+  final String? reservationReference;
 
-  bool get _apiMode => peerUserId != null && peerUserId! > 0 && apiBase != null;
+  bool get _apiMode => ((peerUserId != null && peerUserId! > 0) || conversationId != null) && apiBase != null;
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
@@ -101,6 +115,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
   // Chat-room WebSocket for typing relay
   WebSocketChannel? _chatWs;
   StreamSubscription<dynamic>? _chatWsSub;
+
+  // Incoming call state
+  bool _hasIncomingCall = false;
+  String? _incomingCallRoom;
+  String? _incomingCallerName;
+  bool _incomingIsVideo = false;
+  Timer? _incomingCallTimeout;
 
   @override
   void initState() {
@@ -146,21 +167,61 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
     final uri = Uri.parse('$wsBase/ws/chat/$convId/');
     final ch = WebSocketChannel.connect(uri, protocols: ['BABIFIX $token']);
     _chatWs = ch;
-    _chatWsSub = ch.stream.listen(
-      (raw) {
-        try {
-          final m = jsonDecode(raw as String) as Map<String, dynamic>;
-          if (m['type'] == 'typing') {
-            final isTyping = m['is_typing'] as bool? ?? false;
-            if (isTyping) {
-              _showPeerTyping();
-            } else {
-              _peerTypingTimer?.cancel();
-              if (mounted) setState(() => _peerTyping = false);
-            }
-          }
-        } catch (_) {}
-      },
+     _chatWsSub = ch.stream.listen(
+       (raw) {
+         try {
+           final m = jsonDecode(raw as String) as Map<String, dynamic>;
+           final msgType = '${m['type'] ?? ''}';
+           
+           debugPrint('[ChatCall] Received WS message type=$msgType');
+
+           if (msgType == 'typing') {
+             final isTyping = m['is_typing'] as bool? ?? false;
+             if (isTyping) {
+               _showPeerTyping();
+             } else {
+               _peerTypingTimer?.cancel();
+               if (mounted) setState(() => _peerTyping = false);
+             }
+           }
+
+           if (msgType == 'call_offer') {
+             final roomName = '${m['room_name'] ?? ''}';
+             final callerName = '${m['caller_name'] ?? 'Prestataire'}';
+             final isVideo = m['is_video'] as bool? ?? false;
+
+             debugPrint('[ChatCall] INCOMING CALL: room=$roomName, caller=$callerName, isVideo=$isVideo');
+
+             if (roomName.isNotEmpty && !_hasIncomingCall && mounted) {
+               setState(() {
+                 _hasIncomingCall = true;
+                 _incomingCallRoom = roomName;
+                 _incomingCallerName = callerName;
+                 _incomingIsVideo = isVideo;
+               });
+               _showIncomingCallDialog();
+             }
+           }
+
+           if (msgType == 'call_accept') {
+             debugPrint('[ChatCall] Call accepted by peer');
+           }
+
+           if (msgType == 'call_reject') {
+             debugPrint('[ChatCall] Call rejected by peer');
+             if (mounted) {
+               ScaffoldMessenger.of(context).showSnackBar(
+                 SnackBar(
+                   content: Text('${widget.name} a refusé l\'appel'),
+                   backgroundColor: BabifixDesign.error,
+                 ),
+               );
+             }
+           }
+         } catch (e) {
+           debugPrint('[ChatCall] WS message error: $e');
+         }
+       },
       onError: (_) {},
       onDone: () {
         // Reconnect after a brief pause if the screen is still mounted.
@@ -219,16 +280,39 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
   Future<void> _reloadMessages() async {
     final base = widget.apiBase!;
     final token = await _resolveToken();
-    if (token == null || token.isEmpty) return;
-    final pid = widget.peerUserId!;
+    if (token == null || token.isEmpty) {
+      debugPrint('[Chat Load] No token!');
+      return;
+    }
+    String url;
+    if (widget.conversationId != null && widget.conversationId! > 0) {
+      url = '$base/api/messages?conversation_id=${widget.conversationId}';
+      debugPrint('[Chat Load] GET $url');
+    } else {
+      final pid = widget.peerUserId!;
+      url = '$base/api/messages?prestataire_id=$pid';
+      debugPrint('[Chat Load] GET $url');
+    }
+
     final res = await http.get(
-      Uri.parse('$base/api/messages?prestataire_id=$pid'),
+      Uri.parse(url),
       headers: {'Authorization': 'Bearer $token'},
     );
-    if (res.statusCode != 200) return;
+
+    debugPrint('[Chat Load] Response status=${res.statusCode}');
+    if (res.statusCode != 200) {
+      debugPrint('[Chat Load] Error body=${res.body}');
+      return;
+    }
+
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final cid = jsonInt(data['conversation_id']);
+    debugPrint('[Chat Load] conversation_id=$cid');
+    debugPrint('[Chat Load] Full response: $data');
+
     final newConvId = cid > 0 ? cid : null;
+    debugPrint('[Chat Load] newConvId=$newConvId, _conversationId was=$_conversationId');
+
     final needsWsConnect = newConvId != null && newConvId != _conversationId;
     _conversationId = newConvId;
     if (needsWsConnect) _connectChatWs();
@@ -254,6 +338,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
       final sender = jsonInt(m['sender_id']);
       final rti = m['reply_to_id'];
       final rtid = rti == null ? null : jsonInt(rti);
+      final kind = (m['kind'] ?? 'USER').toString();
+      final payload = m['payload_json'] is Map
+          ? Map<String, dynamic>.from(m['payload_json'] as Map)
+          : null;
       list.add(
         ClientChatMsg(
           id: localId++,
@@ -268,6 +356,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
           replyToWasMe: rtid != null && _myUserId != null
               ? senderById[rtid] == _myUserId
               : null,
+          kind: kind,
+          payloadJson: payload,
         ),
       );
     }
@@ -439,13 +529,47 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
     });
   }
 
-  Future<void> _sendTextApi(String text) async {
+   Future<void> _sendTextApi(String text) async {
     final base = widget.apiBase!;
     final token = await _resolveToken();
-    if (token == null || token.isEmpty) return;
     final cid = _conversationId;
-    if (cid == null) return;
+    final pid = widget.peerUserId;
+
+    debugPrint('[Chat Send] _apiMode=${widget._apiMode}');
+    debugPrint('[Chat Send] token exists=${token != null && token!.isNotEmpty}');
+    debugPrint('[Chat Send] _conversationId=$cid');
+    debugPrint('[Chat Send] peerUserId=$pid');
+
+    if (token == null || token.isEmpty) {
+      debugPrint('[Chat Send] No token!');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Non connecté'),
+            backgroundColor: BabifixDesign.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (cid == null) {
+      debugPrint('[Chat Send] No conversation_id - trying to create one or get existing');
+      debugPrint('[Chat Send] Base: $base, pid: $pid');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Conversation pas prête (cid=null, pid=$pid)'),
+            backgroundColor: BabifixDesign.error,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
+      debugPrint('[Chat Send] POST $base/api/messages, conversation_id=$cid, body=$text');
       final res = await http.post(
         Uri.parse('$base/api/messages'),
         headers: {
@@ -459,18 +583,277 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
             'reply_to_id': _replyingTo!.serverMessageId,
         }),
       );
+
+      debugPrint('[Chat Send] Response status=${res.statusCode}');
+      debugPrint('[Chat Send] Response body=${res.body}');
+
       if (res.statusCode == 201 && mounted) {
         _input.clear();
         setState(() => _replyingTo = null);
         await _reloadMessages();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur envoi: HTTP ${res.statusCode}'),
+            backgroundColor: BabifixDesign.error,
+          ),
+        );
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Chat Send] EXCEPTION: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: BabifixDesign.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _sendCallSignal(String type, {String? roomName, bool? isVideo, String? callerName}) {
+    if (_chatWs == null) {
+      debugPrint('[ChatCall] _chatWs is null, cannot send signal');
+      return;
+    }
+    final msg = <String, dynamic>{
+      'type': type,
+      if (roomName != null) 'room_name': roomName,
+      if (isVideo != null) 'is_video': isVideo,
+      if (callerName != null) 'caller_name': callerName,
+    };
+    debugPrint('[ChatCall] Sending: $msg');
+    _chatWs!.sink.add(jsonEncode(msg));
+  }
+
+  Future<void> _startOutgoingCall({required bool isVideo}) async {
+    final convId = _conversationId;
+    if (convId == null || convId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Conversation non initialisée'),
+          backgroundColor: BabifixDesign.error,
+        ),
+      );
+      return;
+    }
+
+    // Phase D — Si on connaît la réservation, on passe par le backend
+    // pour avoir un FCM ring + token serveur. Sinon, fallback legacy.
+    if (widget.reservationReference != null &&
+        widget.reservationReference!.isNotEmpty) {
+      await CallService.startOutgoing(
+        context: context,
+        reservationReference: widget.reservationReference!,
+        targetName: widget.name,
+        isVideo: isVideo,
+      );
+      return;
+    }
+
+    final roomName = 'chat_conv_$convId';
+    final myName = BabifixLiveKitService.currentUserName ?? 'Client';
+
+    _sendCallSignal('call_offer',
+        roomName: roomName, isVideo: isVideo, callerName: myName);
+
+    final peerId = widget.peerUserId;
+    final targetUserID = peerId != null ? 'prestataire_$peerId' : 'unknown';
+
+    if (!BabifixLiveKitService.isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Service d\'appel non initialisé (userId=${BabifixLiveKitService.currentUserId})'),
+          backgroundColor: BabifixDesign.error,
+        ),
+      );
+      return;
+    }
+
+    final token = BabifixLiveKitService.generateLiveKitToken(
+      identity: BabifixLiveKitService.currentIdentity,
+      name: BabifixLiveKitService.currentUserName ?? 'Client',
+      roomName: roomName,
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => LiveKitCallScreen(
+          liveKitUrl: BabifixLiveKitService.url,
+          token: token,
+          roomName: roomName,
+          targetUserID: targetUserID,
+          targetUserName: widget.name,
+          isVideoCall: isVideo,
+        ),
+      ),
+    );
+  }
+
+  void _acceptIncomingCall() {
+    final roomName = _incomingCallRoom;
+    if (roomName == null) return;
+
+    _sendCallSignal('call_accept');
+    _clearIncomingCall();
+
+    final peerId = widget.peerUserId;
+    final targetUserID = peerId != null ? 'prestataire_$peerId' : 'unknown';
+    final isVideo = _incomingIsVideo;
+
+    final token = BabifixLiveKitService.generateLiveKitToken(
+      identity: BabifixLiveKitService.currentIdentity,
+      name: BabifixLiveKitService.currentUserName ?? 'Client',
+      roomName: roomName,
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => LiveKitCallScreen(
+          liveKitUrl: BabifixLiveKitService.url,
+          token: token,
+          roomName: roomName,
+          targetUserID: targetUserID,
+          targetUserName: _incomingCallerName ?? 'Prestataire',
+          isVideoCall: isVideo,
+        ),
+      ),
+    );
+  }
+
+  void _rejectIncomingCall() {
+    _sendCallSignal('call_reject');
+    _clearIncomingCall();
+  }
+
+  void _clearIncomingCall() {
+    _incomingCallTimeout?.cancel();
+    _incomingCallTimeout = null;
+    setState(() {
+      _hasIncomingCall = false;
+      _incomingCallRoom = null;
+      _incomingCallerName = null;
+      _incomingIsVideo = false;
+    });
+    Navigator.of(context).pop();
+  }
+
+  void _showIncomingCallDialog() {
+    if (!mounted) return;
+
+    _incomingCallTimeout?.cancel();
+    _incomingCallTimeout = Timer(const Duration(seconds: 30), () {
+      if (_hasIncomingCall) _rejectIncomingCall();
+    });
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Center(
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: BabifixDesign.ciOrange,
+                child: Text(
+                  _incomingCallerName?.isNotEmpty == true
+                      ? _incomingCallerName![0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(fontSize: 32, color: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _incomingIsVideo ? 'Appel vidéo entrant' : 'Appel audio entrant',
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _incomingCallerName ?? 'Prestataire',
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _rejectIncomingCall,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BabifixDesign.error,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.call_end, size: 24),
+                        SizedBox(height: 2),
+                        Text('Refuser', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _acceptIncomingCall,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BabifixDesign.success,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(_incomingIsVideo ? Icons.videocam : Icons.call, size: 24),
+                        SizedBox(height: 2),
+                        const Text('Accepter', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.name)),
+      appBar: AppBar(
+        title: Text(widget.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.phone),
+            tooltip: 'Appel audio',
+            color: Theme.of(context).primaryColor,
+            onPressed: () => _startOutgoingCall(isVideo: false),
+          ),
+          IconButton(
+            icon: const Icon(Icons.videocam),
+            tooltip: 'Appel vidéo',
+            color: Theme.of(context).primaryColor,
+            onPressed: () => _startOutgoingCall(isVideo: true),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -494,6 +877,39 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                     );
                   }
                   final msg = _chat[i];
+                  // Phase C — Messages spéciaux (DEVIS_CARD / SYSTEM)
+                  if (msg.kind == 'DEVIS_CARD' && msg.payloadJson != null) {
+                    final reservationRef =
+                        (msg.payloadJson!['reservation_reference'] ?? '')
+                            .toString();
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: InkWell(
+                        onTap: reservationRef.isEmpty
+                            ? null
+                            : () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => DevisKanbanScreen(
+                                      reservationReference: reservationRef,
+                                    ),
+                                  ),
+                                ),
+                        child: DevisCardWidget.fromPayload(
+                          msg.payloadJson!,
+                          compact: true,
+                        ),
+                      ),
+                    );
+                  }
+                  if (msg.kind == 'SYSTEM') {
+                    final body = msg.text ?? '';
+                    final eventType =
+                        (msg.payloadJson?['event_type'] ?? '').toString();
+                    return SystemEventWidget(
+                      body: body,
+                      eventType: eventType,
+                    );
+                  }
                   return SlideTransition(
                     position: Tween<Offset>(
                       begin: const Offset(0, 0.5),

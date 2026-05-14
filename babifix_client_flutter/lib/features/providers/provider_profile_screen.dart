@@ -799,11 +799,11 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
             children: [
               Row(
                 children: [
-                  ZegoCallBtn(
-                    targetUserID: 'prestataire_${widget.providerId}',
-                    targetUserName: name,
-                    reservationRef: 'prestaire_${widget.providerId}',
-                  ),
+                   ZegoCallBtn(
+                     targetUserID: 'prestataire_${widget.providerId}',
+                     targetUserName: name,
+                     reservationRef: 'prestataire_${widget.providerId}',
+                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton.icon(

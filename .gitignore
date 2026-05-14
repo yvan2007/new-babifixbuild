@@ -63,3 +63,8 @@ babifix-firebase-adminsdk.json
 # Temp / Claude
 .claude/
 _showReservationDetails_temp.txt
+
+# Environment files
+.env
+.env.*
+!.env.example

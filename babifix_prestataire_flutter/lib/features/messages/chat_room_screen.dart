@@ -1,21 +1,29 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
+import '../../services/livekit_call_service.dart';
+import '../../services/livekit_call_screen.dart';
+import '../../shared/services/haptics_service.dart';
+import '../../shared/widgets/babifix_phase_widgets.dart';
 
 class PrestChatRoomPage extends StatefulWidget {
   const PrestChatRoomPage({
     super.key,
     required this.name,
     required this.clientUserId,
+    this.conversationId,
     this.authToken,
     required this.apiBase,
     this.seed = const [],
@@ -23,12 +31,13 @@ class PrestChatRoomPage extends StatefulWidget {
 
   final String name;
   final int clientUserId;
+  final int? conversationId;
   final String? authToken;
   final String apiBase;
   final List<(String, bool)> seed;
 
   bool get apiMode =>
-      clientUserId > 0 && authToken != null && authToken!.isNotEmpty;
+      (clientUserId > 0 || conversationId != null) && authToken != null && authToken!.isNotEmpty;
 
   @override
   State<PrestChatRoomPage> createState() => _PrestChatRoomPageState();
@@ -45,6 +54,8 @@ class PrestApiChatMsg {
     this.replyToWasMe,
     this.serverMessageId,
     this.replyToServerId,
+    this.kind = 'USER',
+    this.payloadJson,
   });
 
   final int id;
@@ -56,6 +67,8 @@ class PrestApiChatMsg {
   final bool? replyToWasMe;
   final int? serverMessageId;
   final int? replyToServerId;
+  final String kind;
+  final Map<String, dynamic>? payloadJson;
 
   String get snippet {
     if (text != null && text!.trim().isNotEmpty) {
@@ -82,6 +95,14 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
   // Chat-room WebSocket for typing relay
   WebSocketChannel? _chatWs;
   StreamSubscription<dynamic>? _chatWsSub;
+
+  // Incoming call state
+  bool _hasIncomingCall = false;
+  String? _incomingCallRoom;
+  String? _incomingCallerName;
+  bool _incomingIsVideo = false;
+  Timer? _incomingCallTimeout;
+  Timer? _ringingVibrationTimer;
 
   @override
   void initState() {
@@ -119,18 +140,38 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _reloadMessages() async {
+   Future<void> _reloadMessages() async {
     final base = widget.apiBase;
     final token = widget.authToken!;
-    final cid = widget.clientUserId;
+    String url;
+    if (widget.conversationId != null && widget.conversationId! > 0) {
+      url = '$base/api/messages?conversation_id=${widget.conversationId}';
+      debugPrint('[Chat Load PRESTA] GET $url');
+    } else {
+      final cid = widget.clientUserId;
+      url = '$base/api/messages?client_id=$cid';
+      debugPrint('[Chat Load PRESTA] GET $url');
+    }
+
     final res = await http.get(
-      Uri.parse('$base/api/messages?client_id=$cid'),
+      Uri.parse(url),
       headers: {'Authorization': 'Bearer $token'},
     );
-    if (res.statusCode != 200) return;
+
+    debugPrint('[Chat Load PRESTA] Response status=${res.statusCode}');
+    if (res.statusCode != 200) {
+      debugPrint('[Chat Load PRESTA] Error body=${res.body}');
+      return;
+    }
+
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final convId = jsonInt(data['conversation_id']);
+    debugPrint('[Chat Load PRESTA] conversation_id=$convId');
+    debugPrint('[Chat Load PRESTA] Full response: $data');
+
     final newConvId = convId > 0 ? convId : null;
+    debugPrint('[Chat Load PRESTA] newConvId=$newConvId, _conversationId was=$_conversationId');
+
     final needsWsConnect = newConvId != null && newConvId != _conversationId;
     _conversationId = newConvId;
     if (needsWsConnect) _connectChatWs();
@@ -154,6 +195,10 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
       final sender = jsonInt(m['sender_id']);
       final rti = m['reply_to_id'];
       final rtid = rti == null ? null : jsonInt(rti);
+      final kind = (m['kind'] ?? 'USER').toString();
+      final payload = m['payload_json'] is Map
+          ? Map<String, dynamic>.from(m['payload_json'] as Map)
+          : null;
       list.add(
         PrestApiChatMsg(
           id: localId++,
@@ -164,6 +209,8 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
           replyToServerId: rtid,
           replyToText: rtid != null ? snippets[rtid] : null,
           replyToWasMe: rtid != null && _myUserId != null ? senderById[rtid] == _myUserId : null,
+          kind: kind,
+          payloadJson: payload,
         ),
       );
     }
@@ -195,27 +242,79 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     );
     final ch = WebSocketChannel.connect(uri);
     _chatWs = ch;
-    _chatWsSub = ch.stream.listen(
-      (raw) {
-        try {
-          final m = jsonDecode(raw as String) as Map<String, dynamic>;
-          if (m['type'] == 'typing') {
-            final isTyping = m['is_typing'] as bool? ?? false;
-            if (isTyping) {
-              if (mounted) {
-                setState(() => _peerTyping = true);
-                _peerTypingTimer?.cancel();
-                _peerTypingTimer = Timer(const Duration(seconds: 4), () {
-                  if (mounted) setState(() => _peerTyping = false);
+     _chatWsSub = ch.stream.listen(
+       (raw) {
+         try {
+           final m = jsonDecode(raw as String) as Map<String, dynamic>;
+           final msgType = '${m['type'] ?? ''}';
+           
+           debugPrint('[ChatCall] Received WS message type=$msgType');
+
+           if (msgType == 'typing') {
+             final isTyping = m['is_typing'] as bool? ?? false;
+             if (isTyping) {
+               if (mounted) {
+                 setState(() => _peerTyping = true);
+                 _peerTypingTimer?.cancel();
+                 _peerTypingTimer = Timer(const Duration(seconds: 4), () {
+                   if (mounted) setState(() => _peerTyping = false);
+                 });
+               }
+             } else {
+               _peerTypingTimer?.cancel();
+               if (mounted) setState(() => _peerTyping = false);
+             }
+           }
+
+            if (msgType == 'call_offer') {
+              final roomName = '${m['room_name'] ?? ''}';
+              final callerName = '${m['caller_name'] ?? 'Client'}';
+              final isVideo = m['is_video'] as bool? ?? false;
+
+              debugPrint('[ChatCall] INCOMING CALL: room=$roomName, caller=$callerName, isVideo=$isVideo');
+              debugPrint('[ChatCall] _hasIncomingCall=$_hasIncomingCall, mounted=$mounted');
+
+              if (roomName.isNotEmpty && !_hasIncomingCall && mounted) {
+                debugPrint('[ChatCall] Showing incoming call dialog...');
+
+                setState(() {
+                  _hasIncomingCall = true;
+                  _incomingCallRoom = roomName;
+                  _incomingCallerName = callerName;
+                  _incomingIsVideo = isVideo;
                 });
+
+                HapticsService.heavy();
+                HapticFeedback.vibrate();
+
+                _ringingVibrationTimer?.cancel();
+                _ringingVibrationTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+                  HapticFeedback.vibrate();
+                });
+
+                _showIncomingCallDialog();
               }
-            } else {
-              _peerTypingTimer?.cancel();
-              if (mounted) setState(() => _peerTyping = false);
             }
-          }
-        } catch (_) {}
-      },
+
+           if (msgType == 'call_accept') {
+             debugPrint('[ChatCall] Call accepted by peer');
+           }
+
+           if (msgType == 'call_reject') {
+             debugPrint('[ChatCall] Call rejected by peer');
+             if (mounted) {
+               ScaffoldMessenger.of(context).showSnackBar(
+                 SnackBar(
+                   content: Text('${widget.name} a refusé l\'appel'),
+                   backgroundColor: BabifixDesign.error,
+                 ),
+               );
+             }
+           }
+         } catch (e) {
+           debugPrint('[ChatCall] WS message error: $e');
+         }
+       },
       onError: (_) {},
       onDone: () {
         Future.delayed(const Duration(seconds: 3), () {
@@ -353,12 +452,30 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     });
   }
 
-  Future<void> _sendTextApi(String text) async {
+   Future<void> _sendTextApi(String text) async {
     final base = widget.apiBase;
     final token = widget.authToken!;
     final cid = _conversationId;
-    if (cid == null) return;
+    final clientId = widget.clientUserId;
+
+    debugPrint('[Chat Send PRESTA] _conversationId=$cid');
+    debugPrint('[Chat Send PRESTA] clientUserId=$clientId');
+
+    if (cid == null) {
+      debugPrint('[Chat Send PRESTA] No conversation_id!');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Conversation pas prête (cid=null, clientId=$clientId)'),
+            backgroundColor: BabifixDesign.error,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
+      debugPrint('[Chat Send PRESTA] POST $base/api/messages, conversation_id=$cid');
       final res = await http.post(
         Uri.parse('$base/api/messages'),
         headers: {
@@ -371,12 +488,241 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
           if (_replyingTo?.serverMessageId != null) 'reply_to_id': _replyingTo!.serverMessageId,
         }),
       );
+
+      debugPrint('[Chat Send PRESTA] Response status=${res.statusCode}');
+      debugPrint('[Chat Send PRESTA] Response body=${res.body}');
+
       if (res.statusCode == 201 && mounted) {
         _input.clear();
         setState(() => _replyingTo = null);
         await _reloadMessages();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur envoi: HTTP ${res.statusCode}'),
+            backgroundColor: BabifixDesign.error,
+          ),
+        );
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Chat Send PRESTA] EXCEPTION: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: BabifixDesign.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _sendCallSignal(String type, {String? roomName, bool? isVideo, String? callerName}) {
+    if (_chatWs == null) {
+      debugPrint('[ChatCall] _chatWs is null, cannot send signal');
+      return;
+    }
+    final msg = <String, dynamic>{
+      'type': type,
+      if (roomName != null) 'room_name': roomName,
+      if (isVideo != null) 'is_video': isVideo,
+      if (callerName != null) 'caller_name': callerName,
+    };
+    debugPrint('[ChatCall] Sending: $msg');
+    _chatWs!.sink.add(jsonEncode(msg));
+  }
+
+  void _startOutgoingCall({required bool isVideo}) {
+    final convId = _conversationId;
+    if (convId == null || convId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Conversation non initialisée'),
+          backgroundColor: BabifixDesign.error,
+        ),
+      );
+      return;
+    }
+
+    final roomName = 'chat_conv_$convId';
+    final myName = BabifixLiveKitService.currentUserName ?? 'Prestataire';
+
+    _sendCallSignal('call_offer',
+        roomName: roomName, isVideo: isVideo, callerName: myName);
+
+    final targetUserID = 'client_${widget.clientUserId}';
+
+    if (!BabifixLiveKitService.isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Service d\'appel non initialisé (userId=${BabifixLiveKitService.currentUserId})'),
+          backgroundColor: BabifixDesign.error,
+        ),
+      );
+      return;
+    }
+
+    final token = BabifixLiveKitService.generateLiveKitToken(
+      identity: BabifixLiveKitService.currentIdentity,
+      name: BabifixLiveKitService.currentUserName ?? 'Prestataire',
+      roomName: roomName,
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => LiveKitCallScreen(
+          liveKitUrl: BabifixLiveKitService.url,
+          token: token,
+          roomName: roomName,
+          targetUserID: targetUserID,
+          targetUserName: widget.name,
+          isVideoCall: isVideo,
+        ),
+      ),
+    );
+  }
+
+  void _acceptIncomingCall() {
+    final roomName = _incomingCallRoom;
+    if (roomName == null) return;
+
+    _sendCallSignal('call_accept');
+    _clearIncomingCall();
+
+    final targetUserID = 'client_${widget.clientUserId}';
+    final isVideo = _incomingIsVideo;
+
+    final token = BabifixLiveKitService.generateLiveKitToken(
+      identity: BabifixLiveKitService.currentIdentity,
+      name: BabifixLiveKitService.currentUserName ?? 'Prestataire',
+      roomName: roomName,
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => LiveKitCallScreen(
+          liveKitUrl: BabifixLiveKitService.url,
+          token: token,
+          roomName: roomName,
+          targetUserID: targetUserID,
+          targetUserName: _incomingCallerName ?? 'Client',
+          isVideoCall: isVideo,
+        ),
+      ),
+    );
+  }
+
+  void _rejectIncomingCall() {
+    _sendCallSignal('call_reject');
+    _clearIncomingCall();
+  }
+
+  void _clearIncomingCall() {
+    _incomingCallTimeout?.cancel();
+    _incomingCallTimeout = null;
+    _ringingVibrationTimer?.cancel();
+    _ringingVibrationTimer = null;
+    setState(() {
+      _hasIncomingCall = false;
+      _incomingCallRoom = null;
+      _incomingCallerName = null;
+      _incomingIsVideo = false;
+    });
+    Navigator.of(context).pop();
+  }
+
+  void _showIncomingCallDialog() {
+    if (!mounted) return;
+
+    _incomingCallTimeout?.cancel();
+    _incomingCallTimeout = Timer(const Duration(seconds: 30), () {
+      if (_hasIncomingCall) _rejectIncomingCall();
+    });
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Center(
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: BabifixDesign.ciOrange,
+                child: Text(
+                  _incomingCallerName?.isNotEmpty == true
+                      ? _incomingCallerName![0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(fontSize: 32, color: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _incomingIsVideo ? 'Appel vidéo entrant' : 'Appel audio entrant',
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _incomingCallerName ?? 'Client',
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _rejectIncomingCall,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BabifixDesign.error,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.call_end, size: 24),
+                        SizedBox(height: 2),
+                        Text('Refuser', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _acceptIncomingCall,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BabifixDesign.success,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(_incomingIsVideo ? Icons.videocam : Icons.call, size: 24),
+                        SizedBox(height: 2),
+                        const Text('Accepter', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -388,6 +734,21 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
           icon: const Icon(Icons.arrow_back),
         ),
         title: Text(widget.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.phone),
+            tooltip: 'Appel audio',
+            color: Theme.of(context).primaryColor,
+            onPressed: () => _startOutgoingCall(isVideo: false),
+          ),
+          IconButton(
+            icon: const Icon(Icons.videocam),
+            tooltip: 'Appel vidéo',
+            color: Theme.of(context).primaryColor,
+            onPressed: () => _startOutgoingCall(isVideo: true),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [
@@ -404,6 +765,23 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                     );
                   }
                   final msg = _chat[i];
+                  // Phase C — DEVIS_CARD / SYSTEM
+                  if (msg.kind == 'DEVIS_CARD' && msg.payloadJson != null) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: DevisCardWidget.fromPayload(
+                        msg.payloadJson!,
+                        compact: true,
+                      ),
+                    );
+                  }
+                  if (msg.kind == 'SYSTEM') {
+                    return SystemEventWidget(
+                      body: msg.text ?? '',
+                      eventType:
+                          (msg.payloadJson?['event_type'] ?? '').toString(),
+                    );
+                  }
                   return Align(
                     alignment: msg.me ? Alignment.centerRight : Alignment.centerLeft,
                     child: _PrestApiChatBubble(

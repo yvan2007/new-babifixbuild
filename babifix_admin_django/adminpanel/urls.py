@@ -1,6 +1,16 @@
 from django.urls import path
 
 from .geniuspay import geniuspay_initiate, geniuspay_status, geniuspay_webhook
+from .views_health import api_admin_health_config
+from .views_media import api_media_upload
+from .views_calls import (
+    api_call_answer,
+    api_call_detail,
+    api_call_end,
+    api_call_history,
+    api_call_initiate,
+    api_call_reject,
+)
 from .views_finance import (
     api_referral,
     api_premium_tiers,
@@ -74,6 +84,13 @@ from .views import (
     api_client_annuler_demande,
     api_client_check_provider_availability,
     api_client_confirmer_travaux,
+    api_reservation_payment_quote,
+    api_category_catalogue,
+    api_client_journal,
+    api_prestataire_annuler_demande,
+    api_admin_mark_refund_paid,
+    api_client_open_dispute,
+    api_admin_resolve_dispute,
     api_client_conversations,
     api_client_create_reservation,
     api_client_declare_cash,
@@ -465,6 +482,65 @@ urlpatterns = [
         api_client_receipt_pdf,
         name="api-client-receipt-pdf",
     ),
+    # Phase F — Escrow : quote initial du paiement (cash 18% ou mobile 100%)
+    path(
+        "api/reservations/<str:reference>/payment/quote",
+        api_reservation_payment_quote,
+        name="api-reservation-payment-quote",
+    ),
+    # Phase B — Catalogue de matériaux / prestations par catégorie
+    path(
+        "api/categories/<int:category_id>/catalogue",
+        api_category_catalogue,
+        name="api-category-catalogue",
+    ),
+    # Journal client post-intervention (photos client + commentaire)
+    path(
+        "api/client/reservations/<str:reference>/journal",
+        api_client_journal,
+        name="api-client-journal",
+    ),
+    # B7 — Upload images (remplace base64 inline)
+    path(
+        "api/media/upload",
+        api_media_upload,
+        name="api-media-upload",
+    ),
+    # C1 — Annulations supplémentaires
+    path(
+        "api/prestataire/requests/<str:reference>/annuler",
+        api_prestataire_annuler_demande,
+        name="api-prestataire-annuler-demande",
+    ),
+    path(
+        "api/admin/reservations/<str:reference>/refund/mark-paid",
+        api_admin_mark_refund_paid,
+        name="api-admin-mark-refund-paid",
+    ),
+    # Health / diagnostic config (admin only — protégé par require_api_auth)
+    path(
+        "api/admin/health/config",
+        api_admin_health_config,
+        name="api-admin-health-config",
+    ),
+    # B6 — Litiges
+    path(
+        "api/client/reservations/<str:reference>/dispute",
+        api_client_open_dispute,
+        name="api-client-open-dispute",
+    ),
+    path(
+        "api/admin/disputes/<str:dispute_ref>/resolve",
+        api_admin_resolve_dispute,
+        name="api-admin-resolve-dispute",
+    ),
+    # Phase D — Appels LiveKit (signalisation backend authoritative)
+    path("api/calls/initiate", api_call_initiate, name="api-call-initiate"),
+    path("api/calls/history", api_call_history, name="api-call-history"),
+    path("api/calls/<int:call_id>", api_call_detail, name="api-call-detail"),
+    path("api/calls/<int:call_id>/answer", api_call_answer, name="api-call-answer"),
+    path("api/calls/<int:call_id>/reject", api_call_reject, name="api-call-reject"),
+    path("api/calls/<int:call_id>/end", api_call_end, name="api-call-end"),
     # ── Demandes et intervention ───────────────────────────────────────────────
     # Prestataire
     path(

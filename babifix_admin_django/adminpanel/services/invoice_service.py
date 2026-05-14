@@ -60,6 +60,18 @@ class InvoiceData:
     payment_reference: str
     operator: str = ""
     provider_net: float = 0  # Prestataire part (apres commission)
+    # Phase G — escrow & traçabilité
+    escrow_strategy: str = ""  # "CASH_COMMISSION_ONLY" | "MOBILE_FULL"
+    paid_online: float = 0     # Montant versé en ligne (acompte escrow)
+    paid_cash_to_provider: float = 0  # Solde réglé main à main (cash)
+    funds_released_at: str = ""
+    confirmed_at: str = ""
+    photos_avant: list = field(default_factory=list)
+    photos_apres: list = field(default_factory=list)
+    # Journal client (témoignage post-intervention)
+    client_photos_avant: list = field(default_factory=list)
+    client_photos_apres: list = field(default_factory=list)
+    client_journal_note: str = ""
 
 
 class InvoiceService:
@@ -68,17 +80,30 @@ class InvoiceService:
     INVOICE_PREFIX = "FAC"
     RECEIPT_PREFIX = "REC"
 
+    @staticmethod
+    def _payment_date(payment):
+        """Date du paiement : `paid_at` si présent (compat), sinon
+        idempotency_used_at, sinon now (pour ne pas casser le PDF si le
+        modèle Payment historique n'a pas de `paid_at`)."""
+        dt = (
+            getattr(payment, "paid_at", None)
+            or getattr(payment, "idempotency_used_at", None)
+        )
+        if dt:
+            return dt
+        return timezone.now()
+
     @classmethod
     def generate_invoice_number(cls, payment: Payment) -> str:
         """Genere un numero de facture sequentiel."""
-        year = payment.paid_at.strftime("%Y") if payment.paid_at else "0000"
+        year = cls._payment_date(payment).strftime("%Y")
         seq = payment.id or 1
         return f"{cls.INVOICE_PREFIX}-{year}-{seq:05d}"
 
     @classmethod
     def generate_receipt_number(cls, payment: Payment) -> str:
         """Genere un numero de recu sequentiel."""
-        year = payment.paid_at.strftime("%Y") if payment.paid_at else "0000"
+        year = cls._payment_date(payment).strftime("%Y")
         seq = payment.id or 1
         return f"{cls.RECEIPT_PREFIX}-{year}-{seq:05d}"
 
@@ -185,11 +210,33 @@ class InvoiceService:
                 total=float(res.montant or 0),
             ))
 
-        # Commission
-        commission_pct, commission_amount = cls._get_commission_rate(payment)
-        subtotal = float(res.montant or 0)
-        total_paid = float(payment.montant or 0)
-        provider_net = total_paid - commission_amount
+        # Phase G — Préférer les données du devis (vérité métier post-Phase A)
+        devis_for_totals = Devis.objects.filter(
+            reservation=res, statut=Devis.Statut.ACCEPTE
+        ).first() or Devis.objects.filter(reservation=res).order_by("-created_at").first()
+
+        if devis_for_totals:
+            subtotal = float(devis_for_totals.total_ttc or 0)  # ce qu'a payé le client
+            commission_pct = float(devis_for_totals.commission_rate or 0)
+            commission_amount = float(devis_for_totals.commission_montant or 0)
+            provider_net = float(devis_for_totals.net_prestataire or 0)
+        else:
+            commission_pct, commission_amount = cls._get_commission_rate(payment)
+            subtotal = float(res.montant or 0)
+            provider_net = subtotal - commission_amount
+
+        # Total facturé au client = subtotal (par définition Phase A)
+        total_paid = subtotal
+
+        # Phase F — Décomposition selon stratégie escrow
+        is_cash = res.payment_type == Reservation.PaymentType.ESPECES
+        escrow_strategy = "CASH_COMMISSION_ONLY" if is_cash else "MOBILE_FULL"
+        if is_cash:
+            paid_online = commission_amount       # commission versée en MM
+            paid_cash_to_provider = provider_net  # solde main à main
+        else:
+            paid_online = subtotal
+            paid_cash_to_provider = 0
 
         # Date d'intervention
         intervention_date = ""
@@ -226,7 +273,7 @@ class InvoiceService:
 
         return InvoiceData(
             invoice_number=cls.generate_invoice_number(payment),
-            date=payment.paid_at.strftime("%d/%m/%Y %H:%M") if payment.paid_at else "",
+            date=cls._payment_date(payment).strftime("%d/%m/%Y %H:%M"),
             client_name=client_name,
             client_email=client_email,
             provider_name=provider_name,
@@ -245,6 +292,22 @@ class InvoiceService:
             payment_reference=payment.reference,
             operator=operator,
             provider_net=provider_net,
+            escrow_strategy=escrow_strategy,
+            paid_online=paid_online,
+            paid_cash_to_provider=paid_cash_to_provider,
+            funds_released_at=(
+                res.funds_released_at.strftime("%d/%m/%Y %H:%M")
+                if res.funds_released_at else ""
+            ),
+            confirmed_at=(
+                res.client_confirme_prestation_at.strftime("%d/%m/%Y %H:%M")
+                if res.client_confirme_prestation_at else ""
+            ),
+            photos_avant=list(res.photos_avant or []),
+            photos_apres=list(res.photos_apres or []),
+            client_photos_avant=list(getattr(res, "client_photos_avant", []) or []),
+            client_photos_apres=list(getattr(res, "client_photos_apres", []) or []),
+            client_journal_note=(getattr(res, "client_journal_note", "") or "")[:5000],
         )
 
     @classmethod
@@ -427,6 +490,21 @@ class InvoiceService:
             c.drawRightString(width - 20*mm, 20*mm, "contact@babifix.ci - www.babifix.ci")
             c.drawCentredString(width / 2, 17*mm, "Document genere automatiquement - Fait foi de recu de paiement")
 
+            # ============================================================
+            # Page 2 — Détail escrow + photos + témoignage client
+            # ============================================================
+            has_extra = (
+                data.escrow_strategy
+                or data.client_journal_note
+                or data.photos_avant
+                or data.photos_apres
+                or data.client_photos_avant
+                or data.client_photos_apres
+            )
+            if has_extra:
+                c.showPage()
+                cls._render_page_2(c, data, width, height, mm)
+
             c.showPage()
             c.save()
 
@@ -439,6 +517,220 @@ class InvoiceService:
         except Exception as e:
             logger.exception(f"Erreur generation PDF: {e}")
             return None
+
+    @classmethod
+    def _render_page_2(cls, c, data, width, height, mm):
+        """Page 2 du PDF : escrow + galerie photos + témoignage client."""
+        # Header navy
+        c.setFillColorRGB(0.04, 0.1, 0.2)
+        c.rect(0, height - 25*mm, width, 25*mm, fill=1, stroke=0)
+        c.setFillColorRGB(0.14, 0.55, 0.86)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(20*mm, height - 17*mm, "BABIFIX")
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawRightString(width - 20*mm, height - 17*mm,
+                          f"Detail intervention - {data.reservation_ref}")
+
+        y = height - 35*mm
+
+        # ---- Bloc Escrow / Mode de paiement ----
+        if data.escrow_strategy:
+            c.setFillColorRGB(0.95, 0.97, 1.0)
+            c.roundRect(20*mm, y - 38*mm, width - 40*mm, 38*mm, 3*mm, fill=1, stroke=0)
+            c.setFillColorRGB(0.14, 0.55, 0.86)
+            c.setFont("Helvetica-Bold", 11)
+            c.drawString(25*mm, y - 8*mm, "STRATEGIE DE PAIEMENT")
+
+            label = (
+                "Especes (commission MM + solde main a main)"
+                if data.escrow_strategy == "CASH_COMMISSION_ONLY"
+                else "Mobile Money (100% en escrow plateforme)"
+            )
+            c.setFillColorRGB(0.1, 0.15, 0.25)
+            c.setFont("Helvetica", 9)
+            c.drawString(25*mm, y - 16*mm, label)
+
+            col2_x = 110*mm
+            c.setFont("Helvetica", 8)
+            c.setFillColorRGB(0.4, 0.45, 0.55)
+            c.drawString(25*mm, y - 24*mm, "Versement en ligne :")
+            c.drawString(25*mm, y - 31*mm, "Solde cash au prestataire :")
+            c.drawString(col2_x, y - 24*mm, "Total devis :")
+            c.drawString(col2_x, y - 31*mm, "Part prestataire (82%) :")
+
+            c.setFillColorRGB(0.1, 0.15, 0.25)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawRightString(105*mm, y - 24*mm, f"{data.paid_online:,.0f} FCFA")
+            c.drawRightString(105*mm, y - 31*mm,
+                              f"{data.paid_cash_to_provider:,.0f} FCFA")
+            c.drawRightString(width - 25*mm, y - 24*mm, f"{data.subtotal:,.0f} FCFA")
+            c.drawRightString(width - 25*mm, y - 31*mm,
+                              f"{data.provider_net:,.0f} FCFA")
+
+            y -= 45*mm
+
+        # ---- Horodatages cycle ----
+        if data.confirmed_at or data.funds_released_at:
+            c.setFillColorRGB(0.4, 0.45, 0.55)
+            c.setFont("Helvetica", 8)
+            if data.confirmed_at:
+                c.drawString(25*mm, y, f"Travaux confirmes par le client : {data.confirmed_at}")
+                y -= 5*mm
+            if data.funds_released_at:
+                c.drawString(25*mm, y, f"Fonds liberes : {data.funds_released_at}")
+                y -= 5*mm
+            y -= 5*mm
+
+        # ---- Galerie photos prestataire ----
+        y = cls._draw_photo_strip(
+            c, mm, x=20*mm, y=y, width=width - 40*mm,
+            label="Photos prestataire - avant", urls=data.photos_avant,
+        )
+        y = cls._draw_photo_strip(
+            c, mm, x=20*mm, y=y, width=width - 40*mm,
+            label="Photos prestataire - apres", urls=data.photos_apres,
+        )
+
+        # ---- Galerie photos client ----
+        y = cls._draw_photo_strip(
+            c, mm, x=20*mm, y=y, width=width - 40*mm,
+            label="Photos client - avant (temoignage)",
+            urls=data.client_photos_avant,
+        )
+        y = cls._draw_photo_strip(
+            c, mm, x=20*mm, y=y, width=width - 40*mm,
+            label="Photos client - apres (temoignage)",
+            urls=data.client_photos_apres,
+        )
+
+        # ---- Témoignage client (texte) ----
+        if data.client_journal_note:
+            note_h = 35*mm
+            if y - note_h < 30*mm:
+                # pas la place : nouvelle page
+                c.showPage()
+                cls._page_header(c, mm, width, height, data)
+                y = height - 35*mm
+            c.setFillColorRGB(0.94, 1.0, 0.95)
+            c.roundRect(20*mm, y - note_h, width - 40*mm, note_h, 3*mm, fill=1, stroke=0)
+            c.setFillColorRGB(0.13, 0.55, 0.30)
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(25*mm, y - 8*mm, "TEMOIGNAGE DU CLIENT")
+            c.setFillColorRGB(0.1, 0.2, 0.15)
+            c.setFont("Helvetica", 9)
+            # Wrap simple — découpe sur 90 chars/ligne, max 4 lignes
+            note = data.client_journal_note.replace("\r", " ").replace("\n", " ")
+            line_y = y - 16*mm
+            for line in cls._wrap(note, 95)[:5]:
+                c.drawString(25*mm, line_y, line)
+                line_y -= 5*mm
+
+        # Footer page 2
+        c.setFillColorRGB(0.04, 0.1, 0.2)
+        c.rect(0, 15*mm, width, 15*mm, fill=1, stroke=0)
+        c.setFillColorRGB(0.4, 0.45, 0.55)
+        c.setFont("Helvetica", 7)
+        c.drawString(20*mm, 20*mm, "BABIFIX - Detail intervention")
+        c.drawRightString(width - 20*mm, 20*mm,
+                          f"Reservation {data.reservation_ref}")
+        c.drawCentredString(width / 2, 17*mm,
+                            "Annexe au recu - photos et temoignage client")
+
+    @staticmethod
+    def _page_header(c, mm, width, height, data):
+        c.setFillColorRGB(0.04, 0.1, 0.2)
+        c.rect(0, height - 25*mm, width, 25*mm, fill=1, stroke=0)
+        c.setFillColorRGB(0.14, 0.55, 0.86)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(20*mm, height - 17*mm, "BABIFIX")
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawRightString(width - 20*mm, height - 17*mm,
+                          f"Temoignage - {data.reservation_ref}")
+
+    @staticmethod
+    def _wrap(text: str, max_len: int) -> list:
+        words = text.split()
+        lines, cur = [], ""
+        for w in words:
+            if len(cur) + 1 + len(w) > max_len:
+                lines.append(cur)
+                cur = w
+            else:
+                cur = f"{cur} {w}".strip()
+        if cur:
+            lines.append(cur)
+        return lines
+
+    @classmethod
+    def _draw_photo_strip(cls, c, mm, *, x, y, width, label, urls):
+        """Dessine une bande de jusqu'à 4 vignettes (les autres sont
+        comptabilisées dans un compteur). Retourne le nouveau y."""
+        if not urls:
+            return y
+        thumb_w = 38*mm
+        thumb_h = 28*mm
+        gap = 4*mm
+        # label
+        c.setFillColorRGB(0.4, 0.45, 0.55)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(x, y, label.upper() + f"  ({len(urls)})")
+        y -= 4*mm
+        # bande
+        from django.conf import settings as _s
+        import os
+        for i, u in enumerate(urls[:4]):
+            tx = x + i * (thumb_w + gap)
+            # bord
+            c.setFillColorRGB(0.92, 0.94, 0.97)
+            c.roundRect(tx, y - thumb_h, thumb_w, thumb_h, 2*mm, fill=1, stroke=0)
+            # tenter d'embarquer l'image
+            local_path = None
+            if isinstance(u, str):
+                if u.startswith("/media/"):
+                    local_path = os.path.join(
+                        _s.MEDIA_ROOT, u[len("/media/"):].replace("/", os.sep)
+                    )
+                elif u.startswith("data:image"):
+                    try:
+                        import base64 as _b64
+                        head, _, b = u.partition(",")
+                        raw = _b64.b64decode(b)
+                        import tempfile
+                        tmp = tempfile.NamedTemporaryFile(
+                            suffix=".jpg", delete=False
+                        )
+                        tmp.write(raw)
+                        tmp.close()
+                        local_path = tmp.name
+                    except Exception:
+                        local_path = None
+            if local_path and os.path.exists(local_path):
+                try:
+                    c.drawImage(
+                        local_path,
+                        tx, y - thumb_h, thumb_w, thumb_h,
+                        preserveAspectRatio=True, mask="auto",
+                    )
+                except Exception:
+                    c.setFillColorRGB(0.7, 0.7, 0.75)
+                    c.setFont("Helvetica", 7)
+                    c.drawCentredString(
+                        tx + thumb_w / 2, y - thumb_h / 2, "[image]"
+                    )
+            else:
+                c.setFillColorRGB(0.7, 0.7, 0.75)
+                c.setFont("Helvetica", 7)
+                c.drawCentredString(tx + thumb_w / 2, y - thumb_h / 2, "[image]")
+        y -= thumb_h + 4*mm
+        if len(urls) > 4:
+            c.setFillColorRGB(0.5, 0.55, 0.62)
+            c.setFont("Helvetica-Oblique", 7)
+            c.drawString(x, y, f"+ {len(urls) - 4} autres photos non affichees")
+            y -= 5*mm
+        y -= 3*mm
+        return y
 
     @classmethod
     def get_client_invoices(cls, user: User) -> list:

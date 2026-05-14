@@ -24,13 +24,40 @@ const String kBabifixSentryDsn = String.fromEnvironment(
   defaultValue: '',
 );
 
-/// ZEGOCLOUD Voice/Video Call (Appels masqués client-prestataire)
+/// ZEGOCLOUD Voice/Video Call (deprecated)
 /// Obtenez ces valeurs sur https://console.zegocloud.com/
 /// Peut être défini via --dart-define ou fichier .env
 int get kZegoAppID => _envInt('ZEGO_APP_ID', const int.fromEnvironment('ZEGO_APP_ID', defaultValue: 0));
 String get kZegoAppSign => _envString('ZEGO_APP_SIGN', const String.fromEnvironment('ZEGO_APP_SIGN', defaultValue: ''));
 
 bool get isZegoConfigured => kZegoAppID != 0 && kZegoAppSign.isNotEmpty;
+
+/// LiveKit Voice/Video Call (nouveau)
+/// Obtenez ces valeurs sur https://cloud.livekit.io
+/// Peut être défini via --dart-define ou fichier .env
+const _defaultLiveKitUrl = 'wss://babifix-h1giwqew.livekit.cloud';
+const _defaultLiveKitApiKey = 'APIHmepmCSoou3K';
+const _defaultLiveKitApiSecret = 'Cets7RORRaNS61Ie4dyCY0rE33lyzxTBrG7NYQifs6IA';
+
+String? _envStringSafe(String key) {
+  try {
+    return dotenv.env[key];
+  } catch (_) {
+    return null;
+  }
+}
+
+String _envStringWithFallback(String key, String fallback) {
+  final fromEnv = _envStringSafe(key);
+  if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;
+  return fallback;
+}
+
+String get kLiveKitUrl => _envStringWithFallback('LIVEKIT_URL', _defaultLiveKitUrl);
+String get kLiveKitApiKey => _envStringWithFallback('LIVEKIT_API_KEY', _defaultLiveKitApiKey);
+String get kLiveKitApiSecret => _envStringWithFallback('LIVEKIT_API_SECRET', _defaultLiveKitApiSecret);
+
+bool get isLiveKitConfigured => kLiveKitUrl.isNotEmpty && kLiveKitApiKey.isNotEmpty && kLiveKitApiSecret.isNotEmpty;
 
 /// Port du `python manage.py runserver` (aligné doc BABIFIX).
 const int kBabifixApiPort = 8002;

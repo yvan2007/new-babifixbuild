@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import '../../babifix_design_system.dart';
 
 class VoiceCallService {
+  static bool _isInitialized = false;
 
   static Future<void> initialize(String userId, String userName) async {
+    _isInitialized = true;
     debugPrint('VoiceCall init: $userId ($userName)');
   }
+
+  static bool get isInitialized => _isInitialized;
 
   static Future<void> startVoiceCall({
     required BuildContext context,

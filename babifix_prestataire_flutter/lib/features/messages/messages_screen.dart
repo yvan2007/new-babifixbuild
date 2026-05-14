@@ -198,19 +198,21 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 textPrimary: textPrimary,
                                 textSecondary: textSecondary,
                                 isLight: isLight,
-                                onTap: () async {
-                                  final name = '${_filtered[i]['client_username'] ?? 'Client'}';
-                                  final cid = jsonInt(_filtered[i]['client_id']);
-                                  await Navigator.of(context).push(babifixRoute(
-                                    (_) => PrestChatRoomPage(
-                                      name: name,
-                                      clientUserId: cid,
-                                      authToken: authToken,
-                                      apiBase: babifixApiBaseUrl(),
-                                    ),
-                                  ));
-                                  _load();
-                                },
+                                 onTap: () async {
+                                   final name = '${_filtered[i]['client_username'] ?? 'Client'}';
+                                   final cid = jsonInt(_filtered[i]['client_id']);
+                                   final convId = jsonInt(_filtered[i]['id']);
+                                   await Navigator.of(context).push(babifixRoute(
+                                     (_) => PrestChatRoomPage(
+                                       name: name,
+                                       clientUserId: cid,
+                                       conversationId: convId > 0 ? convId : null,
+                                       authToken: authToken,
+                                       apiBase: babifixApiBaseUrl(),
+                                     ),
+                                   ));
+                                   _load();
+                                 },
                               ),
                             ),
                     ),

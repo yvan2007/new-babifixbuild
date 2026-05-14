@@ -8,8 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';
-import 'package:zego_uikit_signaling_plugin/zego_uikit_signaling_plugin.dart';
+// import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';  // désactivé : voir services/zego_call_service.dart
+// import 'package:zego_uikit_signaling_plugin/zego_uikit_signaling_plugin.dart';
 
 import 'babifix_design_system.dart';
 import 'babifix_api_config.dart';
@@ -37,8 +37,11 @@ import 'features/messages/messages_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/actualites/actualites_screen.dart';
 import 'features/wallet/wallet_screen.dart' as wallet_feature;
+import 'services/fcm_router.dart';
 
-final GlobalKey<NavigatorState> zegoNavigatorKey = GlobalKey<NavigatorState>();
+// Alias avec BabifixFcmRouter — un seul navigatorKey pour tout (calls in/out).
+final GlobalKey<NavigatorState> zegoNavigatorKey =
+    BabifixFcmRouter.navigatorKey;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,9 +52,10 @@ Future<void> main() async {
   
   await BabifixFcm.ensureInitialized();
   
-  if (isZegoConfigured) {
-    ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
-  }
+  // Zego SDK temporairement désactivé — voir services/zego_call_service.dart
+  // if (isZegoConfigured) {
+  //   ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
+  // }
   
   runApp(const BabifixPrestataireApp());
 }
@@ -442,20 +446,30 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       
       final provId = prov['id'] as int?;
       final provName = '${prov['nom'] ?? prov['prenom'] ?? 'Prestataire'}'.trim();
-      if (provName.isNotEmpty && provId != null) {
-        await babifixSaveProfile(
-          name: provName,
-          email: '${prov['email'] ?? ''}',
-          id: provId,
-        );
-        if (isZegoConfigured && mounted) {
-          await BabifixZegoService.init(
-            userId: provId,
-            userName: provName,
-            context: context,
-          );
-        }
-      }
+       if (provName.isNotEmpty && provId != null) {
+         await babifixSaveProfile(
+           name: provName,
+           email: '${prov['email'] ?? ''}',
+           id: provId,
+         );
+
+         if (mounted) {
+           try {
+             debugPrint('[LiveKit Prestataire] Initializing for provId=$provId, provName=$provName');
+             await BabifixLiveKitService.init(
+               userId: provId,
+               userName: provName,
+               context: context,
+             );
+             debugPrint('[LiveKit Prestataire] INITIALIZED SUCCESS! isInitialized=${BabifixLiveKitService.isInitialized}');
+           } catch (e, stack) {
+             debugPrint('[LiveKit Prestataire] Init ERROR: $e');
+             debugPrint('[LiveKit Prestataire] Stack: $stack');
+           }
+         } else {
+           debugPrint('[LiveKit Prestataire] NOT mounted, skipping init');
+         }
+       }
       
       final st = '${prov['statut'] ?? ''}';
       final unread = jsonInt(data['unread_chat_messages']);
@@ -876,8 +890,8 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         onBack: () => setState(() => current = 'dashboard'),
         paletteMode: widget.paletteMode,
         onPaletteChanged: widget.onPaletteChanged,
-        onLogout: () async {
-          await BabifixZegoService.uninit();
+         onLogout: () async {
+          await BabifixLiveKitService.uninit();
           await writeStoredApiToken(null);
           if (mounted) setState(() => current = 'landing');
         },

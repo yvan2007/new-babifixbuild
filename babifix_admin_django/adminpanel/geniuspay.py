@@ -201,11 +201,12 @@ def geniuspay_initiate(request):
         commission = (gross * commission_rate).quantize(Decimal("1"))
         payment.commission = str(commission)
         payment.save(update_fields=["reference_externe", "etat", "valide_par_admin", "commission"])
-        if payment.reservation:
-            payment.reservation.cash_flow_status = Reservation.CashFlowStatus.PENDING_ADMIN
-            payment.reservation.save(update_fields=["cash_flow_status"])
-        from adminpanel.services.wallet_service import WalletService
-        WalletService.credit_provider(payment)
+        # Phase F : même en simulation on passe par l'escrow.
+        try:
+            from adminpanel.services.escrow_service import EscrowService
+            EscrowService.mark_escrow_received(payment)
+        except Exception as exc:
+            logger.warning("simu escrow failed: %s", exc)
         return JsonResponse({
             "transaction_id": simulated_ref,
             "payment_id":     payment.pk,
@@ -412,62 +413,52 @@ def geniuspay_webhook(request):
 
         payment.save(update_fields=["etat", "valide_par_admin", "commission"])
 
-        # Mettre à jour le cash flow de la réservation
+        # Phase F : ESCROW — on ne crédite plus le wallet du prestataire ici.
+        # On délègue à EscrowService qui sait distinguer cash (commission =
+        # acompte définitif) vs mobile (montant total bloqué en escrow).
+        # Le wallet presta ne sera crédité qu'à la confirmation client via
+        # `EscrowService.release_funds`.
         if payment.reservation:
-            payment.reservation.cash_flow_status = Reservation.CashFlowStatus.PENDING_ADMIN
-            payment.reservation.save(update_fields=["cash_flow_status"])
+            try:
+                from .services.escrow_service import EscrowService
+                EscrowService.mark_escrow_received(payment)
+            except Exception as exc:
+                logger.exception("EscrowService.mark_escrow_received failed: %s", exc)
+                # En fallback on garde l'ancien marqueur pour ne pas bloquer.
+                payment.reservation.cash_flow_status = (
+                    Reservation.CashFlowStatus.PENDING_ADMIN
+                )
+                payment.reservation.save(update_fields=["cash_flow_status"])
 
-            # Notifier le prestataire
+            # Notifier le prestataire (sans plus parler de wallet — il sera
+            # crédité à la confirmation client).
             try:
                 from .push_dispatch import _schedule
                 _schedule(
                     [payment.reservation.prestataire_user_id],
-                    "BABIFIX — Paiement reçu",
-                    f"Le client a payé pour la réservation {payment.reservation.reference}.",
-                    {"type": "payment.received", "reference": payment.reservation.reference},
+                    "BABIFIX — Acompte reçu",
+                    (
+                        f"Le client a versé l'acompte pour {payment.reservation.reference}. "
+                        f"Vous pouvez démarrer l'intervention."
+                    ),
+                    {
+                        "type": "payment.received",
+                        "reference": payment.reservation.reference,
+                    },
                 )
             except Exception as exc:
                 logger.warning("Push notification failed: %s", exc)
 
-        # Générer et envoyer le reçu PDF
-        try:
-            from .services.invoice_service import InvoiceService
-            from .views_extra import send_babifix_email_html
-            from django.template.loader import render_to_string
+        # B3 — Le reçu PDF est désormais envoyé À LA CONFIRMATION FINALE
+        # du client (via `EscrowService.release_funds` → signal applicatif),
+        # pas à l'acompte. En cash, l'acompte est seulement la commission
+        # (3 600 FCFA) — envoyer un "Reçu 3 600 F" serait trompeur.
+        # Voir `api_client_confirmer_travaux` qui déclenche l'envoi.
 
-            pdf_bytes = InvoiceService.generate_pdf(payment)
-            if pdf_bytes and payment.reservation and payment.reservation.client_user:
-                client_email = payment.reservation.client_user.email
-                invoice_number = InvoiceService.generate_invoice_number(payment)
-                html_content = render_to_string(
-                    "emails/receipt_email.html",
-                    {
-                        "invoice_number": invoice_number,
-                        "reference":      payment.reservation.reference,
-                        "service_title":  getattr(payment.reservation, "titre", None) or payment.reservation.reference,
-                        "montant":        payment.montant,
-                        "operateur":      "GeniusPay / Mobile Money",
-                        "client_name":    payment.reservation.client_user.get_full_name()
-                                          or payment.reservation.client_user.username,
-                    },
-                )
-                send_babifix_email_html(
-                    to_email=client_email,
-                    subject=f"BABIFIX — Reçu de paiement {invoice_number}",
-                    html_content=html_content,
-                    attachments=[(f"recu_{invoice_number}.pdf", pdf_bytes, "application/pdf")],
-                )
-        except Exception as exc:
-            logger.warning("Erreur envoi reçu PDF pour paiement %s: %s", payment.reference, exc)
-
-        # Créditer le wallet prestataire
-        try:
-            from .services.wallet_service import WalletService
-            WalletService.credit_provider(payment)
-        except Exception as exc:
-            logger.warning("Erreur crédit wallet pour paiement %s: %s", payment.reference, exc)
-
-        logger.info("GeniusPay webhook — paiement %s SUCCÈS", payment.reference)
+        # Phase F : NE PLUS créditer le wallet ici. Le crédit a lieu à
+        # `EscrowService.release_funds`, déclenché par la confirmation
+        # explicite du client.
+        logger.info("GeniusPay webhook — paiement %s SUCCÈS (en escrow)", payment.reference)
 
     elif event_type in ("payment.failed", "payment.cancelled", "payment.expired"):
         payment.etat = Payment.State.DISPUTE

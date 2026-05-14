@@ -4,7 +4,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../babifix_design_system.dart';
+import '../../services/call_service.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../call/call_history_screen.dart';
+import 'client_journal_viewer.dart';
+import 'execution_actions_widget.dart';
 
 class RequestDetailScreen extends StatelessWidget {
   const RequestDetailScreen({
@@ -278,6 +282,64 @@ class RequestDetailScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                // Actions cycle exécution (démarrer/photos/terminer + escrow status)
+                const SizedBox(height: 14),
+                ExecutionActionsWidget(
+                  reservationReference: reference,
+                  statut: apiStatus,
+                ),
+                // Bouton "Voir le journal client" — utile dès que la
+                // prestation est terminée pour comparer ce que le presta a
+                // déclaré et ce que le client en dit.
+                if (apiStatus == 'Terminee' ||
+                    apiStatus == 'Confirmee' ||
+                    apiStatus.toLowerCase().contains('confirm')) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => ClientJournalViewer(
+                            reservationReference: reference,
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(Icons.menu_book_outlined),
+                      label: const Text('Voir le journal du client'),
+                    ),
+                  ),
+                ],
+                // Appel direct au client + raccourci historique
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => CallService.startOutgoing(
+                          context: context,
+                          reservationReference: reference,
+                          targetName: client,
+                          isVideo: false,
+                        ),
+                        icon: const Icon(Icons.call, size: 18),
+                        label: const Text('Appeler le client'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => const CallHistoryScreen(),
+                          ),
+                        ),
+                        icon: const Icon(Icons.history, size: 18),
+                        label: const Text('Mes appels'),
+                      ),
+                    ),
+                  ],
                 ),
               ]),
             ),

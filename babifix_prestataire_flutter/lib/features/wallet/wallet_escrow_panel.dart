@@ -1,0 +1,215 @@
+/// Panneau Wallet — distingue Escrow / Disponible / Cash (Phase F — P2).
+///
+/// À insérer dans l'écran wallet existant (en haut), via :
+///   WalletEscrowPanel(...)
+///
+/// Il charge la liste des réservations actives + leur quote escrow pour
+/// estimer le montant en attente de libération.
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+
+import '../../babifix_design_system.dart';
+import '../../models/babifix_models.dart';
+import '../../services/babifix_api.dart';
+import '../../shared/services/babifix_user_store.dart';
+import '../../shared/widgets/babifix_phase_widgets.dart';
+
+class WalletEscrowPanel extends StatefulWidget {
+  final double soldeDisponibleFcfa;
+  const WalletEscrowPanel({super.key, required this.soldeDisponibleFcfa});
+
+  @override
+  State<WalletEscrowPanel> createState() => _WalletEscrowPanelState();
+}
+
+class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
+  bool _loading = true;
+  double _escrowPending = 0; // Net à toucher quand le client confirmera
+  double _cashAttendu = 0; // Cash à recevoir en main propre
+  int _countActifs = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      // Liste des demandes actives du presta
+      final r = await BabifixUserStore.authGet(
+        '/api/prestataire/requests/?statut_in=DEVIS_ACCEPTE,INTERVENTION_EN_COURS,Terminee',
+      );
+      if (r.statusCode >= 400) {
+        setState(() => _loading = false);
+        return;
+      }
+      final j = jsonDecode(r.body);
+      final list = (j['requests'] as List? ?? const []);
+      double escrow = 0;
+      double cash = 0;
+      int n = 0;
+      for (final raw in list) {
+        if (raw is! Map) continue;
+        final ref = raw['reference']?.toString();
+        if (ref == null || ref.isEmpty) continue;
+        try {
+          final q = await EscrowApi.quote(ref);
+          if (q.fundsReleasedAt != null) continue;
+          if (q.isMobile && q.acompteValide) {
+            escrow += q.netPrestataire;
+          }
+          if (q.isCash && q.acompteValide) {
+            cash += q.cashRemainderDueToProvider;
+          }
+          n++;
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      setState(() {
+        _escrowPending = escrow;
+        _cashAttendu = cash;
+        _countActifs = n;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            BabifixDesign.ciBlue.withValues(alpha: 0.08),
+            BabifixDesign.ciGreen.withValues(alpha: 0.08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: BabifixDesign.ciBlue.withValues(alpha: 0.20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_balance_wallet,
+                  color: BabifixDesign.ciBlue),
+              const SizedBox(width: 8),
+              const Text('Vos revenus',
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w800)),
+              const Spacer(),
+              if (_loading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh, size: 18),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _tile(
+                  label: 'Disponible',
+                  value: fmtMoney(widget.soldeDisponibleFcfa),
+                  color: BabifixDesign.ciGreen,
+                  icon: Icons.check_circle,
+                  helper: 'retirable maintenant',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _tile(
+                  label: 'En escrow',
+                  value: fmtMoney(_escrowPending),
+                  color: BabifixDesign.ciBlue,
+                  icon: Icons.lock_outline,
+                  helper: 'libéré à la confirmation',
+                ),
+              ),
+            ],
+          ),
+          if (_cashAttendu > 0) ...[
+            const SizedBox(height: 8),
+            _tile(
+              label: 'Cash attendu (main à main)',
+              value: fmtMoney(_cashAttendu),
+              color: Colors.orange.shade700,
+              icon: Icons.payments_outlined,
+              helper: 'à percevoir directement du client',
+              wide: true,
+            ),
+          ],
+          if (_countActifs > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              '$_countActifs chantier${_countActifs > 1 ? 's' : ''} en cours.',
+              style:
+                  TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _tile({
+    required String label,
+    required String value,
+    required Color color,
+    required IconData icon,
+    required String helper,
+    bool wide = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: color,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(value,
+              style: TextStyle(
+                  fontSize: wide ? 17 : 16,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.grey.shade900)),
+          const SizedBox(height: 2),
+          Text(helper,
+              style: TextStyle(
+                  fontSize: 10, color: Colors.grey.shade600)),
+        ],
+      ),
+    );
+  }
+}

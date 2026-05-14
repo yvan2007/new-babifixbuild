@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import 'wallet_escrow_panel.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data helpers
@@ -262,7 +263,12 @@ class _WalletScreenState extends State<WalletScreen>
                             maskedCardNumber: _getMaskedCardNumber(),
                             onWithdraw: _solde >= 1000 ? _openWithdrawSheet : null,
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 16),
+                          // Phase F / Escrow — distinguer Disponible vs En attente
+                          WalletEscrowPanel(
+                            soldeDisponibleFcfa: _solde,
+                          ),
+                          const SizedBox(height: 16),
                           if (_transactions.isEmpty)
                             const _EmptyTransactions()
                           else ...[

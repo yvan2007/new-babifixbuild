@@ -13,8 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';
-import 'package:zego_uikit_signaling_plugin/zego_uikit_signaling_plugin.dart';
+// import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';  // désactivé : voir services/zego_call_service.dart
+// import 'package:zego_uikit_signaling_plugin/zego_uikit_signaling_plugin.dart';
 
 import 'babifix_design_system.dart';
 import 'babifix_api_config.dart';
@@ -40,6 +40,11 @@ import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
 import 'features/services/service_detail_screen.dart';
 import 'features/booking/booking_flow_screen.dart';
 import 'features/booking/devis_detail_screen.dart';
+import 'features/booking/devis_kanban_screen.dart';
+import 'features/booking/confirm_completion_screen.dart';
+import 'features/booking/client_journal_screen.dart';
+import 'features/reservations/receipt_pdf_screen.dart';
+import 'features/call/call_history_screen.dart';
 import 'shared/widgets/babifix_osm_map.dart';
 import 'shared/widgets/message_with_photos_field.dart';
 import 'shared/widgets/payment_method_logo.dart';
@@ -51,9 +56,13 @@ import 'features/fidelite/fidelite_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'theme/app_theme.dart';
 import 'router/babifix_client_router.dart';
+import 'services/fcm_router.dart';
 import 'splash_screen.dart';
 
-final GlobalKey<NavigatorState> zegoNavigatorKey = GlobalKey<NavigatorState>();
+// Le navigatorKey est partagé entre l'ancien Zego (legacy) et le nouveau
+// BabifixFcmRouter qui ouvre IncomingCallScreen sur FCM call.incoming.
+final GlobalKey<NavigatorState> zegoNavigatorKey =
+    BabifixFcmRouter.navigatorKey;
 
 /// Aligne sur [adminpanel.views._normalize_category_key] : espaces → underscores, max 24.
 String babifixCategoryFilterKey(String nom) {
@@ -86,38 +95,55 @@ Future<void> main() async {
   
   await BabifixFcm.ensureInitialized();
   
-  if (isZegoConfigured) {
-    ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
-  }
+  // Zego SDK temporairement désactivé — voir services/zego_call_service.dart
+  // if (isZegoConfigured) {
+  //   ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
+  // }
   
   runApp(const BabifixClientApp());
 }
 
-Future<void> _initZegoForClientIfNeeded(String? authToken, BuildContext? context) async {
-  if (!isZegoConfigured) return;
-  if (authToken == null || authToken.isEmpty) return;
-  if (BabifixZegoService.isInitialized) return;
-  
+Future<void> _initLiveKitForClientIfNeeded(String? authToken, BuildContext? context) async {
+  debugPrint('[LiveKit Client Init] token=${authToken != null}, alreadyInit=${BabifixLiveKitService.isInitialized}');
+  debugPrint('[LiveKit Client Init] url=${BabifixLiveKitService.url}');
+  debugPrint('[LiveKit Client Init] apiKey len=${BabifixLiveKitService.apiKey.length}');
+
+  if (authToken == null || authToken.isEmpty) {
+    debugPrint('[LiveKit Client Init] No auth token, skipping');
+    return;
+  }
+  if (BabifixLiveKitService.isInitialized) {
+    debugPrint('[LiveKit Client Init] Already initialized');
+    return;
+  }
+
   try {
+    debugPrint('[LiveKit Client Init] Fetching /api/auth/me...');
     final res = await http.get(
       Uri.parse('${babifixApiBaseUrl()}/api/auth/me'),
       headers: {'Authorization': 'Bearer $authToken'},
     );
+    debugPrint('[LiveKit Client Init] /api/auth/me status=${res.statusCode}');
+
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final userId = data['id'] as int?;
       final userName = '${data['username'] ?? 'Client'}';
-      
+
+      debugPrint('[LiveKit Client Init] Got userId=$userId, userName=$userName');
+
       if (userId != null) {
-        await BabifixZegoService.init(
+        await BabifixLiveKitService.init(
           userId: userId,
           userName: userName,
           context: context,
         );
+        debugPrint('[LiveKit Client Init] INITIALIZED SUCCESS! isInitialized=${BabifixLiveKitService.isInitialized}');
       }
     }
-  } catch (e) {
-    debugPrint('[Zego] Client init error: $e');
+  } catch (e, stack) {
+    debugPrint('[LiveKit Client Init] ERROR: $e');
+    debugPrint('[LiveKit Client Init] Stack: $stack');
   }
 }
 
@@ -250,7 +276,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
         onSaved: () {},
       ),
       devisDetailBuilder: (_, ref) =>
-          DevisDetailScreen(reservationReference: ref, onBack: () {}),
+          DevisKanbanScreen(reservationReference: ref),
       navigatorKey: zegoNavigatorKey,
     );
     return MaterialApp.router(
@@ -902,7 +928,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     _clientWsSub?.cancel();
     _clientFcmSub?.cancel();
     _clientFcmOpenedSub?.cancel();
-    await BabifixZegoService.uninit();
+    await BabifixLiveKitService.uninit();
     await BabifixUserStore.logout();
     authToken = null;
     if (mounted) {
@@ -3194,6 +3220,22 @@ class _ClientHomePageState extends State<ClientHomePage> {
     return Column(
       children: [
         _buildTopBar('Rendez-vous'),
+        // Raccourci historique des appels
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => const CallHistoryScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.history, size: 18),
+              label: const Text('Historique des appels'),
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
           child: Align(
@@ -3756,9 +3798,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         onTap: () {
                           Navigator.of(context).push<void>(
                             MaterialPageRoute(
-                              builder: (_) => DevisDetailScreen(
+                              builder: (_) => DevisKanbanScreen(
                                 reservationReference: r.reference,
-                                onBack: () => Navigator.pop(context),
                               ),
                             ),
                           );
@@ -3769,7 +3810,46 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         icon: Icons.check_circle_outline,
                         label: 'Confirmer',
                         color: const Color(0xFF22C55E),
-                        onTap: () => _confirmPrestationClient(r),
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => ConfirmCompletionScreen(
+                                reservationReference: r.reference,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    // Mon journal — disponible dès que la prestation est terminée
+                    _QuickActionChip(
+                      icon: Icons.menu_book_outlined,
+                      label: 'Mon journal',
+                      color: const Color(0xFF0EA5E9),
+                      onTap: () {
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => ClientJournalScreen(
+                              reservationReference: r.reference,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    // Reçu PDF — disponible après confirmation
+                    if (r.rated || !r.canConfirmService)
+                      _QuickActionChip(
+                        icon: Icons.receipt_long_outlined,
+                        label: 'Reçu PDF',
+                        color: const Color(0xFF6366F1),
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => ReceiptPdfScreen(
+                                reservationReference: r.reference,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     if (r.canPay)
                       _QuickActionChip(
@@ -4501,7 +4581,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _initSession() async {
     authToken = await BabifixUserStore.getApiToken();
-    await _initZegoForClientIfNeeded(authToken, context);
+    await _initLiveKitForClientIfNeeded(authToken, context);
     await _loadRemoteData();
     await _refreshUnreadChat();
     await _attachClientRealtime();

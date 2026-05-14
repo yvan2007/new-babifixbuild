@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import 'babifix_api_config.dart';
 import 'firebase_options.dart';
+import 'services/fcm_router.dart';
 import 'services/notification_sound_service.dart';
 
 @pragma('vm:entry-point')
@@ -52,12 +53,23 @@ class BabifixFcm {
 
   static Future<void> _onForegroundMessage(RemoteMessage message) async {
     final data = message.data;
-    await BabifixNotificationSoundService.showNotification(
-      id: DateTime.now().millisecondsSinceEpoch % 100000,
-      title: message.notification?.title ?? data['title'] ?? 'BABIFIX',
-      body: message.notification?.body ?? data['body'] ?? '',
-      payload: data['route'] ?? data['type'] ?? '',
-    );
+    final type = (data['type'] ?? '').toString();
+    // Phase D — Ne PAS afficher de notification système pour un appel
+    // entrant : on prend le contrôle via IncomingCallScreen fullscreen.
+    if (type != 'call.incoming') {
+      await BabifixNotificationSoundService.showNotification(
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        title: message.notification?.title ?? data['title'] ?? 'BABIFIX',
+        body: message.notification?.body ?? data['body'] ?? '',
+        payload: data['route'] ?? data['type'] ?? '',
+      );
+    }
+    // Dispatch typé (ouvre l'écran d'appel entrant ou snack contextuel).
+    try {
+      await BabifixFcmRouter.route(Map<String, dynamic>.from(data));
+    } catch (e) {
+      debugPrint('BABIFIX FCM router: $e');
+    }
   }
 
   static String _platformLabel() {
