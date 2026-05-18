@@ -59,6 +59,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _load();
   }
 
+  Future<void> _confirmLogout(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.logout_rounded,
+            size: 48, color: Color(0xFFEF4444)),
+        title: const Text('Se déconnecter ?',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        content: const Text(
+          'Vous serez déconnecté de votre espace prestataire. Vos demandes '
+          'en cours et conversations restent sauvegardées.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.logout_rounded, size: 16),
+            label: const Text('Déconnecter'),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) widget.onLogout();
+  }
+
   Future<void> _load() async {
     var contact = '';
     try {
@@ -408,8 +443,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final cat = '${_prov['category_nom'] ?? ''}';
     final email = '${_prov['email'] ?? ''}'.trim();
     final phone = '${_prov['telephone'] ?? _prov['phone'] ?? ''}'.trim();
-    final tarif = _prov['tarif_horaire'];
-    final tarifStr = tarif != null ? '${(tarif as num).toStringAsFixed(0)} FCFA/h' : '\u2014';
+    // Le tarif horaire est d\u00e9sactiv\u00e9 : chaque devis a son propre prix
+    // calcul\u00e9 par le prestataire selon la prestation.
+    const tarif = null;
+    const tarifStr = '';
     final note = _prov['average_rating'];
     final nnote = note != null ? (note as num).toStringAsFixed(1) : '--';
     final rc = jsonInt(_prov['rating_count']);
@@ -1067,7 +1104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: Colors.transparent,
                               borderRadius: BorderRadius.circular(18),
                               child: InkWell(
-                                onTap: widget.onLogout,
+                                onTap: () => _confirmLogout(context),
                                 borderRadius: BorderRadius.circular(18),
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),

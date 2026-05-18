@@ -115,8 +115,10 @@ def post_devis_card(reservation, devis) -> Optional[object]:
             "id": l.id,
             "type_ligne": l.type_ligne,
             "description": l.description,
-            "quantite": l.quantite,
+            "quantite": float(l.quantite),
             "prix_unitaire": float(l.prix_unitaire),
+            "unite": l.unite,
+            "marque": l.marque,
             "total": float(l.total),
         }
         for l in LigneDevis.objects.filter(devis=devis)

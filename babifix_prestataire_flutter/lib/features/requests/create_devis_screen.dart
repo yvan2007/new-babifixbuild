@@ -161,6 +161,25 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
           );
           widget.onDevisCreated();
         }
+      } else if (resp.statusCode == 403) {
+        // Quota d'abonnement atteint : message clair + invite upgrade
+        String message = 'Erreur 403';
+        try {
+          final d = jsonDecode(resp.body) as Map<String, dynamic>;
+          if (d['error'] == 'active_devis_quota_reached') {
+            message = (d['message'] as String?) ??
+                'Limite de devis actifs atteinte pour votre abonnement.';
+          }
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: BabifixDesign.error,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(

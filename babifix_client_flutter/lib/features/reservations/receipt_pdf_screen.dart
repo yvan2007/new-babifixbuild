@@ -9,6 +9,7 @@ import 'dart:io';
 
 import '../../babifix_design_system.dart';
 import '../../services/babifix_api.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ReceiptPdfScreen extends StatefulWidget {
   final String reservationReference;
@@ -76,7 +77,7 @@ class _ReceiptPdfScreenState extends State<ReceiptPdfScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.dark(size: 80))
           : _error != null
               ? Center(
                   child: Padding(

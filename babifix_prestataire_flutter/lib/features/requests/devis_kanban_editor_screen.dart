@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../babifix_design_system.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
+import '../../shared/widgets/animated_list_item.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 
 class DevisKanbanEditorScreen extends StatefulWidget {
@@ -559,15 +560,18 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen>
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (_, i) {
                     final l = lignes[i];
-                    return _DevisLineEditor(
-                      ligne: l,
-                      onChange: (nl) {
-                        setState(() {
-                          final idx = _lignes.indexOf(l);
-                          if (idx >= 0) _lignes[idx] = nl;
-                        });
-                      },
-                      onRemove: () => _removeLine(l),
+                    return AnimatedListItem(
+                      index: i,
+                      child: _DevisLineEditor(
+                        ligne: l,
+                        onChange: (nl) {
+                          setState(() {
+                            final idx = _lignes.indexOf(l);
+                            if (idx >= 0) _lignes[idx] = nl;
+                          });
+                        },
+                        onRemove: () => _removeLine(l),
+                      ),
                     );
                   },
                 ),
@@ -580,14 +584,30 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen>
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       color: Colors.white,
-      child: MoneyBreakdownWidget(
-        sousTotal: _sousTotal,
-        commissionRate: _commissionRate,
-        commissionMontant: _commission,
-        totalTtc: _sousTotal,
-        netPrestataire: _net,
-        compact: true,
-        showProviderNet: true,
+      // AnimatedSize → grow/shrink fluide quand on ajoute/retire des
+      // lignes, AnimatedSwitcher → fade entre les valeurs.
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim, child: child,
+          ),
+          child: KeyedSubtree(
+            // une clé qui change quand le sous-total change → trigger fade
+            key: ValueKey('${_sousTotal.toStringAsFixed(0)}_$_commissionRate'),
+            child: MoneyBreakdownWidget(
+              sousTotal: _sousTotal,
+              commissionRate: _commissionRate,
+              commissionMontant: _commission,
+              totalTtc: _sousTotal,
+              netPrestataire: _net,
+              compact: true,
+              showProviderNet: true,
+            ),
+          ),
+        ),
       ),
     );
   }

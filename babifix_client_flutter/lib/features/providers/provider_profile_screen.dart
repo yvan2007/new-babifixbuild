@@ -207,7 +207,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
     final yearsExp = p['years_experience'] as int? ?? 0;
     final desc = (p['description'] ?? p['bio'] ?? '') as String;
     final disponible = (p['disponible'] ?? true) as bool;
-    final tarif = (p['tarif_horaire'] as num?)?.toInt() ?? 0;
+    // Tarif horaire désactivé : chaque devis a son propre prix sur mesure.
+    final tarif = 0;
+    final distanceKm = (p['distance_km'] as num?)?.toDouble();
     final isCertified = (p['is_certified'] ?? false) as bool;
     final isPremium = (p['is_premium'] ?? false) as bool;
     final premiumTier = (p['premium_tier'] ?? '') as String;
@@ -811,7 +813,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
                       icon: const Icon(Icons.calendar_month_rounded, size: 20),
                       label: Text(
                         disponible
-                            ? (tarif > 0 ? 'Réserver · ${formatFcfa(tarif)}/h' : 'Réserver')
+                            ? 'Réserver — devis sur mesure'
                             : 'Indisponible',
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                       ),

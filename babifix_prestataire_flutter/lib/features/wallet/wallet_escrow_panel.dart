@@ -13,7 +13,9 @@ import '../../babifix_design_system.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/services/babifix_user_store.dart';
+import '../../shared/widgets/animated_money.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
+import 'escrow_payments_screen.dart';
 
 class WalletEscrowPanel extends StatefulWidget {
   final double soldeDisponibleFcfa;
@@ -162,9 +164,40 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
                   TextStyle(fontSize: 11, color: Colors.grey.shade600),
             ),
           ],
+          const SizedBox(height: 10),
+          // Bouton « Voir le détail » → écran liste des escrows par résa
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => const PrestataireEscrowPaymentsScreen(),
+                ),
+              ),
+              icon: Icon(Icons.list_alt, size: 18, color: BabifixDesign.ciBlue),
+              label: Text(
+                'Voir mes paiements en attente',
+                style: TextStyle(
+                  color: BabifixDesign.ciBlue,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                    color: BabifixDesign.ciBlue.withValues(alpha: 0.4)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  /// Extrait la partie numérique d'une chaîne "12 345 F CFA" pour le tween.
+  double _parseMoney(String s) {
+    final digits = RegExp(r'[\d]+').allMatches(s).map((m) => m.group(0)!).join();
+    return double.tryParse(digits) ?? 0;
   }
 
   Widget _tile({
@@ -199,11 +232,15 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
             ],
           ),
           const SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                  fontSize: wide ? 17 : 16,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.grey.shade900)),
+          // Tween animé : si la valeur arrive à "12 345 F CFA", on affiche un
+          // compteur qui grimpe en 650 ms — bien plus satisfaisant visuellement.
+          AnimatedMoney(
+            value: _parseMoney(value),
+            style: TextStyle(
+                fontSize: wide ? 17 : 16,
+                fontWeight: FontWeight.w900,
+                color: Colors.grey.shade900),
+          ),
           const SizedBox(height: 2),
           Text(helper,
               style: TextStyle(

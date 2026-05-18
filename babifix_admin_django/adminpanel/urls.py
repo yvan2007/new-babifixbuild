@@ -3,6 +3,7 @@ from django.urls import path
 from .geniuspay import geniuspay_initiate, geniuspay_status, geniuspay_webhook
 from .views_health import api_admin_health_config
 from .views_media import api_media_upload
+from .views_otp import api_auth_otp_status, api_auth_verify_otp
 from .views_calls import (
     api_call_answer,
     api_call_detail,
@@ -91,6 +92,8 @@ from .views import (
     api_admin_mark_refund_paid,
     api_client_open_dispute,
     api_admin_resolve_dispute,
+    api_prestataire_location_update,
+    api_reservation_devis_history,
     api_client_conversations,
     api_client_create_reservation,
     api_client_declare_cash,
@@ -408,6 +411,16 @@ urlpatterns = [
         api_auth_verify_email,
         name="api-auth-verify-email",
     ),
+    path(
+        "api/auth/verify-otp",
+        api_auth_verify_otp,
+        name="api-auth-verify-otp",
+    ),
+    path(
+        "api/auth/otp-status",
+        api_auth_otp_status,
+        name="api-auth-otp-status",
+    ),
     # ── v2 — Profil + Portfolio prestataire ──────────────────────────────────
     path(
         "api/prestataire/profile",
@@ -477,6 +490,12 @@ urlpatterns = [
         api_client_refuse_devis,
         name="api-client-refuse-devis",
     ),
+    # Historique de tous les devis d'une réservation (acceptés, refusés…)
+    path(
+        "api/reservations/<str:reference>/devis-history",
+        api_reservation_devis_history,
+        name="api-reservation-devis-history",
+    ),
     path(
         "api/client/reservations/<str:reference>/receipt/pdf/",
         api_client_receipt_pdf,
@@ -505,6 +524,12 @@ urlpatterns = [
         "api/media/upload",
         api_media_upload,
         name="api-media-upload",
+    ),
+    # Géo — Le prestataire pousse sa position GPS courante
+    path(
+        "api/prestataire/location/update",
+        api_prestataire_location_update,
+        name="api-prestataire-location-update",
     ),
     # C1 — Annulations supplémentaires
     path(

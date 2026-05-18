@@ -90,9 +90,10 @@ def api_referral(request):
 @require_api_auth(["prestataire", "admin"])
 @require_GET
 def api_premium_tiers(request):
-    """GET → liste des offres premium disponibles."""
+    """GET → liste des offres premium disponibles (incl. Standard gratuit)."""
     from .services.provider_subscription_service import ProviderSubscriptionService
-    tiers = ProviderSubscriptionService.get_available_tiers()
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    tiers = ProviderSubscriptionService.get_available_tiers(provider=provider)
     return JsonResponse({"tiers": tiers}, status=200)
 
 
@@ -101,8 +102,9 @@ def api_premium_tiers(request):
 def api_premium_subscribe(request):
     """
     GET  → statut abonnement actuel
-    POST → souscrire/changer tier {tier: 'bronze'|'silver'|'gold', duration_days: 30}
-    Paiement déduit du wallet prestataire (ou initié via CinetPay si insuffisant).
+    POST → souscrire/changer tier
+           Body: {tier: 'silver'|'gold', billing_period: 'monthly'|'annual'|'trial'}
+    Paiement déduit du wallet prestataire (sauf trial = gratuit).
     """
     from .services.provider_subscription_service import ProviderSubscriptionService, PREMIUM_TIERS
     from .services.wallet_service import WalletService
@@ -117,6 +119,8 @@ def api_premium_subscribe(request):
         return JsonResponse({
             "is_premium": provider.is_premium,
             "tier": provider.premium_tier or "standard",
+            "is_annual": bool(getattr(provider, "is_premium_annual", False)),
+            "trial_available": not bool(getattr(provider, "has_used_premium_trial", False)),
             "premium_since": provider.premium_since.isoformat() if provider.premium_since else None,
             "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
             "days_remaining": max(
@@ -137,14 +141,34 @@ def api_premium_subscribe(request):
             return JsonResponse({"error": "invalid_json"}, status=400)
 
         tier = str(body.get("tier") or "").lower()
-        duration_days = int(body.get("duration_days") or 30)
+        billing_period = str(body.get("billing_period") or "monthly").lower()
+        if billing_period not in ("monthly", "annual", "trial"):
+            return JsonResponse({"error": "invalid_billing_period"}, status=400)
 
         if tier not in PREMIUM_TIERS:
             return JsonResponse({"error": "tier_invalide", "valid": list(PREMIUM_TIERS.keys())}, status=400)
 
-        price = Decimal(str(PREMIUM_TIERS[tier]["price"]))
+        # Trial : aucun débit, vérif anti-réutilisation
+        if billing_period == "trial":
+            if provider.has_used_premium_trial:
+                return JsonResponse({
+                    "error": "trial_already_used",
+                    "message": "Vous avez déjà utilisé votre essai gratuit. Choisissez un abonnement mensuel ou annuel.",
+                }, status=403)
+            result = ProviderSubscriptionService.subscribe(provider, tier, billing_period="trial")
+            if not result.success:
+                return JsonResponse({"error": result.error}, status=500)
+            return _premium_subscribe_success(provider, tier, billing_period)
 
-        # Tenter de débiter le wallet
+        # Mensuel ou annuel : calcul du prix
+        tier_cfg = PREMIUM_TIERS[tier]
+        if billing_period == "annual":
+            price = Decimal(str(tier_cfg.get("price_annual", tier_cfg["price"] * 12)))
+            duration_label = "1 an"
+        else:
+            price = Decimal(str(tier_cfg["price"]))
+            duration_label = "30 j"
+
         if (provider.solde_fcfa or Decimal("0")) >= price:
             from django.db import transaction
             with transaction.atomic():
@@ -155,14 +179,12 @@ def api_premium_subscribe(request):
                     provider=prov,
                     tx_type="debit",
                     amount_fcfa=price,
-                    reference=f"PREMIUM-{tier}",
-                    description=f"Souscription abonnement Premium {tier.title()} ({duration_days}j)",
+                    reference=f"PREMIUM-{tier}-{billing_period}",
+                    description=f"Abonnement Premium {tier.title()} ({duration_label})",
                     status="success",
                 )
-            # Enregistrer dans les revenus BABIFIX
             WalletService.credit_provider_premium(provider, tier, price)
         else:
-            # Solde insuffisant → retourner les infos pour paiement CinetPay
             return JsonResponse({
                 "error": "insufficient_wallet",
                 "price": float(price),
@@ -170,39 +192,51 @@ def api_premium_subscribe(request):
                 "message": "Solde insuffisant. Veuillez recharger votre wallet ou payer via Mobile Money.",
                 "cinetpay_required": True,
                 "tier": tier,
-                "duration_days": duration_days,
+                "billing_period": billing_period,
             }, status=402)
 
-        result = ProviderSubscriptionService.subscribe(provider, tier, duration_days)
+        result = ProviderSubscriptionService.subscribe(provider, tier, billing_period=billing_period)
         if not result.success:
             return JsonResponse({"error": result.error}, status=500)
 
-        # Notification push
-        try:
-            from .push_dispatch import _schedule
-            _schedule(
-                [provider.user_id],
-                "BABIFIX Premium activé !",
-                f"Votre abonnement {tier.title()} est actif jusqu'au {provider.premium_until.strftime('%d/%m/%Y')}.",
-                {
-                    "type": "premium.activated",
-                    "tier": tier,
-                    "route": "/prestataire/premium",
-                },
-            )
-        except Exception:
-            pass
-
-        return JsonResponse({
-            "ok": True,
-            "tier": tier,
-            "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
-            "commission_effective": float(
-                ProviderSubscriptionService.calculate_effective_commission(provider)
-            ),
-        }, status=200)
+        return _premium_subscribe_success(provider, tier, billing_period)
 
     return JsonResponse({"error": "method_not_allowed"}, status=405)
+
+
+def _premium_subscribe_success(provider, tier: str, billing_period: str):
+    """Réponse + notif push commune à trial / mensuel / annuel."""
+    from .services.provider_subscription_service import ProviderSubscriptionService
+
+    try:
+        from .push_dispatch import _schedule
+        label = {"trial": "Essai gratuit", "monthly": "Mensuel", "annual": "Annuel"}.get(billing_period, "")
+        _schedule(
+            [provider.user_id],
+            "BABIFIX Premium activé !",
+            (f"Votre abonnement {tier.title()} ({label}) est actif jusqu'au "
+             f"{provider.premium_until.strftime('%d/%m/%Y')}."),
+            {
+                "type": "premium.activated",
+                "tier": tier,
+                "billing_period": billing_period,
+                "route": "/prestataire/premium",
+            },
+        )
+    except Exception:
+        pass
+
+    return JsonResponse({
+        "ok": True,
+        "tier": tier,
+        "billing_period": billing_period,
+        "is_annual": billing_period == "annual",
+        "is_trial": billing_period == "trial",
+        "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
+        "commission_effective": float(
+            ProviderSubscriptionService.calculate_effective_commission(provider)
+        ),
+    }, status=200)
 
 
 # =============================================================================

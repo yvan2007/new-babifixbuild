@@ -1901,38 +1901,31 @@ def api_public_providers(request):
         except ValueError:
             pass
 
-    # Filtre géographique (latitude, longitude, rayon en km)
+    # Filtre géographique : la vraie logique est déléguée au
+    # GeoMatchingService plus bas (rayon adaptatif 5→15→30→50, boost
+    # même ville, score composite). On capture juste les paramètres ici.
     lat = request.GET.get("lat")
     lon = request.GET.get("lon")
-    radius = request.GET.get("radius", "10")  # défaut 10km
+    radius = request.GET.get("radius") or request.GET.get("radius_km") or ""
+    radius_km = radius  # gardé pour rétro-compat (logs)
 
+    # Géo : extrait coordonnées + ville pour mode adaptatif
+    client_lat_f = None
+    client_lon_f = None
+    explicit_radius_f = None
     if lat and lon:
         try:
-            lat_f = float(lat)
-            lon_f = float(lon)
-            radius_km = float(radius)
-
-            # Calcul approximatif avec bounding box
-            # (pas PostGIS, mais suffisant pour un filtrage basique)
-            lat_delta = radius_km / 111.0  # ~111km par degré
-            lon_delta = radius_km / (111.0 * abs(math.cos(math.radians(lat_f))))
-
-            # Inclure les prestataires dans la zone GEO OU sans coordonnées
-            from django.db.models import Q
-            qs = qs.filter(
-                Q(
-                    latitude__isnull=False,
-                    longitude__isnull=False,
-                    latitude__gte=lat_f - lat_delta,
-                    latitude__lte=lat_f + lat_delta,
-                    longitude__gte=lon_f - lon_delta,
-                    longitude__lte=lon_f + lon_delta,
-                )
-                | Q(latitude__isnull=True)
-                | Q(longitude__isnull=True)
-            )
-        except (ValueError, TypeError):
+            client_lat_f = float(lat)
+            client_lon_f = float(lon)
+        except (TypeError, ValueError):
             pass
+    if radius and radius not in ("auto", "0"):
+        try:
+            explicit_radius_f = float(radius)
+        except (TypeError, ValueError):
+            pass
+    client_city = (request.GET.get("client_city") or "").strip()
+    geo_mode = client_lat_f is not None or bool(client_city)
 
     # Tri
     sort_param = request.GET.get("sort", "rating")
@@ -1943,14 +1936,35 @@ def api_public_providers(request):
     else:
         qs = qs.order_by("-average_rating", "-rating_count")
 
+    # Mode géo : matérialise jusqu'à 300 prestataires, trie via le service
+    distance_by_id = {}
+    same_city_by_id = {}
+    if geo_mode:
+        from .services.geo_matching_service import rank_providers
+        materialized = list(qs[:300])
+        ranked = rank_providers(
+            materialized,
+            client_lat=client_lat_f,
+            client_lon=client_lon_f,
+            client_city=client_city or None,
+            explicit_radius_km=explicit_radius_f,
+        )
+        distance_by_id = {c.provider.id: c.distance_km for c in ranked}
+        same_city_by_id = {c.provider.id: c.same_city for c in ranked}
+        page_items = [c.provider for c in ranked]
+    else:
+        page_items = list(qs)
+
     items = []
-    for p in qs:
+    for p in page_items:
         uid = p.user_id
         avg = (
             round(float(p.average_rating), 2)
             if (p.rating_count and p.average_rating)
             else None
         )
+        dist_km = distance_by_id.get(p.id) if geo_mode else None
+        same_city = same_city_by_id.get(p.id, False) if geo_mode else False
         items.append(
             {
                 "id": int(p.id),
@@ -1967,6 +1981,10 @@ def api_public_providers(request):
                 if p.tarif_horaire is not None
                 else None,
                 "disponible": p.disponible,
+                "latitude": p.latitude,
+                "longitude": p.longitude,
+                "distance_km": round(dist_km, 1) if dist_km is not None else None,
+                "same_city": same_city,
                 "category_nom": (p.category.nom if p.category_id else "") or "",
                 "category_icone_slug": (p.category.icone_slug or "").strip()
                 if p.category_id
@@ -1979,6 +1997,9 @@ def api_public_providers(request):
                 "has_portfolio": bool(p.portfolio_photos),
                 "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or "", request),
                 "image_url": _safe_photo_url(p.photo_portrait_url or "", request),
+                # Premium — pour afficher le badge Argent/Or côté client.
+                "is_premium": bool(getattr(p, "is_premium", False)),
+                "premium_tier": (getattr(p, "premium_tier", "") or ""),
             }
         )
 
@@ -2065,40 +2086,38 @@ def api_client_prestataires(request):
             qs = qs.filter(tarif_horaire__lte=max_t)
         except ValueError:
             pass
+    # Géo : extrait lat/lon/ville pour décider du mode de tri
+    client_lat_f = None
+    client_lon_f = None
+    explicit_radius_f = None
+    geo_radius_raw = request.GET.get("radius_km") or request.GET.get("radius")
+    if lat and lon:
+        try:
+            client_lat_f = float(lat)
+            client_lon_f = float(lon)
+        except (TypeError, ValueError):
+            pass
+    if geo_radius_raw and geo_radius_raw not in ("auto", "0"):
+        try:
+            explicit_radius_f = float(geo_radius_raw)
+        except (TypeError, ValueError):
+            pass
+    client_city = (request.GET.get("client_city") or "").strip()
+
     # Tri
     sort_param = request.GET.get("sort", "rating")
+    geo_mode = client_lat_f is not None or bool(client_city)
+
     if sort_param == "tarif_asc":
         qs = qs.order_by("tarif_horaire")
     elif sort_param == "tarif_desc":
         qs = qs.order_by("-tarif_horaire")
+    elif geo_mode and sort_param == "rating":
+        # Mode géo : on récupère tout (cap 300) et on trie en Python.
+        # L'order_by SQL ne sert plus, mais on garde un tie-breaker.
+        qs = qs.order_by("-average_rating", "-rating_count")
     else:
         qs = qs.order_by("-average_rating", "-rating_count")
-
-    # Préparer le calcul de distance Haversine
-    import math as _math
-
-    client_lat_f = None
-    client_lon_f = None
-    max_radius_f = None
-    if lat and lon and radius_km:
-        try:
-            client_lat_f = float(lat)
-            client_lon_f = float(lon)
-            max_radius_f = float(radius_km)
-        except ValueError:
-            pass
-
-    def haversine_km(lat1, lon1, lat2, lon2):
-        R = 6371.0
-        dlat = _math.radians(lat2 - lat1)
-        dlon = _math.radians(lon2 - lon1)
-        a = (
-            _math.sin(dlat / 2) ** 2
-            + _math.cos(_math.radians(lat1))
-            * _math.cos(_math.radians(lat2))
-            * _math.sin(dlon / 2) ** 2
-        )
-        return R * 2 * _math.atan2(_math.sqrt(a), _math.sqrt(1 - a))
 
     # Pagination
     try:
@@ -2107,29 +2126,47 @@ def api_client_prestataires(request):
     except ValueError:
         page = 1
         page_size = 20
-    total_filtered = qs.count()
-    offset = (page - 1) * page_size
-    qs = qs[offset:offset + page_size]
+
+    # Si mode géo, on matérialise jusqu'à 300 résultats et on trie via le service.
+    geo_ranked = None
+    distance_by_id = {}
+    same_city_by_id = {}
+    if geo_mode:
+        from .services.geo_matching_service import rank_providers
+        materialized = list(qs[:300])
+        geo_ranked = rank_providers(
+            materialized,
+            client_lat=client_lat_f,
+            client_lon=client_lon_f,
+            client_city=client_city or None,
+            explicit_radius_km=explicit_radius_f,
+        )
+        distance_by_id = {
+            c.provider.id: c.distance_km for c in geo_ranked
+        }
+        same_city_by_id = {
+            c.provider.id: c.same_city for c in geo_ranked
+        }
+        ordered_providers = [c.provider for c in geo_ranked]
+        total_filtered = len(ordered_providers)
+        offset = (page - 1) * page_size
+        page_items = ordered_providers[offset:offset + page_size]
+    else:
+        total_filtered = qs.count()
+        offset = (page - 1) * page_size
+        page_items = list(qs[offset:offset + page_size])
 
     items = []
-    for p in qs:
+    for p in page_items:
         uid = p.user_id
         avg = (
             round(float(p.average_rating), 2)
             if (p.rating_count and p.average_rating)
             else None
         )
-        # Calcul distance si position dispo
-        dist_km = None
-        if client_lat_f and client_lon_f and p.latitude and p.longitude:
-            try:
-                dist_km = haversine_km(
-                    client_lat_f, client_lon_f, float(p.latitude), float(p.longitude)
-                )
-                if max_radius_f and dist_km > max_radius_f:
-                    continue  # Skip if beyond radius
-            except (ValueError, TypeError):
-                pass
+        # Distance déjà calculée par le service géo (si actif)
+        dist_km = distance_by_id.get(p.id) if geo_mode else None
+        same_city = same_city_by_id.get(p.id, False) if geo_mode else False
         items.append(
             {
                 "id": int(p.id),
@@ -2148,7 +2185,8 @@ def api_client_prestataires(request):
                 "disponible": p.disponible,
                 "latitude": p.latitude,
                 "longitude": p.longitude,
-                "distance_km": round(dist_km, 1) if dist_km else None,
+                "distance_km": round(dist_km, 1) if dist_km is not None else None,
+                "same_city": same_city,
                 "category_nom": (p.category.nom if p.category_id else "") or "",
                 "category_icone_slug": (p.category.icone_slug or "").strip()
                 if p.category_id
@@ -2161,6 +2199,8 @@ def api_client_prestataires(request):
                 "has_portfolio": bool(p.portfolio_photos),
                 "is_certified": p.is_certified,
                 "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or "", request),
+                "is_premium": bool(getattr(p, "is_premium", False)),
+                "premium_tier": (getattr(p, "premium_tier", "") or ""),
             }
         )
     return JsonResponse({
@@ -2236,6 +2276,8 @@ def api_client_prestataire_detail(request, pk):
             "category": {"id": p.category.id, "nom": p.category.nom}
             if p.category
             else None,
+            "is_premium": bool(getattr(p, "is_premium", False)),
+            "premium_tier": (getattr(p, "premium_tier", "") or ""),
         }
     )
 
@@ -5111,6 +5153,33 @@ def api_prestataire_create_devis(request, reference):
     if existing_devis:
         return JsonResponse({"error": "devis_already_exists"}, status=400)
 
+    # Quota devis actifs simultanés selon le tier premium.
+    # Standard=3, Silver=15, Gold=illimité.
+    _ACTIVE_DEVIS_QUOTA = {
+        "standard": 3,
+        "silver": 15,
+        "gold": -1,  # illimité
+    }
+    tier_key = (provider.premium_tier or "standard").lower() if provider.is_premium else "standard"
+    quota = _ACTIVE_DEVIS_QUOTA.get(tier_key, 3)
+    if quota > 0:
+        active_count = Devis.objects.filter(
+            prestataire=provider,
+            statut__in=[Devis.Statut.ENVOYE, Devis.Statut.BROUILLON],
+        ).count()
+        if active_count >= quota:
+            return JsonResponse({
+                "error": "active_devis_quota_reached",
+                "quota": quota,
+                "active": active_count,
+                "tier": tier_key,
+                "message": (
+                    f"Limite atteinte : {quota} devis actifs maximum pour "
+                    f"l'abonnement {tier_key}. Passez à un tier supérieur "
+                    f"pour augmenter cette limite."
+                ),
+            }, status=403)
+
     from datetime import date, time
     from decimal import Decimal
 
@@ -5418,14 +5487,77 @@ def api_client_refuse_devis(request, reference):
     res.statut = Reservation.Status.DEMANDE_ENVOYEE
     res.save(update_fields=["statut"])
 
+    # Injecte un événement système dans la conversation pour que le presta
+    # voie clairement la raison du refus et puisse re-proposer un devis.
+    try:
+        from .services.conversation_service import post_system_event
+        post_system_event(
+            res,
+            event_type="devis.refused",
+            body=(
+                f"Devis {devis.reference} refusé par le client."
+                + (f" Motif : {motif}" if motif else "")
+                + " Vous pouvez proposer un nouveau devis ajusté."
+            ),
+            extra={
+                "devis_id": devis.id,
+                "devis_reference": devis.reference,
+                "motif": motif,
+            },
+        )
+    except Exception:
+        pass
+
     _schedule(
         [res.assigned_provider.user_id] if res.assigned_provider else [],
         "Devis refusé",
-        f"Le client a refusé le devis {devis.reference}. Motif: {motif}",
-        {"type": "devis.refused", "reference": res.reference},
+        f"Le client a refusé le devis {devis.reference}." + (f" Motif: {motif}" if motif else ""),
+        {"type": "devis.refused", "reference": res.reference, "motif": motif},
     )
 
     return JsonResponse({"ok": True, "statut": res.statut})
+
+
+# Historique de TOUS les devis d'une réservation (accepté, refusé, expiré…)
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["client", "prestataire", "admin"])
+def api_reservation_devis_history(request, reference):
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    uid = int(request.api_user_id)
+    is_client = res.client_user_id == uid
+    is_presta = bool(
+        res.assigned_provider
+        and res.assigned_provider.user_id
+        and res.assigned_provider.user_id == uid
+    )
+    if request.api_role != "admin" and not (is_client or is_presta):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    devis_list = Devis.objects.filter(reservation=res).order_by("-created_at")
+    return JsonResponse({
+        "reference": res.reference,
+        "count": devis_list.count(),
+        "devis": [
+            {
+                "id": d.id,
+                "reference": d.reference,
+                "diagnostic": d.diagnostic,
+                "sous_total": float(d.sous_total),
+                "commission_montant": float(d.commission_montant),
+                "total_ttc": float(d.total_ttc),
+                "net_prestataire": float(d.net_prestataire),
+                "statut": d.statut,
+                "note_prestataire": d.note_prestataire,
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+                "lignes_count": d.lignes.count(),
+            }
+            for d in devis_list
+        ],
+    })
 
 
 # Journal client post-intervention : photos avant/après (facultatives)
@@ -5531,6 +5663,62 @@ def api_client_journal(request, reference):
         "client_photos_apres": list(res.client_photos_apres or []),
         "client_journal_note": res.client_journal_note,
         "client_journal_updated_at": res.client_journal_updated_at.isoformat(),
+    })
+
+
+# Géo — Le prestataire pousse sa position GPS courante.
+# Appelé automatiquement par l'app presta à chaque démarrage / passage
+# en foreground. Met à jour `latitude`, `longitude` et `ville` (si
+# fournie) sur le Provider. Garde aussi un horodatage de dernière
+# update pour les dashboards admin.
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_location_update(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    uid = int(request.api_user_id)
+    prov = Provider.objects.filter(user_id=uid).first()
+    if not prov:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    try:
+        lat = float(payload.get("latitude"))
+        lon = float(payload.get("longitude"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "invalid_coordinates"}, status=400)
+
+    # Garde-fous : refuser les valeurs aberrantes
+    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        return JsonResponse({"error": "out_of_range"}, status=400)
+
+    update_fields = ["latitude", "longitude"]
+    prov.latitude = lat
+    prov.longitude = lon
+
+    # Ville facultative (reverse geocoding côté client)
+    ville = str(payload.get("ville") or "").strip()
+    if ville:
+        prov.ville = ville[:80]
+        update_fields.append("ville")
+
+    # Disponibilité optionnelle (le presta peut signaler qu'il devient
+    # disponible/indisponible en même temps)
+    if "disponible" in payload:
+        prov.disponible = bool(payload.get("disponible"))
+        update_fields.append("disponible")
+
+    prov.save(update_fields=update_fields)
+    return JsonResponse({
+        "ok": True,
+        "provider_id": prov.id,
+        "latitude": prov.latitude,
+        "longitude": prov.longitude,
+        "ville": prov.ville,
+        "disponible": prov.disponible,
     })
 
 

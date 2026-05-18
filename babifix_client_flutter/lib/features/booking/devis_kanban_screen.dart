@@ -12,6 +12,7 @@ import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import 'escrow_quote_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class DevisKanbanScreen extends StatefulWidget {
   final String reservationReference;
@@ -147,7 +148,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
         elevation: 0.5,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.dark(size: 80))
           : _error != null
               ? _errorView()
               : _devis == null

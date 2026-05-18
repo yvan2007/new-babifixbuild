@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
@@ -24,11 +25,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
   String? _premiumUntil;
   int _daysRemaining = 0;
   double _commissionEffective = 18;
+  bool _trialAvailable = true;
+  bool _isAnnual = false; // toggle Mensuel ↔ Annuel
 
   List<Map<String, dynamic>> _tiers = [];
 
   static const _tierColors = {
-    'bronze': Color(0xFFCD7F32),
+    'standard': Color(0xFF64748B),
     'silver': Color(0xFFC0C0C0),
     'gold': Color(0xFFF59E0B),
   };
@@ -55,6 +58,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
           _premiumUntil = d['premium_until'];
           _daysRemaining = d['days_remaining'] ?? 0;
           _commissionEffective = (d['commission_effective'] ?? 18).toDouble();
+          _trialAvailable = d['trial_available'] ?? true;
+          _isAnnual = d['is_annual'] ?? false;
         });
       }
       if (tiersResp.statusCode == 200) {
@@ -68,64 +73,206 @@ class _PremiumScreenState extends State<PremiumScreen> {
     }
   }
 
-  Future<void> _subscribe(String tier) async {
+  Future<void> _subscribe(String tier, {required String billingPeriod}) async {
     setState(() { _subscribing = true; });
     try {
       final resp = await BabifixUserStore.authPost(
         '/api/prestataire/premium/subscribe/',
-        body: jsonEncode({'tier': tier, 'duration_days': 30}),
+        body: jsonEncode({'tier': tier, 'billing_period': billingPeriod}),
       );
       final data = jsonDecode(resp.body);
       if (resp.statusCode == 200 && data['ok'] == true) {
+        if (!mounted) return;
+        final label = billingPeriod == 'trial'
+            ? 'Essai gratuit 7 jours activé'
+            : 'Abonnement ${tier.toUpperCase()} activé';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Abonnement ${tier.toUpperCase()} active avec succes'),
+            content: Text(label),
             backgroundColor: _tierColors[tier] ?? BabifixDesign.cyan,
           ),
         );
         await _load();
       } else if (resp.statusCode == 402) {
+        if (!mounted) return;
         _showInsufficientFundsDialog(data);
-      } else {
+      } else if (resp.statusCode == 403 && data['error'] == 'trial_already_used') {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['error'] ?? 'Erreur'), backgroundColor: BabifixDesign.error),
+          SnackBar(
+            content: Text(data['message']?.toString() ?? 'Essai déjà utilisé'),
+            backgroundColor: BabifixDesign.warning,
+          ),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['error']?.toString() ?? 'Erreur'),
+            backgroundColor: BabifixDesign.error,
+          ),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: $e'), backgroundColor: BabifixDesign.error),
       );
     } finally {
-      setState(() { _subscribing = false; });
+      if (mounted) setState(() { _subscribing = false; });
     }
   }
 
   void _showInsufficientFundsDialog(Map data) {
     final price = (data['price'] ?? 0).toDouble();
     final solde = (data['solde_actuel'] ?? 0).toDouble();
+    final tier = (data['tier'] ?? '').toString();
+    final diff = (price - solde).clamp(0, double.infinity);
+
+    String? selectedOperator;
+    final operators = const [
+      {'code': 'ORANGE_MONEY', 'label': 'Orange Money', 'color': Color(0xFFFF6600)},
+      {'code': 'MTN_MOMO', 'label': 'MTN Money', 'color': Color(0xFFFFCC00)},
+      {'code': 'MOOV', 'label': 'Moov Money', 'color': Color(0xFF0050AA)},
+      {'code': 'WAVE', 'label': 'Wave', 'color': Color(0xFF1DCCFB)},
+    ];
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF152A45),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Solde insuffisant',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-        ),
-        content: Text(
-          'Prix de l\'abonnement : ${price.toStringAsFixed(0)} FCFA\n'
-          'Votre solde : ${solde.toStringAsFixed(0)} FCFA\n\n'
-          'Rechargez votre wallet ou payez via Mobile Money.',
-          style: const TextStyle(color: Color(0xFFB4C2D9), height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Fermer', style: TextStyle(color: BabifixDesign.cyan)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          backgroundColor: const Color(0xFF152A45),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Solde insuffisant',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
           ),
-        ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Prix de l'abonnement : ${price.toStringAsFixed(0)} FCFA\n"
+                  "Votre solde : ${solde.toStringAsFixed(0)} FCFA\n"
+                  "Reste à régler : ${diff.toStringAsFixed(0)} FCFA",
+                  style: const TextStyle(color: Color(0xFFB4C2D9), height: 1.5),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Choisissez un service Mobile Money :',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: operators.map((op) {
+                    final code = op['code'] as String;
+                    final sel = selectedOperator == code;
+                    return ChoiceChip(
+                      label: Text(op['label'] as String),
+                      selected: sel,
+                      onSelected: (_) =>
+                          setStateDialog(() => selectedOperator = code),
+                      selectedColor: (op['color'] as Color).withValues(alpha: 0.85),
+                      backgroundColor: const Color(0xFF0B1B34),
+                      labelStyle: TextStyle(
+                          color: sel ? Colors.white : const Color(0xFFB4C2D9),
+                          fontWeight: FontWeight.w600),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler',
+                  style: TextStyle(color: Color(0xFFB4C2D9))),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.phone_iphone, size: 18),
+              label: Text('Payer ${price.toStringAsFixed(0)} F'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: BabifixDesign.cyan,
+                foregroundColor: const Color(0xFF0B1B34),
+              ),
+              onPressed: selectedOperator == null
+                  ? null
+                  : () {
+                      Navigator.pop(ctx);
+                      _payPremiumViaMobileMoney(
+                        tier: tier,
+                        amount: price.toInt(),
+                        operator: selectedOperator!,
+                      );
+                    },
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  /// Payer l'abonnement via Mobile Money (GeniusPay). Ouvre la page de
+  /// checkout dans le navigateur. Au retour, l'utilisateur peut
+  /// re-cliquer sur l'abonnement → le backend confirme avec le wallet
+  /// rechargé entretemps.
+  Future<void> _payPremiumViaMobileMoney({
+    required String tier,
+    required int amount,
+    required String operator,
+  }) async {
+    try {
+      final resp = await BabifixUserStore.authPost(
+        '/api/paiements/geniuspay/initiate/',
+        body: jsonEncode({
+          'montant': amount,
+          'customer_name': 'Prestataire BABIFIX',
+          // pas de reservation : c'est un paiement abonnement
+          'note': 'Abonnement Premium $tier',
+          'mobile_money_operator': operator,
+        }),
+      );
+      if (resp.statusCode >= 400) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(
+                    'Échec initialisation paiement : ${resp.statusCode}'),
+                backgroundColor: BabifixDesign.error),
+          );
+        }
+        return;
+      }
+      final j = jsonDecode(resp.body);
+      final url = (j['checkout_url'] ?? j['payment_url'] ?? '').toString();
+      if (url.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Paiement simulé. Réessayez de souscrire à l\'abonnement.')));
+        }
+        return;
+      }
+      final ok = await launchUrl(Uri.parse(url),
+          mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Impossible d'ouvrir la page de paiement.")));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: BabifixDesign.error));
+      }
+    }
   }
 
   @override
@@ -165,15 +312,26 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     if (!_isPremium) _buildCommissionInfo(),
                     const SizedBox(height: 8),
                     const Text(
-                      'Formules disponibles',
+                      'Choisissez votre formule',
                       style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
                         color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Plus de visibilité, moins de commission, plus de chantiers.',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                    ),
+                    const SizedBox(height: 18),
+                    _buildBillingToggle(),
+                    const SizedBox(height: 18),
                     ..._tiers.map((tier) => _buildTierCard(tier)),
+                    const SizedBox(height: 16),
+                    _buildComparisonTable(),
+                    const SizedBox(height: 16),
+                    if (_trialAvailable && !_isPremium) _buildTrialBanner(),
                     const SizedBox(height: 20),
                     _buildPaymentNote(),
                     const SizedBox(height: 40),
@@ -313,144 +471,486 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
-  Widget _buildTierCard(Map<String, dynamic> tier) {
-    final isActive = _isPremium && _currentTier == tier['id'];
-    final color = _tierColors[tier['id']] ?? BabifixDesign.cyan;
+  Widget _buildBillingToggle() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        gradient: isActive
-            ? LinearGradient(
-                colors: [color.withValues(alpha: 0.15), const Color(0xFF152A45)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
-        color: isActive ? null : const Color(0xFF152A45),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isActive ? color : const Color(0x1AFFFFFF),
-          width: isActive ? 2 : 1,
+        color: const Color(0xFF152A45),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x1AFFFFFF)),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _toggleButton('Mensuel', false)),
+          Expanded(child: _toggleButton('Annuel −20%', true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggleButton(String label, bool annual) {
+    final sel = _isAnnual == annual;
+    return GestureDetector(
+      onTap: () => setState(() => _isAnnual = annual),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: sel ? BabifixDesign.cyan : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: sel ? const Color(0xFF0B1B34) : const Color(0xFFB4C2D9),
+            fontWeight: FontWeight.w800,
+            fontSize: 13.5,
+          ),
         ),
       ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+    );
+  }
+
+  Widget _buildTierCard(Map<String, dynamic> tier) {
+    final tierId = tier['id']?.toString() ?? '';
+    final isStandard = tierId == 'standard';
+    final isActive = _isPremium
+        ? _currentTier == tierId
+        : isStandard; // tier actuel par défaut = standard
+    final isPopular = tier['popular'] == true;
+    final color = _tierColors[tierId] ?? BabifixDesign.cyan;
+
+    final priceMonthly = (tier['price'] ?? 0).toInt();
+    final priceAnnual = (tier['price_annual'] ?? priceMonthly * 12).toInt();
+    final savingsPct = (tier['annual_savings_pct'] ?? 0).toInt();
+    final displayPrice = _isAnnual ? priceAnnual : priceMonthly;
+    final period = isStandard ? '' : (_isAnnual ? '/ an' : '/ mois');
+
+    final trialAvailable = tier['trial_available'] == true && _trialAvailable;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          margin: EdgeInsets.only(bottom: 16, top: isPopular ? 12 : 0),
+          decoration: BoxDecoration(
+            gradient: isActive || isPopular
+                ? LinearGradient(
+                    colors: [color.withValues(alpha: 0.15), const Color(0xFF152A45)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: isActive || isPopular ? null : const Color(0xFF152A45),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isActive || isPopular ? color : const Color(0x1AFFFFFF),
+              width: isActive || isPopular ? 2 : 1,
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    tier['id'] == 'gold'
-                        ? Icons.star_rounded
-                        : tier['id'] == 'silver'
-                            ? Icons.star_half_rounded
-                            : Icons.star_border_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.08),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      tier['name'] ?? '',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
                         color: color,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        tierId == 'gold'
+                            ? Icons.star_rounded
+                            : tierId == 'silver'
+                                ? Icons.star_half_rounded
+                                : Icons.verified_user_rounded,
+                        color: Colors.white,
+                        size: 24,
                       ),
                     ),
-                    Text(
-                      '${(tier['price'] ?? 0).toStringAsFixed(0)} FCFA / mois',
-                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tier['name']?.toString() ?? '',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                              color: color,
+                            ),
+                          ),
+                          if (isStandard)
+                            const Text(
+                              'Gratuit pour tous les prestataires vérifiés',
+                              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                            )
+                          else
+                            Row(
+                              children: [
+                                Text(
+                                  '$displayPrice FCFA',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                Text(
+                                  ' $period',
+                                  style: const TextStyle(
+                                    color: Color(0xFF94A3B8),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                if (_isAnnual && savingsPct > 0) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: BabifixDesign.success
+                                          .withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '−$savingsPct%',
+                                      style: const TextStyle(
+                                        color: BabifixDesign.success,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                        ],
+                      ),
                     ),
+                    if (isActive)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'ACTIF',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-                const Spacer(),
-                if (isActive)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'ACTIF',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    ...((tier['features'] as List?) ?? []).map(
+                      (f) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.check_circle_rounded, color: color, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                f.toString(),
+                                style: const TextStyle(
+                                    fontSize: 13, color: Color(0xFFCBD5E1)),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                    if (!isActive && !isStandard) ...[
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: FilledButton(
+                          onPressed: _subscribing
+                              ? null
+                              : () => _subscribe(
+                                    tierId,
+                                    billingPeriod:
+                                        _isAnnual ? 'annual' : 'monthly',
+                                  ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: color,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _subscribing
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : Text(
+                                  _isAnnual
+                                      ? 'Souscrire ${tier['name']} – Annuel'
+                                      : 'Souscrire ${tier['name']}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      if (trialAvailable) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: _subscribing
+                                ? null
+                                : () => _subscribe(tierId,
+                                    billingPeriod: 'trial'),
+                            icon: const Icon(Icons.bolt_rounded,
+                                size: 18, color: BabifixDesign.cyan),
+                            label: const Text(
+                              'Essai gratuit 7 jours',
+                              style: TextStyle(
+                                color: BabifixDesign.cyan,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                  color: BabifixDesign.cyan, width: 1.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isPopular)
+          Positioned(
+            top: -2,
+            left: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.5),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.local_fire_department_rounded,
+                      color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'LE PLUS POPULAIRE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildComparisonTable() {
+    if (_tiers.length < 2) return const SizedBox.shrink();
+
+    Widget header(String label, Color? color) => Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: color ?? Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+        );
+
+    Widget cell(String text, {bool bold = false}) => Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: const Color(0xFFCBD5E1),
+                fontSize: 12,
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
+          ),
+        );
+
+    Widget row(String label, List<String> values) => Container(
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: Color(0x14FFFFFF))),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                flex: 1,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 11, horizontal: 12),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              for (final v in values) cell(v),
+            ],
+          ),
+        );
+
+    String commission(int red) => red == 0 ? '18 %' : '${18 - red} %';
+    String quota(int q) => q == -1 ? 'Illimités' : '$q';
+    String visibility(int pct) => pct == 0 ? 'Standard' : '+$pct %';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF152A45),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x1AFFFFFF)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                const Expanded(
+                  flex: 1,
+                  child: Text(
+                    'Comparaison',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                for (final t in _tiers)
+                  header(
+                    (t['name'] ?? '').toString(),
+                    _tierColors[t['id']] ?? Colors.white,
                   ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(20),
+          row('Commission',
+              _tiers.map((t) => commission((t['commission_reduction'] ?? 0) as int)).toList()),
+          row('Visibilité',
+              _tiers.map((t) => visibility((t['visibility_boost_pct'] ?? 0) as int)).toList()),
+          row('Devis actifs',
+              _tiers.map((t) => quota((t['max_active_devis'] ?? 3) as int)).toList()),
+          row(
+            'Badge profil',
+            _tiers.map((t) {
+              final id = t['id']?.toString() ?? '';
+              if (id == 'silver') return 'Argent';
+              if (id == 'gold') return 'Or';
+              return '—';
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrialBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            BabifixDesign.cyan.withValues(alpha: 0.18),
+            const Color(0xFF152A45),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.bolt_rounded, color: BabifixDesign.cyan, size: 28),
+          const SizedBox(width: 12),
+          const Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...((tier['features'] as List?) ?? []).map(
-                  (f) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.check_circle_rounded, color: color, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            f.toString(),
-                            style: const TextStyle(fontSize: 13, color: Color(0xFFCBD5E1)),
-                          ),
-                        ),
-                      ],
-                    ),
+                Text(
+                  'Essai gratuit 7 jours',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
                   ),
                 ),
-                if (!isActive) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: FilledButton(
-                      onPressed: _subscribing ? null : () => _subscribe(tier['id']),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: color,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: _subscribing
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : Text(
-                              'Souscrire ${tier['name']}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                              ),
-                            ),
-                    ),
+                SizedBox(height: 4),
+                Text(
+                  'Testez Argent ou Or gratuitement. Aucun débit, sans engagement.',
+                  style: TextStyle(
+                    color: Color(0xFFB4C2D9),
+                    fontSize: 12,
+                    height: 1.4,
                   ),
-                ],
+                ),
               ],
             ),
           ),

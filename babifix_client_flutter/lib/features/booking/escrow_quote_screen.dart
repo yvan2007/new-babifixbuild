@@ -15,6 +15,7 @@ import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class EscrowQuoteScreen extends StatefulWidget {
   final String reservationReference;
@@ -127,7 +128,7 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen> {
         elevation: 0.5,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.dark(size: 80))
           : _error != null
               ? _errorView()
               : _content(_quote!),

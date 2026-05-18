@@ -50,6 +50,7 @@ import 'shared/widgets/message_with_photos_field.dart';
 import 'shared/widgets/payment_method_logo.dart';
 import 'package:latlong2/latlong.dart';
 import 'features/providers/provider_profile_screen.dart';
+import 'features/providers/provider_profile_premium_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/payment/payment_screen.dart';
 import 'features/fidelite/fidelite_screen.dart';
@@ -173,13 +174,23 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
   }
 
   Future<void> _loadPrefs() async {
+    // Charge les prefs ET force un délai minimum pour que l'animation
+    // du splash ait le temps de se jouer (1800ms = entrée + ~1 cycle loader).
+    final started = DateTime.now();
     final p = await SharedPreferences.getInstance();
+    final newPalette = p.getString(_kPaletteKey) == 'blue'
+        ? AppPaletteMode.blue
+        : AppPaletteMode.light;
+    final newSeen = p.getBool(_kOnboardingKey) ?? false;
+    final elapsed = DateTime.now().difference(started);
+    const minSplash = Duration(milliseconds: 1800);
+    if (elapsed < minSplash) {
+      await Future.delayed(minSplash - elapsed);
+    }
     if (!mounted) return;
     setState(() {
-      paletteMode = p.getString(_kPaletteKey) == 'blue'
-          ? AppPaletteMode.blue
-          : AppPaletteMode.light;
-      hasSeenOnboarding = p.getBool(_kOnboardingKey) ?? false;
+      paletteMode = newPalette;
+      hasSeenOnboarding = newSeen;
       _prefsLoaded = true;
     });
   }
@@ -222,7 +233,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
         onLogout: () {},
       ),
       serviceDetailBuilder: (_, id) =>
-          ProviderProfileScreen(providerId: int.tryParse(id) ?? 0),
+          ProviderProfilePremiumScreen(providerId: int.tryParse(id) ?? 0),
       bookingBuilder: (context, sid) => Builder(
         builder: (ctx) {
           return BookingFlowScreen(
@@ -260,7 +271,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
         },
       ),
       providerProfileBuilder: (_, id) =>
-          ProviderProfileScreen(providerId: int.tryParse(id) ?? 0),
+          ProviderProfilePremiumScreen(providerId: int.tryParse(id) ?? 0),
       notificationsBuilder: (_) => const NotificationsScreen(),
       paymentBuilder: (_, rid) =>
           PaymentScreen(reservationId: int.tryParse(rid) ?? 0),
@@ -925,6 +936,41 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Future<void> _logout() async {
+    // Confirmation explicite avant de déconnecter
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.logout_rounded,
+            size: 48, color: Color(0xFFEF4444)),
+        title: const Text(
+          'Se déconnecter ?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Vous serez déconnecté de votre compte BABIFIX et devrez vous '
+          'reconnecter pour accéder à vos réservations et conversations.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.logout_rounded, size: 16),
+            label: const Text('Déconnecter'),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
     _clientWsSub?.cancel();
     _clientFcmSub?.cancel();
     _clientFcmOpenedSub?.cancel();
@@ -1535,7 +1581,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               if (p.id > 0) {
                                 Navigator.of(context).push<void>(
                                   MaterialPageRoute(
-                                    builder: (_) => ProviderProfileScreen(
+                                    builder: (_) => ProviderProfilePremiumScreen(
                                       providerId: p.id,
                                       onStartReservation: (service) async {
                                         final result =
@@ -4054,12 +4100,22 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildProfile() {
+    final activeCount =
+        reservations.where((r) => r.status == 'En cours').length;
+    final completedCount =
+        reservations.where((r) => r.status == 'Terminée' || r.status == 'Terminee').length;
     final totalEscrow = reservations
         .where((r) => r.status == 'En cours')
         .map(
           (e) => int.tryParse(e.amount.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0,
         )
         .fold<int>(0, (sum, value) => sum + value);
+
+    final hasCompleteProfile = sessionLoggedIn &&
+        profileName.isNotEmpty &&
+        profileEmail.isNotEmpty &&
+        profilePhone.isNotEmpty;
+
     return Column(
       children: [
         _buildTopBar('Profil'),
@@ -4072,31 +4128,25 @@ class _ClientHomePageState extends State<ClientHomePage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                // ── Hero card client premium ────────────────────────────
+                // ── Hero card premium (gradient sombre, contraste garanti) ──
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(20, 22, 16, 20),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    gradient: LinearGradient(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: _isLight
-                          ? const [Color(0xFFE0F2FE), Color(0xFFF0F9FF)]
-                          : const [Color(0xFF0C1729), Color(0xFF162032)],
-                    ),
-                    border: Border.all(
-                      color: _isLight
-                          ? const Color(0xFF7DD3FC)
-                          : const Color(0x334CC9F0),
-                      width: 1.5,
+                      colors: [
+                        Color(0xFF0B1B34), // navy profond
+                        Color(0xFF14375E), // navy intermédiaire
+                        Color(0xFF1B4B7C), // bleu plus clair
+                      ],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: BabifixDesign.cyan.withValues(
-                          alpha: _isLight ? 0.1 : 0.07,
-                        ),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
+                        color: BabifixDesign.cyan.withValues(alpha: 0.25),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
@@ -4105,87 +4155,128 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     children: [
                       Row(
                         children: [
+                          // Avatar avec halo cyan
                           Container(
-                            width: 64,
-                            height: 64,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF4CC9F0), Color(0xFF4CC9F0)],
-                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: BabifixDesign.cyan.withValues(
-                                    alpha: 0.35,
-                                  ),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
+                                  color: BabifixDesign.cyan
+                                      .withValues(alpha: 0.55),
+                                  blurRadius: 18,
+                                  spreadRadius: 1,
                                 ),
                               ],
                             ),
-                            child: profileAvatarBytes != null
-                                ? ClipOval(
-                                    child: Image.memory(
-                                      profileAvatarBytes!,
-                                      fit: BoxFit.cover,
-                                      width: 64,
-                                      height: 64,
-                                    ),
-                                  )
-                                : Center(
-                                    child: Text(
-                                      profileName.isNotEmpty
-                                          ? profileName[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w900,
+                            child: Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFF4CC9F0),
+                                    Color(0xFF22A6D6),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.25),
+                                  width: 2,
+                                ),
+                              ),
+                              child: profileAvatarBytes != null
+                                  ? ClipOval(
+                                      child: Image.memory(
+                                        profileAvatarBytes!,
+                                        fit: BoxFit.cover,
+                                        width: 72,
+                                        height: 72,
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        profileName.isNotEmpty
+                                            ? profileName[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w900,
+                                        ),
                                       ),
                                     ),
-                                  ),
+                            ),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  profileName.isEmpty
-                                      ? 'Mon compte'
-                                      : profileName,
-                                  style: TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w900,
-                                    color: _textPrimary,
-                                  ),
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        profileName.isEmpty
+                                            ? 'Mon compte'
+                                            : profileName,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                          color: Colors.white,
+                                          letterSpacing: 0.2,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (hasCompleteProfile) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Color(0xFF22C55E),
+                                        ),
+                                        child: const Icon(
+                                          Icons.check_rounded,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                const SizedBox(height: 3),
+                                const SizedBox(height: 4),
                                 Text(
                                   profileEmail.isEmpty
-                                      ? 'Connectez-vous ou creez un compte'
+                                      ? 'Connectez-vous ou créez un compte'
                                       : profileEmail,
                                   style: TextStyle(
-                                    color: _textSecondary,
-                                    fontSize: 13,
+                                    color: Colors.white
+                                        .withValues(alpha: 0.78),
+                                    fontSize: 12.5,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 if (profilePhone.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
+                                  const SizedBox(height: 4),
                                   Row(
                                     children: [
                                       Icon(
                                         Icons.phone_rounded,
-                                        size: 11,
-                                        color: _textSecondary,
+                                        size: 12,
+                                        color: Colors.white
+                                            .withValues(alpha: 0.7),
                                       ),
-                                      const SizedBox(width: 3),
+                                      const SizedBox(width: 4),
                                       Text(
                                         profilePhone,
                                         style: TextStyle(
-                                          color: _textSecondary,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.78),
                                           fontSize: 12,
                                         ),
                                       ),
@@ -4195,28 +4286,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               ],
                             ),
                           ),
-                          GestureDetector(
-                            onTap: _openEditProfile,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF4CC9F0),
-                                    Color(0xFF4CC9F0),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'Modifier',
-                                style: TextStyle(
+                          // Bouton édition discret en haut à droite
+                          Material(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              onTap: _openEditProfile,
+                              customBorder: const CircleBorder(),
+                              child: const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: Icon(
+                                  Icons.edit_outlined,
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                                  size: 18,
                                 ),
                               ),
                             ),
@@ -4224,37 +4306,66 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         ],
                       ),
                       if (sessionLoggedIn) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
+                        // 3 stats utiles, fond blanc translucide pour bon contraste
                         Row(
                           children: [
-                            _MiniStatChip(
-                              label: 'Reservations',
+                            _HeroStat(
+                              icon: Icons.event_available_rounded,
                               value: '${reservations.length}',
-                              icon: Icons.calendar_today_rounded,
-                              color: BabifixDesign.cyan,
-                              isLight: _isLight,
+                              label: 'Réservations',
                             ),
-                            const SizedBox(width: 8),
-                            _MiniStatChip(
-                              label: 'En cours',
-                              value:
-                                  '${reservations.where((r) => r.status == 'En cours').length}',
+                            const SizedBox(width: 10),
+                            _HeroStat(
                               icon: Icons.pending_actions_rounded,
-                              color: const Color(0xFFF59E0B),
-                              isLight: _isLight,
-                            ),
-                            const SizedBox(width: 8),
-                            _MiniStatChip(
+                              value: '$activeCount',
                               label: 'En cours',
+                              accent: const Color(0xFFFFC857),
+                            ),
+                            const SizedBox(width: 10),
+                            _HeroStat(
+                              icon: Icons.shield_rounded,
                               value: totalEscrow > 0
                                   ? formatFcfa(totalEscrow)
                                   : '0 F',
-                              icon: Icons.pending_actions_rounded,
-                              color: const Color(0xFF22C55E),
-                              isLight: _isLight,
+                              label: 'Sécurisé',
+                              accent: const Color(0xFF4ADE80),
+                              valueFontSize: 13,
                             ),
                           ],
                         ),
+                        if (completedCount > 0) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.workspace_premium_rounded,
+                                  color: Color(0xFFFFC857),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '$completedCount chantier${completedCount > 1 ? "s" : ""} terminé${completedCount > 1 ? "s" : ""} avec BABIFIX',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ],
                   ),
@@ -4288,40 +4399,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ),
                   ),
                 ),
-                if (sessionLoggedIn && totalEscrow > 0) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: LinearGradient(
-                        colors: _isLight
-                            ? const [Color(0xFFEFFAFF), Color(0xFFE0F7FE)]
-                            : const [Color(0xFF071523), Color(0xFF0B2035)],
-                      ),
-                      border: Border.all(
-                        color: _isLight ? const Color(0xFF7DD3FC) : const Color(0x334CC9F0),
-                      ),
-                    ),
-                    child: Row(children: [
-                      Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: BabifixDesign.cyan.withValues(alpha: 0.15)),
-                        child: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF4CC9F0), size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Paiements en attente', style: TextStyle(fontWeight: FontWeight.w800, color: _textPrimary, fontSize: 13)),
-                        Text('${formatFcfa(totalEscrow)} securises', style: const TextStyle(color: Color(0xFF4CC9F0), fontSize: 12)),
-                      ])),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: BabifixDesign.cyan.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-                        child: const Text('Securise', style: TextStyle(color: Color(0xFF4CC9F0), fontSize: 10, fontWeight: FontWeight.w700)),
-                      ),
-                    ]),
-                  ),
-                ],
 
                 // ── Section : Preferences ─────────────────────────────
                 const SizedBox(height: 20),
@@ -4361,33 +4438,18 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 const SizedBox(height: 20),
                 _SectionLabel(label: 'SÉCURITÉ', icon: Icons.lock_outline_rounded, color: const Color(0xFFF59E0B), isLight: _isLight),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _cardBg,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _PremiumActionTile(
-                        icon: Icons.fingerprint_rounded,
-                        title: 'Connexion biometrique',
-                        subtitle: 'Face ID / Empreinte pour acceder rapidement',
-                        onTap: _openBiometricSettings,
-                      ),
-                      const SizedBox(height: 8),
-                      _PremiumActionTile(
-                        icon: Icons.lock_outline_rounded,
-                        title: 'Changer le mot de passe',
-                        subtitle: 'Modifier votre mot de passe de connexion',
-                        onTap: _openForgotPassword,
-                      ),
-                    ],
-                  ),
+                _PremiumActionTile(
+                  icon: Icons.fingerprint_rounded,
+                  title: 'Connexion biométrique',
+                  subtitle: 'Face ID / Empreinte pour accéder rapidement',
+                  onTap: _openBiometricSettings,
+                ),
+                const SizedBox(height: 8),
+                _PremiumActionTile(
+                  icon: Icons.lock_outline_rounded,
+                  title: 'Changer le mot de passe',
+                  subtitle: 'Modifier votre mot de passe de connexion',
+                  onTap: _openForgotPassword,
                 ),
 
                 // ── Section : Support & Aide ─────────────────────────
@@ -6453,53 +6515,60 @@ class _HelpRow extends StatelessWidget {
 }
 
 // ── Stat chip compact pour le profil client ───────────────────────────────
-class _MiniStatChip extends StatelessWidget {
-  final String label;
-  final String value;
+// ── Statistique du hero profil (fond translucide sur gradient sombre) ───────
+class _HeroStat extends StatelessWidget {
   final IconData icon;
-  final Color color;
-  final bool isLight;
+  final String value;
+  final String label;
+  final Color accent;
+  final double valueFontSize;
 
-  const _MiniStatChip({
-    required this.label,
-    required this.value,
+  const _HeroStat({
     required this.icon,
-    required this.color,
-    required this.isLight,
+    required this.value,
+    required this.label,
+    this.accent = const Color(0xFF4CC9F0),
+    this.valueFontSize = 15,
   });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: isLight ? 0.08 : 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
+          color: Colors.white.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.14),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
+            Icon(icon, color: accent, size: 18),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: valueFontSize,
+                  letterSpacing: 0.2,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
-                color: color.withValues(alpha: 0.7),
-                fontSize: 9,
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 10.5,
                 fontWeight: FontWeight.w600,
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

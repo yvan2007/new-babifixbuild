@@ -14,6 +14,7 @@ import '../../babifix_design_system.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ExecutionActionsWidget extends StatefulWidget {
   final String reservationReference;
@@ -173,7 +174,7 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.all(20),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: BabifixRingLoader.dark(size: 80)),
       );
     }
     final s = widget.statut;

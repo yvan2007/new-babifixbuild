@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -37,6 +38,13 @@ class BabifixFcm {
     if (kIsWeb) return;
     try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      if (kDebugMode) {
+        try {
+          // Sur Android émulateur, l'hôte est 10.0.2.2, pas localhost.
+          final host = (!kIsWeb && Platform.isAndroid) ? '10.0.2.2' : 'localhost';
+          await fb.FirebaseAuth.instance.useAuthEmulator(host, 9099);
+        } catch (_) {}
+      }
       FirebaseMessaging.onBackgroundMessage(babifixFcmBackgroundHandler);
       await FirebaseMessaging.instance.requestPermission(
         alert: true,

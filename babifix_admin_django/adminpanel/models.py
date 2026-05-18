@@ -114,7 +114,6 @@ class Provider(models.Model):
         blank=True,
         default="",
         choices=[
-            ("bronze", "Bronze"),
             ("silver", "Argent"),
             ("gold", "Or"),
         ],
@@ -126,6 +125,14 @@ class Provider(models.Model):
     premium_until = models.DateTimeField(
         null=True,
         blank=True,
+    )
+    has_used_premium_trial = models.BooleanField(
+        default=False,
+        help_text="True dès qu'un essai gratuit 7j a été consommé (à vie).",
+    )
+    is_premium_annual = models.BooleanField(
+        default=False,
+        help_text="Abonnement annuel (vs mensuel). Verrouillé jusqu'à premium_until.",
     )
     # v2 — Galerie réalisations (max 12 photos, data URL base64)
     portfolio_photos = models.JSONField(
@@ -953,6 +960,10 @@ class UserProfile(models.Model):
     whatsapp_opt_in = models.BooleanField(
         default=True,
         help_text="Accepte de recevoir des notifications WhatsApp",
+    )
+    phone_verified = models.BooleanField(
+        default=False,
+        help_text="Telephone verifie via OTP Firebase",
     )
 
     def __str__(self):

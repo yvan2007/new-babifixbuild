@@ -5,10 +5,14 @@ class LandingScreen extends StatelessWidget {
     super.key,
     required this.onCreateAccount,
     required this.onLogin,
+    this.onDemoLogin,
   });
 
   final VoidCallback onCreateAccount;
   final VoidCallback onLogin;
+  /// Auto-login démo (`horzonzh / prest123`) pour explorer l'app sans
+  /// créer de compte. Si null, le bouton "Visite guidée" est masqué.
+  final VoidCallback? onDemoLogin;
 
   static const _navy = Color(0xFF0B1B34);
   static const _blue = Color(0xFF0084D1);
@@ -267,6 +271,27 @@ class LandingScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (onDemoLogin != null) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: onDemoLogin,
+                        icon: Icon(Icons.auto_awesome, color: _orange, size: 18),
+                        label: Text(
+                          'Visite guidée (compte démo)',
+                          style: TextStyle(
+                            color: _orange,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
 
                   // Legal note

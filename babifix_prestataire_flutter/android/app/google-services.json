@@ -1,45 +1,115 @@
 {
   "project_info": {
-    "project_number": "772061649757",
-    "project_id": "babifix",
-    "storage_bucket": "babifix.firebasestorage.app"
+    "project_number": "583956327591",
+    "project_id": "babifix-b6454",
+    "storage_bucket": "babifix-b6454.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:772061649757:android:665fd184158ee3259726b4",
+        "mobilesdk_app_id": "1:583956327591:android:4f61aac68e27543cc9bf82",
         "android_client_info": {
           "package_name": "com.babifix.client"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCCDzdHbBeHdoe08f7XrfPzvDsdnJkda7w"
+          "current_key": "AIzaSyDKhKQrtReopLkxJuqdh1-6XvdzooUSgxQ"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "583956327591-4pdegfodagt1u5m5bducqm7u8kh82b40.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.babifix"
+              }
+            }
+          ]
         }
       }
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:772061649757:android:6654bfe8e363d4b99726b4",
+        "mobilesdk_app_id": "1:583956327591:android:88a76c5f8efa0875c9bf82",
         "android_client_info": {
           "package_name": "com.babifix.prestataire"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCCDzdHbBeHdoe08f7XrfPzvDsdnJkda7w"
+          "current_key": "AIzaSyDKhKQrtReopLkxJuqdh1-6XvdzooUSgxQ"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "583956327591-4pdegfodagt1u5m5bducqm7u8kh82b40.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.babifix"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:583956327591:android:ba829b96b0d8da5cc9bf82",
+        "android_client_info": {
+          "package_name": "com.example.babifix_admin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKhKQrtReopLkxJuqdh1-6XvdzooUSgxQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "583956327591-4pdegfodagt1u5m5bducqm7u8kh82b40.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.babifix"
+              }
+            }
+          ]
         }
       }
     }

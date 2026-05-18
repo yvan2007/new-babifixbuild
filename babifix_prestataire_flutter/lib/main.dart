@@ -38,6 +38,7 @@ import 'features/profile/profile_screen.dart';
 import 'features/actualites/actualites_screen.dart';
 import 'features/wallet/wallet_screen.dart' as wallet_feature;
 import 'services/fcm_router.dart';
+import 'services/location_reporter.dart';
 
 // Alias avec BabifixFcmRouter — un seul navigatorKey pour tout (calls in/out).
 final GlobalKey<NavigatorState> zegoNavigatorKey =
@@ -51,12 +52,17 @@ Future<void> main() async {
   } catch (_) {}
   
   await BabifixFcm.ensureInitialized();
-  
+
+  // Géolocalisation auto : push la position GPS du prestataire au backend
+  // dès l'ouverture de l'app + à chaque resume foreground. Non bloquant.
+  // ignore: unawaited_futures
+  LocationReporter.instance.attach();
+
   // Zego SDK temporairement désactivé — voir services/zego_call_service.dart
   // if (isZegoConfigured) {
   //   ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
   // }
-  
+
   runApp(const BabifixPrestataireApp());
 }
 
@@ -79,8 +85,16 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
   }
 
   Future<void> _loadPalette() async {
+    // Charge les prefs ET garde un délai minimum pour laisser l'animation
+    // du splash respirer (1800ms ≈ animation entrée + 1 boucle de loader).
+    final started = DateTime.now();
     final p = await SharedPreferences.getInstance();
     final v = p.getString('prestataire_palette') ?? 'light';
+    final elapsed = DateTime.now().difference(started);
+    const minSplash = Duration(milliseconds: 1800);
+    if (elapsed < minSplash) {
+      await Future.delayed(minSplash - elapsed);
+    }
     if (!mounted) return;
     setState(() {
       paletteMode = v == 'blue' ? AppPaletteMode.blue : AppPaletteMode.light;
@@ -418,6 +432,57 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
     } catch (_) {}
   }
 
+  /// Auto-login démo : utilise les identifiants du compte seedé
+  /// (`horzonzh` / `prest123`) pour entrer directement dans l'app et
+  /// montrer toutes les fonctionnalités sans demander à l'utilisateur
+  /// de s'inscrire.
+  Future<void> _loginAsDemoPrestataire() async {
+    if (!mounted) return;
+    // Petit feedback visuel pendant le login
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      duration: Duration(seconds: 4),
+      content: Text('Connexion en compte démo…'),
+    ));
+    try {
+      final res = await http.post(
+        Uri.parse('${babifixApiBaseUrl()}/api/auth/login/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': 'horzonzh',
+          'password': 'prest123',
+        }),
+      );
+      if (res.statusCode != 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+              'Compte démo indisponible (HTTP ${res.statusCode}). '
+              'Lancez "python manage.py seed_app_users" côté backend.',
+            ),
+            backgroundColor: const Color(0xFFE87722),
+          ));
+        }
+        return;
+      }
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final tok = (data['token'] ?? data['access']) as String?;
+      final refresh = data['refresh'] as String?;
+      if (tok == null || tok.isEmpty) return;
+      await writeStoredApiToken(tok);
+      if (refresh != null) await writeStoredRefreshToken(refresh);
+      babifixRegisterFcm(tok);
+      // Re-bootstrap pour réévaluer l'état du profil
+      await _bootstrapSession();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur démo : $e'),
+          backgroundColor: const Color(0xFFE87722),
+        ));
+      }
+    }
+  }
+
   Future<void> _bootstrapSession() async {
     final t = await readStoredApiToken();
     if (t == null || t.isEmpty) {
@@ -432,9 +497,13 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         headers: {'Authorization': 'Bearer $t'},
       );
       if (res.statusCode == 404) {
-        if (mounted) setState(() => current = 'registration');
-        _attachRealtime(t);
-        await _refreshUnreadChat();
+        // L'utilisateur a un token (compte BABIFIX existant) mais pas
+        // de profil prestataire. On l'envoie sur l'écran de choix
+        // « S'inscrire / Se connecter » plutôt que direct sur le
+        // formulaire d'inscription — ça lui laisse la possibilité de
+        // se connecter avec un autre compte qui aurait déjà un profil
+        // prestataire.
+        if (mounted) setState(() => current = 'landing');
         return;
       }
       if (res.statusCode != 200) {
@@ -816,7 +885,10 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
   Widget build(BuildContext context) {
     Widget child;
     if (current == 'bootstrap') {
-      child = const _PrestataireSplashScreen();
+      // Un seul splash partagé (le BabifixPrestataireSplashScreen défini
+      // dans `splash_screen.dart`) — le splash interne legacy qui
+      // utilisait une icône Material est désormais inutilisé.
+      child = const BabifixPrestataireSplashScreen();
     } else if (current == 'onboarding') {
       child = PrestataireOnboardingScreen(
         onDone: () async {
@@ -829,6 +901,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       child = LandingScreen(
         onCreateAccount: () => setState(() => current = 'registration'),
         onLogin: () => setState(() => current = 'login'),
+        onDemoLogin: _loginAsDemoPrestataire,
       );
     } else if (current == 'registration') {
       child = RegistrationScreen(

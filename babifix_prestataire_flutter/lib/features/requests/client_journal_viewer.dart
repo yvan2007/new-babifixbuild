@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import '../../babifix_design_system.dart';
 import '../../services/babifix_api.dart' show MediaApi;
 import '../../shared/services/babifix_user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ClientJournalViewer extends StatefulWidget {
   final String reservationReference;
@@ -76,7 +77,7 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
         elevation: 0.5,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.dark(size: 80))
           : _error != null
               ? Center(child: Text(_error!))
               : _empty

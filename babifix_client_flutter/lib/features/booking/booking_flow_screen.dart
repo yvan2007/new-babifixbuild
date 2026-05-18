@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -10,6 +11,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
+import '../../shared/widgets/gps_location_card.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 
 /// Flow de réservation en 4 étapes :
@@ -63,9 +65,98 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
 
   /// `true` après un tap sur la carte ou « Ma position » — sinon on n'envoie pas lat/lng à l'API.
   bool _mapPinFromUser = false;
+  bool _gpsAutoTried = false;
+  bool _resolvingGps = false;
+  GpsLocationState _gpsState = GpsLocationState.idle;
   List<Uint8List> _photos = [];
 
   static const _steps = ['Problème', 'Adresse', 'Disponibilité', 'Envoyé'];
+
+  @override
+  void initState() {
+    super.initState();
+    // GPS automatique — non bloquant.
+    // Si l'utilisateur autorise, on récupère sa position + ville en
+    // reverse-geocoding et on pré-remplit le champ adresse. Il pourra
+    // toujours saisir une autre adresse à la main (non obligatoire).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoLocate());
+  }
+
+  Future<void> _tryAutoLocate({bool forceRefresh = false}) async {
+    if (_gpsAutoTried && !forceRefresh) return;
+    _gpsAutoTried = true;
+    if (!mounted) return;
+    setState(() {
+      _resolvingGps = true;
+      _gpsState = GpsLocationState.resolving;
+    });
+    try {
+      // Vérifie la permission, demande si nécessaire
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        if (mounted) setState(() => _gpsState = GpsLocationState.denied);
+        return;
+      }
+      final svcOn = await Geolocator.isLocationServiceEnabled();
+      if (!svcOn) {
+        if (mounted) setState(() => _gpsState = GpsLocationState.denied);
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      ).timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+      setState(() {
+        _mapPin = LatLng(pos.latitude, pos.longitude);
+        _mapPinFromUser = true; // → on enverra lat/lng au backend
+        _gpsState = GpsLocationState.detected;
+      });
+      // Reverse-geocoding rapide via OpenStreetMap Nominatim
+      try {
+        final url = Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse'
+          '?lat=${pos.latitude}&lon=${pos.longitude}&format=json&accept-language=fr',
+        );
+        final r = await http.get(
+          url,
+          headers: {'User-Agent': 'BABIFIX/1.0 client'},
+        ).timeout(const Duration(seconds: 6));
+        if (r.statusCode == 200 && mounted) {
+          final j = jsonDecode(r.body) as Map<String, dynamic>;
+          final display = (j['display_name'] ?? '').toString();
+          if (display.isNotEmpty && _addressCtrl.text.trim().isEmpty) {
+            _addressCtrl.text = display;
+          }
+        }
+      } catch (_) {
+        // Reverse-geocoding facultatif — pas de blocage si offline.
+        if (mounted && _addressCtrl.text.trim().isEmpty) {
+          _addressCtrl.text =
+              'Ma position (${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)})';
+        }
+      }
+    } catch (_) {
+      // Échec : on bascule en état "denied" pour proposer la saisie manuelle.
+      if (mounted) {
+        setState(() {
+          _gpsState = _gpsState == GpsLocationState.detected
+              ? _gpsState
+              : GpsLocationState.denied;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _resolvingGps = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -233,16 +324,31 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           addressCtrl: _addressCtrl,
           msgCtrl: _msgCtrl,
           mapPin: _mapPin,
+          gpsState: _gpsState,
+          onGpsRefresh: () => _tryAutoLocate(forceRefresh: true),
           onMapPinChanged: (p) => setState(() {
             _mapPin = p;
             _mapPinFromUser = true;
           }),
           onNext: () {
-            if (_addressCtrl.text.trim().isEmpty) {
+            // GPS auto fait foi : si on a une position validée par
+            // l'utilisateur, on accepte même si le champ texte est
+            // vide. Sinon on demande une saisie manuelle.
+            final hasGps = _mapPinFromUser;
+            final hasText = _addressCtrl.text.trim().isNotEmpty;
+            if (!hasGps && !hasText) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Renseignez votre adresse.')),
+                const SnackBar(content: Text(
+                  "Activez votre position ou renseignez une adresse.",
+                )),
               );
               return;
+            }
+            // Si pas de texte mais GPS dispo, on remplit avec un libellé.
+            if (!hasText) {
+              _addressCtrl.text =
+                  'Ma position (${_mapPin.latitude.toStringAsFixed(4)}, '
+                  '${_mapPin.longitude.toStringAsFixed(4)})';
             }
             _goTo(2);
           },
@@ -845,6 +951,8 @@ class _StepAddress extends StatefulWidget {
     required this.onMapPinChanged,
     required this.onNext,
     required this.onBack,
+    required this.gpsState,
+    required this.onGpsRefresh,
   });
 
   final Color textColor;
@@ -855,6 +963,8 @@ class _StepAddress extends StatefulWidget {
   final ValueChanged<LatLng> onMapPinChanged;
   final VoidCallback onNext;
   final VoidCallback onBack;
+  final GpsLocationState gpsState;
+  final VoidCallback onGpsRefresh;
 
   @override
   State<_StepAddress> createState() => _StepAddressState();
@@ -1009,6 +1119,13 @@ class _StepAddressState extends State<_StepAddress> {
                       ],
                     ),
                     const SizedBox(height: 14),
+                    // Carte GPS animée (loading → détectée → refusée)
+                    GpsLocationCard(
+                      state: widget.gpsState,
+                      addressText: addressCtrl.text,
+                      onRefresh: widget.onGpsRefresh,
+                    ),
+                    const SizedBox(height: 10),
                     BabifixAddressSearchField(
                       controller: addressCtrl,
                       onPlaceSelected: (latLng, _) => onMapPinChanged(latLng),

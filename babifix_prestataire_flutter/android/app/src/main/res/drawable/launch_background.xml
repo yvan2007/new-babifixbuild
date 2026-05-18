@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Splash natif Android — affiché avant le démarrage de Flutter.
+     Fond dégradé navy + logo BABIFIX centré. Le splash Dart prend
+     ensuite le relais avec les animations complètes. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
+    <item android:drawable="@drawable/splash_gradient" />
 
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
+    <item
+        android:width="140dp"
+        android:height="140dp"
+        android:gravity="center">
         <bitmap
+            android:src="@drawable/babifix_logo"
             android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+            android:antialias="true" />
+    </item>
 </layer-list>

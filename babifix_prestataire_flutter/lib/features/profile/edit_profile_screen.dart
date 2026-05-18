@@ -92,7 +92,7 @@ class _EditProfilePrestataireScreenState
       'nom': _nomCtrl.text.trim(), 'specialite': _specialiteCtrl.text.trim(),
       'ville': _villeCtrl.text.trim(), 'bio': _bioCtrl.text.trim(),
     };
-    if (_tarifCtrl.text.trim().isNotEmpty) payload['tarif_horaire'] = double.tryParse(_tarifCtrl.text.trim());
+    // tarif_horaire désactivé pour le prestataire — chaque devis a son prix.
     if (_expCtrl.text.trim().isNotEmpty) payload['years_experience'] = int.tryParse(_expCtrl.text.trim());
     try {
       final req = http.Request('PATCH', Uri.parse('$_base/api/prestataire/profile'));
@@ -227,18 +227,18 @@ class _EditProfilePrestataireScreenState
           ),
           const SizedBox(height: 16),
 
-          // Tarifs & Experience
+          // Expérience (le tarif horaire est supprimé : chaque devis a
+          // son propre prix calculé sur place selon la prestation).
           _SectionCardPremium(
-            icon: Icons.payments_rounded,
-            title: 'Tarifs & Experience',
-            subtitle: 'Vos tarifs et annees de metier',
+            icon: Icons.star_rounded,
+            title: 'Expérience',
+            subtitle: 'Vos années dans le métier',
             color: BabifixDesign.ciGreen,
-            child: Row(
-              children: [
-                Expanded(child: _PremiumField(controller: _tarifCtrl, label: 'Tarif horaire (FCFA)', icon: Icons.payments_rounded, keyboardType: TextInputType.number)),
-                const SizedBox(width: 12),
-                Expanded(child: _PremiumField(controller: _expCtrl, label: 'Annees d\'exp.', icon: Icons.star_rounded, keyboardType: TextInputType.number)),
-              ],
+            child: _PremiumField(
+              controller: _expCtrl,
+              label: "Années d'expérience",
+              icon: Icons.star_rounded,
+              keyboardType: TextInputType.number,
             ),
           ),
           const SizedBox(height: 16),

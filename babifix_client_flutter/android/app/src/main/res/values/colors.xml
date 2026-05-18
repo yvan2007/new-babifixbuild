@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Couleurs BABIFIX (utilisées pour le splash natif Android) -->
+    <color name="babifix_navy">#0B1B34</color>
+    <color name="babifix_navy_top">#050B1F</color>
+    <color name="babifix_cyan">#4CC9F0</color>
+</resources>
