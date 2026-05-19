@@ -3514,6 +3514,11 @@ def api_prestataire_me(request):
                 "category_id": int(cat.id) if cat else None,
                 "category_icone_url": (cat.icone_url or "").strip() if cat else "",
                 "years_experience": int(prov.years_experience or 0),
+                "contrat_signe": prov.contrat_accepte_at is not None,
+                "contrat_accepte_at": (
+                    prov.contrat_accepte_at.isoformat()
+                    if prov.contrat_accepte_at else None
+                ),
             },
             "stats": {
                 "reservations_total": qs.count(),
@@ -4832,11 +4837,27 @@ def api_client_open_dispute(request, reference):
         body = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
         body = {}
-    motif = str(body.get("motif", "")).strip()[:200] or "Non précisé"
+    motif = str(body.get("motif", "")).strip()[:500] or "Non précisé"
+
     priorite_raw = str(body.get("priorite", "Moyenne")).strip()
     priorite = priorite_raw if priorite_raw in [
         Dispute.Priority.HIGH, Dispute.Priority.MEDIUM, Dispute.Priority.LOW
     ] else Dispute.Priority.MEDIUM
+
+    # Catégorie : on prend telle quelle si elle correspond à une des choix.
+    cat_raw = str(body.get("categorie", "")).strip().lower()
+    valid_cats = {c.value for c in Dispute.Category}
+    categorie = cat_raw if cat_raw in valid_cats else Dispute.Category.AUTRE
+
+    # Photos preuves : max 5, doivent être des data URLs (data:image/...)
+    photos_raw = body.get("photos", []) or []
+    if not isinstance(photos_raw, list):
+        photos_raw = []
+    photos = [
+        str(p)[:600000]  # ~450 ko en base64
+        for p in photos_raw[:5]
+        if isinstance(p, str) and p.startswith("data:image/")
+    ]
 
     # Référence unique
     import uuid as _uuid
@@ -4853,11 +4874,13 @@ def api_client_open_dispute(request, reference):
     dispute = Dispute.objects.create(
         reference=dispute_ref,
         motif=motif,
+        categorie=categorie,
         client=client_name,
         prestataire=presta_name,
         priorite=priorite,
         decision=Dispute.Decision.OPEN,
         reservation=res,
+        photos_client=photos,
     )
     res.dispute_ouverte = True
     res.save(update_fields=["dispute_ouverte"])
@@ -5020,7 +5043,16 @@ def api_admin_resolve_dispute(request, dispute_ref):
         res.save(update_fields=["dispute_ouverte"])
 
     d.decision = decision
-    d.save(update_fields=["decision"])
+    d.decision_note = note
+    d.decided_at = timezone.now()
+    # Trace de l'admin qui a tranché.
+    try:
+        admin_user = User.objects.filter(pk=request.api_user_id).first()
+        if admin_user:
+            d.decided_by = admin_user
+    except Exception:
+        pass
+    d.save(update_fields=["decision", "decision_note", "decided_at", "decided_by"])
 
     # Notif aux 2 parties
     try:

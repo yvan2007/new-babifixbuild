@@ -1,17 +1,15 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../shared/widgets/smart_address_picker.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const _kNavyDeep = Color(0xFF050D1A);
-const _kNavy = Color(0xFF0A1628);
-const _kBlue = Color(0xFF4CC9F0);
-const _kBlueDark = Color(0xFF1D4ED8);
+// ── Couleurs sémantiques (universelles) ───────────────────────────────────────
 const _kCyan = Color(0xFF4CC9F0);
+const _kCyanDark = Color(0xFF22A6D6);
+const _kNavy = Color(0xFF0B1B34);
 const _kSuccess = Color(0xFF22C55E);
 const _kError = Color(0xFFEF4444);
 
@@ -51,7 +49,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   late final AnimationController _anim;
   late final Animation<double> _fadeIn;
 
-  // Erreurs inline par champ
   String? _nameError;
   String? _emailError;
   String? _phoneError;
@@ -68,31 +65,30 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     addressCtrl = TextEditingController(text: widget.initialAddress);
     _avatarBytes = widget.initialAvatarBytes;
 
-    // Re-render à chaque frappe pour le badge "Modifié" et le bouton.
     nameCtrl.addListener(_onFieldChange);
     emailCtrl.addListener(_onFieldChange);
     phoneCtrl.addListener(_onFieldChange);
     addressCtrl.addListener(_onFieldChange);
 
     _anim = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 700));
+        vsync: this, duration: const Duration(milliseconds: 600));
     _fadeIn = CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic);
     _anim.forward();
   }
 
   void _onFieldChange() {
-    // Clear inline errors as the user fixes them.
     if (_nameError != null && _validName(nameCtrl.text.trim()) == null) {
       setState(() => _nameError = null);
-    } else if (_emailError != null && _validEmail(emailCtrl.text.trim()) == null) {
+    } else if (_emailError != null &&
+        _validEmail(emailCtrl.text.trim()) == null) {
       setState(() => _emailError = null);
-    } else if (_phoneError != null && _validPhone(phoneCtrl.text.trim()) == null) {
+    } else if (_phoneError != null &&
+        _validPhone(phoneCtrl.text.trim()) == null) {
       setState(() => _phoneError = null);
     } else if (_addressError != null &&
         _validAddress(addressCtrl.text.trim()) == null) {
       setState(() => _addressError = null);
     } else {
-      // toujours redraw pour mettre à jour le badge "Modifié"
       setState(() {});
     }
   }
@@ -116,7 +112,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   String? _validEmail(String v) {
-    if (v.isEmpty) return null; // email facultatif si pas requis dans le compte
+    if (v.isEmpty) return null;
     final re = RegExp(r'^[\w.\-+]+@[\w\-]+\.[\w.\-]+$');
     if (!re.hasMatch(v)) return 'Email invalide.';
     return null;
@@ -146,11 +142,11 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         _avatarChanged;
   }
 
-  // ── Photo : bottom sheet (Galerie / Caméra / Supprimer) ─────────────────────
-  Future<void> _showPhotoSheet() async {
+  // ── Photo : Galerie / Caméra / Supprimer ───────────────────────────────────
+  Future<void> _showPhotoSheet(_Palette p) async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: _kNavy,
+      backgroundColor: p.cardBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -167,53 +163,49 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
+                    color: p.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.only(bottom: 12),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
                   'Photo de profil',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: p.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              _sheetAction(
-                icon: Icons.photo_library_rounded,
-                label: 'Choisir dans la galerie',
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await _pickPhoto(ImageSource.gallery);
-                },
-              ),
+              _sheetAction(p,
+                  icon: Icons.photo_library_rounded,
+                  label: 'Choisir dans la galerie',
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _pickPhoto(ImageSource.gallery);
+                  }),
               const SizedBox(height: 8),
-              _sheetAction(
-                icon: Icons.photo_camera_rounded,
-                label: 'Prendre une photo',
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await _pickPhoto(ImageSource.camera);
-                },
-              ),
+              _sheetAction(p,
+                  icon: Icons.photo_camera_rounded,
+                  label: 'Prendre une photo',
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _pickPhoto(ImageSource.camera);
+                  }),
               if (_avatarBytes != null) ...[
                 const SizedBox(height: 8),
-                _sheetAction(
-                  icon: Icons.delete_outline_rounded,
-                  label: 'Supprimer la photo',
-                  destructive: true,
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    setState(() {
-                      _avatarBytes = null;
-                      _avatarChanged = true;
-                    });
-                  },
-                ),
+                _sheetAction(p,
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Supprimer la photo',
+                    destructive: true, onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _avatarBytes = null;
+                    _avatarChanged = true;
+                  });
+                }),
               ],
             ],
           ),
@@ -222,15 +214,16 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _sheetAction({
+  Widget _sheetAction(
+    _Palette p, {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
     bool destructive = false,
   }) {
-    final color = destructive ? _kError : _kBlue;
+    final color = destructive ? _kError : _kCyan;
     return Material(
-      color: Colors.white.withValues(alpha: 0.06),
+      color: p.subtleBg,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -253,17 +246,13 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: destructive ? _kError : Colors.white,
+                    color: destructive ? _kError : p.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.white.withValues(alpha: 0.35),
-                size: 20,
-              ),
+              Icon(Icons.chevron_right_rounded, color: p.textMuted, size: 20),
             ],
           ),
         ),
@@ -274,10 +263,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   Future<void> _pickPhoto(ImageSource source) async {
     try {
       final x = await _picker.pickImage(
-        source: source,
-        maxWidth: 1024,
-        imageQuality: 85,
-      );
+          source: source, maxWidth: 1024, imageQuality: 85);
       if (x == null) return;
       final bytes = await x.readAsBytes();
       if (bytes.lengthInBytes > 3 * 1024 * 1024) {
@@ -290,13 +276,12 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         _avatarBytes = bytes;
         _avatarChanged = true;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       _showSnack('Impossible de charger la photo.', error: true);
     }
   }
 
-  // ── Save flow avec validation + loading + try/catch ─────────────────────────
   Future<void> _save() async {
     if (_saving) return;
 
@@ -305,7 +290,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     final phoneErr = _validPhone(phoneCtrl.text.trim());
     final addrErr = _validAddress(addressCtrl.text.trim());
 
-    if (nameErr != null || emailErr != null || phoneErr != null || addrErr != null) {
+    if (nameErr != null ||
+        emailErr != null ||
+        phoneErr != null ||
+        addrErr != null) {
       setState(() {
         _nameError = nameErr;
         _emailError = emailErr;
@@ -334,7 +322,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         if (_avatarBytes != null) {
           await BabifixUserStore.saveAvatarBytes(_avatarBytes!);
         } else {
-          // Suppression : on enregistre un tableau vide si l'API le supporte.
           try {
             await BabifixUserStore.saveAvatarBytes(Uint8List(0));
           } catch (_) {}
@@ -342,21 +329,24 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       }
       if (!mounted) return;
       _showSnack('Profil enregistré.', success: true);
-      // Petit délai pour que l'utilisateur voie le feedback avant le pop.
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       widget.onSaved();
       Navigator.of(context).maybePop();
     } catch (e) {
       if (!mounted) return;
-      _showSnack('Échec de l\'enregistrement : ${e.toString()}', error: true);
+      _showSnack('Échec de l\'enregistrement : $e', error: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
   void _showSnack(String msg, {bool error = false, bool success = false}) {
-    final color = error ? _kError : success ? _kSuccess : _kBlue;
+    final color = error
+        ? _kError
+        : success
+            ? _kSuccess
+            : _kCyan;
     final icon = error
         ? Icons.error_outline_rounded
         : success
@@ -366,7 +356,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: _kNavyDeep,
+        backgroundColor: _kNavy,
         margin: const EdgeInsets.all(16),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
@@ -377,10 +367,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             Icon(icon, color: color, size: 20),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                msg,
-                style: const TextStyle(color: Colors.white, fontSize: 13.5),
-              ),
+              child: Text(msg,
+                  style:
+                      const TextStyle(color: Colors.white, fontSize: 13.5)),
             ),
           ],
         ),
@@ -388,36 +377,33 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  // ── Quitter sans enregistrer : confirmation si modifications ────────────────
-  Future<bool> _confirmDiscard() async {
+  Future<bool> _confirmDiscard(_Palette p) async {
     if (!_hasChanges) return true;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _kNavy,
+        backgroundColor: p.cardBg,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           'Quitter sans enregistrer ?',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          style: TextStyle(
+              color: p.textPrimary, fontWeight: FontWeight.w800),
         ),
         content: Text(
           'Vos modifications seront perdues.',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+          style: TextStyle(color: p.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'Continuer',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-            ),
+            child: Text('Continuer',
+                style: TextStyle(color: p.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Quitter',
-              style: TextStyle(color: _kError, fontWeight: FontWeight.w700),
-            ),
+            child: const Text('Quitter',
+                style: TextStyle(
+                    color: _kError, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -427,127 +413,110 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final p = _Palette.from(isLight);
+
     return PopScope(
       canPop: !_hasChanges,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (await _confirmDiscard()) {
+        if (await _confirmDiscard(p)) {
           if (mounted) Navigator.of(context).pop();
         }
       },
       child: Scaffold(
-        backgroundColor: _kNavyDeep,
-        body: Stack(
-          children: [
-            const Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [_kNavyDeep, _kNavy, Color(0xFF060E1C)],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: -60,
-              left: -50,
-              child: _Orbe(color: _kBlue, size: 200, alpha: 0.16),
-            ),
-            Positioned(
-              bottom: -70,
-              right: -60,
-              child: _Orbe(color: _kCyan, size: 240, alpha: 0.10),
-            ),
-            SafeArea(
-              child: FadeTransition(
-                opacity: _fadeIn,
-                child: Column(
-                  children: [
-                    _buildHeader(context),
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                        children: [
-                          Center(child: _buildAvatar()),
-                          const SizedBox(height: 10),
-                          Center(
-                            child: TextButton.icon(
-                              onPressed: _showPhotoSheet,
-                              icon: const Icon(Icons.camera_alt_outlined,
-                                  color: _kBlue, size: 18),
-                              label: const Text(
-                                'Modifier la photo',
-                                style: TextStyle(
-                                  color: _kBlue,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
+        backgroundColor: p.scaffoldBg,
+        body: SafeArea(
+          child: FadeTransition(
+            opacity: _fadeIn,
+            child: Column(
+              children: [
+                _buildHeader(p),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+                    children: [
+                      Center(child: _buildAvatar(p)),
+                      const SizedBox(height: 10),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () => _showPhotoSheet(p),
+                          icon: const Icon(Icons.camera_alt_outlined,
+                              color: _kCyan, size: 18),
+                          label: const Text(
+                            'Modifier la photo',
+                            style: TextStyle(
+                              color: _kCyan,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Center(
-                            child: Text(
-                              'Photo, identité et coordonnées pour vos interventions.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.5),
-                                fontSize: 12.5,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          _buildFormCard(),
-                          const SizedBox(height: 24),
-                          _buildSaveButton(),
-                          const SizedBox(height: 12),
-                          Center(
-                            child: Text(
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Center(
+                        child: Text(
+                          'Photo, identité et coordonnées pour vos interventions.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: p.textMuted,
+                              fontSize: 12.5,
+                              height: 1.4),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _buildFormCard(p),
+                      const SizedBox(height: 24),
+                      _buildSaveButton(),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.lock_outline_rounded,
+                                size: 13, color: p.textMuted),
+                            const SizedBox(width: 5),
+                            Text(
                               'Vos données restent privées et chiffrées.',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.35),
-                                fontSize: 11,
-                              ),
+                                  color: p.textMuted, fontSize: 11.5),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(_Palette p) {
     final dirty = _hasChanges;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 10, 16, 0),
+      padding: const EdgeInsets.fromLTRB(4, 10, 16, 6),
       child: Row(
         children: [
           IconButton(
             onPressed: () async {
-              if (await _confirmDiscard()) {
+              if (await _confirmDiscard(p)) {
                 if (mounted) Navigator.of(context).maybePop();
               }
             },
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: Colors.white70, size: 20),
+            icon: Icon(Icons.arrow_back_ios_new_rounded,
+                color: p.textPrimary, size: 20),
           ),
           const SizedBox(width: 4),
-          const Text(
-            'Mon Profil',
+          Text(
+            'Mon profil',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.white,
+              color: p.textPrimary,
             ),
           ),
           const Spacer(),
@@ -557,20 +526,14 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               decoration: BoxDecoration(
                 color: _kSuccess.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _kSuccess.withValues(alpha: 0.45)),
+                border:
+                    Border.all(color: _kSuccess.withValues(alpha: 0.45)),
               ),
               child: Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _kSuccess,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Text(
+                children: const [
+                  CircleAvatar(radius: 3, backgroundColor: _kSuccess),
+                  SizedBox(width: 6),
+                  Text(
                     'Modifié',
                     style: TextStyle(
                       color: _kSuccess,
@@ -587,7 +550,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar(_Palette p) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -597,15 +560,15 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: const LinearGradient(
-              colors: [_kBlue, _kBlueDark],
+              colors: [_kCyan, _kCyanDark],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             boxShadow: [
               BoxShadow(
-                color: _kBlue.withValues(alpha: 0.45),
-                blurRadius: 28,
-                offset: const Offset(0, 10),
+                color: _kCyan.withValues(alpha: 0.45),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -613,7 +576,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             padding: const EdgeInsets.all(3),
             child: CircleAvatar(
               radius: 55,
-              backgroundColor: _kNavyDeep,
+              backgroundColor: p.cardBg,
               backgroundImage: _avatarBytes != null
                   ? MemoryImage(_avatarBytes!) as ImageProvider
                   : const AssetImage('assets/images/babifix-logo.png'),
@@ -627,24 +590,22 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             color: Colors.transparent,
             shape: const CircleBorder(),
             child: InkWell(
-              onTap: _showPhotoSheet,
+              onTap: () => _showPhotoSheet(p),
               customBorder: const CircleBorder(),
               child: Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: [_kBlue, _kBlueDark],
-                  ),
+                  gradient: const LinearGradient(colors: [_kCyan, _kCyanDark]),
                   boxShadow: [
                     BoxShadow(
-                      color: _kBlue.withValues(alpha: 0.5),
+                      color: _kCyan.withValues(alpha: 0.45),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
                   ],
-                  border: Border.all(color: _kNavyDeep, width: 2.5),
+                  border: Border.all(color: p.scaffoldBg, width: 2.5),
                 ),
                 child: const Icon(Icons.camera_alt_rounded,
                     color: Colors.white, size: 16),
@@ -656,93 +617,109 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildFormCard() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+  Widget _buildFormCard(_Palette p) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+      decoration: BoxDecoration(
+        color: p.cardBg,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: p.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: p.isLight ? 0.04 : 0.18),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _kBlue.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.person_outline_rounded,
-                        color: _kBlue, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Informations personnelles',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _kCyan.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.person_outline_rounded,
+                    color: _kCyan, size: 18),
               ),
-              const SizedBox(height: 20),
-              _DarkField(
-                controller: nameCtrl,
-                label: 'Nom complet',
-                icon: Icons.badge_outlined,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
-                errorText: _nameError,
-                maxLength: 60,
-                isModified: nameCtrl.text.trim() != widget.initialName.trim(),
-              ),
-              const SizedBox(height: 14),
-              _DarkField(
-                controller: emailCtrl,
-                label: 'Email',
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                errorText: _emailError,
-                isModified:
-                    emailCtrl.text.trim() != widget.initialEmail.trim(),
-              ),
-              const SizedBox(height: 14),
-              _DarkField(
-                controller: phoneCtrl,
-                label: 'Téléphone',
-                icon: Icons.phone_outlined,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                errorText: _phoneError,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s\-]')),
-                ],
-                isModified:
-                    phoneCtrl.text.trim() != widget.initialPhone.trim(),
-              ),
-              const SizedBox(height: 14),
-              _DarkField(
-                controller: addressCtrl,
-                label: "Adresse exacte d'intervention",
-                icon: Icons.location_on_outlined,
-                maxLines: 3,
-                textInputAction: TextInputAction.done,
-                errorText: _addressError,
-                isModified:
-                    addressCtrl.text.trim() != widget.initialAddress.trim(),
+              const SizedBox(width: 10),
+              Text(
+                'Informations personnelles',
+                style: TextStyle(
+                  color: p.textPrimary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 20),
+          _AdaptiveField(
+            palette: p,
+            controller: nameCtrl,
+            label: 'Nom complet',
+            icon: Icons.badge_outlined,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            errorText: _nameError,
+            maxLength: 60,
+            isModified: nameCtrl.text.trim() != widget.initialName.trim(),
+          ),
+          const SizedBox(height: 14),
+          _AdaptiveField(
+            palette: p,
+            controller: emailCtrl,
+            label: 'Email',
+            icon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            errorText: _emailError,
+            isModified: emailCtrl.text.trim() != widget.initialEmail.trim(),
+          ),
+          const SizedBox(height: 14),
+          _AdaptiveField(
+            palette: p,
+            controller: phoneCtrl,
+            label: 'Téléphone',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.next,
+            errorText: _phoneError,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s\-]')),
+            ],
+            isModified: phoneCtrl.text.trim() != widget.initialPhone.trim(),
+          ),
+          const SizedBox(height: 14),
+          // Adresse : carte interactive avec GPS auto, plus pro qu'un
+          // simple champ texte.
+          _AddressPickerField(
+            palette: p,
+            value: addressCtrl.text,
+            isModified:
+                addressCtrl.text.trim() != widget.initialAddress.trim(),
+            onPick: () async {
+              final picked = await Navigator.of(context).push<PickedAddress>(
+                MaterialPageRoute(
+                  builder: (_) => SmartAddressPicker(
+                    initialLabel: addressCtrl.text.isEmpty
+                        ? null
+                        : addressCtrl.text,
+                  ),
+                ),
+              );
+              if (picked != null) {
+                setState(() {
+                  addressCtrl.text = picked.label;
+                });
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -757,14 +734,12 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [_kBlue, _kBlueDark],
-            ),
+            gradient: const LinearGradient(colors: [_kCyan, _kCyanDark]),
             borderRadius: BorderRadius.circular(18),
             boxShadow: enabled
                 ? [
                     BoxShadow(
-                      color: _kBlue.withValues(alpha: 0.45),
+                      color: _kCyan.withValues(alpha: 0.45),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -776,10 +751,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                    ),
+                    child: BabifixRingLoader.cyan(size: 28),
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -812,31 +784,147 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 }
 
-// ── Widgets premium ───────────────────────────────────────────────────────────
+// ── Palette adaptative ────────────────────────────────────────────────────────
+class _Palette {
+  final bool isLight;
+  final Color scaffoldBg;
+  final Color cardBg;
+  final Color cardBorder;
+  final Color subtleBg;
+  final Color fieldBg;
+  final Color fieldBorder;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textMuted;
+  final Color divider;
 
-class _Orbe extends StatelessWidget {
-  const _Orbe({required this.color, required this.size, required this.alpha});
-  final Color color;
-  final double size;
-  final double alpha;
+  const _Palette({
+    required this.isLight,
+    required this.scaffoldBg,
+    required this.cardBg,
+    required this.cardBorder,
+    required this.subtleBg,
+    required this.fieldBg,
+    required this.fieldBorder,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textMuted,
+    required this.divider,
+  });
+
+  factory _Palette.from(bool isLight) {
+    if (isLight) {
+      return const _Palette(
+        isLight: true,
+        scaffoldBg: Color(0xFFF1F5F9),
+        cardBg: Colors.white,
+        cardBorder: Color(0xFFE2E8F0),
+        subtleBg: Color(0xFFF8FAFC),
+        fieldBg: Color(0xFFF8FAFC),
+        fieldBorder: Color(0xFFCBD5E1),
+        textPrimary: Color(0xFF0F172A),
+        textSecondary: Color(0xFF475569),
+        textMuted: Color(0xFF94A3B8),
+        divider: Color(0xFFE2E8F0),
+      );
+    }
+    return _Palette(
+      isLight: false,
+      scaffoldBg: const Color(0xFF050D1A),
+      cardBg: const Color(0xFF0F1F38),
+      cardBorder: Colors.white.withValues(alpha: 0.10),
+      subtleBg: Colors.white.withValues(alpha: 0.06),
+      fieldBg: Colors.white.withValues(alpha: 0.07),
+      fieldBorder: Colors.white.withValues(alpha: 0.15),
+      textPrimary: Colors.white,
+      textSecondary: const Color(0xFFB4C2D9),
+      textMuted: const Color(0xFF94A3B8),
+      divider: Colors.white.withValues(alpha: 0.18),
+    );
+  }
+}
+
+// ── Bouton sélecteur d'adresse (carte + GPS) ─────────────────────────────────
+class _AddressPickerField extends StatelessWidget {
+  const _AddressPickerField({
+    required this.palette,
+    required this.value,
+    required this.isModified,
+    required this.onPick,
+  });
+
+  final _Palette palette;
+  final String value;
+  final bool isModified;
+  final VoidCallback onPick;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [color.withValues(alpha: alpha), Colors.transparent],
+    final borderColor = isModified
+        ? _kSuccess.withValues(alpha: 0.55)
+        : palette.fieldBorder;
+    final iconColor = isModified ? _kSuccess : palette.textSecondary;
+    final hasValue = value.trim().isNotEmpty;
+    return InkWell(
+      onTap: onPick,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: palette.fieldBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.location_on_outlined, color: iconColor, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Adresse exacte d\'intervention',
+                    style: TextStyle(
+                      color: palette.isLight ? _kNavy : _kCyan,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasValue ? value : 'Ouvrir la carte pour choisir…',
+                    style: TextStyle(
+                      color: hasValue
+                          ? palette.textPrimary
+                          : palette.textMuted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.map_outlined, color: _kCyan, size: 22),
+            if (isModified) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.check_circle, color: _kSuccess, size: 18),
+            ],
+          ],
         ),
       ),
     );
   }
 }
 
-class _DarkField extends StatelessWidget {
-  const _DarkField({
+// ── Champ adaptatif premium ───────────────────────────────────────────────────
+class _AdaptiveField extends StatelessWidget {
+  const _AdaptiveField({
+    required this.palette,
     required this.controller,
     required this.label,
     required this.icon,
@@ -850,6 +938,7 @@ class _DarkField extends StatelessWidget {
     this.isModified = false,
   });
 
+  final _Palette palette;
   final TextEditingController controller;
   final String label;
   final IconData icon;
@@ -865,24 +954,33 @@ class _DarkField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasError = errorText != null;
+
     final borderColor = hasError
-        ? _kError.withValues(alpha: 0.55)
+        ? _kError.withValues(alpha: 0.75)
         : isModified
-            ? _kSuccess.withValues(alpha: 0.45)
-            : Colors.white.withValues(alpha: 0.10);
+            ? _kSuccess.withValues(alpha: 0.55)
+            : palette.fieldBorder;
+
     final iconColor = hasError
         ? _kError
         : isModified
             ? _kSuccess
-            : Colors.white.withValues(alpha: 0.4);
+            : palette.textSecondary;
+
+    // Label flottant TRÈS lisible : navy en mode clair, cyan en mode sombre.
+    final floatingLabelColor = hasError
+        ? _kError
+        : palette.isLight
+            ? _kNavy
+            : _kCyan;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(16),
+            color: palette.fieldBg,
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: borderColor, width: hasError ? 1.5 : 1),
           ),
           child: TextField(
@@ -893,16 +991,23 @@ class _DarkField extends StatelessWidget {
             maxLines: maxLines,
             maxLength: maxLength,
             inputFormatters: inputFormatters,
-            style: const TextStyle(color: Colors.white, fontSize: 15),
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+            cursorColor: _kCyan,
             decoration: InputDecoration(
               labelText: label,
               labelStyle: TextStyle(
-                color: Colors.white.withValues(alpha: 0.55),
+                color: palette.textSecondary,
                 fontSize: 14,
+                fontWeight: FontWeight.w500,
               ),
               floatingLabelStyle: TextStyle(
-                color: hasError ? _kError : _kBlue,
-                fontSize: 12,
+                color: floatingLabelColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
               ),
               prefixIcon: Icon(icon, color: iconColor, size: 20),
               suffixIcon: isModified && !hasError
@@ -910,8 +1015,8 @@ class _DarkField extends StatelessWidget {
                   : null,
               border: InputBorder.none,
               counterText: '',
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 16),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             ),
           ),
         ),

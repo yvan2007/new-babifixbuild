@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 /// Écran de notation du prestataire après prestation terminée.
 /// Appelé via : Navigator.push(context, MaterialPageRoute(
@@ -347,9 +348,7 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
                   ? const SizedBox(
                       width: 22,
                       height: 22,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white))
+                      child: BabifixRingLoader.cyan(size: 28))
                   : const Text('Envoyer mon évaluation',
                       style: TextStyle(
                           fontSize: 16,

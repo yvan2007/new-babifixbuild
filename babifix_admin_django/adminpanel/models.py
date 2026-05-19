@@ -667,8 +667,24 @@ class Dispute(models.Model):
         RELEASE = "Liberer paiement", "Liberer paiement"
         SPLIT = "Partage partiel", "Partage partiel"
 
+    class Category(models.TextChoices):
+        TRAVAIL_NON_FAIT = "travail_non_fait", "Travail non réalisé"
+        TRAVAIL_BACLE = "travail_bacle", "Travail bâclé / mal fait"
+        PRESTA_ABSENT = "presta_absent", "Prestataire absent / pas venu"
+        RETARD = "retard", "Retard important"
+        PRIX_NON_CONFORME = "prix_non_conforme", "Prix non conforme au devis"
+        DEGATS = "degats", "Dégâts causés"
+        COMPORTEMENT = "comportement", "Comportement inapproprié"
+        AUTRE = "autre", "Autre"
+
     reference = models.CharField(max_length=40, unique=True)
-    motif = models.CharField(max_length=200)
+    motif = models.CharField(max_length=500)  # élargi pour textes plus longs
+    categorie = models.CharField(
+        max_length=32,
+        choices=Category.choices,
+        default=Category.AUTRE,
+        db_index=True,
+    )
     client = models.CharField(max_length=120)
     prestataire = models.CharField(max_length=120)
     priorite = models.CharField(
@@ -685,6 +701,21 @@ class Dispute(models.Model):
         blank=True,
         related_name="disputes",
     )
+    # v3 — pièces jointes (preuves photos) en data URLs base64, max 5.
+    photos_client = models.JSONField(default=list, blank=True)
+    # v3 — réponse du prestataire (sa version + ses preuves)
+    prestataire_response = models.TextField(blank=True, default="")
+    prestataire_response_at = models.DateTimeField(null=True, blank=True)
+    photos_prestataire = models.JSONField(default=list, blank=True)
+    # v3 — audit de la décision admin
+    decided_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="disputes_decided",
+    )
+    decision_note = models.TextField(blank=True, default="")
+    decided_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):

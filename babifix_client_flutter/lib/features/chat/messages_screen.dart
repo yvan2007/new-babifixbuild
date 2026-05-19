@@ -8,6 +8,7 @@ import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../user_store.dart';
 import 'chat_room_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key, required this.apiBase});
@@ -147,10 +148,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ),
         ),
         body: Center(
-          child: CircularProgressIndicator(
-            color: BabifixDesign.cyan,
-            strokeWidth: 2.5,
-          ),
+          child: BabifixRingLoader.cyan(size: 28),
         ),
       );
     }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -116,7 +117,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ? const SizedBox(
                   height: 20,
                   width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: BabifixRingLoader.cyan(size: 28),
                 )
               : const Text('Envoyer le lien'),
         ),

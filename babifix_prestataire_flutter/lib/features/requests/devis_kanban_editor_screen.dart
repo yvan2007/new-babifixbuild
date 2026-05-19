@@ -12,6 +12,7 @@ import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/animated_list_item.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class DevisKanbanEditorScreen extends StatefulWidget {
   final String reservationReference;
@@ -649,8 +650,7 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen>
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                        child: BabifixRingLoader.cyan(size: 28))
                     : const Icon(Icons.send, size: 18),
                 label: const Text('Envoyer au client'),
                 style: ElevatedButton.styleFrom(

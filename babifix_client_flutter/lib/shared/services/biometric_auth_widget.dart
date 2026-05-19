@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
+import '../widgets/babifix_ring_loader.dart';
 
 class BiometricAuthWidget extends StatefulWidget {
   final VoidCallback? onSuccess;
@@ -280,10 +281,7 @@ class _BiometricAuthWidgetState extends State<BiometricAuthWidget>
                         ? SizedBox(
                             width: 50,
                             height: 50,
-                            child: CircularProgressIndicator(
-                              color: color,
-                              strokeWidth: 3,
-                            ),
+                            child: BabifixRingLoader.cyan(size: 28),
                           )
                         : AnimatedBuilder(
                             animation: _scaleAnimation,

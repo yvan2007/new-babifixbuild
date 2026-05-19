@@ -15,6 +15,7 @@ import '../../babifix_api_config.dart';
 import '../../json_utils.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/address_search_field.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 // =============================================================================
 // Wizard d'inscription prestataire — 3 étapes
@@ -1205,10 +1206,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                     ? const SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
+                        child: BabifixRingLoader.cyan(size: 28),
                       )
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,

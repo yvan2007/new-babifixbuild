@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 /// Flux complet reset mot de passe en 2 étapes :
 ///  1. Saisir l'email → POST /api/auth/forgot-password
@@ -224,8 +225,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                    child: BabifixRingLoader.cyan(size: 28))
                 : const Text('Envoyer le code',
                     style: TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w700)),
@@ -324,8 +324,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                    child: BabifixRingLoader.cyan(size: 28))
                 : const Text('Réinitialiser',
                     style: TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w700)),

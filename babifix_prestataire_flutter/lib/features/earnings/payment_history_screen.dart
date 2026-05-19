@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class PaymentHistoryScreen extends StatefulWidget {
   final dynamic paletteMode;
@@ -67,7 +68,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: BabifixRingLoader.cyan(size: 28))
             : _error != null
                 ? Center(
                     child: Column(

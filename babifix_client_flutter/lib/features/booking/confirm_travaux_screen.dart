@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ConfirmTravauxScreen extends StatefulWidget {
   final String reservationReference;
@@ -123,7 +124,7 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
         title: const Text('Confirmer les travaux'),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : _error != null
           ? Center(child: Text(_error!))
           : _buildContent(),
@@ -294,10 +295,7 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
+                      child: BabifixRingLoader.cyan(size: 28),
                     )
                   : const Text(
                       'Confirmer et payer',

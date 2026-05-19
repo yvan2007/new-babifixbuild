@@ -10,6 +10,7 @@ import '../../json_utils.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import 'chat_room_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 /// Liste des conversations prestataire — design premium avec badges, timestamps et recherche.
 class MessagesScreen extends StatefulWidget {
@@ -179,7 +180,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             // ── Corps ──────────────────────────────────────────────────────
             Expanded(
               child: loading
-                  ? Center(child: CircularProgressIndicator(color: BabifixDesign.ciOrange, strokeWidth: 2.5))
+                  ? Center(child: BabifixRingLoader.cyan(size: 28))
                   : RefreshIndicator(
                       onRefresh: _load,
                       color: BabifixDesign.ciOrange,

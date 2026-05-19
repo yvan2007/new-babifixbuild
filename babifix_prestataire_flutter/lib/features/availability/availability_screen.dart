@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 // ─── Premium Colors ────────────────────────────────────────────────────────
 
@@ -709,10 +710,7 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
                 child: SizedBox(
                   width: 40,
                   height: 40,
-                  child: CircularProgressIndicator(
-                    color: _premiumGold,
-                    strokeWidth: 3,
-                  ),
+                  child: BabifixRingLoader.cyan(size: 28),
                 ),
               )
             : TabBarView(

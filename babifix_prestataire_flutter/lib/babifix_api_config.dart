@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 int _envInt(String key, int defaultValue) {
@@ -69,22 +70,15 @@ const String kBabifixProdUrl = 'https://new-babifixbuild.onrender.com';
 const String kBabifixLocalIp =
     String.fromEnvironment('BABIFIX_LOCAL_IP', defaultValue: '');
 
-/// Base URL backend — par défaut : **toujours Render**.
+/// Base URL backend — auto-détectée pour que ça marche partout sans config :
 ///
-/// Comme ça l'app marche peu importe où elle est ouverte (émulateur,
-/// vrai téléphone, ordinateur de quelqu'un d'autre) sans avoir besoin
-/// qu'un Django local tourne sur le PC du dev.
+/// - **Émulateur Android** (debug) → `http://10.0.2.2:8002`
+/// - **iOS Simulator / Web** (debug) → `http://localhost:8002`
+/// - **Vrai téléphone** sur Wi-Fi : `--dart-define=BABIFIX_LOCAL_IP=192.168.x.x`
+/// - **APK release** → Render production
 ///
-/// Pour basculer en local pendant le dev, utiliser EXPLICITEMENT :
-///   flutter run --dart-define=BABIFIX_API_BASE=http://10.0.2.2:8002
-///   flutter run --dart-define=BABIFIX_LOCAL_IP=192.168.x.x
-///   ou BabifixApiOverride.set('http://10.0.2.2:8002') à l'exécution.
-///
-/// Priorités :
-///  1. Runtime override (`BabifixApiOverride.set(...)`)
-///  2. dart-define `BABIFIX_API_BASE`
-///  3. dart-define `BABIFIX_LOCAL_IP` → `http://<IP>:8002`
-///  4. Défaut universel → Render production
+/// Ton Django doit écouter sur toutes les interfaces :
+///   python manage.py runserver 0.0.0.0:8002
 String babifixApiBaseUrl() {
   final ov = BabifixApiOverride.current;
   if (ov != null && ov.isNotEmpty) {
@@ -98,7 +92,14 @@ String babifixApiBaseUrl() {
     return 'http://$kBabifixLocalIp:$kBabifixApiPort';
   }
 
-  // Défaut : production Render — partout, sans config.
+  if (kDebugMode) {
+    if (kIsWeb) return 'http://127.0.0.1:$kBabifixApiPort';
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:$kBabifixApiPort';
+    }
+    return 'http://localhost:$kBabifixApiPort';
+  }
+
   return kBabifixProdUrl;
 }
 

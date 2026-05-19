@@ -732,26 +732,201 @@ def api_client_payments(request):
 @require_GET
 @require_api_auth(["prestataire", "admin"])
 def api_prestataire_disputes(request):
-    """Litiges pour le prestataire connecté."""
+    """Litiges pour le prestataire connecté.
+
+    Le modèle Dispute stocke `prestataire` en CharField (nom), donc on
+    passe par la FK `reservation.assigned_provider` qui est fiable.
+    """
     provider = Provider.objects.filter(user_id=request.api_user_id).first()
     if not provider:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
-    disputes = Dispute.objects.filter(provider=provider).order_by("-created_at")
+    disputes = (
+        Dispute.objects
+        .filter(reservation__assigned_provider=provider)
+        .select_related("reservation")
+        .order_by("-created_at")
+    )
 
-    data = [
-        {
+    def _serialize(d):
+        res = d.reservation
+        return {
             "id": d.id,
             "reference": d.reference,
             "motif": d.motif,
+            "categorie": d.categorie,
+            "categorie_label": d.get_categorie_display(),
             "priorite": d.priorite,
             "decision": d.decision,
-            "reservation_reference": d.reservation.reference if d.reservation else None,
+            "decision_note": d.decision_note,
+            "is_open": d.decision == Dispute.Decision.OPEN,
+            "has_presta_response": bool(d.prestataire_response),
+            "prestataire_response": d.prestataire_response,
+            "photos_client_count": len(d.photos_client or []),
+            "photos_prestataire_count": len(d.photos_prestataire or []),
+            "client_name": d.client,
+            "reservation_reference": res.reference if res else None,
+            "reservation_title": (res.title if res else "") or "",
+            "montant_concerne": (
+                float(res.montant_verse or 0) if res else 0.0
+            ),
             "created_at": d.created_at.isoformat() if d.created_at else None,
+            "decided_at": d.decided_at.isoformat() if d.decided_at else None,
         }
-        for d in disputes
+
+    return JsonResponse({
+        "disputes": [_serialize(d) for d in disputes],
+        "count_open": sum(1 for d in disputes if d.decision == Dispute.Decision.OPEN),
+    })
+
+
+# =============================================================================
+# LITIGE — RÉPONSE PRESTATAIRE — POST /api/prestataire/disputes/<ref>/respond/
+# Permet au prestataire d'apporter sa version + ses preuves photos.
+# =============================================================================
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire", "admin"])
+def api_prestataire_respond_dispute(request, dispute_ref):
+    import json as _json
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+    d = (
+        Dispute.objects
+        .filter(reference=dispute_ref, reservation__assigned_provider=provider)
+        .first()
+    )
+    if not d:
+        return JsonResponse({"error": "not_found"}, status=404)
+    if d.decision != Dispute.Decision.OPEN:
+        return JsonResponse(
+            {"error": "already_resolved", "decision": d.decision}, status=409
+        )
+
+    try:
+        body = _json.loads(request.body.decode("utf-8") or "{}")
+    except _json.JSONDecodeError:
+        body = {}
+
+    response_text = str(body.get("response", "")).strip()[:2000]
+    photos_raw = body.get("photos", []) or []
+    if not isinstance(photos_raw, list):
+        photos_raw = []
+    photos = [
+        str(p)[:600000]
+        for p in photos_raw[:5]
+        if isinstance(p, str) and p.startswith("data:image/")
     ]
-    return JsonResponse({"disputes": data})
+
+    if not response_text and not photos:
+        return JsonResponse({"error": "response_or_photos_required"}, status=400)
+
+    from django.utils import timezone as _tz
+    d.prestataire_response = response_text
+    d.prestataire_response_at = _tz.now()
+    if photos:
+        d.photos_prestataire = photos
+    d.save(update_fields=[
+        "prestataire_response",
+        "prestataire_response_at",
+        "photos_prestataire",
+    ])
+
+    # Notif admin + message système dans le chat.
+    try:
+        from .services.conversation_service import post_system_event
+        if d.reservation:
+            post_system_event(
+                d.reservation,
+                event_type="dispute.presta_responded",
+                body=(
+                    f"Le prestataire a apporté sa version au litige "
+                    f"{d.reference}."
+                ),
+                extra={
+                    "dispute_ref": d.reference,
+                    "has_photos": bool(photos),
+                },
+            )
+    except Exception:
+        pass
+
+    try:
+        from .push_dispatch import _schedule
+        admin_ids = list(
+            User.objects.filter(is_staff=True, is_active=True)
+            .values_list("id", flat=True)
+        )
+        if admin_ids:
+            _schedule(
+                admin_ids,
+                "BABIFIX — Réponse prestataire au litige",
+                f"{provider.nom} a répondu au litige {d.reference}.",
+                {
+                    "type": "dispute.presta_responded",
+                    "dispute_ref": d.reference,
+                    "route": "/admin/disputes",
+                },
+            )
+    except Exception:
+        pass
+
+    return JsonResponse({
+        "ok": True,
+        "dispute_reference": d.reference,
+        "responded_at": d.prestataire_response_at.isoformat(),
+    })
+
+
+# =============================================================================
+# LITIGES CLIENT — GET /api/client/disputes/
+# =============================================================================
+@require_GET
+@require_api_auth(["client", "admin"])
+def api_client_disputes(request):
+    """Liste des litiges du client connecté.
+
+    Filtrage via `reservation.client_user_id` pour cohérence avec l'auth.
+    """
+    uid = int(request.api_user_id)
+    disputes = (
+        Dispute.objects
+        .filter(reservation__client_user_id=uid)
+        .select_related("reservation")
+        .order_by("-created_at")
+    )
+
+    def _serialize(d):
+        res = d.reservation
+        return {
+            "id": d.id,
+            "reference": d.reference,
+            "motif": d.motif,
+            "categorie": d.categorie,
+            "categorie_label": d.get_categorie_display(),
+            "priorite": d.priorite,
+            "decision": d.decision,
+            "decision_note": d.decision_note,
+            "is_open": d.decision == Dispute.Decision.OPEN,
+            "has_presta_response": bool(d.prestataire_response),
+            "prestataire_response": d.prestataire_response,
+            "photos_client_count": len(d.photos_client or []),
+            "photos_prestataire_count": len(d.photos_prestataire or []),
+            "prestataire_name": d.prestataire,
+            "reservation_reference": res.reference if res else None,
+            "reservation_title": (res.title if res else "") or "",
+            "montant_concerne": (
+                float(res.montant_verse or 0) if res else 0.0
+            ),
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+            "decided_at": d.decided_at.isoformat() if d.decided_at else None,
+        }
+
+    return JsonResponse({
+        "disputes": [_serialize(d) for d in disputes],
+        "count_open": sum(1 for d in disputes if d.decision == Dispute.Decision.OPEN),
+    })
 
 
 # =============================================================================

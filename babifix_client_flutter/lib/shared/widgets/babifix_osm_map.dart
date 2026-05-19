@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../babifix_design_system.dart';
+import 'babifix_ring_loader.dart';
 
 /// Carte OpenStreetMap — point d’intervention (tap pour placer le marqueur).
 class BabifixOsmLocationPicker extends StatefulWidget {
@@ -131,10 +132,7 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
                     ? SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: BabifixDesign.cyan,
-                        ),
+                        child: BabifixRingLoader.cyan(size: 28),
                       )
                     : const Icon(Icons.my_location_rounded, size: 20),
                 label: Text(_loadingGps ? 'Localisation…' : 'Ma position'),

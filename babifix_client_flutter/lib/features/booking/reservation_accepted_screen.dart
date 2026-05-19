@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
 import '../payment/payment_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ReservationAcceptedScreen extends StatefulWidget {
   final String reservationReference;
@@ -119,7 +120,7 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _emerald))
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : _error != null
           ? _buildErrorState()
           : _buildContent(),

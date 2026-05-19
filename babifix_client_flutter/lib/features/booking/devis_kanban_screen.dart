@@ -278,9 +278,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white))
+                              child: BabifixRingLoader.cyan(size: 28))
                           : const Icon(Icons.check, size: 18),
                       label: const Text('Accepter & payer'),
                       style: ElevatedButton.styleFrom(

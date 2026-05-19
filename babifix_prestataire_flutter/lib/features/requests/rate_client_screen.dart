@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 /// Écran permettant au prestataire d'évaluer le client après prestation.
 class RateClientScreen extends StatefulWidget {
@@ -277,10 +278,7 @@ class _RateClientScreenState extends State<RateClientScreen>
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              child: BabifixRingLoader.cyan(size: 28),
                             )
                           : const Text(
                               'Envoyer',

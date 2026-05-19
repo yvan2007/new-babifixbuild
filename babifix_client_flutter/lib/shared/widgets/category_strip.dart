@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../babifix_design_system.dart';
 import '../../models/client_models.dart';
+import 'babifix_ring_loader.dart';
 
 class CategoryStrip extends StatelessWidget {
   const CategoryStrip({
@@ -116,13 +117,7 @@ class CategoryStrip extends StatelessWidget {
                                 placeholderBuilder: (_) => SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.5,
-                                    color: selected
-                                        ? Colors.white70
-                                        : BabifixDesign.ciBlue
-                                              .withValues(alpha: 0.5),
-                                  ),
+                                  child: BabifixRingLoader.cyan(size: 28),
                                 ),
                               )
                             : Icon(

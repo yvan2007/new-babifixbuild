@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../shared/services/babifix_user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ParrainageScreen extends StatefulWidget {
   const ParrainageScreen({super.key});
@@ -79,7 +80,7 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
         elevation: 0,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : _error != null
               ? Center(child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

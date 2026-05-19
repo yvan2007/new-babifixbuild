@@ -13,6 +13,7 @@ import '../../models/client_models.dart';
 import '../../services/zego_call_service.dart';
 import '../../user_store.dart';
 import '../booking/booking_flow_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -860,10 +861,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
             SizedBox(
               width: 48,
               height: 48,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                color: BabifixDesign.cyan,
-              ),
+              child: BabifixRingLoader.cyan(size: 28),
             ),
             const SizedBox(height: 16),
             const Text('Chargement du profil…', style: TextStyle(color: Colors.white54)),

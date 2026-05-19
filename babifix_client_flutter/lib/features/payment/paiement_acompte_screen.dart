@@ -11,6 +11,7 @@ import '../../babifix_money.dart';
 import '../../user_store.dart';
 import '../../shared/services/geniuspay_service.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 const _kOperators = [
   _OpDef('ORANGE_MONEY', 'Orange Money', Color(0xFFFF6600)),
@@ -348,7 +349,7 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
                 child: _loading
                     ? const SizedBox(
                         width: 22, height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.5, color: BabifixDesign.navy),
+                        child: BabifixRingLoader.cyan(size: 28),
                       )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,

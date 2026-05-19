@@ -1,114 +1,98 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Votre mission est terminée — BABIFIX</title>
-    <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
-        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        
-        .header { background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); padding: 40px 30px; text-align: center; }
-        .logo-img { height: 65px; margin-bottom: 8px; }
-        .logo-text-fallback { display: none; font-size: 32px; font-weight: 800; color: #fff; letter-spacing: 2px; }
-        .header h1 { color: #fff; margin: 0; font-size: 26px; font-weight: 700; }
-        .header p { color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px; }
-        
-        .success-section { background: linear-gradient(180deg, #fff 0%, #f8f9fa 100%); padding: 40px 30px; text-align: center; border-bottom: 1px solid #eee; }
-        .success-badge { width: 75px; height: 75px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(40,167,69,0.3); }
-        .success-badge span { color: white; font-size: 38px; }
-        .success-section h2 { color: #1a1a2e; margin: 0 0 10px; font-size: 24px; }
-        .success-section p { color: #6c757d; margin: 0; font-size: 15px; line-height: 1.6; }
-        
-        .content { padding: 35px 30px; }
-        .greeting { font-size: 17px; color: #1a1a2e; margin-bottom: 20px; }
-        .greeting strong { color: #FF6B00; }
-        .content p { color: #495057; font-size: 15px; line-height: 1.6; margin: 0 0 12px; }
-        
-        .details-card { background: linear-gradient(135deg, #fff 0%, #fafafa 100%); border: 1px solid #e9ecef; border-radius: 12px; padding: 22px; margin: 20px 0; }
-        .details-card h3 { color: #FF6B00; font-size: 14px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 1px; }
-        .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-        .detail-row:last-child { border-bottom: none; }
-        .detail-label { color: #6c757d; font-size: 14px; }
-        .detail-value { color: #1a1a2e; font-weight: 600; font-size: 14px; }
-        .detail-value.highlight { color: #FF6B00; font-size: 18px; }
-        
-        .info-box { background: #e8f4fd; border-left: 4px solid #007bff; border-radius: 0 8px 8px 0; padding: 15px 18px; margin: 18px 0; }
-        .info-box p { color: #495057; margin: 0; font-size: 14px; line-height: 1.5; }
-        
-        .cta-section { text-align: center; padding: 25px 0; }
-        .rating-stars { color: #FFD700; font-size: 22px; margin-bottom: 12px; }
-        .btn { display: inline-block; background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); color: #fff; padding: 15px 35px; text-decoration: none; border-radius: 30px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 15px rgba(255,107,0,0.3); }
-        
-        .footer { background: #1a1a2e; padding: 30px; text-align: center; }
-        .footer .logo { font-size: 20px; font-weight: bold; color: #FF6B00; margin-bottom: 12px; }
-        .footer p { color: rgba(255,255,255,0.7); margin: 4px 0; font-size: 13px; }
-        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 11px; margin-top: 12px; }
-        
-        @media (max-width: 480px) {
-            .container { margin: 10px; }
-            .btn { display: block; padding: 14px 20px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <img src="https://babifix.ci/static/adminpanel/logo_babifix.png" alt="BABIFIX" class="logo-img" onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='block';">
-            <div id="logoFallback" class="logo-text-fallback">BABIFIX</div>
-            <h1>Mission Terminée</h1>
-            <p>Prestation confirmée</p>
-        </div>
-        
-        <div class="success-section">
-            <div class="success-badge"><span>✓</span></div>
-            <h2>C'est terminé !</h2>
-            <p>Votre mission a été marquée comme terminée.<br>Merci pour votre confiance.</p>
-        </div>
-        
-        <div class="content">
-            <p class="greeting">Bonjour <strong>{{ client_name }}</strong>,</p>
-            
-            <p>Votre prestataire <strong>{{ prestataire_name }}</strong> vient de confirmer la fin de l'intervention.</p>
-            
-            <div class="info-box">
-                <p>📝 <strong>Vérifiez le travail</strong> puis <strong>laisser un avis</strong> pour aider les autres.</p>
-            </div>
-            
-            <div class="details-card">
-                <h3>Détails de la mission</h3>
-                <div class="detail-row">
-                    <span class="detail-label">Mission</span>
-                    <span class="detail-value">{{ reservation_title }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Prestataire</span>
-                    <span class="detail-value">{{ prestataire_name }}</span>
-                </div>
-                {% if date_mission %}
-                <div class="detail-row">
-                    <span class="detail-label">Date</span>
-                    <span class="detail-value">{{ date_mission }}</span>
-                </div>
-                {% endif %}
-                <div class="detail-row">
-                    <span class="detail-label">Montant payé</span>
-                    <span class="detail-value highlight">{{ montant }}</span>
-                </div>
-            </div>
-            
-            <div class="cta-section">
-                <p>Comment évalueriez-vous cette intervention ?</p>
-                <div class="rating-stars">★★★★★</div>
-                <a href="{{ app_url }}/#/ratings/{{ reservation_id }}" class="btn">Noter maintenant</a>
-            </div>
-        </div>
-        
-        <div class="footer">
-            <div class="logo">BABIFIX</div>
-            <p>Connection. Service. Confiance. | Abidjan, Côte d'Ivoire</p>
-            <p class="copyright">© 2026 BABIFIX. Tous droits réservés.</p>
-        </div>
-    </div>
-</body>
-</html>
+{% extends "emails/base_email.html" %}
+
+{% block subject %}Mission terminée — Notez votre prestataire{% endblock %}
+{% block preheader %}{{ prestataire_name }} a terminé votre mission. Notez votre expérience pour aider les autres clients.{% endblock %}
+
+{% block content %}
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+
+  <!-- Badge succès -->
+  <tr>
+    <td align="center" style="padding-bottom:18px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#22C55E" style="background-color:#22C55E; border-radius:50%;">
+        <tr><td align="center" width="68" height="68" style="color:#FFFFFF; font-size:32px; line-height:68px; font-weight:900;">✓</td></tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" class="h1-mobile text-primary" style="color:#0B1B34; font-size:24px; font-weight:900; line-height:1.25; font-family:Arial,sans-serif; padding-bottom:10px;">
+      Mission terminée !
+    </td>
+  </tr>
+  <tr>
+    <td align="center" class="text-secondary" style="color:#475569; font-size:14.5px; line-height:1.6; font-family:Arial,sans-serif; padding-bottom:28px;">
+      Bonjour <strong style="color:#0B1B34;">{{ client_name }}</strong>, votre prestataire <strong style="color:#0B1B34;">{{ prestataire_name }}</strong> vient de confirmer la fin de l'intervention.
+    </td>
+  </tr>
+
+  <!-- Détails mission -->
+  <tr>
+    <td style="padding-bottom:24px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#F8FAFC; border-radius:14px; border:1px solid #E2E8F0;">
+        <tr>
+          <td style="padding:20px 22px; font-family:Arial,sans-serif;">
+            <div style="color:#4CC9F0; font-size:11px; font-weight:800; letter-spacing:1.5px; margin-bottom:14px;">DÉTAILS DE LA MISSION</div>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+              <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #E2E8F0; color:#64748B; font-size:13px;">Mission</td>
+                <td align="right" style="padding:10px 0; border-bottom:1px solid #E2E8F0; color:#0B1B34; font-size:13px; font-weight:700;">{{ reservation_title }}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #E2E8F0; color:#64748B; font-size:13px;">Prestataire</td>
+                <td align="right" style="padding:10px 0; border-bottom:1px solid #E2E8F0; color:#0B1B34; font-size:13px; font-weight:700;">{{ prestataire_name }}</td>
+              </tr>
+              {% if date_mission %}
+              <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #E2E8F0; color:#64748B; font-size:13px;">Date</td>
+                <td align="right" style="padding:10px 0; border-bottom:1px solid #E2E8F0; color:#0B1B34; font-size:13px; font-weight:700;">{{ date_mission }}</td>
+              </tr>
+              {% endif %}
+              <tr>
+                <td style="padding:10px 0; color:#64748B; font-size:13px;">Montant payé</td>
+                <td align="right" style="padding:10px 0; color:#4CC9F0; font-size:16px; font-weight:900;">{{ montant }}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Évaluation -->
+  <tr>
+    <td align="center" style="padding-bottom:18px;">
+      <div style="color:#475569; font-size:14px; font-family:Arial,sans-serif; margin-bottom:8px;">Comment évalueriez-vous cette intervention ?</div>
+      <div style="color:#F59E0B; font-size:28px; letter-spacing:4px; line-height:1;">★★★★★</div>
+    </td>
+  </tr>
+
+  <!-- CTA -->
+  <tr>
+    <td align="center" style="padding-bottom:18px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+          <td bgcolor="#4CC9F0" class="btn-cta" style="background-color:#4CC9F0; border-radius:12px;">
+            <!--[if mso]>
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ app_url }}/#/ratings/{{ reservation_id }}" style="height:50px;v-text-anchor:middle;width:240px;" arcsize="24%" stroke="f" fillcolor="#4CC9F0">
+              <w:anchorlock/>
+              <center style="color:#0B1B34;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">Noter maintenant</center>
+            </v:roundrect>
+            <![endif]-->
+            <!--[if !mso]><!-- -->
+            <a href="{{ app_url }}/#/ratings/{{ reservation_id }}" class="btn-mobile" style="display:inline-block; background-color:#4CC9F0; color:#0B1B34; padding:15px 32px; border-radius:12px; font-size:15px; font-weight:800; font-family:Arial,sans-serif; text-decoration:none;">Noter maintenant</a>
+            <!--<![endif]-->
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" class="text-muted" style="color:#94A3B8; font-size:12px; font-family:Arial,sans-serif;">
+      Votre avis aide les autres clients à choisir un bon prestataire.
+    </td>
+  </tr>
+
+</table>
+{% endblock %}

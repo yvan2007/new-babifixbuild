@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ClientParrainageScreen extends StatefulWidget {
   const ClientParrainageScreen({super.key});
@@ -122,7 +123,7 @@ class _ClientParrainageScreenState extends State<ClientParrainageScreen> {
         elevation: 0,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : RefreshIndicator(
               onRefresh: _load,
               child: SingleChildScrollView(
@@ -283,7 +284,7 @@ color: const Color(0xFF1565C0).withValues(alpha: 0.08),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
                                 child: _applying
-                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    ? const SizedBox(width: 18, height: 18, child: BabifixRingLoader.cyan(size: 28))
                                     : const Text('Appliquer'),
                               ),
                             ],

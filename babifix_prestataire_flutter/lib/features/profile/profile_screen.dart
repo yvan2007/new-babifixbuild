@@ -14,11 +14,13 @@ import '../../shared/widgets/babifix_page_route.dart';
 import '../auth/registration_screen.dart';
 import '../availability/availability_screen.dart';
 import 'contrat_screen.dart';
+import '../disputes/presta_disputes_screen.dart';
 import '../kyc/kyc_screen.dart';
 import '../dashboard/floating_nav_bar.dart';
 import 'edit_profile_screen.dart' show EditProfilePrestataireScreen;
 import '../parrainage/parrainage_screen.dart';
 import '../premium/premium_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -472,7 +474,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         body: Container(
           decoration: BoxDecoration(gradient: gradient),
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF4CC9F0)))
+              ? const Center(child: BabifixRingLoader.cyan(size: 28))
               : Column(
                   children: [
                     _buildTopBar(isLight),
@@ -761,6 +763,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             subtitle: 'Réduire ma commission, booster ma visibilité',
                             isLight: isLight,
                             onTap: () => Navigator.push(context, babifixRoute((_) => const PremiumScreen())),
+                          ),
+                          const SizedBox(height: 8),
+                          _PrestProfileActionTile(
+                            icon: Icons.gavel_rounded,
+                            title: 'Litiges',
+                            subtitle: 'Répondre et suivre les signalements clients',
+                            isLight: isLight,
+                            onTap: () => Navigator.push(
+                              context,
+                              babifixRoute((_) => const PrestaDisputesScreen()),
+                            ),
                           ),
                           const SizedBox(height: 8),
                           _PrestProfileActionTile(

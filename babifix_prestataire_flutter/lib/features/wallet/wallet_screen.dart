@@ -8,6 +8,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import 'wallet_escrow_panel.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data helpers
@@ -980,7 +981,7 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: _deepNavy),
+                      child: BabifixRingLoader.cyan(size: 28),
                     )
                   : const Text(
                       'Confirmer le retrait',
@@ -1149,7 +1150,7 @@ class _MoMoInfoSheetState extends State<_MoMoInfoSheet> {
                 shadowColor: _premiumGold.withValues(alpha: 0.4),
               ),
               child: _saving
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _deepNavy))
+                  ? const SizedBox(height: 20, width: 20, child: BabifixRingLoader.cyan(size: 28))
                   : const Text('Enregistrer', style: TextStyle(fontWeight: FontWeight.w800)),
             ),
           ),

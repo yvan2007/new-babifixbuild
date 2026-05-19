@@ -16,6 +16,7 @@ import '../../shared/services/babifix_user_store.dart';
 import '../../shared/widgets/animated_money.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import 'escrow_payments_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class WalletEscrowPanel extends StatefulWidget {
   final double soldeDisponibleFcfa;
@@ -112,7 +113,7 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
                 const SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: BabifixRingLoader.cyan(size: 28),
                 )
               else
                 IconButton(

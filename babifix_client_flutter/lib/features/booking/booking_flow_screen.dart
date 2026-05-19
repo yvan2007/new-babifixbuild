@@ -13,6 +13,7 @@ import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
 import '../../shared/widgets/gps_location_card.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 /// Flow de réservation en 4 étapes :
 /// 0 → Date & heure  1 → Adresse  2 → Récapitulatif  3 → Confirmation
@@ -1522,7 +1523,7 @@ class _StepDisponibilite extends StatelessWidget {
                         const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: BabifixRingLoader.cyan(size: 28),
                         )
                       else if (providerAvailable == true)
                         const Icon(Icons.check_circle, color: Colors.green)
@@ -1777,10 +1778,7 @@ class _StepDisponibilite extends StatelessWidget {
                             ? const SizedBox(
                                 width: 22,
                                 height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
+                                child: BabifixRingLoader.cyan(size: 28),
                               )
                             : const Text(
                                 'Envoyer la demande',

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class PendingScreen extends StatefulWidget {
   const PendingScreen({super.key, required this.onContinue});
@@ -234,10 +235,7 @@ class _PendingScreenState extends State<PendingScreen>
                         const SizedBox(
                           width: 14,
                           height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: _primaryBlue,
-                          ),
+                          child: BabifixRingLoader.cyan(size: 28),
                         )
                       else
                         const Icon(Icons.sync_rounded, color: _primaryBlue, size: 16),
@@ -440,10 +438,7 @@ class _StepsIndicator extends StatelessWidget {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
+                                  child: BabifixRingLoader.cyan(size: 28),
                                 )
                               : Icon(Icons.circle_outlined,
                                   color: Colors.blueGrey.shade300, size: 18),

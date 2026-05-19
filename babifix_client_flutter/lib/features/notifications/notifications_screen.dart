@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class _Notif {
   final int id;
@@ -183,7 +184,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : _notifs.isEmpty
               ? RefreshIndicator(
                   onRefresh: _load,

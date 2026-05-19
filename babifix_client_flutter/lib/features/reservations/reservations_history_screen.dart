@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
+import '../disputes/dispute_open_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design tokens
@@ -289,6 +290,20 @@ class _ReservationsHistoryScreenState extends State<ReservationsHistoryScreen>
   }
 
   Future<void> _openDisputeDialog(_Reservation r) async {
+    // Nouveau flow : on pousse l'écran plein-écran premium.
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => DisputeOpenScreen(
+          reservationReference: r.reference,
+          reservationTitle: r.title.isEmpty ? r.reference : r.title,
+        ),
+      ),
+    );
+    if (ok == true && mounted) {
+      _load();
+    }
+    return;
+    // ignore: dead_code
     final controller = TextEditingController();
     final motif = await showDialog<String>(
       context: context,

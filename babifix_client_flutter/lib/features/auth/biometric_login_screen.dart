@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/zego_call_service.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class BiometricLoginScreen extends StatefulWidget {
   final VoidCallback onSuccess;
@@ -235,7 +236,7 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: Theme.of(context).primaryColor),
+              BabifixRingLoader.cyan(size: 28),
               const SizedBox(height: 20),
               Text(
                 'Chargement...',
@@ -317,10 +318,7 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen>
                             ? SizedBox(
                                 width: 50,
                                 height: 50,
-                                child: CircularProgressIndicator(
-                                  color: color,
-                                  strokeWidth: 3,
-                                ),
+                                child: BabifixRingLoader.cyan(size: 28),
                               )
                             : Icon(
                                 _showError

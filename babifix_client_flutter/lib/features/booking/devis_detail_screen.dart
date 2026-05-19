@@ -12,6 +12,7 @@ import '../../shared/services/websocket_push_service.dart';
 import '../../shared/services/confetti_toast_service.dart';
 import '../../shared/services/haptic_service.dart';
 import '../payment/payment_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class DevisDetailScreen extends StatefulWidget {
   final String reservationReference;
@@ -487,7 +488,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           ),
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator(color: BabifixDesign.cyan))
+            ? const Center(child: BabifixRingLoader.cyan(size: 28))
             : _error != null
             ? _buildError()
             : _devis == null
@@ -899,10 +900,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: BabifixDesign.error,
-                    ),
+                    child: BabifixRingLoader.cyan(size: 28),
                   )
                 : const Text('Refuser', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
@@ -921,10 +919,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
+                    child: BabifixRingLoader.cyan(size: 28),
                   )
                 : const Text(
                     'Accepter le devis',

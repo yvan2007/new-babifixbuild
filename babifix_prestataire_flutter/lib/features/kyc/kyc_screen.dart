@@ -10,6 +10,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/app_palette_mode.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -189,7 +190,7 @@ class _KYCScreenState extends State<KYCScreen> {
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
       ),
       body: _loadingStatus
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF4CC9F0)))
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : _buildBody(),
     );
   }
@@ -633,8 +634,7 @@ class _KYCScreenState extends State<KYCScreen> {
                             ? const SizedBox(
                                 width: 22,
                                 height: 22,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2.5))
+                                child: BabifixRingLoader.cyan(size: 28))
                             : const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [

@@ -41,6 +41,8 @@ from .views_extra import (
     api_prestataire_contrat,
     api_prestataire_contrat_sign,
     api_prestataire_disputes,
+    api_prestataire_respond_dispute,
+    api_client_disputes,
     api_prestataire_invoice_pdf,
     api_prestataire_kyc_status,
     api_prestataire_kyc_submit,
@@ -468,6 +470,16 @@ urlpatterns = [
         "api/prestataire/disputes/",
         api_prestataire_disputes,
         name="api-prestataire-disputes",
+    ),
+    path(
+        "api/client/disputes/",
+        api_client_disputes,
+        name="api-client-disputes",
+    ),
+    path(
+        "api/prestataire/disputes/<str:dispute_ref>/respond/",
+        api_prestataire_respond_dispute,
+        name="api-prestataire-respond-dispute",
     ),
     # ── Devis ─────────────────────────────────────────────────────────────────
     path(

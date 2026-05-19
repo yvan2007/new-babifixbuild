@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 
 import '../../babifix_design_system.dart';
+import 'babifix_ring_loader.dart';
 
 enum GpsLocationState { idle, resolving, detected, denied }
 
@@ -188,7 +189,7 @@ class _GpsLocationCardState extends State<GpsLocationCard>
                 const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: BabifixRingLoader.cyan(size: 28),
                 ),
             ],
           ),

@@ -9,6 +9,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/app_palette_mode.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 // ─── Premium Colors ────────────────────────────────────────────────────────
 
@@ -24,9 +25,20 @@ class ContratScreen extends StatefulWidget {
     super.key,
     required this.onBack,
     required this.paletteMode,
+    this.mustAccept = false,
+    this.onAccepted,
   });
   final VoidCallback onBack;
   final AppPaletteMode paletteMode;
+
+  /// Mode obligatoire : pas de back, scroll-to-bottom requis avant
+  /// d'activer le bouton "J'accepte la charte". Utilisé après inscription
+  /// pour forcer la lecture du contrat.
+  final bool mustAccept;
+
+  /// Appelé après acceptation réussie. Permet à `main.dart` de basculer
+  /// vers le dashboard une fois la charte signée.
+  final VoidCallback? onAccepted;
 
   @override
   State<ContratScreen> createState() => _ContratScreenState();
@@ -40,6 +52,12 @@ class _ContratScreenState extends State<ContratScreen>
   DateTime? _acceptedAt;
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fade;
+  // En mode obligatoire : devient `true` quand l'utilisateur a scrollé
+  // jusqu'au bas → débloque le bouton "J'accepte".
+  bool _scrolledToBottom = false;
+  // Case à cocher de l'engagement (mode obligatoire).
+  bool _engagementChecked = false;
+  final ScrollController _scrollCtrl = ScrollController();
 
   static const _kAcceptedKey = 'contrat_accepte_at_v1';
 
@@ -51,11 +69,25 @@ class _ContratScreenState extends State<ContratScreen>
       vsync: this,
     );
     _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    if (widget.mustAccept) {
+      _scrollCtrl.addListener(_onScroll);
+    }
     _loadAll();
+  }
+
+  void _onScroll() {
+    if (!_scrolledToBottom &&
+        _scrollCtrl.hasClients &&
+        _scrollCtrl.position.pixels >=
+            _scrollCtrl.position.maxScrollExtent - 40) {
+      setState(() => _scrolledToBottom = true);
+    }
   }
 
   @override
   void dispose() {
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -133,6 +165,11 @@ class _ContratScreenState extends State<ContratScreen>
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           );
+          // Mode obligatoire : on bascule sur le dashboard via callback.
+          if (widget.mustAccept && widget.onAccepted != null) {
+            await Future.delayed(const Duration(milliseconds: 700));
+            if (mounted) widget.onAccepted!();
+          }
         }
       } else {
         if (mounted) {
@@ -170,19 +207,21 @@ class _ContratScreenState extends State<ContratScreen>
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: CustomScrollView(
-          slivers: [
-            _buildAppBar(),
+        body: PopScope(
+          // En mode obligatoire, on bloque le back système tant que le
+          // contrat n'est pas signé.
+          canPop: !widget.mustAccept || _acceptedAt != null,
+          child: CustomScrollView(
+            controller: _scrollCtrl,
+            slivers: [
+              _buildAppBar(),
             if (_loading)
               const SliverFillRemaining(
                 child: Center(
                   child: SizedBox(
                     width: 40,
                     height: 40,
-                    child: CircularProgressIndicator(
-                      color: _premiumGold,
-                      strokeWidth: 3,
-                    ),
+                    child: BabifixRingLoader.cyan(size: 28),
                   ),
                 ),
               )
@@ -233,29 +272,52 @@ class _ContratScreenState extends State<ContratScreen>
                             .cast<Map<String, dynamic>>(),
                       ),
                       const SizedBox(height: 24),
+                      if (widget.mustAccept && _acceptedAt == null) ...[
+                        _MandatoryBanner(scrolled: _scrolledToBottom),
+                        const SizedBox(height: 18),
+                      ],
                       _AcceptanceFooter(
                         acceptedAt: _acceptedAt,
-                        onAccept: _acceptedAt == null ? _acceptContrat : null,
+                        // Mode obligatoire : on requiert d'avoir scrollé
+                        // jusqu'en bas + d'avoir coché la case engagement.
+                        onAccept: _acceptedAt != null
+                            ? null
+                            : (widget.mustAccept &&
+                                    (!_scrolledToBottom || !_engagementChecked))
+                                ? null
+                                : _acceptContrat,
+                        showEngagementCheckbox:
+                            widget.mustAccept && _acceptedAt == null,
+                        engagementChecked: _engagementChecked,
+                        onEngagementChanged: (v) =>
+                            setState(() => _engagementChecked = v),
+                        scrolledToBottom: _scrolledToBottom,
+                        mustAccept: widget.mustAccept,
                       ),
                     ]),
                   ),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   SliverAppBar _buildAppBar() {
+    final blocking = widget.mustAccept && _acceptedAt == null;
     return SliverAppBar(
       expandedHeight: 130,
       pinned: true,
       backgroundColor: Colors.transparent,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-        onPressed: widget.onBack,
-      ),
+      automaticallyImplyLeading: false,
+      leading: blocking
+          ? null
+          : IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              onPressed: widget.onBack,
+            ),
       flexibleSpace: FlexibleSpaceBar(
         titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
         title: const Text(
@@ -905,9 +967,19 @@ class _AcceptanceFooter extends StatelessWidget {
   const _AcceptanceFooter({
     required this.acceptedAt,
     required this.onAccept,
+    this.showEngagementCheckbox = false,
+    this.engagementChecked = false,
+    this.onEngagementChanged,
+    this.scrolledToBottom = false,
+    this.mustAccept = false,
   });
   final DateTime? acceptedAt;
   final VoidCallback? onAccept;
+  final bool showEngagementCheckbox;
+  final bool engagementChecked;
+  final ValueChanged<bool>? onEngagementChanged;
+  final bool scrolledToBottom;
+  final bool mustAccept;
 
   String _fmt(DateTime dt) {
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} à ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
@@ -978,46 +1050,105 @@ class _AcceptanceFooter extends StatelessWidget {
       );
     }
 
+    final canAccept = onAccept != null;
+    final scrollHint = mustAccept && !scrolledToBottom;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        const Text(
           'En acceptant ce contrat, vous confirmez avoir lu et compris l\'ensemble des clauses ci-dessus et vous engagez à les respecter.',
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
               fontSize: 12, color: Colors.white54, height: 1.5),
         ),
-        const SizedBox(height: 20),
+        if (showEngagementCheckbox) ...[
+          const SizedBox(height: 14),
+          InkWell(
+            onTap: () => onEngagementChanged?.call(!engagementChecked),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: engagementChecked
+                    ? const Color(0xFF22C55E).withValues(alpha: 0.10)
+                    : Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: engagementChecked
+                      ? const Color(0xFF22C55E).withValues(alpha: 0.55)
+                      : Colors.white.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    engagementChecked
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                    color: engagementChecked
+                        ? const Color(0xFF22C55E)
+                        : Colors.white70,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Je m\'engage à respecter la charte BABIFIX et à fournir un service de qualité.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
         SizedBox(
           height: 56,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [_premiumGold, Color(0xFFFFE55C)],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: _premiumGold.withValues(alpha: 0.4),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 220),
+            opacity: canAccept ? 1.0 : 0.50,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [_premiumGold, Color(0xFFFFE55C)],
                 ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
                 borderRadius: BorderRadius.circular(16),
-                onTap: onAccept,
-                child: const Center(
-                  child: Text(
-                    'J\'accepte le contrat',
-                    style: TextStyle(
-                        color: _deepNavy,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.3),
+                boxShadow: canAccept
+                    ? [
+                        BoxShadow(
+                          color: _premiumGold.withValues(alpha: 0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: canAccept ? onAccept : null,
+                  child: Center(
+                    child: Text(
+                      scrollHint
+                          ? 'Lisez tout le contrat pour continuer ↓'
+                          : (mustAccept && !engagementChecked
+                              ? 'Cochez l\'engagement pour continuer'
+                              : 'J\'accepte le contrat'),
+                      style: const TextStyle(
+                          color: _deepNavy,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.3),
+                    ),
                   ),
                 ),
               ),
@@ -1025,6 +1156,83 @@ class _AcceptanceFooter extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Bandeau "lecture obligatoire" en mode mustAccept ─────────────────────────
+class _MandatoryBanner extends StatelessWidget {
+  final bool scrolled;
+  const _MandatoryBanner({required this.scrolled});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = scrolled
+        ? const Color(0xFF22C55E)
+        : const Color(0xFFFFD700);
+    final icon = scrolled
+        ? Icons.check_circle_rounded
+        : Icons.menu_book_rounded;
+    final title = scrolled
+        ? 'Charte entièrement lue'
+        : 'Lecture obligatoire avant signature';
+    final subtitle = scrolled
+        ? 'Vous pouvez maintenant accepter le contrat.'
+        : 'Faites défiler jusqu\'en bas pour activer le bouton.';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withValues(alpha: 0.18),
+            color.withValues(alpha: 0.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.18),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11.5,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

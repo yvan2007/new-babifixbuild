@@ -23,6 +23,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../models/client_models.dart';
 import '../../services/call_service.dart';
+import '../../shared/widgets/auth_required_dialog.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../user_store.dart';
 import '../booking/booking_flow_screen.dart';
@@ -1051,7 +1052,21 @@ class _ProviderProfilePremiumScreenState
             const SizedBox(width: 10),
             Expanded(
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  // Vérifier l'auth avant d'ouvrir le flow.
+                  final token = await BabifixUserStore.getApiToken();
+                  if (token == null || token.isEmpty) {
+                    if (!context.mounted) return;
+                    final wantLogin = await promptLoginRequired(
+                      context,
+                      action: 'réserver ce prestataire',
+                    );
+                    if (!wantLogin || !context.mounted) return;
+                    // Retour à la page d'accueil + onglet Profil pour login.
+                    Navigator.of(context).popUntil((r) => r.isFirst);
+                    return;
+                  }
+                  if (!context.mounted) return;
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => BookingFlowScreen(

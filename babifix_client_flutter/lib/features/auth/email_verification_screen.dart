@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 /// Affiché après l'inscription pour inviter l'utilisateur à confirmer son email.
 /// L'utilisateur peut renvoyer l'email de vérification ou continuer directement.
@@ -161,10 +162,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                       ? SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: BabifixDesign.cyan,
-                          ),
+                          child: BabifixRingLoader.cyan(size: 28),
                         )
                       : Text(
                           'Renvoyer l\'email',

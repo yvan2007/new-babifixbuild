@@ -379,8 +379,7 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                        child: BabifixRingLoader.cyan(size: 28))
                     : const Icon(Icons.phone_iphone),
                 label: Text(
                   q.acompteValide

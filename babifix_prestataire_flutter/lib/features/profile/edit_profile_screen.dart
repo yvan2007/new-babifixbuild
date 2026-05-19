@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class EditProfilePrestataireScreen extends StatefulWidget {
   final String? apiBase;
@@ -114,7 +115,7 @@ class _EditProfilePrestataireScreenState
     return Scaffold(
       backgroundColor: BabifixDesign.navy,
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: BabifixDesign.cyan))
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : CustomScrollView(slivers: [
               _buildAppBar(),
               SliverToBoxAdapter(child: _buildBody()),
@@ -296,7 +297,7 @@ class _EditProfilePrestataireScreenState
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
           child: _saving
-              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+              ? const SizedBox(width: 22, height: 22, child: BabifixRingLoader.cyan(size: 28))
               : const Text('Sauvegarder les modifications', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
         ),
       ),
@@ -590,7 +591,7 @@ class _CniUploaderPremiumState extends State<_CniUploaderPremium> {
           ),
         ),
         child: _uploading
-            ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: BabifixDesign.cyan))
+            ? const Center(child: BabifixRingLoader.cyan(size: 28))
             : hasDoc
                 ? Stack(children: [
                     ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.network(_url,
@@ -719,7 +720,7 @@ class _PortfolioEditorPremiumState extends State<_PortfolioEditorPremium> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: BabifixDesign.cyan));
+    if (_loading) return const Center(child: BabifixRingLoader.cyan(size: 28));
     return Wrap(spacing: 10, runSpacing: 10, children: [
       ..._photos.asMap().entries.map((entry) {
         final i = entry.key;
@@ -740,7 +741,7 @@ class _PortfolioEditorPremiumState extends State<_PortfolioEditorPremium> {
                   border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.2), style: BorderStyle.solid, width: 1.5),
                 ),
                 child: _uploading
-                    ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: BabifixDesign.cyan))
+                    ? const Center(child: BabifixRingLoader.cyan(size: 28))
                     : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Container(width: 32, height: 32, decoration: BoxDecoration(shape: BoxShape.circle,
                             gradient: LinearGradient(colors: [BabifixDesign.cyan.withValues(alpha: 0.15), BabifixDesign.cyan.withValues(alpha: 0.05)])),

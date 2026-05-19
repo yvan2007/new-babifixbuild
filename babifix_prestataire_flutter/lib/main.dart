@@ -34,11 +34,13 @@ import 'features/auth/refused_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/requests/requests_screen.dart';
 import 'features/messages/messages_screen.dart';
+import 'features/profile/contrat_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/actualites/actualites_screen.dart';
 import 'features/wallet/wallet_screen.dart' as wallet_feature;
 import 'services/fcm_router.dart';
 import 'services/location_reporter.dart';
+import 'shared/widgets/babifix_ring_loader.dart';
 
 // Alias avec BabifixFcmRouter — un seul navigatorKey pour tout (calls in/out).
 final GlobalKey<NavigatorState> zegoNavigatorKey =
@@ -544,8 +546,15 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       final unread = jsonInt(data['unread_chat_messages']);
       _unreadChat.value = unread;
       if (st == 'Valide') {
-        if (mounted) setState(() => current = 'dashboard');
-        await _maybeShowPremiumOnboarding(prov);
+        // Charte obligatoire avant accès au dashboard : si jamais signée,
+        // on redirige sur l'écran contrat en mode bloquant.
+        final contratSigne = prov['contrat_signe'] == true;
+        if (mounted) {
+          setState(() => current = contratSigne ? 'dashboard' : 'contrat_mandatory');
+        }
+        if (contratSigne) {
+          await _maybeShowPremiumOnboarding(prov);
+        }
       } else if (st == 'Refuse') {
         if (mounted) {
           setState(() {
@@ -937,6 +946,21 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
           _bootstrapSession();
         },
       );
+    } else if (current == 'contrat_mandatory') {
+      // Affiché après login si le prestataire n'a jamais signé la charte.
+      // Bloquant : pas de back, scroll obligatoire, case engagement.
+      child = ContratScreen(
+        mustAccept: true,
+        paletteMode: widget.paletteMode,
+        // Le back système est bloqué via PopScope dans l'écran ;
+        // ce callback ne sert qu'au cas où l'utilisateur a déjà signé
+        // (mode normal). Ici on ne devrait jamais y arriver.
+        onBack: () {},
+        onAccepted: () {
+          // Charte signée → on rebascule sur le dashboard via bootstrap.
+          _bootstrapSession();
+        },
+      );
     } else if (current == 'requests') {
       child = RequestsScreen(
         onBack: () => setState(() => current = 'dashboard'),
@@ -1099,10 +1123,7 @@ class _PrestataireSplashScreenState extends State<_PrestataireSplashScreen>
               SizedBox(
                 width: 24,
                 height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: const Color(0xFF4CC9F0).withValues(alpha: 0.7),
-                ),
+                child: BabifixRingLoader.cyan(size: 28),
               ),
             ],
           ),

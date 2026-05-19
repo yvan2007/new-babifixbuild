@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class CreateDevisScreen extends StatefulWidget {
   final String reservationReference;
@@ -935,10 +936,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
             ? const SizedBox(
                 width: 22,
                 height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: Colors.white,
-                ),
+                child: BabifixRingLoader.cyan(size: 28),
               )
             : const Text(
                 'Envoyer le devis',

@@ -1,28 +1,23 @@
 import 'package:flutter/material.dart';
-import '../../babifix_design_system.dart';
 
+import 'babifix_ring_loader.dart';
+
+/// Loader BABIFIX (4 anneaux Uiverse + couleurs principales cyan/navy).
+/// Identique partout dans l'app — n'utilise jamais le
+/// CircularProgressIndicator natif.
 class BabifixLoadingIndicator extends StatelessWidget {
-  const BabifixLoadingIndicator({super.key, this.message, this.size = 40});
+  const BabifixLoadingIndicator({super.key, this.message, this.size = 56});
 
   final String? message;
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
-
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: size,
-            height: size,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              color: isLight ? BabifixDesign.cyan : Colors.white,
-            ),
-          ),
+          BabifixRingLoader(size: size),
           if (message != null) ...[
             const SizedBox(height: 16),
             Text(

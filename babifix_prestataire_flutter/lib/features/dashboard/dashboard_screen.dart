@@ -9,6 +9,7 @@ import '../../shared/app_palette_mode.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/in_app_notifications.dart';
 import 'floating_nav_bar.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class PrestataireDashboardScreen extends StatefulWidget {
   const PrestataireDashboardScreen({
@@ -1157,7 +1158,7 @@ class _AvailabilityToggleCard extends StatelessWidget {
               ? const SizedBox(
                   width: 28,
                   height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                  child: BabifixRingLoader.cyan(size: 28),
                 )
               : Switch(
                   value: isAvailable,

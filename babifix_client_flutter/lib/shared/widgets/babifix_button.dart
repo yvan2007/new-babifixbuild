@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/haptics_service.dart';
 import '../../babifix_design_system.dart';
+import 'babifix_ring_loader.dart';
 
 class BabifixButton extends StatelessWidget {
   const BabifixButton({
@@ -79,7 +80,7 @@ class BabifixButton extends StatelessWidget {
       return SizedBox(
         height: 20,
         width: 20,
-        child: CircularProgressIndicator(strokeWidth: 2, color: color),
+        child: BabifixRingLoader.cyan(size: 28),
       );
     }
     return Row(

@@ -15,6 +15,7 @@ import '../../babifix_money.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/services/geniuspay_service.dart';
 import '../auth/biometric_login_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 // ---------------------------------------------------------------------------
 // Opérateurs Mobile Money disponibles via GeniusPay (Côte d'Ivoire)
@@ -455,7 +456,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         elevation: 0,
       ),
       body: _fetching
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
               child: Column(
@@ -541,10 +542,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                           ? SizedBox(
                               width: 22,
                               height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: BabifixDesign.navy,
-                              ),
+                              child: BabifixRingLoader.cyan(size: 28),
                             )
                           : Row(
                               mainAxisAlignment: MainAxisAlignment.center,

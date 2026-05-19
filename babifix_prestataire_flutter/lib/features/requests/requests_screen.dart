@@ -15,6 +15,7 @@ import 'client_journal_viewer.dart';
 import 'rate_client_screen.dart';
 import 'request_detail_screen.dart';
 import 'waiting_payment_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class RequestsScreen extends StatefulWidget {
   const RequestsScreen({super.key, required this.onBack});
@@ -1669,10 +1670,7 @@ class _SafeImage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: BabifixDesign.cyan,
-                  ),
+                  child: BabifixRingLoader.cyan(size: 28),
                 ),
               ),
         errorBuilder: (_, __, ___) => _placeholder(size),

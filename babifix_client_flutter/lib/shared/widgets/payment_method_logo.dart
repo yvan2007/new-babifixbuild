@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'babifix_ring_loader.dart';
 
 /// IDs alignés sur [PAYMENT_METHOD_STATIC] (API Django / client).
 const Map<String, String> kBabifixPaymentLogoAssets = {
@@ -37,7 +38,7 @@ class BabifixPaymentMethodLogo extends StatelessWidget {
             fit: fit,
             placeholderBuilder: (_) => SizedBox(
               height: height,
-              child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              child: const Center(child: BabifixRingLoader.cyan(size: 28)),
             ),
           ),
         );

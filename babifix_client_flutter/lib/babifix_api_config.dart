@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 int _envInt(String key, int defaultValue) {
@@ -86,41 +87,49 @@ const String kBabifixProdUrl = 'https://new-babifixbuild.onrender.com';
 const String kBabifixLocalIp =
     String.fromEnvironment('BABIFIX_LOCAL_IP', defaultValue: '');
 
-/// Base URL backend — par défaut : **toujours Render**.
+/// Base URL backend — auto-détectée pour que ça marche partout sans config :
 ///
-/// Comme ça l'app marche peu importe où elle est ouverte (émulateur,
-/// vrai téléphone, ordinateur de quelqu'un d'autre) sans avoir besoin
-/// qu'un Django local tourne sur le PC du dev.
+/// - **Émulateur Android** (debug) → `http://10.0.2.2:8002`
+///   (10.0.2.2 = adresse spéciale qui pointe sur ton PC depuis l'émulateur)
+/// - **iOS Simulator / Web** (debug) → `http://localhost:8002`
+/// - **Vrai téléphone** sur Wi-Fi du PC : passer
+///   `--dart-define=BABIFIX_LOCAL_IP=192.168.x.x` → `http://192.168.x.x:8002`
+/// - **APK release** (publication) → Render production
 ///
-/// Pour basculer en local pendant le développement, utiliser EXPLICITEMENT
-/// un des overrides :
+/// Overrides explicites (priorité plus haute) :
+/// 1. `BabifixApiOverride.set(...)` (runtime, depuis l'app)
+/// 2. `--dart-define=BABIFIX_API_BASE=https://xxx` (override total)
+/// 3. `--dart-define=BABIFIX_LOCAL_IP=192.168.x.x` (téléphone réel)
 ///
-/// - `BabifixApiOverride.set('http://10.0.2.2:8002')` à l'exécution
-/// - `flutter run --dart-define=BABIFIX_API_BASE=http://10.0.2.2:8002`
-/// - `flutter run --dart-define=BABIFIX_LOCAL_IP=192.168.1.42`
-///
-/// Ordre de priorité :
-/// 1. **`BabifixApiOverride.set(...)`** (runtime)
-/// 2. **`BABIFIX_API_BASE`** (dart-define, override total)
-/// 3. **`BABIFIX_LOCAL_IP`** (dart-define, téléphone sur Wi-Fi du dev)
-/// 4. **Défaut universel** → Render production (debug ET release)
+/// IMPORTANT : ton Django doit ÉCOUTER sur toutes les interfaces pour
+/// que l'émulateur ET les vrais téléphones puissent y accéder :
+///   python manage.py runserver 0.0.0.0:8002
 String babifixApiBaseUrl() {
-  // 1. Runtime override (paramètres in-app)
+  // 1. Runtime override
   final ov = BabifixApiOverride.current;
   if (ov != null && ov.isNotEmpty) {
     return ov.replaceAll(RegExp(r'/$'), '');
   }
 
-  // 2. dart-define principal
+  // 2. dart-define BABIFIX_API_BASE (override total)
   const fromEnv = String.fromEnvironment('BABIFIX_API_BASE', defaultValue: '');
   if (fromEnv.isNotEmpty) return fromEnv.replaceAll(RegExp(r'/$'), '');
 
-  // 3. dart-define IP locale (téléphone réel sur Wi-Fi du dev)
+  // 3. dart-define BABIFIX_LOCAL_IP (téléphone réel sur Wi-Fi du dev)
   if (kBabifixLocalIp.isNotEmpty) {
     return 'http://$kBabifixLocalIp:$kBabifixApiPort';
   }
 
-  // 4. Défaut : production Render — partout, sans config.
+  // 4. Debug : détection auto par plateforme
+  if (kDebugMode) {
+    if (kIsWeb) return 'http://127.0.0.1:$kBabifixApiPort';
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:$kBabifixApiPort';
+    }
+    return 'http://localhost:$kBabifixApiPort';
+  }
+
+  // 5. Release sans override → Render production
   return kBabifixProdUrl;
 }
 

@@ -7,6 +7,7 @@ import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/services/babifix_user_store.dart';
 import '../../shared/widgets/babifix_page_route.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -296,7 +297,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: BabifixDesign.cyan))
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : _error != null
           ? _buildError()
           : RefreshIndicator(
@@ -702,10 +703,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2.5,
-                                  ),
+                                  child: BabifixRingLoader.cyan(size: 28),
                                 )
                               : Text(
                                   _isAnnual

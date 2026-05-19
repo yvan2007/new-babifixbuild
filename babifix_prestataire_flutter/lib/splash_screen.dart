@@ -172,32 +172,17 @@ class _BabifixPrestataireSplashScreenState
                                 ),
                               ),
                             ),
-                            // Logo réel
+                            // Logo réel — pas de fond blanc, agrandi.
                             Opacity(
                               opacity: _logoOpacity.value,
                               child: Transform.scale(
                                 scale: _logoScale.value,
-                                child: Container(
-                                  width: 140,
-                                  height: 140,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.25),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  padding: const EdgeInsets.all(14),
-                                  child: ClipOval(
-                                    child: Image.asset(
-                                      'assets/images/logo_babifix.png',
-                                      fit: BoxFit.contain,
-                                    ),
+                                child: SizedBox(
+                                  width: 180,
+                                  height: 180,
+                                  child: Image.asset(
+                                    'assets/images/logo_babifix.png',
+                                    fit: BoxFit.contain,
                                   ),
                                 ),
                               ),

@@ -1,115 +1,111 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rappel de rendez-vous — BABIFIX</title>
-    <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
-        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .header { background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%); padding: 40px 30px; text-align: center; }
-        .header h1 { color: #fff; margin: 0; font-size: 28px; font-weight: 700; }
-        .header p { color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px; }
-        
-        .reminder-badge {
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-            color: #fff;
-            display: inline-block;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            margin: 10px 0;
-        }
-        
-        .content { padding: 40px 30px; }
-        .datetime-box {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-radius: 16px;
-            padding: 30px;
-            text-align: center;
-            margin: 25px 0;
-        }
-        .datetime-icon { font-size: 48px; margin-bottom: 15px; }
-        .datetime-date { font-size: 24px; font-weight: bold; color: #1a1a2e; margin-bottom: 5px; }
-        .datetime-time { font-size: 20px; color: #FF6B00; font-weight: 600; }
-        
-        .details-card {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 25px;
-            margin: 25px 0;
-        }
-        .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-        .detail-row:last-child { border-bottom: none; }
-        .detail-label { color: #6c757d; font-size: 14px; }
-        .detail-value { font-weight: 600; color: #1a1a2e; }
-        
-        .checklist {
-            margin: 20px 0;
-            padding: 0;
-            list-style: none;
-        }
-        .checklist li { padding: 10px 0; display: flex; align-items: center; }
-        .checklist li .icon { margin-right: 10px; font-size: 18px; }
-        
-        .footer { background: #1a1a2e; padding: 30px; text-align: center; }
-        .footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
-        .footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 15px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>📅 Rappel de Rendez-vous</h1>
-            <p>Votre intervention est prévue</p>
-        </div>
-        <div class="content">
-            <p style="text-align: center;">
-                <span class="reminder-badge">⏰ {{ reminder_type }}</span>
-            </p>
-            
-            <p style="font-size: 16px; color: #495057;">Bonjour <strong>{{ client_name }}</strong>,</p>
-            <p style="font-size: 16px; color: #495057;">Votre intervention est prévue {{ reminder_text }}.</p>
-            
-            <div class="datetime-box">
-                <div class="datetime-icon">📆</div>
-                <div class="datetime-date">{{ date }}</div>
-                <div class="datetime-time">{{ time }}</div>
-            </div>
-            
-            <div class="details-card">
-                <div class="detail-row">
-                    <span class="detail-label">Prestataire</span>
-                    <span class="detail-value">{{ provider_name }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Service</span>
-                    <span class="detail-value">{{ service_name }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Référence</span>
-                    <span class="detail-value">{{ reference }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Adresse</span>
-                    <span class="detail-value">{{ address }}</span>
-                </div>
-            </div>
-            
-            <h4 style="color: #1a1a2e; margin: 25px 0 15px;">✓ Préparatifs à faire :</h4>
-            <ul class="checklist">
-                <li><span class="icon">✅</span> Assurez-vous d'être présent ou quelqu'un de confiance</li>
-                <li><span class="icon">✅</span> Préparez l'accès au lieu d'intervention</li>
-                <li><span class="icon">✅</span> Gardez le numéro du prestataire à portée</li>
-                <li><span class="icon">✅</span> Ayez le montant exact prêt si paiement en espèces</li>
-            </ul>
-        </div>
-        <div class="footer">
-            <p>🔧 BABIFIX — Connection. Service. Confiance.</p>
-            <p>📞 Besoin d'aide ? contactez-nous : contact@babifix.ci</p>
-            <p class="copyright">© 2026 BABIFIX</p>
-        </div>
-    </div>
-</body>
-</html>
+{% extends "emails/base_email.html" %}
+
+{% block subject %}Rappel : RDV {{ reminder_text }} avec {{ provider_name }}{% endblock %}
+{% block preheader %}Votre intervention BABIFIX est prévue {{ reminder_text }}. Pensez à préparer l'accès au lieu.{% endblock %}
+
+{% block content %}
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+
+  <!-- Icône calendrier -->
+  <tr>
+    <td align="center" style="padding-bottom:18px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#E0F2FE" style="background-color:#E0F2FE; border-radius:50%;">
+        <tr><td align="center" width="64" height="64" style="line-height:64px; font-size:28px;">📅</td></tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" style="padding-bottom:14px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+          <td bgcolor="#EFF6FF" style="background-color:#EFF6FF; border-radius:24px; padding:6px 16px; color:#1E40AF; font-size:11.5px; font-weight:700; letter-spacing:0.8px; font-family:Arial,sans-serif;">
+            ⏰ {{ reminder_type }}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" class="h1-mobile text-primary" style="color:#0B1B34; font-size:24px; font-weight:900; line-height:1.25; font-family:Arial,sans-serif; padding-bottom:10px;">
+      Rappel de rendez-vous
+    </td>
+  </tr>
+  <tr>
+    <td align="center" class="text-secondary" style="color:#475569; font-size:14.5px; line-height:1.6; font-family:Arial,sans-serif; padding-bottom:24px;">
+      Bonjour <strong style="color:#0B1B34;">{{ client_name }}</strong>, votre intervention est prévue {{ reminder_text }}.
+    </td>
+  </tr>
+
+  <!-- Date/heure -->
+  <tr>
+    <td style="padding-bottom:22px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#0B1B34; background-image:linear-gradient(135deg,#0B1B34 0%,#1B4B7C 100%); border-radius:14px;">
+        <tr>
+          <td align="center" style="padding:24px 18px; font-family:Arial,sans-serif;">
+            <div style="color:#FFFFFF; font-size:22px; font-weight:900; margin-bottom:4px;">{{ date }}</div>
+            <div style="color:#4CC9F0; font-size:18px; font-weight:700;">{{ time }}</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Détails -->
+  <tr>
+    <td style="padding-bottom:24px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#F8FAFC; border-radius:14px; border:1px solid #E2E8F0;">
+        <tr>
+          <td style="padding:18px 22px; font-family:Arial,sans-serif;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+              <tr>
+                <td style="padding:8px 0; border-bottom:1px solid #E2E8F0; color:#64748B; font-size:13px;">Prestataire</td>
+                <td align="right" style="padding:8px 0; border-bottom:1px solid #E2E8F0; color:#0B1B34; font-size:13px; font-weight:700;">{{ provider_name }}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; border-bottom:1px solid #E2E8F0; color:#64748B; font-size:13px;">Service</td>
+                <td align="right" style="padding:8px 0; border-bottom:1px solid #E2E8F0; color:#0B1B34; font-size:13px; font-weight:700;">{{ service_name }}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; border-bottom:1px solid #E2E8F0; color:#64748B; font-size:13px;">Référence</td>
+                <td align="right" style="padding:8px 0; border-bottom:1px solid #E2E8F0; color:#0B1B34; font-size:13px; font-weight:700;">{{ reference }}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; color:#64748B; font-size:13px;">Adresse</td>
+                <td align="right" style="padding:8px 0; color:#0B1B34; font-size:13px; font-weight:700;">{{ address }}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Checklist -->
+  <tr>
+    <td>
+      <div style="color:#4CC9F0; font-size:11.5px; font-weight:800; letter-spacing:1.5px; font-family:Arial,sans-serif; margin-bottom:12px;">✓ PRÉPARATIFS À FAIRE</div>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr>
+          <td width="22" valign="top" style="padding:6px 0; color:#22C55E; font-size:14px; font-family:Arial,sans-serif;">✓</td>
+          <td style="padding:6px 0; color:#334155; font-size:13.5px; line-height:1.55; font-family:Arial,sans-serif;">Assurez-vous d'être présent ou qu'une personne de confiance soit sur place.</td>
+        </tr>
+        <tr>
+          <td width="22" valign="top" style="padding:6px 0; color:#22C55E; font-size:14px;">✓</td>
+          <td style="padding:6px 0; color:#334155; font-size:13.5px; line-height:1.55; font-family:Arial,sans-serif;">Préparez l'accès au lieu d'intervention.</td>
+        </tr>
+        <tr>
+          <td width="22" valign="top" style="padding:6px 0; color:#22C55E; font-size:14px;">✓</td>
+          <td style="padding:6px 0; color:#334155; font-size:13.5px; line-height:1.55; font-family:Arial,sans-serif;">Gardez le numéro du prestataire à portée.</td>
+        </tr>
+        <tr>
+          <td width="22" valign="top" style="padding:6px 0; color:#22C55E; font-size:14px;">✓</td>
+          <td style="padding:6px 0; color:#334155; font-size:13.5px; line-height:1.55; font-family:Arial,sans-serif;">Préparez le montant exact si le paiement est en espèces.</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+</table>
+{% endblock %}

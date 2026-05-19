@@ -11,6 +11,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class _Provider {
   _Provider({
@@ -304,7 +305,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen> {
 
           // ── Loading / erreur ──
           if (_loading)
-            const Center(child: CircularProgressIndicator()),
+            const Center(child: BabifixRingLoader.cyan(size: 28)),
           if (_error != null && !_loading)
             Center(
               child: Card(

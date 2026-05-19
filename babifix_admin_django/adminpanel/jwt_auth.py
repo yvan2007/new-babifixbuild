@@ -298,36 +298,47 @@ def require_jwt_auth(roles: Optional[list] = None):
     from django.views.decorators.csrf import csrf_exempt
     
     allowed_roles = set(roles or [])
-    
+
     def decorator(view_func):
         @csrf_exempt
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
+            # 1. Header Authorization (cas standard API)
             auth_header = request.headers.get("Authorization", "")
-            if not auth_header.startswith("Bearer "):
+            token = ""
+            if auth_header.startswith("Bearer "):
+                token = auth_header.split(" ", 1)[1].strip()
+
+            # 2. Fallback : ?token=... en query string.
+            # Indispensable pour les téléchargements PDF ouverts via
+            # launchUrl() / un navigateur externe, qui n'envoie pas le
+            # header Authorization.
+            if not token:
+                token = (request.GET.get("token") or "").strip()
+
+            if not token:
                 return JsonResponse({"error": "missing_token"}, status=401)
-            
-            token = auth_header.split(" ", 1)[1].strip()
+
             payload = verify_access_token(token)
-            
+
             if not payload:
                 return JsonResponse(
                     {"error": "invalid_token", "code": "token_expired_or_revoked"},
                     status=401
                 )
-            
+
             role = payload.get("role")
             if allowed_roles and role not in allowed_roles:
                 return JsonResponse({"error": "forbidden_role"}, status=403)
-            
+
             request.api_user_id = int(payload.get("sub"))
             request.api_role = role
             request.token_payload = payload
-            
+
             return view_func(request, *args, **kwargs)
-        
+
         return wrapper
-    
+
     return decorator
 
 

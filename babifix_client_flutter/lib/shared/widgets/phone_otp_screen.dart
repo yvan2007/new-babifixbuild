@@ -10,6 +10,7 @@ import 'dart:convert';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
+import 'babifix_ring_loader.dart';
 
 class PhoneOtpScreen extends StatefulWidget {
   const PhoneOtpScreen({
@@ -270,10 +271,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
+                          child: BabifixRingLoader.cyan(size: 28),
                         )
                       : const Text(
                           'Envoyer le code',
@@ -331,10 +329,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
+                          child: BabifixRingLoader.cyan(size: 28),
                         )
                       : const Text(
                           'Vérifier',

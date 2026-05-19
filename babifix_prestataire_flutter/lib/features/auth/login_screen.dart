@@ -9,6 +9,7 @@ import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../services/zego_call_service.dart';
 import 'forgot_password_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.onBack, required this.onSuccess,});
@@ -520,10 +521,7 @@ class _PremiumButton extends StatelessWidget {
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.5,
-                  ),
+                  child: BabifixRingLoader.cyan(size: 28),
                 )
               : Text(
                   label,

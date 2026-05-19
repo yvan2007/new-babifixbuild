@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
 import '../parrainage/parrainage_screen.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class FideliteScreen extends StatefulWidget {
   const FideliteScreen({super.key, required this.isLight});
@@ -90,7 +91,7 @@ class _FideliteScreenState extends State<FideliteScreen>
           if (_loading)
             const SliverFillRemaining(
               child: Center(
-                child: CircularProgressIndicator(color: Color(0xFF4CC9F0)),
+                child: BabifixRingLoader.cyan(size: 28),
               ),
             )
           else if (_error != null)

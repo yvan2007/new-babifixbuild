@@ -417,8 +417,7 @@ class _ClientJournalScreenState extends State<ClientJournalScreen> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                    child: BabifixRingLoader.cyan(size: 28))
                 : const Icon(Icons.save),
             label: const Text('Enregistrer mon journal'),
             style: ElevatedButton.styleFrom(

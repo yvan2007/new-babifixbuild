@@ -28,12 +28,14 @@ import 'shared/in_app_notifications.dart';
 import 'shared/offline_cache.dart';
 import 'services/notification_sound_service.dart';
 import 'services/zego_call_service.dart';
+import 'shared/widgets/auth_required_dialog.dart';
 import 'shared/widgets/status_pill.dart';
 import 'shared/widgets/category_strip.dart';
 import 'shared/services/real_time_sync.dart';
 import 'features/auth/onboarding_screen.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/auth/forgot_password_screen.dart';
+import 'features/disputes/my_disputes_screen.dart';
 import 'features/profile/edit_profile_screen.dart';
 import 'features/chat/messages_screen.dart';
 import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
@@ -992,6 +994,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _openBiometricSettings() async {
     if (!mounted) return;
+    if (!await _ensureAuthOrPrompt('activer la connexion biométrique')) {
+      return;
+    }
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1066,7 +1072,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
     if (!mounted) return;
     final logged = await BabifixUserStore.isLoggedIn();
     if (!logged) {
+      final wantLogin = await promptLoginRequired(
+        context,
+        action: 'modifier votre profil',
+      );
+      if (!mounted || !wantLogin) return;
       await _openAuth();
+      // Si la connexion a réussi, on rouvre l'écran d'édition.
+      if (mounted && await BabifixUserStore.isLoggedIn()) {
+        await _openEditProfile();
+      }
       return;
     }
     final p = await BabifixUserStore.loadProfile();
@@ -4391,13 +4406,36 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 _PremiumActionTile(
                   icon: Icons.emoji_events_rounded,
                   title: 'Mon Programme',
-                  subtitle: 'Fidelite, garanties & parrainage',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FideliteScreen(isLight: _isLight),
-                    ),
-                  ),
+                  subtitle: 'Fidélité, garanties & parrainage',
+                  onTap: () async {
+                    if (!await _ensureAuthOrPrompt(
+                        'accéder à votre programme de fidélité')) {
+                      return;
+                    }
+                    if (!mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FideliteScreen(isLight: _isLight),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                _PremiumActionTile(
+                  icon: Icons.gavel_rounded,
+                  title: 'Mes litiges',
+                  subtitle: 'Suivre l\'état de vos signalements',
+                  onTap: () async {
+                    if (!await _ensureAuthOrPrompt('voir vos litiges')) return;
+                    if (!mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MyDisputesScreen(),
+                      ),
+                    );
+                  },
                 ),
 
                 // ── Section : Preferences ─────────────────────────────
@@ -5153,15 +5191,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
     // Refresh token before request to avoid invalid_token
     final freshToken = await BabifixUserStore.getApiToken();
     if (freshToken == null || freshToken.isEmpty) {
-      if (mounted) {
+      if (!mounted) return false;
+      // Dialog premium avec 2 choix : Se connecter / Continuer à visiter.
+      final wantLogin = await promptLoginRequired(
+        context,
+        action: 'finaliser votre réservation',
+      );
+      if (!mounted) return false;
+      if (wantLogin) {
+        // Bascule sur l'onglet Profil + ouvre directement l'écran d'auth.
         setState(() => navIndex = 4);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Connectez-vous d\'abord pour reserves.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+        await _openAuth();
       }
+      // Sinon : on reste là où on était, le flow se ferme sans bruit.
       return false;
     }
     authToken = freshToken;
@@ -5981,6 +6023,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
     if (!mounted) return;
     final token = await BabifixUserStore.getApiToken();
     if (!mounted) return;
+    if (token == null || token.isEmpty) {
+      final wantLogin = await promptLoginRequired(
+        context,
+        action: 'voir vos messages',
+      );
+      if (!mounted || !wantLogin) return;
+      setState(() => navIndex = 4);
+      await _openAuth();
+      return;
+    }
     setState(() => authToken = token);
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -5992,6 +6044,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
       setState(() => authToken = again);
       await _refreshUnreadChat();
     }
+  }
+
+  /// Helper réutilisable pour toute action exigeant un compte.
+  /// Retourne `true` si l'utilisateur est connecté (ou vient de l'être),
+  /// `false` s'il préfère continuer à visiter.
+  Future<bool> _ensureAuthOrPrompt(String action) async {
+    final token = await BabifixUserStore.getApiToken();
+    if (token != null && token.isNotEmpty) return true;
+    if (!mounted) return false;
+    final wantLogin = await promptLoginRequired(context, action: action);
+    if (!mounted || !wantLogin) return false;
+    setState(() => navIndex = 4);
+    await _openAuth();
+    final again = await BabifixUserStore.getApiToken();
+    return again != null && again.isNotEmpty;
   }
 
   Future<void> _openSettings() async {

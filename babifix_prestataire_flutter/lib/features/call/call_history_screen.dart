@@ -7,6 +7,7 @@ import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../services/call_service.dart';
 import '../../shared/widgets/animated_list_item.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class CallHistoryScreen extends StatefulWidget {
   const CallHistoryScreen({super.key});
@@ -49,7 +50,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
         elevation: 0.5,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : _error != null
               ? Center(child: Text(_error!))
               : _calls.isEmpty

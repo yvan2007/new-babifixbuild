@@ -9,6 +9,7 @@ import '../../shared/widgets/payment_method_logo.dart';
 import '../call/call_history_screen.dart';
 import 'client_journal_viewer.dart';
 import 'execution_actions_widget.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class RequestDetailScreen extends StatelessWidget {
   const RequestDetailScreen({
@@ -711,7 +712,7 @@ class _SafeImage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2, color: BabifixDesign.cyan),
+                  child: BabifixRingLoader.cyan(size: 28),
                 ),
               ),
         errorBuilder: (_, __, ___) => _placeholder(size),

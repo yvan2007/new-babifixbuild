@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../babifix_design_system.dart';
 import '../services/nominatim_geocode.dart';
+import 'babifix_ring_loader.dart';
 
 class BabifixAddressSearchField extends StatefulWidget {
   const BabifixAddressSearchField({
@@ -130,7 +131,7 @@ class _BabifixAddressSearchFieldState extends State<BabifixAddressSearchField> {
                     child: SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: BabifixRingLoader.cyan(size: 28),
                     ),
                   )
                 : null,

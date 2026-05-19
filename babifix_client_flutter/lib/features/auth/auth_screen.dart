@@ -13,6 +13,7 @@ import '../../user_store.dart';
 import 'biometric_login_screen.dart';
 import 'email_verification_screen.dart';
 import 'post_signup_onboarding.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.onAuthSuccess});
@@ -301,7 +302,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       return const Scaffold(
         backgroundColor: Color(0xFF060E1C),
         body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF4CC9F0)),
+          child: BabifixRingLoader.cyan(size: 28),
         ),
       );
     }
@@ -874,10 +875,7 @@ class _GradientButton extends StatelessWidget {
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.5,
-                  ),
+                  child: BabifixRingLoader.cyan(size: 28),
                 )
               : Text(
                   label,
