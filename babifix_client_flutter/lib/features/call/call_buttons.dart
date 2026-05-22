@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class CallButton extends StatelessWidget {
   final String targetId;
@@ -18,13 +19,12 @@ class CallButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('🔊 Appel vocal via Babifix vers $targetName...'),
-            backgroundColor: BabifixDesign.ciBlue,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: '🔊 Appel vocal via Babifix vers $targetName...',
+        duration: Duration(seconds: 2),
+      );
         onCallStarted?.call();
       },
       icon: Icon(Icons.phone, color: Colors.white, size: 20),
@@ -59,13 +59,12 @@ class VideoCallButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('📹 Appel vidéo vers $targetName...'),
-            backgroundColor: BabifixDesign.ciBlue,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: '📹 Appel vidéo vers $targetName...',
+        duration: Duration(seconds: 2),
+      );
         onCallStarted?.call();
       },
       icon: Icon(Icons.videocam, color: Colors.white, size: 20),

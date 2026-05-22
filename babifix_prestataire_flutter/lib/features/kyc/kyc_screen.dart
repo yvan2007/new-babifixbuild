@@ -11,6 +11,7 @@ import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -100,11 +101,11 @@ class _KYCScreenState extends State<KYCScreen> {
     final bytes = await xf.readAsBytes();
     if (bytes.length > _kMaxImgBytes) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Image trop lourde (max 3 MB). Réduisez la résolution.'),
-          backgroundColor: Color(0xFFDC2626),
-          behavior: SnackBarBehavior.floating,
-        ));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Image trop lourde (max 3 MB). Réduisez la résolution.',
+      );
       }
       return;
     }
@@ -150,19 +151,20 @@ class _KYCScreenState extends State<KYCScreen> {
             ? fields.values.first.toString()
             : (err['message'] ?? 'Erreur serveur (${res.statusCode})');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(msg),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-          ));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: msg,
+      );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Erreur réseau : $e'),
-          behavior: SnackBarBehavior.floating,
-        ));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur réseau : $e',
+      );
       }
     }
     setState(() => _loading = false);

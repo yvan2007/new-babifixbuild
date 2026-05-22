@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../babifix_design_system.dart';
 import '../services/babifix_api.dart';
 import 'call_service.dart';
+import '../shared/widgets/babifix_snackbar.dart';
 
 class IncomingCallScreen extends StatefulWidget {
   final int callId;
@@ -84,7 +85,11 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
   void _snack(String s) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: s,
+      );
   }
 
   @override

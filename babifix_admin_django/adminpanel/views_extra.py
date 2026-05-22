@@ -1263,6 +1263,11 @@ def api_prestataire_wallet_withdraw(request):
     POST /api/prestataire/wallet/withdraw/
     Body JSON : {amount_fcfa, phone, operator}
     """
+    # Anti-abus : limiter les demandes de retrait (action financière).
+    from .throttle import check_rate_limit, rate_limited_response
+    if check_rate_limit(request, "wallet_withdraw", max_requests=5, window=60):
+        return rate_limited_response()
+
     user_id = request.api_user_id
 
     provider = Provider.objects.filter(user_id=user_id).first()

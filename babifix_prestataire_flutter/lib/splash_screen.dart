@@ -45,14 +45,30 @@ class _BabifixPrestataireSplashScreenState
       duration: const Duration(milliseconds: 2200),
     )..repeat(reverse: true);
 
-    // Halo immédiatement visible (pas de fade-in) → la transition depuis
-    // le splash natif Android est invisible : on conserve seulement le
-    // pulse idle continu pour donner de la vie.
-    _haloOpacity = const AlwaysStoppedAnimation<double>(1.0);
-    _haloScale = const AlwaysStoppedAnimation<double>(1.0);
-    // Logo continu depuis le splash natif Android — pas de scale d'entrée.
-    _logoOpacity = const AlwaysStoppedAnimation<double>(1.0);
-    _logoScale = const AlwaysStoppedAnimation<double>(1.0);
+    // Le splash natif Android n'affiche PLUS de logo (fond navy uni). Le logo
+    // + le halo s'animent donc ICI, en une seule entrée fluide, en même temps
+    // que le titre « BABIFIX » et la pill « PRESTATAIRE ». Plus aucun doublon
+    // de logo : on arrive directement sur l'écran avec les écritures.
+    _haloOpacity = CurvedAnimation(
+      parent: _entrance,
+      curve: const Interval(0.0, 0.45, curve: Curves.easeOut),
+    );
+    _haloScale = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entrance,
+        curve: const Interval(0.0, 0.55, curve: Curves.easeOutCubic),
+      ),
+    );
+    _logoOpacity = CurvedAnimation(
+      parent: _entrance,
+      curve: const Interval(0.08, 0.55, curve: Curves.easeOut),
+    );
+    _logoScale = Tween<double>(begin: 0.55, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entrance,
+        curve: const Interval(0.08, 0.7, curve: Curves.elasticOut),
+      ),
+    );
     _titleOpacity = CurvedAnimation(
       parent: _entrance,
       curve: const Interval(0.45, 0.75, curve: Curves.easeOut),

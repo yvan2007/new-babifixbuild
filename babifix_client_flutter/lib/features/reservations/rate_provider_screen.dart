@@ -7,6 +7,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 /// Écran de notation du prestataire après prestation terminée.
 /// Appelé via : Navigator.push(context, MaterialPageRoute(
@@ -67,8 +68,10 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
 
   Future<void> _submit() async {
     if (_note == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez sélectionner une note.')),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: 'Veuillez sélectionner une note.',
       );
       return;
     }
@@ -104,18 +107,22 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
       final err = body['detail'] ?? body['error'] ?? 'Erreur ${res.statusCode}';
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Impossible : $err')),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible : $err',
+      );
         }
         setState(() => _submitting = false);
       }
     } catch (_) {
       setState(() => _submitting = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur réseau.')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur réseau.',
+      );
       }
     }
   }

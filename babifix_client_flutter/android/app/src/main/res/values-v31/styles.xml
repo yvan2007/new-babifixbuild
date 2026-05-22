@@ -2,19 +2,21 @@
 <!--
   Android 12+ (API 31+) — Override de la SplashScreen API native.
 
-  Par défaut Android 12 affiche l'icône launcher dans un CERCLE BLANC
-  AVANT le splash Flutter. On désactive ce cercle blanc et on aligne
-  le fond avec notre navy pour qu'il n'y ait AUCUN saut visuel entre
-  le splash natif et le splash Dart.
+  Android 12 IMPOSE une icône sur le splash natif (sinon il affiche l'icône
+  launcher dans un cercle blanc). On lui fournit donc une icône TRANSPARENTE
+  sur un fond navy uni : le splash natif n'affiche AUCUN logo. Le logo
+  BABIFIX + le texte « CLIENT » s'animent ensuite UNE SEULE FOIS sur le
+  splash Dart → plus de doublon de logo, on arrive directement sur l'écran
+  avec les écritures.
 -->
 <resources>
     <style name="LaunchTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
-        <!-- Fond navy plein (sans cercle blanc) -->
+        <!-- Fond navy plein -->
         <item name="android:windowSplashScreenBackground">@color/babifix_navy</item>
-        <!-- Pas de cercle de fond derrière l'icône splash -->
+        <!-- Cercle d'icône navy = invisible -->
         <item name="android:windowSplashScreenIconBackgroundColor">@color/babifix_navy</item>
-        <!-- Notre logo BABIFIX (PNG transparent) -->
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/babifix_logo</item>
+        <!-- Icône transparente : aucun logo sur le splash natif -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_none</item>
         <!-- Status bar transparente pour fondu propre -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>

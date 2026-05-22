@@ -13,6 +13,7 @@ import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import 'escrow_quote_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class DevisKanbanScreen extends StatefulWidget {
   final String reservationReference;
@@ -134,7 +135,11 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: msg,
+      );
   }
 
   @override

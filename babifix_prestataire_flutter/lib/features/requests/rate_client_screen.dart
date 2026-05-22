@@ -6,6 +6,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 /// Écran permettant au prestataire d'évaluer le client après prestation.
 class RateClientScreen extends StatefulWidget {
@@ -80,9 +81,11 @@ class _RateClientScreenState extends State<RateClientScreen>
 
   Future<void> _submit() async {
     if (_note == 0) {
-      ScaffoldMessenger.of(
+      showBabifixToast(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Sélectionnez une note.')));
+        type: BabifixToastType.warning,
+        message: 'Sélectionnez une note.',
+      );
       return;
     }
     setState(() => _submitting = true);
@@ -109,18 +112,22 @@ class _RateClientScreenState extends State<RateClientScreen>
       } else {
         final err = jsonDecode(res.body)['error'] ?? 'Erreur';
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Impossible : $err')));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible : $err',
+      );
         }
         setState(() => _submitting = false);
       }
     } catch (_) {
       setState(() => _submitting = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Erreur réseau.')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur réseau.',
+      );
       }
     }
   }

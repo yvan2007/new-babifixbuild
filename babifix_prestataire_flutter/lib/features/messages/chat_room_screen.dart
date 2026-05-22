@@ -17,6 +17,7 @@ import '../../services/livekit_call_service.dart';
 import '../../services/livekit_call_screen.dart';
 import '../../shared/services/haptics_service.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class PrestChatRoomPage extends StatefulWidget {
   const PrestChatRoomPage({
@@ -134,7 +135,11 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
       await _reloadMessages();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erreur chargement messages')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur chargement messages',
+      );
       }
     }
     if (mounted) setState(() {});
@@ -303,12 +308,11 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
            if (msgType == 'call_reject') {
              debugPrint('[ChatCall] Call rejected by peer');
              if (mounted) {
-               ScaffoldMessenger.of(context).showSnackBar(
-                 SnackBar(
-                   content: Text('${widget.name} a refusé l\'appel'),
-                   backgroundColor: BabifixDesign.error,
-                 ),
-               );
+               showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: '${widget.name} a refusé l\'appel',
+      );
              }
            }
          } catch (e) {
@@ -372,7 +376,11 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Acc\u00e8s refus\u00e9 ou erreur : $e')));
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Acc\u00e8s refus\u00e9 ou erreur : $e',
+      );
     }
   }
 
@@ -395,7 +403,11 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Envoi photo: $e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Envoi photo: $e',
+      );
       }
     }
   }
@@ -464,12 +476,11 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     if (cid == null) {
       debugPrint('[Chat Send PRESTA] No conversation_id!');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Conversation pas prête (cid=null, clientId=$clientId)'),
-            backgroundColor: BabifixDesign.error,
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Conversation pas prête (cid=null, clientId=$clientId)',
+      );
       }
       return;
     }
@@ -497,22 +508,20 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
         setState(() => _replyingTo = null);
         await _reloadMessages();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur envoi: HTTP ${res.statusCode}'),
-            backgroundColor: BabifixDesign.error,
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur envoi: HTTP ${res.statusCode}',
+      );
       }
     } catch (e) {
       debugPrint('[Chat Send PRESTA] EXCEPTION: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: BabifixDesign.error,
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
   }
@@ -532,14 +541,13 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     _chatWs!.sink.add(jsonEncode(msg));
   }
 
-  void _startOutgoingCall({required bool isVideo}) {
+  Future<void> _startOutgoingCall({required bool isVideo}) async {
     final convId = _conversationId;
     if (convId == null || convId <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Conversation non initialisée'),
-          backgroundColor: BabifixDesign.error,
-        ),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Conversation non initialisée',
       );
       return;
     }
@@ -553,33 +561,30 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     final targetUserID = 'client_${widget.clientUserId}';
 
     if (!BabifixLiveKitService.isInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Service d\'appel non initialisé (userId=${BabifixLiveKitService.currentUserId})'),
-          backgroundColor: BabifixDesign.error,
-        ),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Service d\'appel non initialisé (userId=${BabifixLiveKitService.currentUserId})',
       );
       return;
     }
 
-    final token = BabifixLiveKitService.generateLiveKitToken(
-      identity: BabifixLiveKitService.currentIdentity,
-      name: BabifixLiveKitService.currentUserName ?? 'Prestataire',
-      roomName: roomName,
-    );
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => LiveKitCallScreen(
-          liveKitUrl: BabifixLiveKitService.url,
-          token: token,
-          roomName: roomName,
-          targetUserID: targetUserID,
-          targetUserName: widget.name,
-          isVideoCall: isVideo,
-        ),
-      ),
-    );
+    // Token généré côté backend (jamais en local).
+    if (isVideo) {
+      await BabifixLiveKitService.startVideoCall(
+        context: context,
+        conversationId: convId,
+        targetUserID: targetUserID,
+        targetUserName: widget.name,
+      );
+    } else {
+      await BabifixLiveKitService.startVoiceCall(
+        context: context,
+        conversationId: convId,
+        targetUserID: targetUserID,
+        targetUserName: widget.name,
+      );
+    }
   }
 
   void _acceptIncomingCall() {
@@ -589,27 +594,27 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     _sendCallSignal('call_accept');
     _clearIncomingCall();
 
+    final convId = widget.conversationId;
+    if (convId == null) return;
+
     final targetUserID = 'client_${widget.clientUserId}';
     final isVideo = _incomingIsVideo;
 
-    final token = BabifixLiveKitService.generateLiveKitToken(
-      identity: BabifixLiveKitService.currentIdentity,
-      name: BabifixLiveKitService.currentUserName ?? 'Prestataire',
-      roomName: roomName,
-    );
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => LiveKitCallScreen(
-          liveKitUrl: BabifixLiveKitService.url,
-          token: token,
-          roomName: roomName,
-          targetUserID: targetUserID,
-          targetUserName: _incomingCallerName ?? 'Client',
-          isVideoCall: isVideo,
-        ),
-      ),
-    );
+    if (isVideo) {
+      BabifixLiveKitService.startVideoCall(
+        context: context,
+        conversationId: convId,
+        targetUserID: targetUserID,
+        targetUserName: _incomingCallerName ?? 'Client',
+      );
+    } else {
+      BabifixLiveKitService.startVoiceCall(
+        context: context,
+        conversationId: convId,
+        targetUserID: targetUserID,
+        targetUserName: _incomingCallerName ?? 'Client',
+      );
+    }
   }
 
   void _rejectIncomingCall() {

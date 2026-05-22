@@ -138,6 +138,7 @@ from .constants import CATEGORY_ICON_SLUGS, PAYMENT_METHOD_STATIC
 from .push_dispatch import _schedule
 from .forms import (
     ActualiteForm,
+    CatalogueItemForm,
     CategoryForm,
     ClientForm,
     DisputeForm,
@@ -149,6 +150,7 @@ from .forms import (
 
 from .models import (
     Actualite,
+    CatalogueItem,
     Category,
     Client,
     Conversation,
@@ -159,6 +161,7 @@ from .models import (
     Message,
     Notification,
     Payment,
+    PlatformRevenue,
     Provider,
     PrestataireUnavailability,
     Rating,
@@ -166,6 +169,7 @@ from .models import (
     SiteContent,
     SystemSetting,
     UserProfile,
+    WalletTransaction,
     recalc_provider_rating_stats,
 )
 
@@ -832,6 +836,55 @@ def _dashboard_forms_context(request, section):
                 Category.objects.filter(is_deleted=True).order_by("-ordre_affichage")[:30]
             )
             ctx["kanban_categories"] = kanban_categories
+    elif section == "catalogue":
+        # Éditeur de catalogue (fournitures / prestations types) par catégorie.
+        all_cats = list(Category.objects.order_by("nom"))
+        ctx["catalogue_categories"] = all_cats
+        sel_id = request.GET.get("cat_id")
+        selected = None
+        if sel_id and str(sel_id).isdigit():
+            selected = Category.objects.filter(pk=int(sel_id)).first()
+        if selected is None and all_cats:
+            selected = all_cats[0]
+        ctx["catalogue_selected"] = selected
+        if selected:
+            ctx["catalogue_items"] = list(
+                CatalogueItem.objects.filter(category=selected).order_by(
+                    "type_ligne", "nom"
+                )
+            )
+        else:
+            ctx["catalogue_items"] = []
+        # Formulaire d'ajout/édition
+        eid = request.GET.get("edit_catalogue")
+        if eid and str(eid).isdigit():
+            inst = CatalogueItem.objects.filter(pk=int(eid)).first()
+            if inst:
+                ctx["catalogue_form"] = CatalogueItemForm(instance=inst)
+                ctx["edit_catalogue_id"] = inst.pk
+            else:
+                ctx["catalogue_form"] = CatalogueItemForm(
+                    initial={"category": selected} if selected else None
+                )
+        else:
+            ctx["catalogue_form"] = CatalogueItemForm(
+                initial={"category": selected} if selected else None
+            )
+    elif section == "finances":
+        ctx["finance"] = _finance_reconciliation()
+    elif section == "payouts":
+        ctx["payout_withdrawals"] = list(
+            WalletTransaction.objects.filter(
+                tx_type="debit", status__in=["pending", "processing", "failed"]
+            )
+            .select_related("provider")
+            .order_by("-created_at")[:60]
+        )
+        ctx["payout_refunds"] = list(
+            Reservation.objects.filter(refund_owed_fcfa__gt=0)
+            .exclude(refund_status="paid")
+            .order_by("-id")[:60]
+        )
     elif section == "notifications":
         eid = request.GET.get("edit_notification")
         view_mode = request.GET.get("view", "kanban")
@@ -1245,6 +1298,125 @@ def _build_page_range(current, total, max_visible=9):
     return pages
 
 
+# Modèles autorisés pour la suppression groupée (multi-sélection admin).
+_BULK_DELETE_MODELS = {
+    "provider": Provider,
+    "client": Client,
+    "reservation": Reservation,
+    "litige": Dispute,
+    "paiement": Payment,
+    "category": Category,
+    "notification": Notification,
+    "actualite": Actualite,
+    "catalogue": CatalogueItem,
+}
+
+
+def _dashboard_redirect(request, section):
+    """Redirige vers le dashboard en CONSERVANT l'état d'affichage courant
+    (vue tableau/kanban, recherche, filtres, page). Évite de repartir sur la
+    vue kanban par défaut après une suppression/enregistrement."""
+    from urllib.parse import urlencode
+
+    params = {"section": section}
+    view = request.POST.get("view") or request.GET.get("view")
+    if view:
+        params["view"] = view
+    # Catégorie sélectionnée dans l'éditeur de catalogue (rester dessus).
+    cat_id = request.POST.get("cat_id") or request.GET.get("cat_id")
+    if cat_id:
+        params["cat_id"] = cat_id
+    for key in ("q", "statut", "date_start", "date_end", "page"):
+        val = request.GET.get(key)
+        if val:
+            params[key] = val
+    return redirect("/?" + urlencode(params))
+
+
+def _finance_reconciliation():
+    """Recoupe les flux d'argent BABIFIX pour repérer tout écart.
+
+    Lecture seule — n'écrit rien. Identité de cohérence du wallet :
+    Σ soldes ≈ Σ crédits + Σ remboursements − Σ débits (tous statuts),
+    car chaque débit décrémente le solde une fois et un débit échoué est
+    compensé par un crédit de remboursement.
+    """
+    from decimal import Decimal as _D
+    from django.db.models import Count, Sum
+
+    def _s(qs, field="amount_fcfa"):
+        return qs.aggregate(t=Sum(field))["t"] or _D("0")
+
+    pr = PlatformRevenue.objects.filter(refunded_at__isnull=True)
+    revenue_total = _s(pr)
+    revenue_by_source = [
+        {
+            "source": row["source"],
+            "total": float(row["total"] or 0),
+            "count": row["n"],
+        }
+        for row in pr.values("source").annotate(total=Sum("amount_fcfa"), n=Count("id"))
+    ]
+
+    credits = _s(WalletTransaction.objects.filter(tx_type="credit", status="success"))
+    refunds_wallet = _s(
+        WalletTransaction.objects.filter(tx_type="refund", status="success")
+    )
+    debits_paid = _s(WalletTransaction.objects.filter(tx_type="debit", status="success"))
+    debits_inflight = _s(
+        WalletTransaction.objects.filter(
+            tx_type="debit", status__in=["pending", "processing"]
+        )
+    )
+    debits_failed = _s(
+        WalletTransaction.objects.filter(tx_type="debit", status="failed")
+    )
+    balances = Provider.objects.aggregate(t=Sum("solde_fcfa"))["t"] or _D("0")
+
+    expected_balance = (
+        credits + refunds_wallet - (debits_paid + debits_inflight + debits_failed)
+    )
+    ecart = balances - expected_balance
+
+    owed = Reservation.objects.filter(
+        refund_owed_fcfa__gt=0, refund_paid_at__isnull=True
+    ).aggregate(t=Sum("refund_owed_fcfa"), n=Count("id"))
+    paid = Reservation.objects.filter(refund_paid_at__isnull=False).aggregate(
+        t=Sum("refund_owed_fcfa"), n=Count("id")
+    )
+
+    return {
+        "revenue_total": float(revenue_total),
+        "revenue_by_source": revenue_by_source,
+        "wallet_credits": float(credits),
+        "wallet_refunds": float(refunds_wallet),
+        "withdrawals_paid": float(debits_paid),
+        "withdrawals_inflight": float(debits_inflight),
+        "withdrawals_failed_amount": float(debits_failed),
+        "wallet_balances": float(balances),
+        "wallet_expected": float(expected_balance),
+        "wallet_ecart": float(ecart),
+        "wallet_ok": abs(ecart) < _D("1"),
+        "refunds_owed_total": float(owed["t"] or 0),
+        "refunds_owed_count": owed["n"] or 0,
+        "refunds_paid_total": float(paid["t"] or 0),
+        "refunds_paid_count": paid["n"] or 0,
+        # Alertes nécessitant une action humaine
+        "alert_withdrawals_failed": WalletTransaction.objects.filter(
+            tx_type="debit", status="failed"
+        ).count(),
+        "alert_withdrawals_inflight": WalletTransaction.objects.filter(
+            tx_type="debit", status__in=["pending", "processing"]
+        ).count(),
+        "alert_refunds_failed": Reservation.objects.filter(
+            refund_status="failed"
+        ).count(),
+        "alert_refunds_manual": Reservation.objects.filter(
+            refund_status="manual"
+        ).count(),
+    }
+
+
 @login_required(login_url="/admin/login/")
 def dashboard(request):
     if not (request.user.is_staff or request.user.is_superuser):
@@ -1260,6 +1432,9 @@ def dashboard(request):
         "clients",
         "paiements",
         "categories",
+        "catalogue",
+        "finances",
+        "payouts",
         "notifications",
         "actualites",
         "parametres",
@@ -1366,10 +1541,24 @@ def dashboard(request):
         elif action == "litige_decision":
             litige_id = request.POST.get("litige_id", "")
             decision = request.POST.get("decision", "")
-            dispute = Dispute.objects.filter(reference=litige_id).first()
+            dispute = (
+                Dispute.objects.select_related("reservation")
+                .filter(reference=litige_id)
+                .first()
+            )
             if dispute:
                 dispute.decision = decision
                 dispute.save(update_fields=["decision"])
+                # Appliquer la décision sur les fonds (versement / remboursement).
+                if dispute.reservation and (decision or "").strip().upper() != "OPEN":
+                    try:
+                        from .services.escrow_service import EscrowService
+                        EscrowService.resolve_dispute(dispute.reservation, decision)
+                    except Exception as exc:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            "resolve_dispute %s échec: %s", litige_id, exc
+                        )
             Notification.objects.create(
                 title=f"Decision litige {litige_id}: {decision}"
             )
@@ -1401,6 +1590,97 @@ def dashboard(request):
             if pk and str(pk).isdigit():
                 Category.objects.filter(pk=int(pk)).delete()
                 messages.success(request, "Catégorie supprimée.")
+        elif action == "catalogue_save":
+            pk = (request.POST.get("pk") or "").strip()
+            inst = (
+                CatalogueItem.objects.filter(pk=int(pk)).first()
+                if pk.isdigit()
+                else None
+            )
+            form = CatalogueItemForm(request.POST, instance=inst)
+            if form.is_valid():
+                obj = form.save()
+                # Rester sur la catégorie éditée après enregistrement.
+                request.GET = request.GET.copy()
+                request.GET["cat_id"] = str(obj.category_id)
+                messages.success(request, "Fourniture enregistrée.")
+            else:
+                messages.error(request, form.errors.as_text())
+            section = "catalogue"
+        elif action == "catalogue_delete":
+            pk = request.POST.get("pk")
+            if pk and str(pk).isdigit():
+                CatalogueItem.objects.filter(pk=int(pk)).delete()
+                messages.success(request, "Fourniture supprimée.")
+            section = "catalogue"
+        elif action == "catalogue_seed":
+            if not request.user.is_staff:
+                messages.error(
+                    request, "Action réservée aux comptes administrateur (staff)."
+                )
+            else:
+                try:
+                    from io import StringIO
+                    from django.core.management import call_command
+
+                    out = StringIO()
+                    call_command("seed_catalogue", stdout=out)
+                    lines = [l for l in out.getvalue().strip().splitlines() if l.strip()]
+                    messages.success(
+                        request,
+                        lines[-1] if lines else "Catalogue de base importé.",
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    messages.error(request, f"Import catalogue : {exc}")
+            section = "catalogue"
+        elif action == "withdrawal_relance":
+            if not request.user.is_staff:
+                messages.error(request, "Action réservée aux administrateurs.")
+            else:
+                tx_id = request.POST.get("tx_id")
+                if tx_id and str(tx_id).isdigit():
+                    from .services.wallet_service import WalletService
+                    r = WalletService.process_withdrawal(int(tx_id))
+                    if r.get("ok"):
+                        messages.success(request, f"Versement déclenché (retrait #{tx_id}).")
+                    else:
+                        messages.error(
+                            request,
+                            f"Échec versement : {r.get('detail') or r.get('error')}",
+                        )
+            section = "payouts"
+        elif action == "withdrawal_reject":
+            if not request.user.is_staff:
+                messages.error(request, "Action réservée aux administrateurs.")
+            else:
+                tx_id = request.POST.get("tx_id")
+                if tx_id and str(tx_id).isdigit():
+                    from .services.wallet_service import WalletService
+                    WalletService._refund_withdrawal(
+                        int(tx_id), reason="Rejeté par l'administrateur"
+                    )
+                    messages.success(
+                        request, f"Retrait rejeté, solde recrédité (#{tx_id})."
+                    )
+            section = "payouts"
+        elif action == "refund_relance":
+            if not request.user.is_staff:
+                messages.error(request, "Action réservée aux administrateurs.")
+            else:
+                pk = request.POST.get("reservation_id")
+                if pk and str(pk).isdigit():
+                    res = Reservation.objects.filter(pk=int(pk)).first()
+                    if res:
+                        from .services.escrow_service import EscrowService
+                        r = EscrowService.process_client_refund(res)
+                        if r.get("error"):
+                            messages.error(
+                                request,
+                                f"Remboursement : {r.get('error')}",
+                            )
+                        else:
+                            messages.success(request, "Remboursement déclenché.")
+            section = "payouts"
         elif action == "notification_save":
             pk = (request.POST.get("pk") or "").strip()
             inst = (
@@ -1498,6 +1778,27 @@ def dashboard(request):
                     "(réassignation ou réimport du catalogue JSON possible).",
                 )
             section = "categories"
+        elif action == "bulk_delete":
+            if not (request.user.is_staff or request.user.is_superuser):
+                messages.error(request, "Action réservée aux administrateurs.")
+            else:
+                model_key = (request.POST.get("model") or "").strip()
+                model = _BULK_DELETE_MODELS.get(model_key)
+                ids = [
+                    int(x)
+                    for x in request.POST.getlist("ids")
+                    if str(x).strip().isdigit()
+                ]
+                if model and ids:
+                    deleted, _ = model.objects.filter(pk__in=ids).delete()
+                    messages.success(
+                        request,
+                        f"{len(ids)} élément(s) supprimé(s).",
+                    )
+                elif not ids:
+                    messages.warning(request, "Aucun élément sélectionné.")
+                else:
+                    messages.error(request, "Type d'élément inconnu.")
         elif action == "params_update":
             commission = request.POST.get("commission", "").strip()
             if commission.isdigit():
@@ -1508,7 +1809,7 @@ def dashboard(request):
                 request.POST.get("mode_paiement") or ""
             ).strip()[:120]
             settings_obj.save()
-        return redirect(f"/?section={section}")
+        return _dashboard_redirect(request, section)
 
     search_q = request.GET.get("q", "").strip()
     statut = request.GET.get("statut", "").strip()
@@ -1574,7 +1875,7 @@ def dashboard(request):
         unified_notifications.append({
             "title": n.title,
             "body": n.body or "",
-            "time": n.time or "Récent",
+            "created_at": n.created_at,
             "is_read": n.lu,
             "notif_type": n.notif_type,
             "is_actualite": False,
@@ -1585,7 +1886,7 @@ def dashboard(request):
         unified_notifications.append({
             "title": a.titre,
             "body": a.description[:200] if a.description else "",
-            "time": "Nouvelle actualité",
+            "created_at": a.date_publication,
             "is_read": False,
             "notif_type": "actualite",
             "is_actualite": True,
@@ -1636,6 +1937,18 @@ def dashboard(request):
         "categories": (
             "Catégories",
             "Vue Kanban — services affichés sur la vitrine et dans les apps.",
+        ),
+        "catalogue": (
+            "Fournitures / Catalogue",
+            "Fournitures, main d'œuvre et déplacements proposés au prestataire lors du devis, propres à chaque catégorie. Modifiez prix, unités et articles — répercuté en temps réel dans l'app.",
+        ),
+        "finances": (
+            "Finances / Réconciliation",
+            "Vue de contrôle (lecture seule) : commissions encaissées, versements prestataires, soldes wallet et remboursements clients. Repérez tout écart d'un coup d'œil.",
+        ),
+        "payouts": (
+            "Versements & remboursements",
+            "Pilotez les retraits prestataires et les remboursements clients : versez maintenant, rejetez, ou relancez un versement échoué.",
         ),
         "notifications": (
             "Notifications",
@@ -2579,6 +2892,98 @@ def _api_messages_send(request):
     return JsonResponse({"ok": True, "message": _msg_dict(request, msg)}, status=201)
 
 
+# Statuts considérés comme « en cours » (réservation non terminée / non annulée).
+# Sert à empêcher les doublons : on ne compte que les prestations actives.
+_ACTIVE_RESERVATION_STATUSES = {
+    Reservation.Status.PENDING,            # "En attente"
+    Reservation.Status.CONFIRMED,          # "Confirmee"
+    Reservation.Status.IN_PROGRESS,        # "En cours"
+    Reservation.Status.WAITING_CLIENT,     # "En attente client"
+    Reservation.Status.DEMANDE_ENVOYEE,
+    Reservation.Status.DEVIS_EN_COURS,
+    Reservation.Status.DEVIS_ENVOYE,
+    Reservation.Status.DEVIS_ACCEPTE,
+    Reservation.Status.INTERVENTION_EN_COURS,
+}
+
+
+def _reservation_category_key(provider, title: str) -> str:
+    """Clé de catégorie pour comparer deux prestations.
+
+    - Si le prestataire a une catégorie → "cat:<id>".
+    - Sinon on retombe sur le titre normalisé → "title:<KEY>".
+    """
+    if provider is not None and getattr(provider, "category_id", None):
+        return f"cat:{provider.category_id}"
+    return f"title:{_normalize_category_key(title or '')}"
+
+
+def _find_reservation_conflicts(user, provider, title: str):
+    """Retourne (duplicate_provider, duplicate_category) parmi les prestations
+    ACTIVES du client.
+
+    - duplicate_provider : une prestation active EXISTE déjà avec CE prestataire
+      → blocage strict (on ne peut pas re-réserver le même prestataire).
+    - duplicate_category : une prestation active existe dans la MÊME catégorie
+      mais avec un AUTRE prestataire → simple avertissement (confirmable).
+    Chaque valeur est un dict {reference, prestataire, title, category} ou None.
+    """
+    if user is None:
+        return None, None
+    actives = list(
+        Reservation.objects.filter(
+            client_user=user, statut__in=_ACTIVE_RESERVATION_STATUSES
+        )
+        .select_related("assigned_provider", "assigned_provider__category")
+        .order_by("-pk")[:50]
+    )
+    current_key = _reservation_category_key(provider, title)
+    dup_provider = None
+    dup_category = None
+    for r in actives:
+        if provider is not None and r.assigned_provider_id == provider.id:
+            if dup_provider is None:
+                dup_provider = {
+                    "reference": r.reference,
+                    "prestataire": r.prestataire,
+                    "title": r.title or r.reference,
+                }
+            continue
+        # Autre prestataire : comparer la catégorie
+        if dup_category is None:
+            r_key = _reservation_category_key(r.assigned_provider, r.title)
+            if r_key == current_key:
+                cat_label = ""
+                if r.assigned_provider_id and r.assigned_provider and r.assigned_provider.category_id:
+                    cat_label = r.assigned_provider.category.nom
+                dup_category = {
+                    "reference": r.reference,
+                    "prestataire": r.prestataire,
+                    "title": r.title or r.reference,
+                    "category": cat_label or (r.title or ""),
+                }
+    return dup_provider, dup_category
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["client", "admin"])
+def api_client_check_duplicate_reservation(request):
+    """Pré-vérification (avant de réserver) : prévient l'app si le client a
+    déjà une prestation active avec ce prestataire (blocage) ou dans la même
+    catégorie chez un autre prestataire (avertissement)."""
+    user = User.objects.filter(id=request.api_user_id).first()
+    provider = None
+    pid = request.GET.get("provider_id")
+    if pid and str(pid).isdigit():
+        provider = Provider.objects.filter(id=int(pid)).select_related("category").first()
+    title = str(request.GET.get("title", "") or "").strip()
+    dup_provider, dup_category = _find_reservation_conflicts(user, provider, title)
+    return JsonResponse(
+        {"duplicate_provider": dup_provider, "duplicate_category": dup_category}
+    )
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 @require_api_auth(["client", "admin"])
@@ -2632,6 +3037,25 @@ def api_client_create_reservation(request):
                 },
                 status=400,
             )
+
+    # ── Anti-doublon ───────────────────────────────────────────────────────
+    # Blocage strict : on ne peut pas avoir 2 prestations actives avec le MÊME
+    # prestataire. L'avertissement « même catégorie, autre prestataire » est
+    # géré côté app (confirmable) ; ici on ne bloque QUE le même prestataire.
+    dup_provider, _dup_category = _find_reservation_conflicts(user, prov, title)
+    if dup_provider is not None:
+        return JsonResponse(
+            {
+                "error": "duplicate_provider",
+                "message": (
+                    "Vous avez déjà une prestation en cours avec ce prestataire "
+                    f"(réf. {dup_provider['reference']}). Terminez-la avant d'en "
+                    "réserver une nouvelle."
+                ),
+                "existing": dup_provider,
+            },
+            status=409,
+        )
 
     prest_label = prov.nom if prov else "A affecter"
     prest_user_id = prov.user_id if prov else None
@@ -3045,7 +3469,55 @@ def api_prestataire_register(request):
     )
 
 
-@require_GET
+# Statuts à partir desquels le prestataire est réellement engagé sur la
+# mission → on lui révèle l'adresse exacte. Avant ça (demande reçue,
+# devis en cours/envoyé), il ne voit qu'une zone approximative pour
+# préserver la confidentialité du client.
+_ADDRESS_REVEAL_STATUSES = {
+    Reservation.Status.DEVIS_ACCEPTE,
+    Reservation.Status.INTERVENTION_EN_COURS,
+    Reservation.Status.CONFIRMED,
+    Reservation.Status.IN_PROGRESS,
+    Reservation.Status.DONE,
+}
+
+
+def _approx_address(label: str) -> str:
+    """Version approximative d'une adresse (commune + ville), sans le
+    numéro ni la rue, pour ne pas exposer l'adresse exacte du client
+    avant que le prestataire ne soit engagé sur la mission.
+
+    Ex. "12 Rue des Jardins, Cocody, Abidjan, Côte d'Ivoire"
+        → "Cocody, Abidjan"
+    """
+    if not label:
+        return "Zone non précisée"
+    parts = [p.strip() for p in str(label).split(",") if p.strip()]
+    filtered = []
+    for p in parts:
+        low = p.lower()
+        # Retirer le pays et les codes postaux purement numériques.
+        if "ivoire" in low or "côte d" in low or "cote d" in low:
+            continue
+        if p.replace(" ", "").isdigit():
+            continue
+        filtered.append(p)
+    if not filtered:
+        return "Zone non précisée"
+    # On garde les 2 derniers segments significatifs (commune, ville),
+    # en sautant le 1er segment qui contient souvent le n° + la rue.
+    if len(filtered) >= 3:
+        approx = filtered[-2:]
+    elif len(filtered) == 2:
+        # "Rue X, Cocody" → on ne garde que "Cocody"
+        approx = filtered[-1:]
+    else:
+        approx = filtered
+    return ", ".join(approx)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
 @require_api_auth(["prestataire", "admin"])
 def api_prestataire_requests(request):
     _bootstrap_data()
@@ -3092,6 +3564,13 @@ def api_prestataire_requests(request):
             except (ValueError, TypeError):
                 montant_fmt = 0
 
+        # Confidentialité : adresse exacte révélée seulement une fois le
+        # prestataire engagé (devis accepté → intervention). Avant ça,
+        # zone approximative (commune, ville).
+        _reveal_addr = item.statut in _ADDRESS_REVEAL_STATUSES
+        _full_addr = item.address_label or ""
+        _shown_addr = _full_addr if _reveal_addr else _approx_address(_full_addr)
+
         data.append(
             {
                 "id": item.id,
@@ -3104,7 +3583,8 @@ def api_prestataire_requests(request):
                 "hour": item.location_captured_at.strftime("%H:%M")
                 if item.location_captured_at
                 else "",
-                "address": item.address_label or "",
+                "address": _shown_addr,
+                "address_is_approximate": not _reveal_addr,
                 "description": (
                     item.client_message
                     or item.description_probleme

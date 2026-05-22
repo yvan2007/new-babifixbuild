@@ -316,15 +316,20 @@ CINETPAY_RETURN_URL = os.getenv("CINETPAY_RETURN_URL", "")
 
 # =============================================================================
 # GENIUSPAY (Mobile Money CI — Wave, Orange, MTN, PawaPay)
-# Sandbox  : REDACTED
-# Live     : pk_live_RuhR13Fw4ETRmbjmONk2ZGBWeObzSet2
-# Base URL : https://pay.genius.ci/api/v1/merchant
+# Toutes les clés sont fournies UNIQUEMENT via variables d'environnement
+# (jamais en dur dans le code). Voir .env / variables Render.
+#   Base URL : https://pay.genius.ci/api/v1/merchant
 # =============================================================================
 GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  "")
 GENIUSPAY_SECRET_KEY  = os.getenv("GENIUSPAY_SECRET_KEY",  "")
+GENIUSPAY_API_URL     = os.getenv("GENIUSPAY_API_URL", "https://pay.genius.ci/api/v1/merchant")
 GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", "")   # ex: https://api.babifix.ci/api/paiements/geniuspay/webhook/
 GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", "")   # ex: https://app.babifix.ci/payment-success
 GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   "")   # ex: https://app.babifix.ci/payment-error
+# Versements sortants (payouts vers prestataires). wallet_id du compte marchand
+# (laisser vide → wallet principal). Délai avant versement auto (anti-fraude).
+GENIUSPAY_WALLET_ID   = os.getenv("GENIUSPAY_WALLET_ID", "")
+WITHDRAWAL_AUTO_HOLD_MINUTES = int(os.getenv("WITHDRAWAL_AUTO_HOLD_MINUTES", "15"))
 
 # =============================================================================
 # SENTRY (monitoring erreurs en production)
@@ -338,11 +343,15 @@ if _sentry_dsn:
         sentry_sdk.init(
             dsn=_sentry_dsn,
             integrations=[DjangoIntegration()],
-            traces_sample_rate=0.1,
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
             send_default_pii=False,
+            environment=os.getenv("SENTRY_ENV", "production"),
+            release=os.getenv("SENTRY_RELEASE", ""),
         )
     except ImportError:
         pass  # sentry-sdk non installé — ignorer silencieusement
+    except Exception:  # noqa: BLE001
+        pass  # ne jamais bloquer le démarrage à cause du monitoring
 
 # Connexion dashboard (CRUD) — même session que django-admin
 LOGIN_URL = "/admin/login/"

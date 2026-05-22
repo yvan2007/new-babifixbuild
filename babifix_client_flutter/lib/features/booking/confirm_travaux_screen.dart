@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class ConfirmTravauxScreen extends StatefulWidget {
   final String reservationReference;
@@ -90,23 +91,29 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
 
       if (resp.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Travaux confirmés!')));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Travaux confirmés!',
+      );
           widget.onConfirmed();
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Erreur: ${resp.statusCode}')));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: ${resp.statusCode}',
+      );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
 
@@ -256,13 +263,11 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
                           FilledButton(
                             onPressed: () {
                               Navigator.pop(ctx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Litige ouvert. Un médiateur vous contactera.',
-                                  ),
-                                ),
-                              );
+                              showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Litige ouvert. Un médiateur vous contactera.',
+      );
                             },
                             style: FilledButton.styleFrom(
                               backgroundColor: Colors.red,

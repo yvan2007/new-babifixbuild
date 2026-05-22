@@ -286,6 +286,15 @@ class EscrowService:
         if getattr(reservation, "funds_released_at", None):
             return {"ok": True, "already_released": True}
 
+        # SÉCURITÉ ARGENT : un litige ouvert GÈLE le versement. Les fonds ne
+        # bougent qu'après résolution admin (resolve_dispute) qui lève le flag.
+        if getattr(reservation, "dispute_ouverte", False):
+            logger.info(
+                "release_funds: litige ouvert pour %s — versement gelé",
+                reservation.reference,
+            )
+            return {"error": "dispute_open", "held": True}
+
         if not reservation.client_confirme_prestation_at:
             return {"error": "client_not_confirmed"}
 
@@ -450,3 +459,252 @@ class EscrowService:
             result.get("platform_revenue"),
         )
         return result
+
+    # ---------- Résolution d'un litige (décision admin) --------------------
+    @staticmethod
+    @transaction.atomic
+    def resolve_dispute(reservation, decision: str) -> dict:
+        """Applique la décision d'un litige sur les fonds.
+
+        - RELEASE (Libérer paiement) : on lève le gel et on verse le net au
+          prestataire (release_funds).
+        - REFUND (Rembourser client) : aucun versement au presta ; on inscrit
+          le montant dû au client (`refund_owed_fcfa`, payé ensuite par l'admin)
+          et la réservation passe Annulée.
+        - SPLIT (Partage partiel) : 50 % au prestataire (wallet), 50 % dû au
+          client en remboursement.
+        Lève toujours `dispute_ouverte`. Idempotent via `funds_released_at`.
+        """
+        from adminpanel.models import (
+            Provider,
+            Reservation,
+            WalletTransaction,
+        )
+
+        d = (decision or "").strip().upper()
+        is_release = d in ("RELEASE", "LIBERER PAIEMENT", "LIBÉRER PAIEMENT")
+        is_refund = d in ("REFUND", "REMBOURSER CLIENT")
+        is_split = d in ("SPLIT", "PARTAGE PARTIEL", "PARTAGE")
+
+        if not (is_release or is_refund or is_split):
+            return {"error": "decision_inconnue", "decision": decision}
+
+        devis = _latest_devis(reservation)
+        net = Decimal(str(devis.net_prestataire or 0)) if devis else Decimal("0")
+        paid = Decimal(str(reservation.montant_verse or 0))
+
+        # ── Libérer au prestataire ──────────────────────────────────────────
+        if is_release:
+            reservation.dispute_ouverte = False
+            if not reservation.client_confirme_prestation_at:
+                reservation.client_confirme_prestation_at = timezone.now()
+            reservation.save(
+                update_fields=["dispute_ouverte", "client_confirme_prestation_at"]
+            )
+            res = EscrowService.release_funds(reservation)
+            res["action"] = "release"
+            return res
+
+        # ── Rembourser le client (rien au presta) ───────────────────────────
+        if is_refund:
+            refund_amount = paid if paid > 0 else Decimal(str(reservation.montant or 0))
+            reservation.dispute_ouverte = False
+            reservation.funds_released_at = timezone.now()  # bloque tout versement futur
+            reservation.refund_owed_fcfa = refund_amount
+            reservation.cash_flow_status = Reservation.CashFlowStatus.REFUSED
+            reservation.statut = Reservation.Status.CANCELLED
+            reservation.save(
+                update_fields=[
+                    "dispute_ouverte",
+                    "funds_released_at",
+                    "refund_owed_fcfa",
+                    "cash_flow_status",
+                    "statut",
+                ]
+            )
+            logger.info(
+                "resolve_dispute REFUND: %s — %s FCFA dûs au client",
+                reservation.reference, refund_amount,
+            )
+            return {"action": "refund", "ok": True, "refund_owed": float(refund_amount)}
+
+        # ── Partage 50/50 ───────────────────────────────────────────────────
+        half_net = (net / 2).quantize(Decimal("1"))
+        half_refund = (paid / 2).quantize(Decimal("1"))
+        provider = reservation.assigned_provider
+        if not provider and reservation.prestataire_user_id:
+            provider = Provider.objects.filter(
+                user_id=reservation.prestataire_user_id
+            ).first()
+        credited = Decimal("0")
+        if provider and half_net > 0:
+            prov = Provider.objects.select_for_update().get(pk=provider.pk)
+            prov.solde_fcfa = (prov.solde_fcfa or Decimal("0")) + half_net
+            prov.save(update_fields=["solde_fcfa"])
+            WalletTransaction.objects.create(
+                provider=prov,
+                tx_type="credit",
+                amount_fcfa=half_net,
+                reference=reservation.reference,
+                description=f"Partage litige (50%) — {reservation.reference}",
+                status="success",
+            )
+            credited = half_net
+        reservation.dispute_ouverte = False
+        reservation.funds_released_at = timezone.now()
+        reservation.refund_owed_fcfa = half_refund
+        reservation.save(
+            update_fields=["dispute_ouverte", "funds_released_at", "refund_owed_fcfa"]
+        )
+        logger.info(
+            "resolve_dispute SPLIT: %s — presta +%s, client remboursé %s",
+            reservation.reference, credited, half_refund,
+        )
+        return {
+            "action": "split",
+            "ok": True,
+            "to_provider": float(credited),
+            "refund_owed": float(half_refund),
+        }
+
+    # ---------- Remboursement client automatique (payout GeniusPay) --------
+    @staticmethod
+    def _client_payout_target(reservation):
+        """Téléphone + opérateur Mobile Money pour rembourser le client.
+
+        Téléphone : numéro vérifié (UserProfile.phone_e164) du client.
+        Opérateur : celui utilisé pour la réservation (mobile_money_operator).
+        """
+        from adminpanel.models import UserProfile
+
+        phone = ""
+        if reservation.client_user_id:
+            prof = UserProfile.objects.filter(
+                user_id=reservation.client_user_id
+            ).first()
+            if prof and prof.phone_e164:
+                phone = prof.phone_e164.strip()
+        operator = (reservation.mobile_money_operator or "").strip()
+        return phone, operator
+
+    @staticmethod
+    def process_client_refund(reservation) -> dict:
+        """Verse automatiquement au client le montant qui lui est dû
+        (`refund_owed_fcfa`) via un payout GeniusPay. Pro & sécurisé :
+        claim de statut pour éviter tout double versement, remboursement
+        confirmé par webhook `payout.*`."""
+        from adminpanel.models import Reservation
+        from adminpanel.geniuspay import geniuspay_send_payout
+
+        # Phase 1 — claim atomique
+        with transaction.atomic():
+            res = Reservation.objects.select_for_update().get(pk=reservation.pk)
+            owed = Decimal(str(res.refund_owed_fcfa or 0))
+            if owed <= 0 or res.refund_paid_at is not None:
+                return {"ok": True, "skip": "nothing_owed_or_already_paid"}
+            if res.refund_status in ("processing", "paid"):
+                return {"ok": True, "skip": "already_" + res.refund_status}
+            phone, operator = EscrowService._client_payout_target(res)
+            if not phone or not operator:
+                res.refund_status = "manual"  # infos MoMo manquantes → admin manuel
+                res.save(update_fields=["refund_status"])
+                logger.warning(
+                    "process_client_refund: %s — tel/opérateur client manquant "
+                    "→ remboursement manuel",
+                    res.reference,
+                )
+                return {"error": "missing_client_mobile_money", "manual": True}
+            res.refund_status = "processing"
+            res.save(update_fields=["refund_status"])
+            ref = res.reference
+            client_name = res.client or "Client BABIFIX"
+
+        ext_ref = f"REFUND-{ref}"
+        result = geniuspay_send_payout(
+            amount=owed,
+            phone=phone,
+            operator=operator,
+            recipient_name=client_name,
+            reference=ext_ref,
+            description=f"Remboursement litige BABIFIX — {ref}",
+        )
+
+        if not result.get("ok"):
+            with transaction.atomic():
+                res = Reservation.objects.select_for_update().get(pk=reservation.pk)
+                res.refund_status = "failed"
+                res.save(update_fields=["refund_status"])
+            logger.error(
+                "process_client_refund: échec payout %s — %s",
+                ref, result.get("error"),
+            )
+            EscrowService._notify_client_refund(reservation.pk, ok=False)
+            return {"error": "payout_failed", "detail": result.get("error")}
+
+        with transaction.atomic():
+            res = Reservation.objects.select_for_update().get(pk=reservation.pk)
+            res.refund_reference = result.get("external_reference") or ext_ref
+            if result.get("status") == "completed":
+                res.refund_status = "paid"
+                res.refund_paid_at = timezone.now()
+            else:
+                res.refund_status = "processing"
+            res.save(
+                update_fields=["refund_reference", "refund_status", "refund_paid_at"]
+            )
+        if res.refund_status == "paid":
+            EscrowService._notify_client_refund(reservation.pk, ok=True)
+        logger.info(
+            "process_client_refund: %s → %s (ref=%s)",
+            ref, res.refund_status, res.refund_reference,
+        )
+        return {"ok": True, "status": res.refund_status, "reference": res.refund_reference}
+
+    @staticmethod
+    def handle_refund_payout_webhook(*, external_reference: str, success: bool) -> dict:
+        """Confirme/échoue un remboursement client suite au webhook payout.*."""
+        from adminpanel.models import Reservation
+
+        res = Reservation.objects.filter(refund_reference=external_reference).first()
+        if not res:
+            return {"error": "refund_not_found"}
+        if success:
+            if res.refund_status != "paid":
+                res.refund_status = "paid"
+                res.refund_paid_at = timezone.now()
+                res.save(update_fields=["refund_status", "refund_paid_at"])
+                EscrowService._notify_client_refund(res.pk, ok=True)
+            return {"ok": True, "status": "paid"}
+        if res.refund_status != "failed":
+            res.refund_status = "failed"
+            res.save(update_fields=["refund_status"])
+            EscrowService._notify_client_refund(res.pk, ok=False)
+        return {"ok": True, "status": "failed"}
+
+    @staticmethod
+    def _notify_client_refund(reservation_pk: int, ok: bool) -> None:
+        from adminpanel.models import Reservation
+
+        res = Reservation.objects.filter(pk=reservation_pk).first()
+        if not res or not res.client_user_id:
+            return
+        try:
+            from adminpanel.push_dispatch import _schedule
+
+            if ok:
+                title = "BABIFIX — Remboursement effectué"
+                body = (
+                    f"Votre remboursement de {res.refund_owed_fcfa:,.0f} FCFA "
+                    f"(litige {res.reference}) a été versé sur votre compte Mobile Money."
+                )
+                ev = "refund.completed"
+            else:
+                title = "BABIFIX — Remboursement en traitement"
+                body = (
+                    f"Votre remboursement (litige {res.reference}) sera traité "
+                    f"manuellement par notre équipe sous peu."
+                )
+                ev = "refund.failed"
+            _schedule([res.client_user_id], title, body, {"type": ev, "reference": res.reference})
+        except Exception as exc:
+            logger.warning("notify client refund failed: %s", exc)

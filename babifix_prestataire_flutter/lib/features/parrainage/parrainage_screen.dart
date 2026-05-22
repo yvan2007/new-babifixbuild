@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../shared/services/babifix_user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class ParrainageScreen extends StatefulWidget {
   const ParrainageScreen({super.key});
@@ -52,9 +53,11 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
 
   void _copyCode() {
     Clipboard.setData(ClipboardData(text: _code));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Code copié !'), backgroundColor: Color(0xFF1565C0)),
-    );
+    showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Code copié !',
+      );
   }
 
   void _shareCode() {

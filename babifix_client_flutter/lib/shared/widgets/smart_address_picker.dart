@@ -20,6 +20,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'babifix_ring_loader.dart';
+import 'babifix_snackbar.dart';
 
 class PickedAddress {
   final String label;
@@ -215,9 +216,10 @@ class _SmartAddressPickerState extends State<SmartAddressPicker> {
   void _validate() {
     if (_target == null) return;
     if (_addressLabel.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Adresse introuvable. Réessayez de localiser.')),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Adresse introuvable. Réessayez de localiser.',
       );
       return;
     }

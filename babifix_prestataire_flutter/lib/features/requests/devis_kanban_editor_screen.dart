@@ -13,6 +13,7 @@ import '../../services/babifix_api.dart';
 import '../../shared/widgets/animated_list_item.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class DevisKanbanEditorScreen extends StatefulWidget {
   final String reservationReference;
@@ -99,9 +100,11 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen>
 
   Future<void> _openCatalogue(DevisLineType section) async {
     if (_catalogue.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Catalogue vide pour votre catégorie.'),
-      ));
+      showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Catalogue vide pour votre catégorie.',
+      );
       return;
     }
     final filtered =
@@ -315,9 +318,11 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen>
         lignes: _lignes,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          backgroundColor: BabifixDesign.ciGreen,
-          content: const Text('Devis envoyé au client.')));
+      showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Devis envoyé au client.',
+      );
       Navigator.of(context).pop(true);
     } on BabifixApiException catch (e) {
       _snack(e.message);
@@ -330,8 +335,11 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen>
 
   void _snack(String s) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(s)));
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: s,
+      );
   }
 
   // ---------------------------------------------------------------------------

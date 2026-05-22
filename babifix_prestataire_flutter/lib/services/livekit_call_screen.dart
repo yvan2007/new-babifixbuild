@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 
 import '../babifix_design_system.dart';
+import '../shared/widgets/babifix_snackbar.dart';
 
 class LiveKitCallScreen extends StatefulWidget {
   final String liveKitUrl;
@@ -128,13 +129,12 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
       debugPrint('[LiveKit] Connection error: $e');
       debugPrint('[LiveKit] Stack trace: $stackTrace');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur de connexion: $e'),
-            backgroundColor: BabifixDesign.error,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur de connexion: $e',
+        duration: const Duration(seconds: 5),
+      );
       }
     }
   }

@@ -18,6 +18,7 @@ import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class ClientJournalScreen extends StatefulWidget {
   final String reservationReference;
@@ -145,10 +146,11 @@ class _ClientJournalScreenState extends State<ClientJournalScreen> {
         return;
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        backgroundColor: BabifixDesign.ciGreen,
-        content: const Text('Journal enregistré.'),
-      ));
+      showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Journal enregistré.',
+      );
       _updatedAt = DateTime.now();
       setState(() {});
     } catch (e) {
@@ -160,7 +162,11 @@ class _ClientJournalScreenState extends State<ClientJournalScreen> {
 
   void _snack(String s) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: s,
+      );
   }
 
   @override

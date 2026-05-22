@@ -1,0 +1,103 @@
+{% load babifix_tags %}
+
+<div class="finances-admin">
+  <!-- Contrôle de cohérence du wallet ---------------------------------------->
+  {% if finance.wallet_ok %}
+  <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;margin-bottom:16px;
+              background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.3);border-radius:12px;">
+    <span style="font-size:18px;">✅</span>
+    <span style="color:#0b1b34;font-weight:600;">Comptes cohérents — les soldes wallet correspondent aux mouvements enregistrés.</span>
+  </div>
+  {% else %}
+  <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;margin-bottom:16px;
+              background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.35);border-radius:12px;">
+    <span style="font-size:18px;">⚠️</span>
+    <span style="color:#0b1b34;font-weight:600;">
+      Écart détecté : <b>{{ finance.wallet_ecart|floatformat:0 }} FCFA</b> entre soldes réels et soldes attendus. À investiguer.
+    </span>
+  </div>
+  {% endif %}
+
+  <!-- KPIs --------------------------------------------------------------------->
+  <div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px;">
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="color:#64748b;font-size:12px;margin:0 0 6px;">Revenus plateforme</p>
+      <p style="color:#0e7490;font-size:24px;font-weight:800;margin:0;">{{ finance.revenue_total|floatformat:0 }} <span style="font-size:13px;">FCFA</span></p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="color:#64748b;font-size:12px;margin:0 0 6px;">Versé aux prestataires</p>
+      <p style="color:#0b1b34;font-size:24px;font-weight:800;margin:0;">{{ finance.withdrawals_paid|floatformat:0 }} <span style="font-size:13px;">FCFA</span></p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="color:#64748b;font-size:12px;margin:0 0 6px;">Soldes wallet (à payer)</p>
+      <p style="color:#0b1b34;font-size:24px;font-weight:800;margin:0;">{{ finance.wallet_balances|floatformat:0 }} <span style="font-size:13px;">FCFA</span></p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="color:#64748b;font-size:12px;margin:0 0 6px;">Retraits en cours</p>
+      <p style="color:#f59e0b;font-size:24px;font-weight:800;margin:0;">{{ finance.withdrawals_inflight|floatformat:0 }} <span style="font-size:13px;">FCFA</span></p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="color:#64748b;font-size:12px;margin:0 0 6px;">Remboursements dûs</p>
+      <p style="color:#ef4444;font-size:24px;font-weight:800;margin:0;">{{ finance.refunds_owed_total|floatformat:0 }} <span style="font-size:13px;">FCFA</span></p>
+      <p style="color:#94a3b8;font-size:11px;margin:4px 0 0;">{{ finance.refunds_owed_count }} dossier(s)</p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="color:#64748b;font-size:12px;margin:0 0 6px;">Remboursements payés</p>
+      <p style="color:#22c55e;font-size:24px;font-weight:800;margin:0;">{{ finance.refunds_paid_total|floatformat:0 }} <span style="font-size:13px;">FCFA</span></p>
+      <p style="color:#94a3b8;font-size:11px;margin:4px 0 0;">{{ finance.refunds_paid_count }} dossier(s)</p>
+    </article>
+  </div>
+
+  <!-- Alertes nécessitant une action ------------------------------------------>
+  <article class="card card-elevate" style="margin-bottom:18px;">
+    <h3>Actions requises</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;">
+      <span class="pill {% if finance.alert_withdrawals_failed %}pill{% else %}pill-ok{% endif %}"
+            style="padding:8px 12px;">Retraits échoués : <b>{{ finance.alert_withdrawals_failed }}</b></span>
+      <span class="pill" style="padding:8px 12px;">Retraits en cours : <b>{{ finance.alert_withdrawals_inflight }}</b></span>
+      <span class="pill {% if finance.alert_refunds_failed %}pill{% else %}pill-ok{% endif %}"
+            style="padding:8px 12px;">Remboursements échoués : <b>{{ finance.alert_refunds_failed }}</b></span>
+      <span class="pill {% if finance.alert_refunds_manual %}pill{% else %}pill-ok{% endif %}"
+            style="padding:8px 12px;">Remboursements manuels : <b>{{ finance.alert_refunds_manual }}</b></span>
+    </div>
+    <p class="section-help" style="margin-top:10px;">Gérez le détail dans la section « Versements & remboursements ».</p>
+  </article>
+
+  <!-- Détail réconciliation ---------------------------------------------------->
+  <article class="card card-elevate">
+    <h3>Détail de la réconciliation wallet</h3>
+    <table class="data-table">
+      <tbody>
+        <tr><td>Total crédité aux prestataires (gains)</td><td style="text-align:right;font-weight:700;">+ {{ finance.wallet_credits|floatformat:0 }} FCFA</td></tr>
+        <tr><td>Remboursements wallet (retraits échoués recrédités)</td><td style="text-align:right;font-weight:700;">+ {{ finance.wallet_refunds|floatformat:0 }} FCFA</td></tr>
+        <tr><td>Retraits versés</td><td style="text-align:right;font-weight:700;">− {{ finance.withdrawals_paid|floatformat:0 }} FCFA</td></tr>
+        <tr><td>Retraits en cours (réservés)</td><td style="text-align:right;font-weight:700;">− {{ finance.withdrawals_inflight|floatformat:0 }} FCFA</td></tr>
+        <tr style="border-top:2px solid #e2e8f0;"><td><b>Solde attendu</b></td><td style="text-align:right;font-weight:800;">{{ finance.wallet_expected|floatformat:0 }} FCFA</td></tr>
+        <tr><td><b>Solde réel (somme des wallets)</b></td><td style="text-align:right;font-weight:800;">{{ finance.wallet_balances|floatformat:0 }} FCFA</td></tr>
+        <tr style="background:{% if finance.wallet_ok %}rgba(34,197,94,.08){% else %}rgba(239,68,68,.08){% endif %};">
+          <td><b>Écart</b></td>
+          <td style="text-align:right;font-weight:800;color:{% if finance.wallet_ok %}#16a34a{% else %}#dc2626{% endif %};">{{ finance.wallet_ecart|floatformat:0 }} FCFA</td>
+        </tr>
+      </tbody>
+    </table>
+  </article>
+
+  <!-- Revenus par source ------------------------------------------------------->
+  <article class="card card-elevate" style="margin-top:18px;">
+    <h3>Revenus plateforme par source</h3>
+    <table class="data-table">
+      <thead><tr><th>Source</th><th style="text-align:right;">Montant</th><th style="text-align:right;">Nombre</th></tr></thead>
+      <tbody>
+        {% for s in finance.revenue_by_source %}
+        <tr>
+          <td>{{ s.source }}</td>
+          <td style="text-align:right;font-weight:700;">{{ s.total|floatformat:0 }} FCFA</td>
+          <td style="text-align:right;">{{ s.count }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="empty-state">Aucun revenu enregistré pour le moment.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</div>

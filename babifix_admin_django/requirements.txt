@@ -25,3 +25,5 @@ cryptography>=41.0.0
 python-jose>=3.3.0
 # PDF Facturation
 reportlab>=4.0.0
+# Monitoring erreurs (activé seulement si SENTRY_DSN est défini)
+sentry-sdk[django]>=2.0.0

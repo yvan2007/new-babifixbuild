@@ -15,6 +15,7 @@ import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class ExecutionActionsWidget extends StatefulWidget {
   final String reservationReference;
@@ -166,7 +167,11 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
 
   void _snack(String s) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: s,
+      );
   }
 
   @override

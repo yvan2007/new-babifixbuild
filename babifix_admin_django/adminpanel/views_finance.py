@@ -383,54 +383,50 @@ def api_admin_platform_revenue(request):
 def api_admin_validate_withdrawal(request, tx_id):
     """
     POST /api/admin/wallet/withdrawals/<tx_id>/validate/
-    Marque un retrait comme traité (après virement Manuel ou API Mobile Money).
+    Body JSON optionnel : {action: "approve"|"reject", reason}
+
+    - approve (défaut) : déclenche le VERSEMENT réel (payout GeniusPay) tout de
+      suite (override manuel — sinon le cron le fait automatiquement après le
+      délai de sécurité).
+    - reject : annule le retrait et recrédite le solde du prestataire.
     """
     if request.method != "POST":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
 
+    # SÉCURITÉ : action financière → réservée aux administrateurs (staff).
+    if not (request.user.is_staff or request.user.is_superuser):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
     try:
-        tx = WalletTransaction.objects.select_related("provider").get(
-            pk=tx_id, tx_type="debit", status="pending"
-        )
-    except WalletTransaction.DoesNotExist:
+        body = json.loads(request.body or b"{}")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        body = {}
+    action = str(body.get("action", "approve")).strip().lower()
+
+    from .services.wallet_service import WalletService
+
+    tx = WalletTransaction.objects.filter(pk=tx_id, tx_type="debit").first()
+    if not tx:
         return JsonResponse({"error": "transaction_not_found"}, status=404)
-
-    tx.status = "success"
-    tx.save(update_fields=["status"])
-
-    # Notifier le prestataire
-    try:
-        from .push_dispatch import _schedule
-        _schedule(
-            [tx.provider.user_id],
-            "BABIFIX — Retrait effectué",
-            f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA via {tx.operator.upper()} a été traité.",
-            {
-                "type": "wallet.withdrawal_done",
-                "tx_id": str(tx.pk),
-                "route": "/prestataire/wallet",
-            },
+    if tx.status != "pending":
+        return JsonResponse(
+            {"error": "not_pending", "status": tx.status}, status=400
         )
-    except Exception:
-        pass
 
-    # WebSocket temps réel
-    try:
-        from asgiref.sync import async_to_sync
-        from channels.layers import get_channel_layer
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"prestataire_{tx.provider.user_id}",
-            {
-                "type": "prestataire_notify",
-                "event_type": "wallet.withdrawal_done",
-                "payload": {"tx_id": tx.pk, "amount": float(tx.amount_fcfa), "status": "success"},
-            },
+    if action == "reject":
+        WalletService._refund_withdrawal(
+            tx.pk, reason=str(body.get("reason") or "Rejeté par l'administrateur")
         )
-    except Exception:
-        pass
+        return JsonResponse(
+            {"ok": True, "tx_id": tx_id, "status": "failed", "refunded": True},
+            status=200,
+        )
 
-    return JsonResponse({"ok": True, "tx_id": tx_id, "status": "success"}, status=200)
+    # approve → versement réel immédiat
+    result = WalletService.process_withdrawal(tx.pk)
+    if "error" in result:
+        return JsonResponse(result, status=400)
+    return JsonResponse({"ok": True, "tx_id": tx_id, **result}, status=200)
 
 
 # =============================================================================

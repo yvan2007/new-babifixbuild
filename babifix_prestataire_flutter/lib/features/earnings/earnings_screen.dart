@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
 import 'payment_history_screen.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 Future<String?> _getToken() async {
   return readStoredApiToken();
@@ -174,9 +175,11 @@ class _EarningsScreenState extends State<EarningsScreen>
         headers: {'Authorization': 'Bearer $_token'},
       );
       if (res.statusCode == 200 && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Export CSV téléchargé avec succès')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Export CSV téléchargé avec succès',
+      );
       }
     } catch (_) {}
   }

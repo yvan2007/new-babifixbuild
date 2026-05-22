@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 /// Écran pour répondre à un litige.
 /// Le presta apporte sa version + ses preuves photos.
@@ -71,18 +72,11 @@ class _PrestaDisputeRespondScreenState
 
   void _showSnack(String msg, {Color color = _kCyan}) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: _kNavy,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color.withValues(alpha: 0.55)),
-        ),
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-      ),
-    );
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: msg,
+      );
   }
 
   Future<void> _pickPhoto() async {

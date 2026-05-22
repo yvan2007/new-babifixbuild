@@ -271,6 +271,7 @@ class WalletTransaction(models.Model):
 
     class TxStatus(models.TextChoices):
         PENDING = "pending", "En attente"
+        PROCESSING = "processing", "En cours de versement"
         SUCCESS = "success", "Réussi"
         FAILED = "failed", "Échoué"
 
@@ -567,7 +568,19 @@ class Reservation(models.Model):
     refund_paid_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Set par l'admin une fois le remboursement effectivement viré",
+        help_text="Set une fois le remboursement client effectivement viré (payout).",
+    )
+    refund_reference = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Référence externe du versement de remboursement (GeniusPay).",
+    )
+    refund_status = models.CharField(
+        max_length=12,
+        blank=True,
+        default="",
+        help_text="'' | processing | paid | failed | manual — état du remboursement client.",
     )
     dispute_ouverte = models.BooleanField(default=False, db_index=True)
     payment_client_note = models.TextField(

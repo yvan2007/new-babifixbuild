@@ -23,7 +23,7 @@ from django.views.decorators.http import require_http_methods
 
 from .auth import require_api_auth
 from .livekit_service import generate_access_token, livekit_url, new_room_name
-from .models import Call, Reservation
+from .models import Call, Conversation, Reservation
 from .push_dispatch import _schedule
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,97 @@ def _serialize(call: Call) -> dict:
         "duration_seconds": call.duration_seconds,
         "livekit_url": livekit_url(),
     }
+
+
+# ---------------------------------------------------------------------------
+# POST /api/livekit/token
+# Génération de token LiveKit côté serveur uniquement.
+#
+# La clé secrète LiveKit ne doit JAMAIS être présente dans l'app mobile.
+# L'app fournit juste un contexte d'autorisation (conversation_id ou
+# reservation_reference) et le backend vérifie l'accès puis signe.
+# ---------------------------------------------------------------------------
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client", "prestataire", "admin"])
+def api_livekit_token(request):
+    """Body JSON (l'un des deux) :
+       - conversation_id (int)        → room = "chat_conv_<id>"
+       - reservation_reference (str)  → room = "res_<ref>"
+       Optionnel : kind ("VOICE" | "VIDEO") pour ajuster les permissions
+       (par défaut on autorise publish/subscribe audio + video).
+    """
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    uid = int(request.api_user_id)
+    user = User.objects.filter(pk=uid).first()
+    if not user:
+        return JsonResponse({"error": "user_not_found"}, status=404)
+
+    conversation_id = payload.get("conversation_id")
+    reservation_reference = (payload.get("reservation_reference") or "").strip()
+
+    room_name: str = ""
+    role = "user"
+
+    if conversation_id is not None:
+        try:
+            cid = int(conversation_id)
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "invalid_conversation_id"}, status=400)
+        conv = (
+            Conversation.objects
+            .select_related("reservation")
+            .filter(pk=cid).first()
+        )
+        if not conv:
+            return JsonResponse({"error": "conversation_not_found"}, status=404)
+        res = conv.reservation
+        if not res:
+            return JsonResponse({"error": "conversation_orphan"}, status=400)
+        is_client = res.client_user_id == uid
+        is_prest = bool(
+            res.assigned_provider
+            and res.assigned_provider.user_id == uid
+        )
+        if not (is_client or is_prest):
+            return JsonResponse({"error": "forbidden"}, status=403)
+        room_name = f"chat_conv_{cid}"
+        role = "client" if is_client else "prestataire"
+    elif reservation_reference:
+        res = Reservation.objects.filter(reference=reservation_reference).first()
+        if not res:
+            return JsonResponse({"error": "reservation_not_found"}, status=404)
+        is_client = res.client_user_id == uid
+        is_prest = bool(
+            res.assigned_provider
+            and res.assigned_provider.user_id == uid
+        )
+        if not (is_client or is_prest):
+            return JsonResponse({"error": "forbidden"}, status=403)
+        room_name = f"res_{reservation_reference}"
+        role = "client" if is_client else "prestataire"
+    else:
+        return JsonResponse(
+            {"error": "conversation_id_or_reservation_required"},
+            status=400,
+        )
+
+    token = generate_access_token(
+        identity=_identity_for(uid, role),
+        name=_user_display(user),
+        room_name=room_name,
+        ttl_seconds=3600,
+    )
+    return JsonResponse({
+        "token": token,
+        "url": livekit_url(),
+        "room": room_name,
+        "identity": _identity_for(uid, role),
+    })
 
 
 # ---------------------------------------------------------------------------

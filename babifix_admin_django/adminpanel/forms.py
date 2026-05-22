@@ -5,6 +5,7 @@ from django import forms
 from .constants import CATEGORY_ICON_SLUGS
 from .models import (
     Actualite,
+    CatalogueItem,
     Category,
     Client,
     Dispute,
@@ -124,6 +125,43 @@ class CategoryForm(forms.ModelForm):
                 self.fields["icone_slug"].choices = list(
                     self.fields["icone_slug"].choices
                 ) + [(cur, cur)]
+
+
+class CatalogueItemForm(forms.ModelForm):
+    """Édition d'une fourniture / prestation type du catalogue d'une catégorie."""
+
+    class Meta:
+        model = CatalogueItem
+        fields = [
+            "category",
+            "type_ligne",
+            "nom",
+            "description",
+            "unite",
+            "prix_unitaire_indicatif",
+            "marque",
+            "actif",
+        ]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 2}),
+            "nom": forms.TextInput(
+                attrs={"placeholder": "Ex. Tuyau PVC Ø32, Pose robinet…"}
+            ),
+            "unite": forms.TextInput(
+                attrs={"placeholder": "u, m, m², ml, kg, h, forfait…"}
+            ),
+            "marque": forms.TextInput(attrs={"placeholder": "Optionnel"}),
+        }
+        help_texts = {
+            "type_ligne": "Section du devis (Fourniture / Main d'œuvre / Déplacement / Autre).",
+            "prix_unitaire_indicatif": "Prix indicatif en FCFA — le prestataire peut le surcharger.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ne proposer que des catégories réelles, triées par nom.
+        if "category" in self.fields:
+            self.fields["category"].queryset = Category.objects.order_by("nom")
 
 
 class NotificationForm(forms.ModelForm):

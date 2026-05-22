@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class VoiceCallService {
   static bool _isInitialized = false;
@@ -18,9 +19,11 @@ class VoiceCallService {
     required String targetUserID,
     required String targetUserName,
   }) async {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Appel vers $targetUserName')));
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Appel vers $targetUserName',
+      );
   }
 
   static void dispose() {

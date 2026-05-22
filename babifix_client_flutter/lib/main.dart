@@ -36,6 +36,7 @@ import 'features/auth/onboarding_screen.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/auth/forgot_password_screen.dart';
 import 'features/disputes/my_disputes_screen.dart';
+import 'features/disputes/dispute_open_screen.dart';
 import 'features/profile/edit_profile_screen.dart';
 import 'features/chat/messages_screen.dart';
 import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
@@ -61,6 +62,9 @@ import 'theme/app_theme.dart';
 import 'router/babifix_client_router.dart';
 import 'services/fcm_router.dart';
 import 'splash_screen.dart';
+import 'shared/widgets/babifix_snackbar.dart';
+import 'shared/widgets/app_version_gate.dart';
+import 'shared/widgets/error_reporter.dart';
 
 // Le navigatorKey est partagé entre l'ancien Zego (legacy) et le nouveau
 // BabifixFcmRouter qui ouvre IncomingCallScreen sur FCM call.incoming.
@@ -91,11 +95,14 @@ String reservationWhenLabelFromFlowData(Map<String, dynamic> flowData) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Monitoring : capter les crashs et les remonter au backend (→ Sentry).
+  initErrorReporter(app: 'client', version: kAppVersion);
+
   try {
     await dotenv.load(fileName: ".env");
   } catch (_) {}
-  
+
   await BabifixFcm.ensureInitialized();
   
   // Zego SDK temporairement désactivé — voir services/zego_call_service.dart
@@ -108,8 +115,8 @@ Future<void> main() async {
 
 Future<void> _initLiveKitForClientIfNeeded(String? authToken, BuildContext? context) async {
   debugPrint('[LiveKit Client Init] token=${authToken != null}, alreadyInit=${BabifixLiveKitService.isInitialized}');
-  debugPrint('[LiveKit Client Init] url=${BabifixLiveKitService.url}');
-  debugPrint('[LiveKit Client Init] apiKey len=${BabifixLiveKitService.apiKey.length}');
+  // URL et clés LiveKit ne sont plus dans l'app — récupérées au runtime
+  // depuis /api/livekit/token (backend authoritative).
 
   if (authToken == null || authToken.isEmpty) {
     debugPrint('[LiveKit Client Init] No auth token, skipping');
@@ -411,6 +418,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
         // Recharger les prestataires en temps réel (force update)
         _loadPublicProviders(forceUpdate: true);
       }
+    });
+    // Contrôle de version (force update) — non bloquant si tout est à jour.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) checkAppVersionGate(context, app: 'client');
     });
   }
 
@@ -797,15 +808,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
               );
             }
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    typ == 'provider.approved'
+              showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: typ == 'provider.approved'
                         ? 'Catalogue mis a jour : nouveau prestataire.'
                         : 'Nouvelle actualite BABIFIX.',
-                  ),
-                ),
-              );
+      );
             }
           } else if (typ == 'chat.message') {
             _refreshUnreadChat();
@@ -982,6 +991,86 @@ class _ClientHomePageState extends State<ClientHomePage> {
     if (mounted) {
       await _loadProfile();
       setState(() {});
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.delete_forever_rounded,
+            size: 48, color: Color(0xFFEF4444)),
+        title: const Text('Supprimer mon compte ?',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        content: const Text(
+          'Cette action est définitive. Vos données personnelles seront '
+          'effacées (loi n°2013-450). Possible uniquement sans réservation '
+          'ni litige en cours.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('Supprimer'),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final token = await BabifixUserStore.getApiToken();
+    if (token == null || token.isEmpty) return;
+    try {
+      final resp = await http.delete(
+        Uri.parse('${babifixApiBaseUrl()}/api/auth/delete-account'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'confirmation': 'supprimer'}),
+      );
+      if (!mounted) return;
+      if (resp.statusCode == 200) {
+        _clientWsSub?.cancel();
+        _clientFcmSub?.cancel();
+        _clientFcmOpenedSub?.cancel();
+        await BabifixLiveKitService.uninit();
+        await BabifixUserStore.logout();
+        authToken = null;
+        if (mounted) {
+          await _loadProfile();
+          setState(() {});
+        }
+        if (mounted) {
+          showBabifixToast(context,
+              type: BabifixToastType.success,
+              title: 'Compte supprimé',
+              message: 'Votre compte a bien été supprimé.');
+        }
+      } else {
+        String msg = 'Suppression impossible pour le moment.';
+        try {
+          msg = (jsonDecode(resp.body)['message'] ?? msg).toString();
+        } catch (_) {}
+        showBabifixToast(context,
+            type: BabifixToastType.error, title: 'Impossible', message: msg);
+      }
+    } catch (_) {
+      if (mounted) {
+        showBabifixToast(context,
+            type: BabifixToastType.error,
+            message: 'Erreur réseau. Réessayez.');
+      }
     }
   }
 
@@ -4114,6 +4203,116 @@ class _ClientHomePageState extends State<ClientHomePage> {
     } catch (_) {}
   }
 
+  /// Explique le système d'escrow (argent bloqué) au client.
+  Future<void> _showEscrowExplanation() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _isLight ? Colors.white : const Color(0xFF152A45),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.shield_rounded,
+            size: 44, color: Color(0xFF22C55E)),
+        title: Text(
+          'Paiement sécurisé (escrow)',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: _textPrimary,
+            fontSize: 18,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quand vous payez une intervention, votre argent n\'est PAS '
+              'versé directement au prestataire.',
+              style: TextStyle(color: _textSecondary, fontSize: 13.5, height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            _escrowStep('1', 'Vous payez', 'Le montant est conservé en '
+                'sécurité par BABIFIX (ni vous, ni le prestataire ne peut y toucher).'),
+            _escrowStep('2', 'Le travail est fait', 'Le prestataire réalise '
+                'la mission à votre domicile.'),
+            _escrowStep('3', 'Vous confirmez', 'Une fois satisfait, vous '
+                'validez. L\'argent est alors libéré au prestataire.'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF22C55E).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '🛡️ En cas de problème, vous pouvez ouvrir un litige : '
+                'l\'argent reste bloqué jusqu\'à la décision de BABIFIX.',
+                style: TextStyle(
+                  color: _textPrimary,
+                  fontSize: 12.5,
+                  height: 1.45,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: FilledButton.styleFrom(
+              backgroundColor: BabifixDesign.cyan,
+              foregroundColor: const Color(0xFF0B1B34),
+            ),
+            child: const Text('J\'ai compris',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _escrowStep(String n, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFF4CC9F0),
+            ),
+            alignment: Alignment.center,
+            child: Text(n,
+                style: const TextStyle(
+                    color: Color(0xFF0B1B34),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                        color: _textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13)),
+                Text(desc,
+                    style: TextStyle(
+                        color: _textSecondary, fontSize: 12, height: 1.4)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProfile() {
     final activeCount =
         reservations.where((r) => r.status == 'En cours').length;
@@ -4339,16 +4538,56 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ),
                             const SizedBox(width: 10),
                             _HeroStat(
-                              icon: Icons.shield_rounded,
+                              icon: Icons.lock_clock_rounded,
                               value: totalEscrow > 0
                                   ? formatFcfa(totalEscrow)
                                   : '0 F',
-                              label: 'Sécurisé',
+                              label: 'Bloqué',
                               accent: const Color(0xFF4ADE80),
                               valueFontSize: 13,
                             ),
                           ],
                         ),
+                        if (totalEscrow > 0) ...[
+                          const SizedBox(height: 10),
+                          GestureDetector(
+                            onTap: _showEscrowExplanation,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF22C55E)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFF22C55E)
+                                      .withValues(alpha: 0.30),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.shield_rounded,
+                                      color: Color(0xFF4ADE80), size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${formatFcfa(totalEscrow)} bloqués en sécurité — '
+                                      'libérés au prestataire une fois la mission terminée.',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11.5,
+                                        height: 1.35,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(Icons.info_outline_rounded,
+                                      color: Colors.white54, size: 14),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                         if (completedCount > 0) ...[
                           const SizedBox(height: 10),
                           Container(
@@ -4592,7 +4831,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
                 // ── Zone Deconnexion ──────────────────────────────────
                 const SizedBox(height: 20),
-                if (sessionLoggedIn)
+                if (sessionLoggedIn) ...[
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
@@ -4627,7 +4866,45 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         ),
                       ),
                     ),
-                  )
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _deleteAccount,
+                      icon: Icon(Icons.delete_forever_rounded,
+                          size: 16,
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.8)),
+                      label: Text('Supprimer mon compte',
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.8))),
+                    ),
+                  ),
+                  Center(
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 4,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              _launchUrl('https://babifix.ci/confidentialite/'),
+                          child: const Text('Confidentialité',
+                              style: TextStyle(
+                                  fontSize: 11.5, color: Color(0xFF94A3B8))),
+                        ),
+                        const Text('·',
+                            style: TextStyle(color: Color(0xFF94A3B8))),
+                        TextButton(
+                          onPressed: () => _launchUrl('https://babifix.ci/cgu/'),
+                          child: const Text('CGU',
+                              style: TextStyle(
+                                  fontSize: 11.5, color: Color(0xFF94A3B8))),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]
                 else
                   Container(
                     decoration: BoxDecoration(
@@ -5308,13 +5585,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
         final ref = respJson['reference'] ?? '?';
         debugPrint('✅ RESERVATION CREATED — ref: $ref');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ Réservation créée: $ref (prestataire #${service.providerId})'),
-              duration: const Duration(seconds: 4),
-              backgroundColor: const Color(0xFF22C55E),
-            ),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Réservation créée: $ref (prestataire #${service.providerId})',
+        duration: const Duration(seconds: 4),
+      );
           await _loadRemoteData();
         }
         return true;
@@ -5348,17 +5624,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
         final msg = detail.isNotEmpty
             ? detail
             : 'Reservation impossible (${res.statusCode})';
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: msg,
+      );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erreur reseau — reessayez dans un instant.'),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur reseau — reessayez dans un instant.',
+      );
       }
     }
     return false;
@@ -5386,200 +5664,531 @@ class _ClientHomePageState extends State<ClientHomePage> {
       );
       if (!mounted) return;
       if (res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Paiement especes declare — en attente du prestataire.',
-            ),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Paiement especes declare — en attente du prestataire.',
+      );
         await _loadRemoteData();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: ${res.statusCode}')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: ${res.statusCode}',
+      );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
   }
 
+  // ── Statut → style visuel (couleur, icône, libellé, étape timeline) ──
+  ({Color color, IconData icon, String label, int step}) _resaStatusMeta(
+      ClientReservation r) {
+    final s = r.status.trim();
+    final low = s.toLowerCase();
+    if (low.contains('annul')) {
+      return (color: const Color(0xFFEF4444), icon: Icons.cancel_rounded,
+          label: 'Annulée', step: 0);
+    }
+    if (low.contains('termin')) {
+      return (color: const Color(0xFF22C55E), icon: Icons.verified_rounded,
+          label: 'Terminée', step: 4);
+    }
+    if (s == 'INTERVENTION_EN_COURS' || low == 'en cours' ||
+        low.contains('cours')) {
+      return (color: const Color(0xFF4CC9F0), icon: Icons.build_circle_rounded,
+          label: 'Intervention en cours', step: 3);
+    }
+    if (s == 'DEVIS_ACCEPTE' || low.contains('confirm')) {
+      return (color: const Color(0xFF4CC9F0), icon: Icons.task_alt_rounded,
+          label: 'Devis accepté', step: 2);
+    }
+    if (s == 'DEVIS_ENVOYE') {
+      return (color: const Color(0xFFF59E0B), icon: Icons.description_rounded,
+          label: 'Devis reçu', step: 2);
+    }
+    if (s == 'DEVIS_EN_COURS') {
+      return (color: const Color(0xFFF59E0B), icon: Icons.hourglass_top_rounded,
+          label: 'Devis en préparation', step: 1);
+    }
+    // DEMANDE_ENVOYEE / En attente
+    return (color: const Color(0xFFF59E0B), icon: Icons.send_rounded,
+        label: r.statusLabel.isNotEmpty ? r.statusLabel : 'Demande envoyée',
+        step: 1);
+  }
+
+  String _formatAmountLabel(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    final n = int.tryParse(digits);
+    if (n == null || n == 0) return raw;
+    return formatFcfa(n);
+  }
+
   void _showReservationDetails(ClientReservation r) {
+    final meta = _resaStatusMeta(r);
+    final isCompleted = meta.step == 4;
+    final isCancelled = r.status.toLowerCase().contains('annul');
+    // "Payer" en ligne : seulement si pas terminé/annulé.
+    final showPayOnline = r.canPay && !isCompleted && !isCancelled;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
+        initialChildSize: 0.68,
+        minChildSize: 0.45,
+        maxChildSize: 0.95,
         builder: (_, controller) => Container(
           decoration: BoxDecoration(
-            color: _isLight ? Colors.white : const Color(0xFF1E293B),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            color: _isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0F1F38),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: ListView(
             controller: controller,
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.zero,
             children: [
+              // Drag handle
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 20),
+                  width: 44,
+                  height: 5,
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade400,
-                    borderRadius: BorderRadius.circular(2),
+                    color: _textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(3),
                   ),
                 ),
               ),
-              Text(
-                r.title,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _textPrimary,
+
+              // ── Header coloré selon le statut ──
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      meta.color.withValues(alpha: 0.20),
+                      meta.color.withValues(alpha: 0.06),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: meta.color.withValues(alpha: 0.35)),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                r.whenLabel,
-                style: TextStyle(fontSize: 14, color: _textSecondary),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                r.addressLabel,
-                style: TextStyle(fontSize: 14, color: _textSecondary),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Text(
-                    r.amount,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF7EC8E3),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: meta.color.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(meta.icon, color: meta.color, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                r.title,
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                  color: _textPrimary,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                meta.label,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: meta.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const Spacer(),
-                  StatusPill(
-                    text: r.statusLabel.isNotEmpty
-                        ? r.statusLabel
-                        : (r.status == 'DEVIS_ENVOYE'
-                            ? 'Devis reçu'
-                            : r.status),
-                  ),
-                ],
+                    const SizedBox(height: 14),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Montant',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: _textSecondary,
+                                    fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 2),
+                            Text(
+                              _formatAmountLabel(r.amount),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF4CC9F0),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: _isLight
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                r.paymentType == 'MOBILE_MONEY'
+                                    ? Icons.phone_iphone_rounded
+                                    : Icons.payments_rounded,
+                                size: 13,
+                                color: _textSecondary,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                r.paymentType == 'MOBILE_MONEY'
+                                    ? 'Mobile Money'
+                                    : 'Espèces',
+                                style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: _textSecondary,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              if (r.disputeOuverte) ...[
-                const SizedBox(height: 16),
+
+              // ── Timeline de progression ──
+              if (!isCancelled)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+                  child: _ResaTimeline(currentStep: meta.step),
+                ),
+
+              // ── Infos détaillées ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                child: Column(
+                  children: [
+                    if (r.whenLabel.isNotEmpty)
+                      _detailRow(Icons.schedule_rounded, 'Quand', r.whenLabel),
+                    if (r.addressLabel.isNotEmpty)
+                      _detailRow(Icons.location_on_outlined, 'Adresse',
+                          r.addressLabel),
+                    if (r.reference.isNotEmpty)
+                      _detailRow(Icons.tag_rounded, 'Référence', r.reference),
+                  ],
+                ),
+              ),
+
+              // ── Litige ouvert (si applicable) ──
+              if (r.disputeOuverte)
                 Container(
+                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade100,
-                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.warning_rounded,
-                        color: Colors.orange.shade800,
-                      ),
+                      const Icon(Icons.gavel_rounded,
+                          color: Color(0xFFF59E0B), size: 18),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Litige signale — suivi avec BABIFIX',
+                          'Litige en cours — suivi avec BABIFIX',
                           style: TextStyle(
-                            color: Colors.orange.shade800,
+                            color: _textPrimary,
                             fontWeight: FontWeight.w600,
+                            fontSize: 12.5,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-              const SizedBox(height: 24),
-              if (r.canConfirmService ||
-                  r.canPay ||
-                  r.canRate ||
-                  _canDeclareCash(r)) ...[
-                const Text(
-                  'Actions',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+
+              // ── Actions contextuelles ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+                child: _buildResaActions(
+                  ctx, r, meta,
+                  showPayOnline: showPayOnline,
+                  isCompleted: isCompleted,
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (r.canConfirmService)
-                      FilledButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _confirmPrestationClient(r);
-                        },
-                        icon: const Icon(Icons.check_circle_outline),
-                        label: const Text('Confirmer'),
-                      ),
-                    if (r.canPay)
-                      FilledButton.tonalIcon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          if (r.id > 0) {
-                            Navigator.of(context).push<void>(
-                              MaterialPageRoute(
-                                builder: (_) => PaymentScreen(
-                                  reservationId: r.id,
-                                  serviceTitle: r.title,
-                                ),
-                              ),
-                            );
-                          } else {
-                            _openPostPrestationPaySheet(r);
-                          }
-                        },
-                        icon: const Icon(Icons.payment),
-                        label: const Text('Payer'),
-                      ),
-                    if (_canDeclareCash(r))
-                      FilledButton.tonalIcon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _declareCashPayment(r);
-                        },
-                        icon: const Icon(Icons.money),
-                        label: const Text('Paye en especes'),
-                      ),
-                    if (r.canRate && !r.rated)
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _rateReservation(r);
-                        },
-                        icon: const Icon(Icons.star_outline),
-                        label: const Text('Noter'),
-                      ),
-                  ],
-                ),
-              ] else ...[
-                const Center(
-                  child: Text(
-                    'Aucune action disponible pour cette reservation',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              ],
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: _textSecondary),
+          const SizedBox(width: 10),
+          Text('$label : ',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: _textSecondary,
+                  fontWeight: FontWeight.w600)),
+          Expanded(
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: _textPrimary,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResaActions(
+    BuildContext ctx,
+    ClientReservation r,
+    ({Color color, IconData icon, String label, int step}) meta, {
+    required bool showPayOnline,
+    required bool isCompleted,
+  }) {
+    final actions = <Widget>[];
+
+    if (r.canConfirmService) {
+      actions.add(_resaActionBtn(
+        icon: Icons.check_circle_outline_rounded,
+        label: 'Confirmer la prestation',
+        primary: true,
+        onTap: () {
+          Navigator.pop(ctx);
+          _confirmPrestationClient(r);
+        },
+      ));
+    }
+    if (r.canViewDevis || r.canAcceptDevis || r.status == 'DEVIS_ENVOYE') {
+      actions.add(_resaActionBtn(
+        icon: Icons.description_outlined,
+        label: r.canAcceptDevis ? 'Voir & accepter le devis' : 'Voir le devis',
+        primary: true,
+        onTap: () {
+          Navigator.pop(ctx);
+          Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => DevisKanbanScreen(
+                reservationReference: r.reference,
+              ),
+            ),
+          );
+        },
+      ));
+    }
+    if (showPayOnline) {
+      actions.add(_resaActionBtn(
+        icon: Icons.payment_rounded,
+        label: 'Payer en ligne',
+        primary: true,
+        onTap: () {
+          Navigator.pop(ctx);
+          if (r.id > 0) {
+            Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => PaymentScreen(
+                  reservationId: r.id,
+                  serviceTitle: r.title,
+                ),
+              ),
+            );
+          } else {
+            _openPostPrestationPaySheet(r);
+          }
+        },
+      ));
+    }
+    if (_canDeclareCash(r)) {
+      actions.add(_resaActionBtn(
+        icon: Icons.money_rounded,
+        label: 'J\'ai payé en espèces',
+        onTap: () {
+          Navigator.pop(ctx);
+          _declareCashPayment(r);
+        },
+      ));
+    }
+    if (r.canRate && !r.rated) {
+      actions.add(_resaActionBtn(
+        icon: Icons.star_outline_rounded,
+        label: 'Noter le prestataire',
+        accent: const Color(0xFFF59E0B),
+        onTap: () {
+          Navigator.pop(ctx);
+          _rateReservation(r);
+        },
+      ));
+    }
+    if (isCompleted) {
+      // Reçu PDF
+      actions.add(_resaActionBtn(
+        icon: Icons.download_rounded,
+        label: 'Télécharger le reçu',
+        onTap: () => _downloadReceipt(r),
+      ));
+    }
+    // Signaler un problème : possible tant que pas déjà en litige et résa avancée
+    if (!r.disputeOuverte && (isCompleted || meta.step >= 3)) {
+      actions.add(_resaActionBtn(
+        icon: Icons.report_problem_outlined,
+        label: 'Signaler un problème',
+        accent: const Color(0xFFEF4444),
+        onTap: () {
+          Navigator.pop(ctx);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => DisputeOpenScreen(
+                reservationReference: r.reference,
+                reservationTitle: r.title,
+              ),
+            ),
+          );
+        },
+      ));
+    }
+
+    if (actions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _isLight
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline_rounded,
+                size: 18, color: _textSecondary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Aucune action requise pour le moment.',
+                style: TextStyle(color: _textSecondary, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Actions',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: _textPrimary)),
+        const SizedBox(height: 12),
+        ...actions
+            .expand((w) => [w, const SizedBox(height: 10)])
+            .toList()
+          ..removeLast(),
+      ],
+    );
+  }
+
+  Widget _resaActionBtn({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool primary = false,
+    Color? accent,
+  }) {
+    final c = accent ?? const Color(0xFF4CC9F0);
+    if (primary) {
+      return SizedBox(
+        height: 50,
+        child: FilledButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 18),
+          label: Text(label,
+              style: const TextStyle(fontWeight: FontWeight.w800)),
+          style: FilledButton.styleFrom(
+            backgroundColor: c,
+            foregroundColor: const Color(0xFF0B1B34),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 18, color: c),
+        label: Text(label,
+            style: TextStyle(color: c, fontWeight: FontWeight.w700)),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: c.withValues(alpha: 0.6), width: 1.4),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
+  }
+
+  /// Télécharge le reçu PDF (le backend accepte ?token= en query).
+  Future<void> _downloadReceipt(ClientReservation r) async {
+    final token = await BabifixUserStore.getApiToken();
+    if (token == null || r.reference.isEmpty) return;
+    final uri = Uri.parse(
+      '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(r.reference)}/receipt/pdf/',
+    ).replace(queryParameters: {'token': token});
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible d\'ouvrir le reçu.',
+      );
+    }
   }
 
   Future<void> _confirmPrestationClient(ClientReservation r) async {
@@ -5598,24 +6207,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
       );
       if (!mounted) return;
       if (res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Prestation confirmee — vous pouvez choisir le mode de paiement.',
-            ),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Prestation confirmee — vous pouvez choisir le mode de paiement.',
+      );
         await _loadRemoteData();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: ${res.statusCode}')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: ${res.statusCode}',
+      );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
   }
@@ -5761,20 +6372,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
       );
       if (!mounted) return;
       if (res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Paiement enregistre (MVP).')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Paiement enregistre (MVP).',
+      );
         await _loadRemoteData();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: ${res.statusCode}')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: ${res.statusCode}',
+      );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
   }
@@ -5783,9 +6400,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final e = contactAdminEmail.trim();
     if (e.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email admin non configure.')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Email admin non configure.',
+      );
       }
       return;
     }
@@ -5965,20 +6584,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
       );
       if (!mounted) return;
       if (res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Merci pour votre avis !')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Merci pour votre avis !',
+      );
         await _loadRemoteData();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur ${res.statusCode}')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur ${res.statusCode}',
+      );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: '$e',
+      );
       }
     }
   }
@@ -6583,6 +7208,91 @@ class _HelpRow extends StatelessWidget {
 
 // ── Stat chip compact pour le profil client ───────────────────────────────
 // ── Statistique du hero profil (fond translucide sur gradient sombre) ───────
+/// Timeline horizontale de progression d'une réservation.
+/// 4 étapes : Demande → Devis → Intervention → Terminé.
+class _ResaTimeline extends StatelessWidget {
+  final int currentStep; // 1..4
+  const _ResaTimeline({required this.currentStep});
+
+  static const _steps = [
+    (icon: Icons.send_rounded, label: 'Demande'),
+    (icon: Icons.description_rounded, label: 'Devis'),
+    (icon: Icons.build_circle_rounded, label: 'Intervention'),
+    (icon: Icons.verified_rounded, label: 'Terminé'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    const cyan = Color(0xFF4CC9F0);
+    const green = Color(0xFF22C55E);
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final idleColor = isLight
+        ? const Color(0xFFCBD5E1)
+        : Colors.white.withValues(alpha: 0.18);
+    final idleText = isLight
+        ? const Color(0xFF94A3B8)
+        : Colors.white.withValues(alpha: 0.5);
+
+    return Row(
+      children: List.generate(_steps.length * 2 - 1, (i) {
+        // Connecteurs aux index impairs.
+        if (i.isOdd) {
+          final leftStep = (i ~/ 2) + 1; // étape à gauche du connecteur
+          final done = currentStep > leftStep;
+          return Expanded(
+            child: Container(
+              height: 3,
+              margin: const EdgeInsets.only(bottom: 18),
+              color: done ? green : idleColor,
+            ),
+          );
+        }
+        final stepIndex = i ~/ 2; // 0..3
+        final stepNum = stepIndex + 1;
+        final reached = currentStep >= stepNum;
+        final isCurrent = currentStep == stepNum;
+        final c = currentStep == 4 && stepNum == 4
+            ? green
+            : (reached ? cyan : idleColor);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: reached ? c : Colors.transparent,
+                border: Border.all(
+                    color: reached ? c : idleColor, width: 2),
+                boxShadow: isCurrent
+                    ? [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 8)]
+                    : null,
+              ),
+              child: Icon(
+                _steps[stepIndex].icon,
+                size: 16,
+                color: reached ? Colors.white : idleText,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              _steps[stepIndex].label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
+                color: reached
+                    ? (isLight ? const Color(0xFF0F172A) : Colors.white)
+                    : idleText,
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+}
+
 class _HeroStat extends StatelessWidget {
   final IconData icon;
   final String value;

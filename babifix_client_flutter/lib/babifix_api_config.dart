@@ -40,32 +40,23 @@ String get kZegoAppSign => _envString('ZEGO_APP_SIGN', const String.fromEnvironm
 
 bool get isZegoConfigured => kZegoAppID != 0 && kZegoAppSign.isNotEmpty;
 
-/// LiveKit Voice/Video Call (nouveau)
-/// Obtenez ces valeurs sur https://cloud.livekit.io
-/// Peut être défini via --dart-define ou fichier .env
-const _defaultLiveKitUrl = 'wss://babifix-h1giwqew.livekit.cloud';
-const _defaultLiveKitApiKey = 'APIHmepmCSoou3K';
-const _defaultLiveKitApiSecret = 'Cets7RORRaNS61Ie4dyCY0rE33lyzxTBrG7NYQifs6IA';
-
-String? _envStringSafe(String key) {
-  try {
-    return dotenv.env[key];
-  } catch (_) {
-    return null;
-  }
-}
-
-String _envStringWithFallback(String key, String fallback) {
-  final fromEnv = _envStringSafe(key);
-  if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;
-  return fallback;
-}
-
-String get kLiveKitUrl => _envStringWithFallback('LIVEKIT_URL', _defaultLiveKitUrl);
-String get kLiveKitApiKey => _envStringWithFallback('LIVEKIT_API_KEY', _defaultLiveKitApiKey);
-String get kLiveKitApiSecret => _envStringWithFallback('LIVEKIT_API_SECRET', _defaultLiveKitApiSecret);
-
-bool get isLiveKitConfigured => kLiveKitUrl.isNotEmpty && kLiveKitApiKey.isNotEmpty && kLiveKitApiSecret.isNotEmpty;
+/// LiveKit Voice/Video Call.
+///
+/// SÉCURITÉ : la clé API et le secret LiveKit **ne sont plus jamais**
+/// embarqués dans l'app mobile. Ils étaient hardcodés ici dans une
+/// version antérieure — quiconque décompilait l'APK pouvait signer
+/// des tokens. Désormais TOUTE génération de token passe par le
+/// backend (`POST /api/livekit/token` ou `POST /api/calls/initiate`),
+/// qui détient seul la clé via la variable d'environnement Django
+/// `LIVEKIT_API_SECRET`.
+///
+/// L'URL du serveur LiveKit est publique (wss://...livekit.cloud), donc
+/// pas sensible — elle est renvoyée par le backend dans la réponse de
+/// chaque demande de token. L'app n'a plus aucune config LiveKit à
+/// connaître.
+///
+/// (Les anciennes constantes `kLiveKitApiKey`, `kLiveKitApiSecret`,
+/// `kLiveKitUrl` et `isLiveKitConfigured` ont été retirées.)
 
 /// Port du `python manage.py runserver` (aligné doc BABIFIX).
 const int kBabifixApiPort = 8002;

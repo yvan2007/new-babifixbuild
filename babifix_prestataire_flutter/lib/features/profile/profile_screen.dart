@@ -11,6 +11,7 @@ import '../../json_utils.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 import '../auth/registration_screen.dart';
 import '../availability/availability_screen.dart';
 import 'contrat_screen.dart';
@@ -21,6 +22,7 @@ import 'edit_profile_screen.dart' show EditProfilePrestataireScreen;
 import '../parrainage/parrainage_screen.dart';
 import '../premium/premium_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -96,6 +98,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (ok == true) widget.onLogout();
   }
 
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.delete_forever_rounded,
+            size: 48, color: Color(0xFFEF4444)),
+        title: const Text('Supprimer mon compte ?',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        content: const Text(
+          'Cette action est définitive. Vos données personnelles seront '
+          'effacées (loi n°2013-450). Possible uniquement si votre solde est '
+          'à zéro et sans prestation ni litige en cours.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('Supprimer'),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final token = await readStoredApiToken();
+    if (token == null) {
+      widget.onLogout();
+      return;
+    }
+    try {
+      final resp = await http.delete(
+        Uri.parse('${babifixApiBaseUrl()}/api/auth/delete-account'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'confirmation': 'supprimer'}),
+      );
+      if (!context.mounted) return;
+      if (resp.statusCode == 200) {
+        showBabifixToast(context,
+            type: BabifixToastType.success,
+            title: 'Compte supprimé',
+            message: 'Votre compte a bien été supprimé.');
+        widget.onLogout();
+      } else {
+        String msg = 'Suppression impossible pour le moment.';
+        try {
+          msg = (jsonDecode(resp.body)['message'] ?? msg).toString();
+        } catch (_) {}
+        showBabifixToast(context,
+            type: BabifixToastType.error, title: 'Impossible', message: msg);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showBabifixToast(context,
+            type: BabifixToastType.error,
+            message: 'Erreur réseau. Réessayez.');
+      }
+    }
+  }
+
   Future<void> _load() async {
     var contact = '';
     try {
@@ -159,9 +233,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final e = _contactAdminEmail.trim();
     if (e.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email admin non configure (parametres site).')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Email admin non configure (parametres site).',
+      );
       }
       return;
     }
@@ -379,9 +455,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               IconButton(
                 tooltip: 'Notifications',
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Aucune nouvelle notification pour l\u2019instant.')),
-                  );
+                  showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Aucune nouvelle notification pour l\u2019instant.',
+      );
                 },
                 icon: Icon(Icons.notifications_outlined, size: 24, color: iconMuted),
               ),
@@ -1140,7 +1218,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: () => _confirmDeleteAccount(context),
+                              icon: Icon(Icons.delete_forever_rounded,
+                                  size: 16,
+                                  color: const Color(0xFFEF4444).withValues(alpha: 0.8)),
+                              label: Text('Supprimer mon compte',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFFEF4444).withValues(alpha: 0.8))),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Center(
+                            child: Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 6,
+                              children: [
+                                TextButton(
+                                  onPressed: () => launchUrl(
+                                      Uri.parse('https://babifix.ci/confidentialite/'),
+                                      mode: LaunchMode.externalApplication),
+                                  child: Text('Confidentialité',
+                                      style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: isLight
+                                              ? const Color(0xFF64748B)
+                                              : const Color(0xFF94A3B8))),
+                                ),
+                                Text('·',
+                                    style: TextStyle(
+                                        color: isLight
+                                            ? const Color(0xFF94A3B8)
+                                            : const Color(0xFF475569))),
+                                TextButton(
+                                  onPressed: () => launchUrl(
+                                      Uri.parse('https://babifix.ci/cgu/'),
+                                      mode: LaunchMode.externalApplication),
+                                  child: Text('CGU',
+                                      style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: isLight
+                                              ? const Color(0xFF64748B)
+                                              : const Color(0xFF94A3B8))),
+                                ),
+                              ],
+                            ),
+                          ),
                           Center(child: Text('BABIFIX Prestataire v1.0.0',
                               style: TextStyle(fontSize: 11,
                                   color: isLight ? const Color(0xFF94A3B8) : const Color(0xFF475569)))),

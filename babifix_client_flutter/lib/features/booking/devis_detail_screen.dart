@@ -13,6 +13,7 @@ import '../../shared/services/confetti_toast_service.dart';
 import '../../shared/services/haptic_service.dart';
 import '../payment/payment_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class DevisDetailScreen extends StatefulWidget {
   final String reservationReference;
@@ -104,9 +105,11 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         if (mounted) {
           HapticService.success();
           ConfettiService.showSuccess(context, 'Devis accepte!');
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Devis accepte! Redirection vers le paiement...')));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Devis accepte! Redirection vers le paiement...',
+      );
 
           await Future.delayed(const Duration(milliseconds: 800));
 
@@ -130,16 +133,20 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Erreur: ${resp.statusCode}')));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: ${resp.statusCode}',
+      );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
 
@@ -215,17 +222,21 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
 
       if (resp.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Devis refuse')));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Devis refuse',
+      );
           _loadDevis();
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
 
@@ -249,9 +260,11 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur PDF: $e')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur PDF: $e',
+      );
       }
     }
   }
@@ -262,9 +275,9 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final lignes = (devis['lignes'] as List?) ?? [];
     final diagnostic = devis['diagnostic'] as String? ?? '';
     final dateProposee = devis['date_proposee'] as String? ?? 'Non precisee';
-    final sousTotal = (devis['sous_total'] as num?) ?? 0;
-    final commission = (devis['commission_montant'] as num?) ?? 0;
-    final total = (devis['total_ttc'] as num?) ?? 0;
+    final total = (devis['total_ttc'] as num?) ??
+        (devis['sous_total'] as num?) ??
+        0;
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -361,7 +374,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
                   child: pw.Text(
-                    'Prix',
+                    'Total',
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                   ),
                 ),
@@ -376,11 +389,15 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                   ),
                   pw.Padding(
                     padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text('${ligne['quantite'] ?? 1}'),
+                    child: pw.Text(
+                      '${ligne['quantite'] ?? 1}'
+                      '${(ligne['unite'] ?? '').toString().isNotEmpty ? ' ${ligne['unite']}' : ''}',
+                    ),
                   ),
                   pw.Padding(
                     padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text('${ligne['montant'] ?? 0}'),
+                    child: pw.Text(
+                        _formatMontant((ligne['total'] as num?) ?? 0)),
                   ),
                 ],
               ),
@@ -394,36 +411,16 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
             width: 200,
             padding: const pw.EdgeInsets.all(15),
             decoration: pw.BoxDecoration(color: PdfColors.blue50),
-            child: pw.Column(
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Sous-total'),
-                    pw.Text('${_formatMontant(sousTotal)}'),
-                  ],
+                pw.Text(
+                  'Total a payer',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                 ),
-                pw.Divider(),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Commission (18%)'),
-                    pw.Text('${_formatMontant(commission)}'),
-                  ],
-                ),
-                pw.Divider(),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Total TTC',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                    pw.Text(
-                      '${_formatMontant(total)}',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                  ],
+                pw.Text(
+                  _formatMontant(total),
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                 ),
               ],
             ),
@@ -433,7 +430,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         pw.Text('Date proposee: $dateProposee'),
         pw.SizedBox(height: 10),
         pw.Text(
-          'Conditions: Devis valable 7 jours, Prix TTC, Commission incluse',
+          'Conditions: Devis valable 7 jours. Prix TTC, tout compris.',
         ),
       ],
     );
@@ -729,6 +726,12 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
             final l = entry.value;
             final lineColor = typeColors[l['type_ligne']] ?? typeColors['AUTRE']!;
             final lineLabel = typeLabels[l['type_ligne']] ?? l['type_ligne'];
+            final qte = l['quantite'];
+            final qStr = (qte is num && qte == qte.roundToDouble())
+                ? qte.toInt().toString()
+                : '$qte';
+            final unite = (l['unite'] ?? '').toString();
+            final marque = (l['marque'] ?? '').toString();
 
             return Container(
               margin: EdgeInsets.only(bottom: i < lignes.length - 1 ? 16 : 0),
@@ -780,9 +783,14 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              'x${l['quantite']} a ${_formatMontant(l['prix_unitaire'])}',
-                              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                            Flexible(
+                              child: Text(
+                                '$qStr${unite.isNotEmpty ? ' $unite' : ''} × ${_formatMontant(l['prix_unitaire'])}'
+                                '${marque.isNotEmpty ? ' · $marque' : ''}',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Color(0xFF94A3B8), fontSize: 12),
+                              ),
                             ),
                           ],
                         ),
@@ -807,10 +815,12 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
   }
 
   Widget _buildTotal(Map<String, dynamic> devis) {
-    final sousTotal = (devis['sous_total'] as num?) ?? 0;
-    final commission = (devis['commission_montant'] as num?) ?? 0;
-    final total = (devis['total_ttc'] as num?) ?? 0;
-    final commissionRate = (devis['commission_rate'] as num?) ?? 0;
+    // Le client paie le total TTC (= somme des lignes). La commission BABIFIX
+    // est prélevée côté prestataire : on ne l'affiche PAS au client pour ne
+    // pas laisser croire qu'elle s'ajoute à ce qu'il doit régler.
+    final total = (devis['total_ttc'] as num?) ??
+        (devis['sous_total'] as num?) ??
+        0;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -825,44 +835,14 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         boxShadow: BabifixDesign.cyanGlowShadow(opacity: 0.08),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               const Text(
-                'Sous-total',
-                style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
-              ),
-              Text(
-                '${sousTotal.toStringAsFixed(0)} FCFA',
-                style: const TextStyle(fontSize: 14, color: Colors.white),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Commission ($commissionRate%)',
-                style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
-              ),
-              Text(
-                '${commission.toStringAsFixed(0)} FCFA',
-                style: const TextStyle(fontSize: 14, color: Color(0xFFB4C2D9)),
-              ),
-            ],
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 14),
-            height: 1,
-            color: const Color(0x22FFFFFF),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Total TTC',
+                'Total à payer',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -872,12 +852,17 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
               Text(
                 '${total.toStringAsFixed(0)} FCFA',
                 style: const TextStyle(
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.w900,
                   color: BabifixDesign.cyan,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Montant TTC, tout compris. Réglé via paiement sécurisé (escrow) à la prestation.',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), height: 1.35),
           ),
         ],
       ),

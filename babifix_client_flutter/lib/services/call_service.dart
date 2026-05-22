@@ -11,6 +11,7 @@ import '../models/babifix_models.dart';
 import '../services/babifix_api.dart';
 import 'incoming_call_screen.dart';
 import 'livekit_call_screen.dart';
+import '../shared/widgets/babifix_snackbar.dart';
 
 class CallService {
   CallService._();
@@ -45,16 +46,17 @@ class CallService {
       } catch (_) {}
     } on BabifixApiException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: BabifixDesign.error,
-          content: Text('Impossible de démarrer l\'appel : ${e.message}'),
-        ),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible de démarrer l\'appel : ${e.message}',
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur appel : $e')),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur appel : $e',
       );
     }
   }

@@ -14,6 +14,7 @@ import 'biometric_login_screen.dart';
 import 'email_verification_screen.dart';
 import 'post_signup_onboarding.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.onAuthSuccess});
@@ -286,14 +287,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: _navy,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: msg,
+      );
   }
 
   @override

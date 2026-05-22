@@ -10,6 +10,7 @@ import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 // ─── Premium Colors ────────────────────────────────────────────────────────
 
@@ -157,14 +158,11 @@ class _ContratScreenState extends State<ContratScreen>
         await prefs.setString(_kAcceptedKey, now.toIso8601String());
         if (mounted) {
           setState(() => _acceptedAt = now);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Contrat signé et enregistré. Merci !'),
-              backgroundColor: const Color(0xFF22C55E),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Contrat signé et enregistré. Merci !',
+      );
           // Mode obligatoire : on bascule sur le dashboard via callback.
           if (widget.mustAccept && widget.onAccepted != null) {
             await Future.delayed(const Duration(milliseconds: 700));
@@ -173,23 +171,20 @@ class _ContratScreenState extends State<ContratScreen>
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Erreur lors de la signature. Réessayez.'),
-              backgroundColor: Color(0xFFDC2626),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur lors de la signature. Réessayez.',
+      );
         }
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erreur réseau. Vérifiez votre connexion.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur réseau. Vérifiez votre connexion.',
+      );
       }
     }
   }

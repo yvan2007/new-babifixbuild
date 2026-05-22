@@ -8,6 +8,7 @@ import '../../shared/auth_utils.dart';
 import '../../shared/services/babifix_user_store.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -87,37 +88,36 @@ class _PremiumScreenState extends State<PremiumScreen> {
         final label = billingPeriod == 'trial'
             ? 'Essai gratuit 7 jours activé'
             : 'Abonnement ${tier.toUpperCase()} activé';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(label),
-            backgroundColor: _tierColors[tier] ?? BabifixDesign.cyan,
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: label,
+      );
         await _load();
       } else if (resp.statusCode == 402) {
         if (!mounted) return;
         _showInsufficientFundsDialog(data);
       } else if (resp.statusCode == 403 && data['error'] == 'trial_already_used') {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(data['message']?.toString() ?? 'Essai déjà utilisé'),
-            backgroundColor: BabifixDesign.warning,
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: data['message']?.toString() ?? 'Essai déjà utilisé',
+      );
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(data['error']?.toString() ?? 'Erreur'),
-            backgroundColor: BabifixDesign.error,
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: data['error']?.toString() ?? 'Erreur',
+      );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e'), backgroundColor: BabifixDesign.error),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
       );
     } finally {
       if (mounted) setState(() { _subscribing = false; });
@@ -242,12 +242,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
       );
       if (resp.statusCode >= 400) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(
-                    'Échec initialisation paiement : ${resp.statusCode}'),
-                backgroundColor: BabifixDesign.error),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Échec initialisation paiement : ${resp.statusCode}',
+      );
         }
         return;
       }
@@ -255,23 +254,30 @@ class _PremiumScreenState extends State<PremiumScreen> {
       final url = (j['checkout_url'] ?? j['payment_url'] ?? '').toString();
       if (url.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text(
-                  'Paiement simulé. Réessayez de souscrire à l\'abonnement.')));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Paiement simulé. Réessayez de souscrire à l\'abonnement.',
+      );
         }
         return;
       }
       final ok = await launchUrl(Uri.parse(url),
           mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Impossible d'ouvrir la page de paiement.")));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: "Impossible d'ouvrir la page de paiement.",
+      );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: BabifixDesign.error));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
   }

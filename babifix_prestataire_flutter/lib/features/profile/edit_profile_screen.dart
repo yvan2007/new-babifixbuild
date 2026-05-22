@@ -7,6 +7,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class EditProfilePrestataireScreen extends StatefulWidget {
   final String? apiBase;
@@ -561,15 +562,25 @@ class _CniUploaderPremiumState extends State<_CniUploaderPremium> {
         final url = data['url'] as String? ?? '';
         setState(() => _url = url);
         widget.onUploaded(url);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${widget.label} uploade')),
-        );
+        if (mounted) showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: '${widget.label} uploade',
+      );
       } else {
         final err = (jsonDecode(body) as Map<String, dynamic>)['error'] ?? 'Erreur upload';
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err.toString())));
+        if (mounted) showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: err.toString(),
+      );
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erreur reseau')));
+      if (mounted) showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur reseau',
+      );
     } finally { if (mounted) setState(() => _uploading = false); }
   }
 
@@ -700,10 +711,18 @@ class _PortfolioEditorPremiumState extends State<_PortfolioEditorPremium> {
       if (res.statusCode == 200) { _load(); }
       else {
         final err = jsonDecode(res.body)['error'] ?? 'Erreur';
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Impossible d\'ajouter : $err')));
+        if (mounted) showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible d\'ajouter : $err',
+      );
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erreur reseau')));
+      if (mounted) showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur reseau',
+      );
     }
     setState(() => _uploading = false);
   }

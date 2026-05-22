@@ -5,6 +5,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class CreateDevisScreen extends StatefulWidget {
   final String reservationReference;
@@ -39,6 +40,11 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
   double _commissionRate = 0.18;
   bool get _isUrgent => widget.reservationDetails['is_urgent'] == true;
 
+  // Catalogue de fournitures spécifique à la catégorie du prestataire.
+  int? _categoryId;
+  String _categoryNom = '';
+  List<Map<String, dynamic>> _catalogue = [];
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +53,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
       duration: const Duration(milliseconds: 600),
     )..forward();
     _loadCommissionRate();
+    _loadCatalogue();
   }
 
   @override
@@ -54,7 +61,69 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
     _animCtrl.dispose();
     _diagnosticCtrl.dispose();
     _noteCtrl.dispose();
+    for (final l in _lignes) {
+      l.dispose();
+    }
     super.dispose();
+  }
+
+  /// Récupère la catégorie du prestataire puis son catalogue de fournitures
+  /// (matériaux + main d'œuvre + déplacement) propre à son métier.
+  Future<void> _loadCatalogue() async {
+    final token = await readStoredApiToken();
+    if (token == null) return;
+    try {
+      // 1) Catégorie du prestataire
+      int? catId = _categoryId;
+      final me = await http.get(
+        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (me.statusCode == 200) {
+        final data = jsonDecode(me.body) as Map<String, dynamic>;
+        final prov = data['provider'] as Map<String, dynamic>?;
+        if (prov != null) {
+          catId = (prov['category_id'] as num?)?.toInt();
+          _categoryNom = (prov['category_nom'] ?? '').toString();
+        }
+      }
+      if (catId == null) return;
+      // 2) Catalogue de la catégorie
+      final cat = await http.get(
+        Uri.parse('${babifixApiBaseUrl()}/api/categories/$catId/catalogue'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (cat.statusCode == 200) {
+        final data = jsonDecode(cat.body) as Map<String, dynamic>;
+        final items = (data['items'] as List?) ?? [];
+        if (mounted) {
+          setState(() {
+            _categoryId = catId;
+            _catalogue =
+                items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          });
+        }
+      }
+    } catch (_) {
+      // silencieux : la saisie manuelle reste toujours possible
+    }
+  }
+
+  void _addCatalogueLigne(Map<String, dynamic> item) {
+    final marque = (item['marque'] ?? '').toString();
+    final nom = (item['nom'] ?? '').toString();
+    setState(() {
+      _lignes.add(_LigneDevis(
+        type: (item['type_ligne'] ?? 'FOURNITURE').toString(),
+        description: marque.isNotEmpty ? '$nom ($marque)' : nom,
+        quantite: 1,
+        prixUnitaire:
+            (item['prix_unitaire_indicatif'] as num?)?.toDouble() ?? 0,
+        unite: (item['unite'] ?? '').toString(),
+        marque: marque,
+        catalogueItemId: (item['id'] as num?)?.toInt(),
+      ));
+    });
   }
 
   Future<void> _loadCommissionRate() async {
@@ -80,29 +149,40 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
   }
 
   void _removeLigne(int index) {
-    setState(() => _lignes.removeAt(index));
+    setState(() {
+      _lignes[index].dispose();
+      _lignes.removeAt(index);
+    });
   }
 
   double get _sousTotal => _lignes.fold(0, (sum, l) => sum + l.total);
   double get _commission => _sousTotal * _commissionRate;
-  double get _total => _sousTotal + _commission;
+  // Règle BABIFIX : le client paie le sous-total ; la commission est DÉDUITE
+  // du prestataire (jamais ajoutée au client). Net presta = sous-total − comm.
+  double get _netPrestataire => _sousTotal - _commission;
 
   Future<void> _submit() async {
     if (_diagnosticCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez entrer un diagnostic')),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: 'Veuillez entrer un diagnostic',
       );
       return;
     }
     if (_lignes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ajoutez au moins une ligne de devis')),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: 'Ajoutez au moins une ligne de devis',
       );
       return;
     }
     if (!_isUrgent && _dateProposee == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez choisir une date pour l\'intervention')),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: 'Veuillez choisir une date pour l\'intervention',
       );
       return;
     }
@@ -113,9 +193,11 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
     if (token == null) {
       setState(() => _submitting = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Non connecte')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Non connecte',
+      );
       }
       return;
     }
@@ -141,6 +223,11 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                 'description': l.description,
                 'quantite': l.quantite,
                 'prix_unitaire': l.prixUnitaire,
+                if (l.uniteCtrl.text.trim().isNotEmpty)
+                  'unite': l.uniteCtrl.text.trim(),
+                if (l.marque.isNotEmpty) 'marque': l.marque,
+                if (l.catalogueItemId != null)
+                  'catalogue_item_id': l.catalogueItemId,
               },
             )
             .toList(),
@@ -157,9 +244,11 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
 
       if (resp.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Devis envoye avec succes!')),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Devis envoye avec succes!',
+      );
           widget.onDevisCreated();
         }
       } else if (resp.statusCode == 403) {
@@ -173,26 +262,29 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
           }
         } catch (_) {}
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: BabifixDesign.error,
-              duration: const Duration(seconds: 5),
-            ),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: message,
+        duration: const Duration(seconds: 5),
+      );
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Erreur: ${resp.statusCode}')));
+          showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: ${resp.statusCode}',
+      );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
+      );
       }
     }
 
@@ -618,6 +710,10 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
             ],
           ),
           const SizedBox(height: 12),
+          if (_catalogue.isNotEmpty) ...[
+            _buildCatalogueButton(),
+            const SizedBox(height: 12),
+          ],
           if (_lignes.isEmpty)
             Container(
               width: double.infinity,
@@ -655,6 +751,238 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
           const SizedBox(width: 10),
           Text(label, style: const TextStyle(color: Colors.white)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCatalogueButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _openCataloguePicker,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: BabifixDesign.cyan.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.40)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.inventory_2_outlined,
+                  color: BabifixDesign.cyan, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Catalogue ${_categoryNom.isNotEmpty ? _categoryNom : "métier"}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    Text(
+                      '${_catalogue.length} fournitures & prestations types',
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: BabifixDesign.cyan),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openCataloguePicker() {
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final it in _catalogue) {
+      final t = (it['type_ligne'] ?? 'AUTRE').toString();
+      groups.putIfAbsent(t, () => []).add(it);
+    }
+    const labels = {
+      'FOURNITURE': 'Fournitures',
+      'MAIN_OEUVRE': "Main d'œuvre",
+      'DEPLACEMENT': 'Déplacement',
+      'AUTRE': 'Autre',
+    };
+    const order = ['FOURNITURE', 'MAIN_OEUVRE', 'DEPLACEMENT', 'AUTRE'];
+    final orderedKeys = [
+      ...order.where(groups.containsKey),
+      ...groups.keys.where((k) => !order.contains(k)),
+    ];
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0B1B34),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.72,
+        maxChildSize: 0.92,
+        minChildSize: 0.4,
+        builder: (_, scrollCtrl) => Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF334155),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.inventory_2_outlined,
+                      color: BabifixDesign.cyan, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Catalogue ${_categoryNom.isNotEmpty ? _categoryNom : "métier"}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(sheetCtx).pop(),
+                    icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 0, 18, 8),
+              child: Text(
+                'Touchez un élément pour l\'ajouter au devis (vous pourrez ajuster quantité et prix).',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
+                children: [
+                  for (final key in orderedKeys) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+                      child: Text(
+                        (labels[key] ?? key).toUpperCase(),
+                        style: const TextStyle(
+                          color: BabifixDesign.cyan,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    ...groups[key]!.map((it) => _catalogueTile(sheetCtx, it)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _catalogueTile(BuildContext sheetCtx, Map<String, dynamic> it) {
+    final nom = (it['nom'] ?? '').toString();
+    final marque = (it['marque'] ?? '').toString();
+    final unite = (it['unite'] ?? '').toString();
+    final prix = (it['prix_unitaire_indicatif'] as num?)?.toDouble() ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xFF0F1D32),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            _addCatalogueLigne(it);
+            Navigator.of(sheetCtx).pop();
+            showBabifixToast(
+              context,
+              type: BabifixToastType.success,
+              message: 'Ajouté : $nom',
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        nom,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                      if (marque.isNotEmpty || unite.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            [
+                              if (marque.isNotEmpty) marque,
+                              if (unite.isNotEmpty) 'unité : $unite',
+                            ].join('  •  '),
+                            style: const TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${prix.toStringAsFixed(0)} F',
+                      style: const TextStyle(
+                        color: BabifixDesign.cyan,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'indicatif',
+                      style: TextStyle(color: Color(0xFF64748B), fontSize: 10),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.add_circle, color: BabifixDesign.cyan, size: 22),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -720,7 +1048,8 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
           const SizedBox(height: 12),
           _PremiumTextField(
             hint: 'Description',
-            onChanged: (v) => ligne.description = v,
+            controller: ligne.descCtrl,
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 12),
           if (ligne.type == 'MAIN_OEUVRE')
@@ -729,17 +1058,19 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                 Expanded(
                   child: _PremiumTextField(
                     hint: 'Nb heures',
+                    controller: ligne.qteCtrl,
                     keyboardType: TextInputType.number,
-                    onChanged: (v) => ligne.quantite = int.tryParse(v) ?? 1,
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _PremiumTextField(
                     hint: 'Taux horaire',
+                    controller: ligne.prixCtrl,
                     keyboardType: TextInputType.number,
                     suffix: 'FCFA',
-                    onChanged: (v) => ligne.prixUnitaire = double.tryParse(v) ?? 0,
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
               ],
@@ -747,31 +1078,42 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
           else if (ligne.type == 'DEPLACEMENT')
             _PremiumTextField(
               hint: 'Frais de déplacement',
+              controller: ligne.prixCtrl,
               keyboardType: TextInputType.number,
               suffix: 'FCFA',
-              onChanged: (v) {
-                ligne.quantite = 1;
-                ligne.prixUnitaire = double.tryParse(v) ?? 0;
-              },
+              onChanged: (_) => setState(() {}),
             )
           else
-            Row(
+            Column(
               children: [
-                Expanded(
-                  child: _PremiumTextField(
-                    hint: 'Qté',
-                    keyboardType: TextInputType.number,
-                    onChanged: (v) => ligne.quantite = int.tryParse(v) ?? 1,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _PremiumTextField(
+                        hint: 'Qté',
+                        controller: ligne.qteCtrl,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 3,
+                      child: _PremiumTextField(
+                        hint: 'Unité (u, m², kg…)',
+                        controller: ligne.uniteCtrl,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _PremiumTextField(
-                    hint: 'Prix unitaire',
-                    keyboardType: TextInputType.number,
-                    suffix: 'FCFA',
-                    onChanged: (v) => ligne.prixUnitaire = double.tryParse(v) ?? 0,
-                  ),
+                const SizedBox(height: 12),
+                _PremiumTextField(
+                  hint: 'Prix unitaire',
+                  controller: ligne.prixCtrl,
+                  keyboardType: TextInputType.number,
+                  suffix: 'FCFA',
+                  onChanged: (_) => setState(() {}),
                 ),
               ],
             ),
@@ -866,12 +1208,16 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Sous-total',
+                'Total facturé au client',
                 style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
               ),
               Text(
                 '${_sousTotal.toStringAsFixed(0)} FCFA',
-                style: const TextStyle(fontSize: 14, color: Colors.white),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
@@ -880,12 +1226,12 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Commission (${(_commissionRate * 100).toInt()}%)',
+                'Commission BABIFIX (${(_commissionRate * 100).toInt()}%)',
                 style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
               ),
               Text(
-                '${_commission.toStringAsFixed(0)} FCFA',
-                style: const TextStyle(fontSize: 14, color: Color(0xFFB4C2D9)),
+                '− ${_commission.toStringAsFixed(0)} FCFA',
+                style: const TextStyle(fontSize: 14, color: Color(0xFFF59E0B)),
               ),
             ],
           ),
@@ -898,7 +1244,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Total client',
+                'Vous recevez (net)',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -906,7 +1252,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                 ),
               ),
               Text(
-                '${_total.toStringAsFixed(0)} FCFA',
+                '${_netPrestataire.toStringAsFixed(0)} FCFA',
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -914,6 +1260,14 @@ class _CreateDevisScreenState extends State<CreateDevisScreen>
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Le client paie le total facturé. La commission BABIFIX est déduite de votre part.',
+              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+            ),
           ),
         ],
       ),
@@ -1094,16 +1448,43 @@ class _DateButton extends StatelessWidget {
 
 class _LigneDevis {
   String type;
-  String description;
-  int quantite;
-  double prixUnitaire;
+  String unite;
+  String marque;
+  int? catalogueItemId;
+  final TextEditingController descCtrl;
+  final TextEditingController qteCtrl;
+  final TextEditingController prixCtrl;
+  final TextEditingController uniteCtrl;
 
   _LigneDevis({
     this.type = 'FOURNITURE',
-    this.description = '',
-    this.quantite = 1,
-    this.prixUnitaire = 0,
-  });
+    String description = '',
+    double quantite = 1,
+    double prixUnitaire = 0,
+    this.unite = '',
+    this.marque = '',
+    this.catalogueItemId,
+  })  : descCtrl = TextEditingController(text: description),
+        qteCtrl =
+            TextEditingController(text: quantite > 0 ? _fmtNum(quantite) : ''),
+        prixCtrl = TextEditingController(
+            text: prixUnitaire > 0 ? prixUnitaire.toStringAsFixed(0) : ''),
+        uniteCtrl = TextEditingController(text: unite);
 
+  static String _fmtNum(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  String get description => descCtrl.text.trim();
+  double get quantite =>
+      double.tryParse(qteCtrl.text.trim().replaceAll(',', '.')) ?? 1;
+  double get prixUnitaire =>
+      double.tryParse(prixCtrl.text.trim().replaceAll(',', '.')) ?? 0;
   double get total => quantite * prixUnitaire;
+
+  void dispose() {
+    descCtrl.dispose();
+    qteCtrl.dispose();
+    prixCtrl.dispose();
+    uniteCtrl.dispose();
+  }
 }

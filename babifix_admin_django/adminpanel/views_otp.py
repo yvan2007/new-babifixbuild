@@ -28,6 +28,11 @@ def api_auth_verify_otp(request):
     if request.method != "POST":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
 
+    # Anti-brute-force : limiter les vérifications OTP.
+    from .throttle import check_rate_limit, rate_limited_response
+    if check_rate_limit(request, "verify_otp", max_requests=8, window=60):
+        return rate_limited_response()
+
     try:
         body = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:

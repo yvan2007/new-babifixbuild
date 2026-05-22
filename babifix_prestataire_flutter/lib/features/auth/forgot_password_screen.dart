@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -36,15 +37,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (res.statusCode == 200) {
         setState(() => _sent = true);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email introuvable ou erreur serveur')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Email introuvable ou erreur serveur',
+      );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de contacter le serveur')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible de contacter le serveur',
+      );
       }
     } finally {
       if (mounted) setState(() => _loading = false);

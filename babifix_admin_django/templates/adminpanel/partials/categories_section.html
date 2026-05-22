@@ -78,10 +78,15 @@
       </div>
       {% endif %}
     </div>
+    <div class="bulk-bar" id="bulk-bar-category" style="display:none;">
+      <span class="bulk-bar__count" id="bulk-count-category"><b>0</b> sélectionné(s)</span>
+      <button type="button" class="bulk-bar__btn" id="bulk-btn-category" onclick="babifixBulkDelete('category')" disabled>🗑 Supprimer la sélection</button>
+    </div>
     <div class="table-wrap category-table-desktop">
       <table>
         <thead>
           <tr>
+            <th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="category" onclick="babifixBulkToggleAll('category', this)"></th>
             <th class="th-icon">Icône</th>
             <th>Catégorie</th>
             <th>Description</th>
@@ -94,6 +99,7 @@
         <tbody>
           {% for cat in categories %}
           <tr>
+            <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="category" value="{{ cat.id }}" onchange="babifixBulkUpdate('category')"></td>
             <td class="td-icon">
               {% if cat.icone_slug %}
               <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="36" height="36" class="category-row-thumb" loading="lazy">
@@ -123,7 +129,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="7">Aucune catégorie — importez le catalogue ou ajoutez une ligne.</td></tr>
+          <tr><td colspan="8">Aucune catégorie — importez le catalogue ou ajoutez une ligne.</td></tr>
           {% endfor %}
         </tbody>
       </table>

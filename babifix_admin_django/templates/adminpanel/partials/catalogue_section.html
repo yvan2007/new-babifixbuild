@@ -1,0 +1,120 @@
+{% load babifix_tags %}
+
+<div class="catalogue-admin">
+  <!-- Sélecteur de catégorie ------------------------------------------------>
+  <article class="card card-elevate">
+    <h3>Catalogue de fournitures par catégorie</h3>
+    <p class="section-help">
+      Gérez ici les <strong>fournitures</strong>, la <strong>main d'œuvre</strong> et les
+      <strong>déplacements</strong> proposés au prestataire lors de la rédaction d'un devis,
+      <strong>spécifiques à chaque catégorie</strong>. Vos modifications (prix, unité, marque,
+      ajout/suppression) sont prises en compte <strong>en temps réel</strong> dans l'app prestataire.
+    </p>
+    <form method="get" class="catalogue-cat-form"
+          style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+      <input type="hidden" name="section" value="catalogue">
+      <label style="font-weight:600;color:#0b1b34;">Catégorie :</label>
+      <select name="cat_id" onchange="this.form.submit()"
+              style="padding:8px 12px;border-radius:10px;border:1.5px solid #e2e8f0;font-size:14px;min-width:240px;">
+        {% for c in catalogue_categories %}
+        <option value="{{ c.id }}" {% if catalogue_selected and c.id == catalogue_selected.id %}selected{% endif %}>{{ c.nom }}</option>
+        {% empty %}
+        <option value="">Aucune catégorie</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit" class="btn-primary">Afficher</button></noscript>
+    </form>
+    {% if user.is_staff %}
+    <form method="post" style="margin-top:14px;"
+          onsubmit="return confirm('Importer / mettre à jour le catalogue de base pour TOUTES les catégories ?\n\nLes articles de base seront (re)créés avec leurs prix indicatifs par défaut. Les fournitures que vous avez ajoutées vous-même ne sont pas touchées, mais un article de base dont vous auriez changé le prix sera réinitialisé.');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="catalogue_seed">
+      {% if catalogue_selected %}<input type="hidden" name="cat_id" value="{{ catalogue_selected.id }}">{% endif %}
+      <button type="submit" class="btn-primary" style="background:#0e7490;">
+        📦 Importer le catalogue de base
+      </button>
+      <span class="section-help" style="display:block;margin-top:6px;">
+        Pré-remplit chaque catégorie avec une base de fournitures / main d'œuvre / déplacement. À utiliser une fois au démarrage, puis ajustez à la main.
+      </span>
+    </form>
+    {% endif %}
+  </article>
+
+  {% if catalogue_selected %}
+  <!-- Formulaire ajout / édition --------------------------------------------->
+  <article class="card card-elevate crud-form-card">
+    <h3>{% if edit_catalogue_id %}Modifier la fourniture{% else %}Ajouter une fourniture{% endif %} — {{ catalogue_selected.nom }}</h3>
+    <p class="section-help">Type = section du devis. Le prix est <strong>indicatif</strong> : le prestataire pourra l'ajuster.</p>
+    <form method="post" class="crud-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="catalogue_save">
+      <input type="hidden" name="cat_id" value="{{ catalogue_selected.id }}">
+      {% if edit_catalogue_id %}<input type="hidden" name="pk" value="{{ edit_catalogue_id }}">{% endif %}
+      <div class="form-grid">{{ catalogue_form.as_p }}</div>
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Enregistrer</button>
+        {% if edit_catalogue_id %}<a href="?section=catalogue&cat_id={{ catalogue_selected.id }}" class="btn-link-cancel">Annuler</a>{% endif %}
+      </div>
+    </form>
+  </article>
+
+  <!-- Liste des fournitures de la catégorie ---------------------------------->
+  <article class="card card-elevate">
+    <div class="category-list-header">
+      <h3>Fournitures de « {{ catalogue_selected.nom }} » <span class="section-count">{{ catalogue_items|length }} élément(s)</span></h3>
+    </div>
+    <div class="bulk-bar" id="bulk-bar-catalogue" style="display:none;">
+      <span class="bulk-bar__count" id="bulk-count-catalogue"><b>0</b> sélectionné(s)</span>
+      <button type="button" class="bulk-bar__btn" id="bulk-btn-catalogue" onclick="babifixBulkDelete('catalogue')" disabled>🗑 Supprimer la sélection</button>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="catalogue" onclick="babifixBulkToggleAll('catalogue', this)"></th>
+            <th>Type</th>
+            <th>Nom</th>
+            <th>Unité</th>
+            <th>Prix indicatif</th>
+            <th>Marque</th>
+            <th>État</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in catalogue_items %}
+          <tr>
+            <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="catalogue" value="{{ it.id }}" onchange="babifixBulkUpdate('catalogue')"></td>
+            <td><span class="tag tag--category">{{ it.get_type_ligne_display }}</span></td>
+            <td>
+              <strong>{{ it.nom }}</strong>
+              {% if it.description %}<br><span class="slug-hint">{{ it.description|truncatechars:70 }}</span>{% endif %}
+            </td>
+            <td>{{ it.unite|default:"—" }}</td>
+            <td><strong>{{ it.prix_unitaire_indicatif|floatformat:0 }}</strong> FCFA</td>
+            <td>{{ it.marque|default:"—" }}</td>
+            <td>{% if it.actif %}<span class="pill pill-ok">Actif</span>{% else %}<span class="pill">Inactif</span>{% endif %}</td>
+            <td class="td-actions">
+              <a href="?section=catalogue&cat_id={{ catalogue_selected.id }}&edit_catalogue={{ it.id }}" class="link-edit">Modifier</a>
+              <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer cette fourniture ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="catalogue_delete">
+                <input type="hidden" name="cat_id" value="{{ catalogue_selected.id }}">
+                <input type="hidden" name="pk" value="{{ it.id }}">
+                <button type="submit" class="table-btn danger">Supprimer</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="empty-state">Aucune fourniture pour cette catégorie. Ajoutez-en une avec le formulaire ci-dessus, ou lancez <code>python manage.py seed_catalogue</code> pour pré-remplir.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+  {% else %}
+  <article class="card card-elevate">
+    <p class="section-help">Aucune catégorie disponible. Importez d'abord le catalogue de catégories (section <strong>Catégories</strong>).</p>
+  </article>
+  {% endif %}
+</div>

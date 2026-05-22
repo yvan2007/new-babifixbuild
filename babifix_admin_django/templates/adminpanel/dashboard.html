@@ -65,6 +65,18 @@
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         <span>Catégories</span>
       </a>
+      <a href="/?section=catalogue" class="nav-link {% if section == 'catalogue' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/></svg>
+        <span>Fournitures</span>
+      </a>
+      <a href="/?section=finances" class="nav-link {% if section == 'finances' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
+        <span>Finances</span>
+      </a>
+      <a href="/?section=payouts" class="nav-link {% if section == 'payouts' %}active{% endif %}">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        <span>Versements</span>
+      </a>
       <a href="/?section=notifications{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'notifications' %}active{% endif %}">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7M13.73 21a2 2 0 01-3.46 0"/></svg>
         <span>Notifications</span>
@@ -484,10 +496,15 @@
           {% endfor %}
         </div>
         {% else %}
+        <div class="bulk-bar" id="bulk-bar-provider" style="display:none;">
+          <span class="bulk-bar__count" id="bulk-count-provider"><b>0</b> sélectionné(s)</span>
+          <button type="button" class="bulk-bar__btn" id="bulk-btn-provider" onclick="babifixBulkDelete('provider')" disabled>🗑 Supprimer la sélection</button>
+        </div>
         <div class="table-responsive providers-table-wrap">
         <table class="providers-table">
           <thead>
             <tr>
+              <th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="provider" onclick="babifixBulkToggleAll('provider', this)"></th>
               <th>Prestataire</th>
               <th>Documents CNI</th>
               <th>Spécialité · Tarif</th>
@@ -500,6 +517,7 @@
           <tbody>
             {% for p in providers %}
             <tr class="provider-row provider-row--{% if p.statut == 'En attente' %}pending{% elif p.statut == 'Valide' %}valid{% elif p.statut == 'Refusé' or p.statut == 'Refuse' %}refused{% else %}suspended{% endif %}">
+              <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="provider" value="{{ p.id }}" onchange="babifixBulkUpdate('provider')"></td>
               <td>
                 <div class="provider-identity">
                   {% if p.photo_portrait_url %}
@@ -688,7 +706,7 @@
               </td>
             </tr>
             <tr class="provider-dossier-row" id="dossier-{{ p.id }}" hidden>
-              <td colspan="7" style="padding:0;">
+              <td colspan="8" style="padding:0;">
                 <div class="dossier-premium">
 
                   <!-- ══ EN-TÊTE DOSSIER ══ -->
@@ -1047,7 +1065,7 @@
             </tr>
             {% empty %}
             <tr>
-              <td colspan="7">
+              <td colspan="8">
                 <div class="empty-state">
                   <div class="empty-state__icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
@@ -1204,11 +1222,16 @@
       <article class="card card-elevate">
         <h3>Liste des réservations</h3>
         <p class="section-help">Colonnes <strong>Paiement</strong> et <strong>Opérateur</strong> : données issues des apps.</p>
+        <div class="bulk-bar" id="bulk-bar-reservation" style="display:none;">
+          <span class="bulk-bar__count" id="bulk-count-reservation"><b>0</b> sélectionné(s)</span>
+          <button type="button" class="bulk-bar__btn" id="bulk-btn-reservation" onclick="babifixBulkDelete('reservation')" disabled>🗑 Supprimer la sélection</button>
+        </div>
         <table class="data-table">
-          <thead><tr><th>Ref.</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Paiement</th><th>Operateur MM</th><th>Flux especes</th><th>Statut</th><th>Actions</th></tr></thead>
+          <thead><tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="reservation" onclick="babifixBulkToggleAll('reservation', this)"></th><th>Ref.</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Paiement</th><th>Operateur MM</th><th>Flux especes</th><th>Statut</th><th>Actions</th></tr></thead>
           <tbody>
             {% for r in reservations %}
             <tr>
+              <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="reservation" value="{{ r.id }}" onchange="babifixBulkUpdate('reservation')"></td>
               <td>{{ r.reference }}</td><td>{{ r.client }}</td><td>{{ r.prestataire }}</td><td>{{ r.montant }}</td>
               <td>{{ r.get_payment_type_display }}</td>
               <td>{% if r.payment_type == 'MOBILE_MONEY' %}{% if r.mobile_money_operator %}{{ r.get_mobile_money_operator_display }}{% else %}<span class="muted">Non precise</span>{% endif %}{% else %}<span class="muted">---</span>{% endif %}</td>
@@ -1241,7 +1264,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="9" class="empty-state">Aucune reservation trouvee</td></tr>
+            <tr><td colspan="10" class="empty-state">Aucune reservation trouvee</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -1565,12 +1588,17 @@
           {% endfor %}
         </div>
         {% else %}
+        <div class="bulk-bar" id="bulk-bar-litige" style="display:none;">
+          <span class="bulk-bar__count" id="bulk-count-litige"><b>0</b> sélectionné(s)</span>
+          <button type="button" class="bulk-bar__btn" id="bulk-btn-litige" onclick="babifixBulkDelete('litige')" disabled>🗑 Supprimer la sélection</button>
+        </div>
         <div class="table-responsive">
         <table class="data-table">
-          <thead><tr><th>Réf.</th><th>Motif</th><th>Client</th><th>Prestataire</th><th>Priorité</th><th>Décision actuelle</th><th>Arbitrer</th><th>Actions</th></tr></thead>
+          <thead><tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="litige" onclick="babifixBulkToggleAll('litige', this)"></th><th>Réf.</th><th>Motif</th><th>Client</th><th>Prestataire</th><th>Priorité</th><th>Décision actuelle</th><th>Arbitrer</th><th>Actions</th></tr></thead>
           <tbody>
             {% for l in litiges %}
             <tr>
+              <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="litige" value="{{ l.id }}" onchange="babifixBulkUpdate('litige')"></td>
               <td><code style="font-size:12px;">{{ l.reference }}</code></td>
               <td style="max-width:14rem;">{{ l.motif|truncatechars:80 }}</td>
               <td>{{ l.client }}</td>
@@ -1623,7 +1651,7 @@
             </tr>
             {% empty %}
             <tr>
-              <td colspan="8">
+              <td colspan="9">
                 <div class="empty-state">
                   <div class="empty-state__icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -1742,11 +1770,16 @@
       {% else %}
       <article class="card card-elevate">
         <h3>Liste des clients</h3>
+        <div class="bulk-bar" id="bulk-bar-client" style="display:none;">
+          <span class="bulk-bar__count" id="bulk-count-client"><b>0</b> sélectionné(s)</span>
+          <button type="button" class="bulk-bar__btn" id="bulk-btn-client" onclick="babifixBulkDelete('client')" disabled>🗑 Supprimer la sélection</button>
+        </div>
         <table>
-          <thead><tr><th>Nom</th><th>Email</th><th>Ville</th><th>Réservations</th><th>Dépense</th><th>Actions</th></tr></thead>
+          <thead><tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="client" onclick="babifixBulkToggleAll('client', this)"></th><th>Nom</th><th>Email</th><th>Ville</th><th>Réservations</th><th>Dépense</th><th>Actions</th></tr></thead>
           <tbody>
             {% for c in clients %}
             <tr>
+              <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="client" value="{{ c.id }}" onchange="babifixBulkUpdate('client')"></td>
               <td>{{ c.nom }}</td>
               <td title="Identifiant masqué (stats)">{% if c.email %}{% with e=c.email %}{{ e|slice:":2" }}•••@•••{% endwith %}{% else %}—{% endif %}</td>
               <td>{{ c.ville }}</td><td>{{ c.reservations }}</td><td>{{ c.depense }}</td>
@@ -1900,11 +1933,16 @@
       {% else %}
       <article class="card card-elevate">
         <h3>Liste des paiements</h3>
+        <div class="bulk-bar" id="bulk-bar-paiement" style="display:none;">
+          <span class="bulk-bar__count" id="bulk-count-paiement"><b>0</b> sélectionné(s)</span>
+          <button type="button" class="bulk-bar__btn" id="bulk-btn-paiement" onclick="babifixBulkDelete('paiement')" disabled>🗑 Supprimer la sélection</button>
+        </div>
         <table>
-          <thead><tr><th>Référence</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Commission</th><th>Statut</th><th>Actions</th></tr></thead>
+          <thead><tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="paiement" onclick="babifixBulkToggleAll('paiement', this)"></th><th>Référence</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Commission</th><th>Statut</th><th>Actions</th></tr></thead>
           <tbody>
             {% for p in paiements %}
             <tr>
+              <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="paiement" value="{{ p.id }}" onchange="babifixBulkUpdate('paiement')"></td>
               <td>{{ p.reference }}</td><td>{{ p.client }}</td><td>{{ p.prestataire }}</td><td>{{ p.montant }}</td><td>{{ p.commission }}</td><td>{{ p.etat }}</td>
               <td class="td-actions">
                 <a href="?section=paiements&amp;edit_paiement={{ p.id }}" class="link-edit">Modifier</a>
@@ -1944,6 +1982,12 @@
       {% endif %}
     {% elif section == 'categories' %}
       {% include 'adminpanel/partials/categories_section.html' %}
+    {% elif section == 'catalogue' %}
+      {% include 'adminpanel/partials/catalogue_section.html' %}
+    {% elif section == 'finances' %}
+      {% include 'adminpanel/partials/finances_section.html' %}
+    {% elif section == 'payouts' %}
+      {% include 'adminpanel/partials/payouts_section.html' %}
     {% elif section == 'notifications' %}
       {% if edit_notification_id %}
       <article class="card card-elevate crud-form-card">
@@ -2000,7 +2044,7 @@
             <div class="kanban-card kanban-card--notification {% if not n.lu %}kanban-card--unread{% endif %}" data-id="{{ n.id }}">
               <div class="kanban-card-top">
                 <span class="kanban-card-ref">{{ n.title|truncatechars:40 }}</span>
-                <time class="kanban-card-date" title="{{ n.created_at|date:'d/m/Y H:i' }}">{{ n.time|default:"Récent" }}</time>
+                <time class="kanban-card-date" title="{{ n.created_at|date:'d/m/Y H:i' }}">{{ n.created_at|relative_time }}</time>
               </div>
               {% if n.body %}
               <p class="kanban-card-desc">{{ n.body|truncatechars:80 }}</p>
@@ -2030,10 +2074,15 @@
       {% else %}
       <article class="card card-elevate">
         <h3>Liste</h3>
+        <div class="bulk-bar" id="bulk-bar-notification" style="display:none;">
+          <span class="bulk-bar__count" id="bulk-count-notification"><b>0</b> sélectionné(s)</span>
+          <button type="button" class="bulk-bar__btn" id="bulk-btn-notification" onclick="babifixBulkDelete('notification')" disabled>🗑 Supprimer la sélection</button>
+        </div>
         <ul class="notes">
           {% for n in notifications %}
           <li>
-            <span>{{ n.title }}</span><time>{{ n.time }}</time>
+            <input type="checkbox" class="bulk-cb" data-scope="notification" value="{{ n.id }}" onchange="babifixBulkUpdate('notification')" style="margin-right:8px;">
+            <span>{{ n.title }}</span><time>{{ n.created_at|relative_time }}</time>
             <span class="note-actions">
               <a href="?section=notifications&amp;edit_notification={{ n.id }}" class="link-edit">Modifier</a>
               <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
@@ -2144,13 +2193,18 @@
       {% else %}
       <article class="card card-elevate">
         <h3>Liste des actualités</h3>
+        <div class="bulk-bar" id="bulk-bar-actualite" style="display:none;">
+          <span class="bulk-bar__count" id="bulk-count-actualite"><b>0</b> sélectionné(s)</span>
+          <button type="button" class="bulk-bar__btn" id="bulk-btn-actualite" onclick="babifixBulkDelete('actualite')" disabled>🗑 Supprimer la sélection</button>
+        </div>
         <table class="data-table">
           <thead>
-            <tr><th>Titre</th><th>Tag</th><th>Cible</th><th>Statut</th><th>Date</th><th></th></tr>
+            <tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="actualite" onclick="babifixBulkToggleAll('actualite', this)"></th><th>Titre</th><th>Tag</th><th>Cible</th><th>Statut</th><th>Date</th><th></th></tr>
           </thead>
           <tbody>
             {% for a in actualites %}
             <tr>
+              <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="actualite" value="{{ a.id }}" onchange="babifixBulkUpdate('actualite')"></td>
               <td>{{ a.titre }}</td>
               <td>{{ a.get_categorie_tag_display }}</td>
               <td>
@@ -2171,7 +2225,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6">Aucune actualité — la liste commence vide.</td></tr>
+            <tr><td colspan="7">Aucune actualité — la liste commence vide.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -2466,7 +2520,7 @@
           </div>
           <div class="notif-item-content">
             <p class="notif-item-title">{{ n.title }}</p>
-            <time>{{ n.time|default:"Récent" }}</time>
+            <time>{{ n.created_at|relative_time }}</time>
           </div>
         </div>
         {% endfor %}
@@ -2478,5 +2532,63 @@
       {% endif %}
     </div>
   </div>
+
+  <!-- Suppression groupée (multi-sélection) — formulaire global réutilisé -->
+  <form method="post" id="bulk-delete-form" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="bulk_delete">
+    <input type="hidden" name="model" id="bulk-delete-model">
+    <input type="hidden" name="view" value="{{ request.GET.view }}">
+    <div id="bulk-delete-ids"></div>
+  </form>
+
+  <style>
+    .bulk-bar{display:flex;align-items:center;gap:12px;padding:10px 14px;margin:0 0 12px;
+      background:rgba(76,201,240,.08);border:1px solid rgba(76,201,240,.28);border-radius:12px;}
+    .bulk-bar__count{font-size:13px;font-weight:600;color:#0b1b34;}
+    .bulk-bar__count b{color:#0e7490;}
+    .bulk-bar__btn{margin-left:auto;display:inline-flex;align-items:center;gap:6px;
+      padding:8px 14px;border:none;border-radius:10px;font-size:13px;font-weight:700;
+      background:#ef4444;color:#fff;cursor:pointer;transition:.15s;}
+    .bulk-bar__btn:hover{background:#dc2626;}
+    .bulk-bar__btn:disabled{background:#cbd5e1;color:#64748b;cursor:not-allowed;}
+    .bulk-cb,.bulk-all{width:16px;height:16px;cursor:pointer;accent-color:#4cc9f0;}
+    .bulk-col{width:38px;text-align:center;}
+  </style>
+
+  <script>
+    // ── Multi-sélection + suppression groupée ───────────────────────────────
+    function babifixBulkUpdate(scope){
+      var total = document.querySelectorAll('.bulk-cb[data-scope="'+scope+'"]').length;
+      var checked = document.querySelectorAll('.bulk-cb[data-scope="'+scope+'"]:checked').length;
+      var bar = document.getElementById('bulk-bar-'+scope);
+      var cntEl = document.getElementById('bulk-count-'+scope);
+      var btn = document.getElementById('bulk-btn-'+scope);
+      var allCb = document.querySelector('.bulk-all[data-scope="'+scope+'"]');
+      if(cntEl){ cntEl.innerHTML = '<b>'+checked+'</b> sélectionné(s)'; }
+      if(btn){ btn.disabled = checked === 0; }
+      if(bar){ bar.style.display = checked > 0 ? 'flex' : 'none'; }
+      if(allCb){ allCb.checked = total > 0 && checked === total; allCb.indeterminate = checked > 0 && checked < total; }
+    }
+    function babifixBulkToggleAll(scope, el){
+      document.querySelectorAll('.bulk-cb[data-scope="'+scope+'"]').forEach(function(cb){ cb.checked = el.checked; });
+      babifixBulkUpdate(scope);
+    }
+    function babifixBulkDelete(scope){
+      var checked = Array.prototype.slice.call(document.querySelectorAll('.bulk-cb[data-scope="'+scope+'"]:checked'));
+      if(!checked.length){ return; }
+      if(!confirm('Supprimer définitivement '+checked.length+' élément(s) ? Cette action est irréversible.')){ return; }
+      var form = document.getElementById('bulk-delete-form');
+      document.getElementById('bulk-delete-model').value = scope;
+      var box = document.getElementById('bulk-delete-ids');
+      box.innerHTML = '';
+      checked.forEach(function(cb){
+        var i = document.createElement('input');
+        i.type = 'hidden'; i.name = 'ids'; i.value = cb.value;
+        box.appendChild(i);
+      });
+      form.submit();
+    }
+  </script>
 </body>
 </html>

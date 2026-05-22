@@ -11,6 +11,7 @@ from .views_calls import (
     api_call_history,
     api_call_initiate,
     api_call_reject,
+    api_livekit_token,
 )
 from .views_finance import (
     api_referral,
@@ -56,6 +57,8 @@ from .views_extra import (
 )
 from .views_v2 import (
     api_admin_push_broadcast,
+    api_app_log_error,
+    api_app_version,
     api_auth_delete_account,
     api_auth_forgot_password,
     api_auth_refresh_token,
@@ -98,6 +101,7 @@ from .views import (
     api_reservation_devis_history,
     api_client_conversations,
     api_client_create_reservation,
+    api_client_check_duplicate_reservation,
     api_client_declare_cash,
     api_client_demandes_list,
     api_client_home,
@@ -195,6 +199,11 @@ urlpatterns = [
         "api/client/reservations",
         api_client_create_reservation,
         name="api-client-reservations-create",
+    ),
+    path(
+        "api/client/reservations/check-duplicate",
+        api_client_check_duplicate_reservation,
+        name="api-client-reservations-check-duplicate",
     ),
     path(
         "api/client/reservations/<str:reference>/rating",
@@ -376,6 +385,8 @@ urlpatterns = [
         api_auth_forgot_password,
         name="api-auth-forgot-password",
     ),
+    path("api/app/version", api_app_version, name="api-app-version"),
+    path("api/app/log-error", api_app_log_error, name="api-app-log-error"),
     path(
         "api/auth/reset-password",
         api_auth_reset_password,
@@ -573,6 +584,8 @@ urlpatterns = [
     ),
     # Phase D — Appels LiveKit (signalisation backend authoritative)
     path("api/calls/initiate", api_call_initiate, name="api-call-initiate"),
+    # Génération de token LiveKit côté serveur uniquement (sécurité).
+    path("api/livekit/token", api_livekit_token, name="api-livekit-token"),
     path("api/calls/history", api_call_history, name="api-call-history"),
     path("api/calls/<int:call_id>", api_call_detail, name="api-call-detail"),
     path("api/calls/<int:call_id>/answer", api_call_answer, name="api-call-answer"),

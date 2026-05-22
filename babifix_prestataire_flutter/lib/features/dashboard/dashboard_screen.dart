@@ -150,13 +150,21 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
     }
   }
 
+  Future<void> _refreshAll() async {
+    await Future.wait([_loadMe(), _loadRevenueChart()]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
     return Scaffold(
       extendBody: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: _refreshAll,
+        color: const Color(0xFF4CC9F0),
+        child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           if (_provStatut == 'En attente')
             SliverToBoxAdapter(
@@ -425,6 +433,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
             ),
           ),
         ],
+        ),
       ),
       bottomNavigationBar: PrestataireFloatingNavBar(
         selectedIndex: selected,

@@ -1,18 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Splash natif Android — affiché avant le démarrage de Flutter.
-     Fond dégradé navy + logo BABIFIX centré. Le splash Dart prend
-     ensuite le relais avec les animations complètes (loader 4-anneaux,
-     halo qui pulse, etc.). -->
+<!-- Splash natif Android (pré-Android 12) — affiché avant le démarrage de
+     Flutter. Uniquement un fond dégradé navy, SANS logo : le logo BABIFIX
+     + le texte CLIENT s'animent une seule fois sur le splash Dart pour
+     éviter tout doublon de logo. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@drawable/splash_gradient" />
-
-    <item
-        android:width="140dp"
-        android:height="140dp"
-        android:gravity="center">
-        <bitmap
-            android:src="@drawable/babifix_logo"
-            android:gravity="center"
-            android:antialias="true" />
-    </item>
 </layer-list>

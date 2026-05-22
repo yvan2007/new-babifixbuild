@@ -41,6 +41,9 @@ import 'features/wallet/wallet_screen.dart' as wallet_feature;
 import 'services/fcm_router.dart';
 import 'services/location_reporter.dart';
 import 'shared/widgets/babifix_ring_loader.dart';
+import 'shared/widgets/babifix_snackbar.dart';
+import 'shared/widgets/app_version_gate.dart';
+import 'shared/widgets/error_reporter.dart';
 
 // Alias avec BabifixFcmRouter — un seul navigatorKey pour tout (calls in/out).
 final GlobalKey<NavigatorState> zegoNavigatorKey =
@@ -48,11 +51,14 @@ final GlobalKey<NavigatorState> zegoNavigatorKey =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Monitoring : capter les crashs et les remonter au backend (→ Sentry).
+  initErrorReporter(app: 'prestataire', version: kAppVersion);
+
   try {
     await dotenv.load(fileName: ".env");
   } catch (_) {}
-  
+
   await BabifixFcm.ensureInitialized();
 
   // Géolocalisation auto : push la position GPS du prestataire au backend
@@ -277,6 +283,10 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
     _loadPublicCategories();
     // Polling fallback for real-time category sync
     _startCategoryPolling();
+    // Contrôle de version (force update) — non bloquant si à jour.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) checkAppVersionGate(context, app: 'prestataire');
+    });
   }
 
   void _startCategoryPolling() {
@@ -441,10 +451,12 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
   Future<void> _loginAsDemoPrestataire() async {
     if (!mounted) return;
     // Petit feedback visuel pendant le login
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      duration: Duration(seconds: 4),
-      content: Text('Connexion en compte démo…'),
-    ));
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Connexion en compte démo…',
+        duration: Duration(seconds: 4),
+      );
     try {
       final res = await http.post(
         Uri.parse('${babifixApiBaseUrl()}/api/auth/login/'),
@@ -456,13 +468,12 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       );
       if (res.statusCode != 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-              'Compte démo indisponible (HTTP ${res.statusCode}). '
+          showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: 'Compte démo indisponible (HTTP ${res.statusCode}). '
               'Lancez "python manage.py seed_app_users" côté backend.',
-            ),
-            backgroundColor: const Color(0xFFE87722),
-          ));
+      );
         }
         return;
       }
@@ -477,10 +488,11 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       await _bootstrapSession();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Erreur démo : $e'),
-          backgroundColor: const Color(0xFFE87722),
-        ));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: 'Erreur démo : $e',
+      );
       }
     }
   }
@@ -745,9 +757,11 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
               severity: BabifixNotifSeverity.important,
             );
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Nouvelle actualité BABIFIX.')),
-              );
+              showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Nouvelle actualité BABIFIX.',
+      );
             }
           } else if (typ == 'categories.updated' ||
               typ == 'category.created' ||

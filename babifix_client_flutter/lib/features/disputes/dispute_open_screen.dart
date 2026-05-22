@@ -10,6 +10,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 /// Catégories de litige proposées au client.
 /// Doivent rester alignées avec `Dispute.Category` côté backend.
@@ -178,18 +179,11 @@ class _DisputeOpenScreenState extends State<DisputeOpenScreen> {
 
   void _showSnack(String msg, {Color color = _kCyan}) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: _kNavy,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color.withValues(alpha: 0.55)),
-        ),
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-      ),
-    );
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: msg,
+      );
   }
 
   Future<void> _submit() async {

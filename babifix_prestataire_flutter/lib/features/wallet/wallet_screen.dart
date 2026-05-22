@@ -9,6 +9,7 @@ import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import 'wallet_escrow_panel.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data helpers
@@ -67,6 +68,16 @@ IconData _txIcon(String type) {
     'commission' => Icons.percent_rounded,
     'refund' => Icons.replay_rounded,
     _ => Icons.swap_horiz_rounded,
+  };
+}
+
+/// (libellé, couleur) du statut d'une transaction de retrait.
+(String, Color) _statusChip(String status) {
+  return switch (status) {
+    'pending' => ('En attente', const Color(0xFFF59E0B)),
+    'processing' => ('Versement en cours', const Color(0xFF4CC9F0)),
+    'failed' => ('Échoué — recrédité', const Color(0xFFEF4444)),
+    _ => ('', Colors.grey),
   };
 }
 
@@ -184,9 +195,11 @@ class _WalletScreenState extends State<WalletScreen>
             _walletPhone = phone;
             _walletOperator = op;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Informations Mobile Money mises à jour')),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Informations Mobile Money mises à jour',
+      );
         },
       ),
     );
@@ -720,22 +733,30 @@ class _TxTile extends StatelessWidget {
               date,
               style: const TextStyle(fontSize: 11, color: Colors.white38),
             ),
-            if (status == 'pending')
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.3),
+            if (status == 'pending' ||
+                status == 'processing' ||
+                status == 'failed')
+              Builder(builder: (_) {
+                final cfg = _statusChip(status);
+                return Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: cfg.$2.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: cfg.$2.withValues(alpha: 0.3)),
                   ),
-                ),
-                child: const Text(
-                  'En attente',
-                  style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600),
-                ),
-              ),
+                  child: Text(
+                    cfg.$1,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: cfg.$2,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                );
+              }),
           ],
         ),
         trailing: Text(
@@ -964,7 +985,25 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
             const SizedBox(height: 10),
             Text(_err!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(Icons.verified_user_rounded,
+                  size: 16, color: Color(0xFF4CC9F0)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Versement sécurisé vers votre Mobile Money, '
+                  'traité généralement sous 24 h après validation.',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 11.5,
+                      height: 1.35),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             child: FilledButton(

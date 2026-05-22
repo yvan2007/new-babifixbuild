@@ -10,6 +10,7 @@ import '../../shared/widgets/babifix_page_route.dart';
 import '../../services/zego_call_service.dart';
 import 'forgot_password_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.onBack, required this.onSuccess,});
@@ -93,14 +94,11 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF1E3A5F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: msg,
+      );
   }
 
   @override

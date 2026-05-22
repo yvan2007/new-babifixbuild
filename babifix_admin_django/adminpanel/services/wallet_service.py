@@ -12,6 +12,7 @@ Bugs corrigés v2 :
 """
 
 import logging
+import os
 from decimal import Decimal
 
 from django.db import transaction
@@ -21,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 BABIFIX_COMMISSION_RATE = Decimal("0.18")
 WITHDRAWAL_MIN_FCFA = Decimal("1000")
+# Plafond cumulé de retrait par prestataire et par jour (anti-fraude).
+WITHDRAWAL_DAILY_CAP_FCFA = Decimal(
+    os.getenv("WITHDRAWAL_DAILY_CAP_FCFA", "500000")
+)
 URGENCE_SURCHARGE_PCT = 20  # +20 % sur le montant si is_urgent
 
 
@@ -188,6 +193,39 @@ class WalletService:
         except Provider.DoesNotExist:
             return {"error": "provider_not_found"}
 
+        # Anti-fraude 1 : identité validée requise (KYC approuvé OU compte validé
+        # par l'admin) avant tout retrait.
+        kyc_ok = (getattr(prov, "kyc_status", "") == "approved") or (
+            prov.statut == Provider.Status.VALID
+        )
+        if not kyc_ok:
+            return {
+                "error": "kyc_required",
+                "detail": "Votre identité doit être validée avant d'effectuer un retrait.",
+            }
+
+        # Anti-fraude 2 : plafond cumulé par jour.
+        from django.db.models import Sum
+
+        start_day = timezone.now().replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        today_sum = WalletTransaction.objects.filter(
+            provider=prov,
+            tx_type="debit",
+            status__in=["pending", "processing", "success"],
+            created_at__gte=start_day,
+        ).aggregate(t=Sum("amount_fcfa"))["t"] or Decimal("0")
+        if today_sum + amount_fcfa > WITHDRAWAL_DAILY_CAP_FCFA:
+            return {
+                "error": "daily_cap",
+                "detail": (
+                    f"Plafond journalier de retrait atteint "
+                    f"({WITHDRAWAL_DAILY_CAP_FCFA:,.0f} FCFA). Déjà demandé "
+                    f"aujourd'hui : {today_sum:,.0f} FCFA."
+                ),
+            }
+
         if (prov.solde_fcfa or Decimal("0")) < amount_fcfa:
             return {
                 "error": "insufficient_funds",
@@ -264,6 +302,170 @@ class WalletService:
             "operator": operator,
             "phone": phone,
         }
+
+    # ── Versement automatique (payout GeniusPay) ───────────────────────────
+    @staticmethod
+    def process_withdrawal(tx_id: int) -> dict:
+        """Exécute le versement Mobile Money d'un retrait EN ATTENTE.
+
+        Claim atomique (pending → processing) pour empêcher tout double envoi,
+        puis appel payout GeniusPay HORS verrou. En cas d'échec d'envoi, le
+        solde est immédiatement recrédité (refund)."""
+        from adminpanel.models import WalletTransaction
+        from adminpanel.geniuspay import geniuspay_send_payout
+
+        # Phase 1 — claim atomique
+        with transaction.atomic():
+            tx = (
+                WalletTransaction.objects.select_for_update()
+                .filter(pk=tx_id, tx_type="debit", status="pending")
+                .first()
+            )
+            if not tx:
+                return {"error": "not_found_or_not_pending"}
+            tx.status = "processing"
+            tx.save(update_fields=["status"])
+            provider = tx.provider
+            amount = tx.amount_fcfa
+            phone = tx.phone
+            operator = tx.operator
+            prov_nom = provider.nom
+
+        ext_ref = tx.reference or f"RET-{tx.pk}"
+        result = geniuspay_send_payout(
+            amount=amount,
+            phone=phone,
+            operator=operator,
+            recipient_name=prov_nom,
+            reference=ext_ref,
+            description=f"Retrait BABIFIX #{tx.pk}",
+        )
+
+        if not result.get("ok"):
+            WalletService._refund_withdrawal(tx_id, reason=str(result.get("error")))
+            return {"error": "payout_failed", "detail": result.get("error")}
+
+        # Phase 2 — mise à jour selon la réponse (completed immédiat ou pending)
+        with transaction.atomic():
+            tx = WalletTransaction.objects.select_for_update().get(pk=tx_id)
+            tx.reference = result.get("external_reference") or ext_ref
+            tx.status = "success" if result.get("status") == "completed" else "processing"
+            tx.save(update_fields=["reference", "status"])
+
+        WalletService._notify_withdrawal_status(tx)
+        logger.info(
+            "WalletService.process_withdrawal: tx %s → %s (ref=%s)",
+            tx.pk, tx.status, tx.reference,
+        )
+        return {
+            "ok": True,
+            "status": tx.status,
+            "tx_id": tx.pk,
+            "external_reference": tx.reference,
+        }
+
+    @staticmethod
+    def _refund_withdrawal(tx_id: int, reason: str = "") -> None:
+        """Recrédite le solde du prestataire après un versement échoué."""
+        from adminpanel.models import Provider, WalletTransaction
+
+        with transaction.atomic():
+            tx = WalletTransaction.objects.select_for_update().get(pk=tx_id)
+            if tx.status == "failed":
+                return  # déjà remboursé (idempotent)
+            prov = Provider.objects.select_for_update().get(pk=tx.provider_id)
+            prov.solde_fcfa = (prov.solde_fcfa or Decimal("0")) + tx.amount_fcfa
+            prov.save(update_fields=["solde_fcfa"])
+            tx.status = "failed"
+            tx.description = (f"{tx.description or ''} | Échec versement: {reason}")[:480]
+            tx.save(update_fields=["status", "description"])
+            WalletTransaction.objects.create(
+                provider=prov,
+                tx_type="refund",
+                amount_fcfa=tx.amount_fcfa,
+                status="success",
+                reference=tx.reference,
+                description=f"Remboursement retrait échoué #{tx.pk}",
+            )
+        WalletService._notify_withdrawal_status(tx, refunded=True)
+        logger.info("WalletService._refund_withdrawal: tx %s remboursé (%s)", tx_id, reason)
+
+    @staticmethod
+    def handle_payout_webhook(*, external_reference: str, success: bool, raw=None) -> dict:
+        """Met à jour un retrait suite au webhook GeniusPay payout.* (idempotent)."""
+        from adminpanel.models import WalletTransaction
+
+        tx = (
+            WalletTransaction.objects.filter(
+                reference=external_reference, tx_type="debit"
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if not tx:
+            logger.warning("payout webhook: retrait introuvable ref=%s", external_reference)
+            return {"error": "tx_not_found"}
+        if success:
+            if tx.status != "success":
+                tx.status = "success"
+                tx.save(update_fields=["status"])
+                WalletService._notify_withdrawal_status(tx)
+            return {"ok": True, "status": "success"}
+        # Échec → rembourser si pas déjà fait
+        if tx.status != "failed":
+            WalletService._refund_withdrawal(tx.pk, reason="payout.failed (webhook)")
+        return {"ok": True, "status": "failed_refunded"}
+
+    @staticmethod
+    def _notify_withdrawal_status(tx, refunded: bool = False) -> None:
+        """Notifie le prestataire (push + WebSocket) de l'état de son retrait."""
+        try:
+            from adminpanel.push_dispatch import _schedule
+
+            if tx.status == "success":
+                title = "BABIFIX — Retrait effectué"
+                body = (
+                    f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA via "
+                    f"{tx.operator.upper()} a été versé."
+                )
+                ev = "wallet.withdrawal_done"
+            elif refunded or tx.status == "failed":
+                title = "BABIFIX — Retrait échoué"
+                body = (
+                    f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA a échoué. "
+                    f"Le montant a été recrédité sur votre solde."
+                )
+                ev = "wallet.withdrawal_failed"
+            else:
+                title = "BABIFIX — Retrait en cours"
+                body = (
+                    f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA est en cours "
+                    f"de traitement."
+                )
+                ev = "wallet.withdrawal_processing"
+            _schedule([tx.provider.user_id], title, body, {"type": ev, "tx_id": str(tx.pk)})
+        except Exception as exc:
+            logger.warning("notify withdrawal status (push) failed: %s", exc)
+        try:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+
+            layer = get_channel_layer()
+            if layer:
+                async_to_sync(layer.group_send)(
+                    f"prestataire_{tx.provider.user_id}",
+                    {
+                        "type": "prestataire_notify",
+                        "event_type": "wallet.withdrawal_update",
+                        "payload": {
+                            "tx_id": tx.pk,
+                            "status": tx.status,
+                            "amount": float(tx.amount_fcfa),
+                        },
+                    },
+                )
+        except Exception:
+            pass
 
     @staticmethod
     def get_wallet_summary(provider_id: int) -> dict:

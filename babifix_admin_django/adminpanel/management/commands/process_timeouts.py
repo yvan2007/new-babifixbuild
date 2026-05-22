@@ -185,6 +185,9 @@ class Command(BaseCommand):
         for r in terminee.iterator():
             if r.client_confirme_prestation_at:
                 continue
+            # SÉCURITÉ : ne JAMAIS auto-confirmer/verser une réservation en litige.
+            if getattr(r, "dispute_ouverte", False):
+                continue
             age_hours = (now - r.prestation_terminee_at).total_seconds() / 3600
             if age_hours < 24 * 7:
                 continue

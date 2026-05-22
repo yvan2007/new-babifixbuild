@@ -34,6 +34,9 @@ GENIUSPAY_BASE_URL    = os.getenv("GENIUSPAY_API_URL",     getattr(settings, "GE
 GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", getattr(settings, "GENIUSPAY_WEBHOOK_URL", ""))
 GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", getattr(settings, "GENIUSPAY_SUCCESS_URL", ""))
 GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   getattr(settings, "GENIUSPAY_ERROR_URL", ""))
+# Wallet marchand source des versements (payouts). Optionnel : si vide, GeniusPay
+# utilise le wallet principal du compte.
+GENIUSPAY_WALLET_ID   = os.getenv("GENIUSPAY_WALLET_ID",   getattr(settings, "GENIUSPAY_WALLET_ID", ""))
 
 # Mapping opérateurs BABIFIX → codes GeniusPay
 _OPERATOR_MAP = {
@@ -42,6 +45,18 @@ _OPERATOR_MAP = {
     "WAVE":         "wave",
     "PAWAPAY":      "pawapay",
     "MOOV":         "pawapay",   # PawaPay gère Moov via auto-routing
+}
+
+# Mapping opérateurs (côté wallet prestataire, en minuscules) → providers PAYOUT.
+# La doc payout attend : wave | orange_money | mtn | moov
+_PAYOUT_PROVIDER_MAP = {
+    "orange": "orange_money",
+    "orange_money": "orange_money",
+    "mtn": "mtn",
+    "mtn_money": "mtn",
+    "mtn_momo": "mtn",
+    "wave": "wave",
+    "moov": "moov",
 }
 
 
@@ -81,13 +96,124 @@ def _genius_request(method: str, path: str, payload: dict | None = None) -> dict
 
 
 # ---------------------------------------------------------------------------
+# PAYOUT (versement sortant vers Mobile Money) — POST /payouts (auth Bearer)
+# ---------------------------------------------------------------------------
+def _genius_payout_request(payload: dict) -> dict:
+    """Appel POST /payouts. L'API payout utilise l'auth Bearer ; on envoie
+    aussi les en-têtes X-API-* pour compatibilité."""
+    import urllib.request
+    import urllib.error
+
+    url = GENIUSPAY_BASE_URL + "/payouts"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type":  "application/json",
+            "Authorization": f"Bearer {GENIUSPAY_SECRET_KEY}",
+            "X-API-Key":     GENIUSPAY_PUBLIC_KEY,
+            "X-API-Secret":  GENIUSPAY_SECRET_KEY,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        logger.error("GeniusPay payout HTTP error: %s", body)
+        try:
+            return json.loads(body)
+        except Exception:
+            return {"success": False, "error": body, "status_code": e.code}
+    except Exception as exc:
+        logger.error("GeniusPay payout network error: %s", exc)
+        return {"success": False, "error": str(exc)}
+
+
+def geniuspay_send_payout(
+    *,
+    amount,
+    phone: str,
+    operator: str,
+    recipient_name: str,
+    reference: str,
+    description: str = "",
+) -> dict:
+    """Déclenche un versement Mobile Money vers un prestataire.
+
+    Retour normalisé :
+      {ok: bool, status: "pending|processing|completed|failed",
+       external_reference: str, fees, net, error}
+    - Sans clés API → simulation (succès) pour le développement.
+    """
+    provider = _PAYOUT_PROVIDER_MAP.get((operator or "").strip().lower())
+    if not provider:
+        return {"ok": False, "error": f"operateur_invalide:{operator}"}
+    if not phone:
+        return {"ok": False, "error": "telephone_requis"}
+    try:
+        amount_int = int(float(amount))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "montant_invalide"}
+    if amount_int <= 0:
+        return {"ok": False, "error": "montant_invalide"}
+
+    # Mode simulation (dev / clés absentes) : versement simulé réussi.
+    if not GENIUSPAY_PUBLIC_KEY or not GENIUSPAY_SECRET_KEY:
+        logger.warning("GeniusPay payout : clés absentes — simulation pour %s", reference)
+        return {
+            "ok": True,
+            "status": "completed",
+            "external_reference": "PYT-SIMUL-" + uuid.uuid4().hex[:8].upper(),
+            "fees": 0,
+            "net": amount_int,
+            "simulated": True,
+        }
+
+    payload: dict = {
+        "recipient": {"name": recipient_name or "Prestataire BABIFIX", "phone": phone},
+        "destination": {"type": "mobile_money", "provider": provider, "account": phone},
+        "amount": amount_int,
+        "currency": "XOF",
+        "description": description or f"Retrait BABIFIX {reference}",
+        "idempotency_key": reference,
+        "metadata": {"reference": reference, "source": "babifix_wallet_withdrawal"},
+    }
+    if GENIUSPAY_WALLET_ID:
+        payload["wallet_id"] = GENIUSPAY_WALLET_ID
+
+    resp = _genius_payout_request(payload)
+    payout = resp.get("payout") or {}
+    if resp.get("success") and payout:
+        return {
+            "ok": True,
+            "status": payout.get("status", "pending"),
+            "external_reference": payout.get("reference", "") or reference,
+            "fees": payout.get("fees", 0),
+            "net": payout.get("net_amount", amount_int),
+        }
+    return {
+        "ok": False,
+        "error": resp.get("error") or resp.get("message") or "payout_failed",
+        "raw": resp,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Vérification signature webhook
 # Formula : HMAC-SHA256(timestamp + "." + json_body_string, secret_key)
 # ---------------------------------------------------------------------------
 def _verify_webhook_signature(raw_body: bytes, timestamp: str, received_sig: str) -> bool:
     if not GENIUSPAY_SECRET_KEY:
-        logger.warning("GENIUSPAY_SECRET_KEY non configurée — signature ignorée en dev.")
-        return True
+        # Fail-OPEN seulement en développement (DEBUG). En production, on REFUSE
+        # les webhooks non signés pour empêcher tout faux « paiement réussi ».
+        if getattr(settings, "DEBUG", False):
+            logger.warning("GENIUSPAY_SECRET_KEY absente — signature ignorée (DEBUG).")
+            return True
+        logger.error("GENIUSPAY_SECRET_KEY absente en production — webhook REFUSÉ.")
+        return False
     message = (timestamp + "." + raw_body.decode("utf-8")).encode("utf-8")
     expected = hmac.new(
         GENIUSPAY_SECRET_KEY.encode("utf-8"),
@@ -371,6 +497,30 @@ def geniuspay_webhook(request):
         return JsonResponse({"error": "invalid_payload"}, status=400)
 
     transaction_data = event_data.get("data", {})
+
+    # ── PAYOUT (versement sortant) : payout.completed / payout.failed ────────
+    if event_type in ("payout.completed", "payout.failed"):
+        payout_data = transaction_data.get("payout") or transaction_data
+        payout_ref = payout_data.get("reference", "")
+        if not payout_ref:
+            return JsonResponse({"message": "OK"})
+        success = event_type == "payout.completed"
+        try:
+            from .services.wallet_service import WalletService
+            from .services.escrow_service import EscrowService
+
+            # 1) Retrait prestataire ? 2) sinon remboursement client.
+            res = WalletService.handle_payout_webhook(
+                external_reference=payout_ref, success=success, raw=payout_data
+            )
+            if res.get("error") == "tx_not_found":
+                EscrowService.handle_refund_payout_webhook(
+                    external_reference=payout_ref, success=success
+                )
+        except Exception as exc:
+            logger.exception("payout webhook handling failed: %s", exc)
+        return JsonResponse({"message": "OK"})
+
     reference = transaction_data.get("reference", "")
 
     if not reference:

@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../babifix_design_system.dart';
 import 'babifix_ring_loader.dart';
+import 'babifix_snackbar.dart';
 
 /// Carte OpenStreetMap — point d’intervention (tap pour placer le marqueur).
 class BabifixOsmLocationPicker extends StatefulWidget {
@@ -55,9 +56,11 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
       final perm = await Permission.locationWhenInUse.request();
       if (!perm.isGranted && !perm.isLimited) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Autorisez la localisation pour utiliser votre position.')),
-          );
+          showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Autorisez la localisation pour utiliser votre position.',
+      );
         }
         return;
       }
@@ -69,9 +72,11 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
       _mapController.move(p, 16);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de récupérer la position.')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible de récupérer la position.',
+      );
       }
     } finally {
       if (mounted) setState(() => _loadingGps = false);

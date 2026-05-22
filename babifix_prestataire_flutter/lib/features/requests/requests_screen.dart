@@ -16,6 +16,7 @@ import 'rate_client_screen.dart';
 import 'request_detail_screen.dart';
 import 'waiting_payment_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class RequestsScreen extends StatefulWidget {
   const RequestsScreen({super.key, required this.onBack});
@@ -756,19 +757,38 @@ class _RequestsScreenState extends State<RequestsScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.location_on_outlined,
+              Icon(
+                it.addressIsApproximate
+                    ? Icons.lock_outline_rounded
+                    : Icons.location_on_outlined,
                 size: 14,
-                color: Color(0xFF64748B),
+                color: const Color(0xFF64748B),
               ),
               const SizedBox(width: 4),
               Expanded(
-                child: Text(
-                  it.address,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF94A3B8),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      it.address,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                    if (it.addressIsApproximate)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Adresse exacte après acceptation du devis',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontStyle: FontStyle.italic,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -1297,6 +1317,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             hour: '${e['hour']}',
             amount: '${e['amount']}',
             address: '${e['address']}',
+            addressIsApproximate: e['address_is_approximate'] == true,
             description: '${e['description']}',
             rating: (e['rating'] as num?)?.toDouble() ?? 0,
             status: bucket,
@@ -1365,9 +1386,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Action impossible hors connexion API')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Action impossible hors connexion API',
+      );
       }
     }
   }
@@ -1392,23 +1415,25 @@ class _RequestsScreenState extends State<RequestsScreen> {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         final st = '${body['status'] ?? newStatus}';
         setState(() => _applyStatusFromApi(item, st));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Statut : ${_RequestsScreenState._labelStatut(st)}'),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Statut : ${_RequestsScreenState._labelStatut(st)}',
+      );
       } else if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur ${res.statusCode}')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur ${res.statusCode}',
+      );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Impossible de mettre à jour le statut'),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible de mettre à jour le statut',
+      );
       }
     }
   }
@@ -1428,20 +1453,26 @@ class _RequestsScreenState extends State<RequestsScreen> {
       );
       if (res.statusCode == 200 && mounted) {
         setState(() => _applyStatusFromApi(item, 'INTERVENTION_EN_COURS'));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Intervention démarrée')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Intervention démarrée',
+      );
         _loadRequests();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur ${res.statusCode}')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur ${res.statusCode}',
+      );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de démarrer l\'intervention')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible de démarrer l\'intervention',
+      );
       }
     }
   }
@@ -1461,20 +1492,26 @@ class _RequestsScreenState extends State<RequestsScreen> {
       );
       if (res.statusCode == 200 && mounted) {
         setState(() => _applyStatusFromApi(item, 'En attente client'));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Travaux déclarés terminés')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Travaux déclarés terminés',
+      );
       } else if (mounted) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${body['error'] ?? 'Erreur ${res.statusCode}'}')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: '${body['error'] ?? 'Erreur ${res.statusCode}'}',
+      );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de terminer l\'intervention')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Impossible de terminer l\'intervention',
+      );
       }
     }
   }
@@ -1495,23 +1532,25 @@ class _RequestsScreenState extends State<RequestsScreen> {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         final cfs = '${body['cash_flow_status'] ?? 'pending_admin'}';
         setState(() => item.cashFlowStatus = cfs);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Esp\u00e8ces confirm\u00e9es \u2014 en attente validation admin',
-            ),
-          ),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Esp\u00e8ces confirm\u00e9es \u2014 en attente validation admin',
+      );
       } else if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erreur ${res.statusCode}')));
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur ${res.statusCode}',
+      );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Confirmation impossible')),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Confirmation impossible',
+      );
       }
     }
   }
@@ -1567,6 +1606,10 @@ class _RequestItem {
   final String hour;
   final String amount;
   final String address;
+
+  /// True tant que le presta n'est pas engagé : l'adresse affichée est
+  /// approximative (commune, ville) pour protéger le client.
+  final bool addressIsApproximate;
   final String description;
   final double rating;
 
@@ -1601,6 +1644,7 @@ class _RequestItem {
     required this.hour,
     required this.amount,
     required this.address,
+    this.addressIsApproximate = false,
     required this.description,
     required this.rating,
     required this.status,

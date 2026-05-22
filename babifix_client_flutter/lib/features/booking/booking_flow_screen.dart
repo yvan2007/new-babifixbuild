@@ -9,11 +9,13 @@ import 'package:latlong2/latlong.dart';
 
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
+import '../../user_store.dart';
 import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
 import '../../shared/widgets/gps_location_card.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 /// Flow de réservation en 4 étapes :
 /// 0 → Date & heure  1 → Adresse  2 → Récapitulatif  3 → Confirmation
@@ -214,9 +216,100 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     setState(() => _checkingAvailability = false);
   }
 
+  /// Vérifie auprès du serveur s'il existe déjà une prestation active avec ce
+  /// prestataire (→ blocage strict) ou dans la même catégorie chez un autre
+  /// prestataire (→ avertissement confirmable). Retourne `true` si on peut
+  /// poursuivre la réservation, `false` si on doit l'interrompre.
+  Future<bool> _precheckDuplicates() async {
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      if (token == null || token.isEmpty) return true; // login géré plus loin
+      final uri =
+          Uri.parse(
+            '${babifixApiBaseUrl()}/api/client/reservations/check-duplicate',
+          ).replace(
+            queryParameters: {
+              if (widget.providerId != null)
+                'provider_id': '${widget.providerId}',
+              'title': widget.serviceTitle,
+            },
+          );
+      final resp = await http
+          .get(uri, headers: {'Authorization': 'Bearer $token'})
+          .timeout(const Duration(seconds: 12));
+      if (resp.statusCode != 200) return true; // tolérant : backend tranchera
+      final j = jsonDecode(resp.body) as Map<String, dynamic>;
+      final dupProvider = j['duplicate_provider'] as Map<String, dynamic>?;
+      final dupCategory = j['duplicate_category'] as Map<String, dynamic>?;
+      if (!mounted) return false;
+      if (dupProvider != null) {
+        await _showDuplicateProviderDialog(dupProvider);
+        return false; // blocage strict — on ne réserve pas
+      }
+      if (dupCategory != null) {
+        final proceed = await _showDuplicateCategoryDialog(dupCategory);
+        return proceed == true;
+      }
+      return true;
+    } catch (_) {
+      return true; // en cas d'erreur réseau, on laisse le backend décider
+    }
+  }
+
+  Future<void> _showDuplicateProviderDialog(Map<String, dynamic> info) {
+    final ref = (info['reference'] ?? '').toString();
+    final presta = (info['prestataire'] ?? 'ce prestataire').toString();
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => _DuplicateDialog(
+        accent: const Color(0xFFEF4444),
+        icon: Icons.block_rounded,
+        title: 'Prestation déjà en cours',
+        message:
+            'Vous avez déjà une prestation en cours avec $presta'
+            '${ref.isNotEmpty ? ' (réf. $ref)' : ''}.\n\n'
+            "Pour un bon suivi, terminez cette prestation avant d'en "
+            'réserver une nouvelle avec le même prestataire.',
+        primaryLabel: "J'ai compris",
+        onPrimary: () => Navigator.of(ctx).pop(),
+      ),
+    );
+  }
+
+  Future<bool?> _showDuplicateCategoryDialog(Map<String, dynamic> info) {
+    final cat = (info['category'] ?? '').toString();
+    final presta = (info['prestataire'] ?? 'un autre prestataire').toString();
+    final ref = (info['reference'] ?? '').toString();
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => _DuplicateDialog(
+        accent: const Color(0xFFF59E0B),
+        icon: Icons.warning_amber_rounded,
+        title: 'Prestation similaire en cours',
+        message:
+            'Vous avez déjà une prestation '
+            '${cat.isNotEmpty ? '« $cat »' : 'de cette catégorie'} en cours '
+            'avec $presta${ref.isNotEmpty ? ' (réf. $ref)' : ''}.\n\n'
+            "Il est recommandé de terminer une prestation avant d'en lancer "
+            'une autre dans la même catégorie. Voulez-vous tout de même '
+            'continuer ?',
+        secondaryLabel: 'Annuler',
+        onSecondary: () => Navigator.of(ctx).pop(false),
+        primaryLabel: 'Continuer quand même',
+        onPrimary: () => Navigator.of(ctx).pop(true),
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     if (_submitting) return;
     setState(() => _submitting = true);
+    // Pré-vérification anti-doublon (UX) — le backend bloque aussi en dur.
+    final canProceed = await _precheckDuplicates();
+    if (!canProceed) {
+      if (mounted) setState(() => _submitting = false);
+      return;
+    }
     final data = <String, dynamic>{
       'title': widget.serviceTitle,
       'description_probleme': _problemeCtrl.text.trim(),
@@ -242,15 +335,12 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
 
     debugPrint('📤 RESERVATION SUBMIT — data: ${jsonEncode(data)}');
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Envoi au prestataire #${widget.providerId ?? "non spécifié"}...',
-          style: const TextStyle(fontSize: 12),
-        ),
-        duration: const Duration(seconds: 2),
-        backgroundColor: const Color(0xFF4CC9F0),
-      ),
+    showBabifixToast(
+      context,
+      type: BabifixToastType.info,
+      title: 'Réservation',
+      message: 'Envoi de votre demande au prestataire…',
+      duration: const Duration(seconds: 2),
     );
 
     bool ok = false;
@@ -264,8 +354,47 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         errorMsg = result['error'] as String?;
       }
     } else {
-      await Future.delayed(const Duration(seconds: 1));
-      ok = true;
+      // Pas de callback fourni (ex: ouverture depuis la fiche prestataire) :
+      // on crée la réservation DIRECTEMENT via l'API. Avant, cette branche
+      // simulait un faux succès → la demande n'arrivait jamais au presta.
+      try {
+        final token = await BabifixUserStore.getApiToken();
+        if (token == null || token.isEmpty) {
+          errorMsg = 'Connectez-vous pour réserver';
+        } else {
+          final resp = await http.post(
+            Uri.parse('${babifixApiBaseUrl()}/api/client/reservations'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              ...data,
+              // S'assurer que le flux devis (visible côté presta) est activé.
+              'use_devis': true,
+            }),
+          );
+          if (resp.statusCode == 201) {
+            final j = jsonDecode(resp.body) as Map<String, dynamic>;
+            ok = j['ok'] == true || j['reference'] != null;
+            reference = j['reference'] as String?;
+          } else {
+            try {
+              final body = jsonDecode(resp.body) as Map<String, dynamic>;
+              // Privilégier le message lisible (ex: doublon) sur le code brut.
+              errorMsg =
+                  (body['message'] ??
+                          body['error'] ??
+                          'Erreur ${resp.statusCode}')
+                      .toString();
+            } catch (_) {
+              errorMsg = 'Erreur ${resp.statusCode}';
+            }
+          }
+        }
+      } catch (e) {
+        errorMsg = 'Erreur réseau : $e';
+      }
     }
     if (!mounted) return;
     setState(() {
@@ -275,23 +404,24 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     if (ok) {
       debugPrint('✅ RESERVATION OK — reference: $reference');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Réservation créée: $reference'),
-          duration: const Duration(seconds: 3),
-          backgroundColor: const Color(0xFF22C55E),
-        ),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        title: 'Demande envoyée',
+        message: reference != null && reference.isNotEmpty
+            ? 'Votre demande a bien été transmise (réf. $reference).'
+            : 'Votre demande a bien été transmise au prestataire.',
       );
       _goTo(3);
     } else {
       debugPrint('❌ RESERVATION FAILED — error: $errorMsg');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Échec: ${errorMsg ?? "Erreur inconnue"}'),
-          duration: const Duration(seconds: 4),
-          backgroundColor: const Color(0xFFEF4444),
-        ),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        title: 'Réservation impossible',
+        message: errorMsg ?? 'Une erreur est survenue. Réessayez.',
+        duration: const Duration(seconds: 4),
       );
     }
   }
@@ -307,9 +437,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           onPhotosChanged: (p) => setState(() => _photos = p),
           onNext: () {
             if (_problemeCtrl.text.trim().isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Décrivez votre problème.')),
-              );
+              showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: 'Décrivez votre problème.',
+      );
               return;
             }
             _goTo(1);
@@ -338,11 +470,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
             final hasGps = _mapPinFromUser;
             final hasText = _addressCtrl.text.trim().isNotEmpty;
             if (!hasGps && !hasText) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text(
-                  "Activez votre position ou renseignez une adresse.",
-                )),
-              );
+              showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: "Activez votre position ou renseignez une adresse.",
+      );
               return;
             }
             // Si pas de texte mais GPS dispo, on remplit avec un libellé.
@@ -2351,6 +2483,116 @@ class _MmOperatorChip extends StatelessWidget {
               color: selected ? color : Colors.white70,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dialogue premium réutilisable pour l'anti-doublon de réservation
+/// (blocage « même prestataire » ou avertissement « même catégorie »).
+class _DuplicateDialog extends StatelessWidget {
+  const _DuplicateDialog({
+    required this.accent,
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.primaryLabel,
+    required this.onPrimary,
+    this.secondaryLabel,
+    this.onSecondary,
+  });
+
+  final Color accent;
+  final IconData icon;
+  final String title;
+  final String message;
+  final String primaryLabel;
+  final VoidCallback onPrimary;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
+
+  @override
+  Widget build(BuildContext context) {
+    const navy = Color(0xFF0B1B34);
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: accent, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: navy,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF475569),
+                fontSize: 13.5,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 22),
+            ElevatedButton(
+              onPressed: onPrimary,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                primaryLabel,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            if (secondaryLabel != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onSecondary,
+                style: TextButton.styleFrom(
+                  foregroundColor: navy,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text(
+                  secondaryLabel!,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

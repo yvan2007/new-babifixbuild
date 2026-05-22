@@ -1,0 +1,96 @@
+{% load babifix_tags %}
+
+<div class="payouts-admin">
+  <!-- Retraits prestataires --------------------------------------------------->
+  <article class="card card-elevate" style="margin-bottom:18px;">
+    <h3>Retraits prestataires <span class="section-count">{{ payout_withdrawals|length }}</span></h3>
+    <p class="section-help">« Verser maintenant » déclenche le paiement Mobile Money réel (sinon le cron le fait automatiquement après le délai). « Rejeter » annule et recrédite le solde.</p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Prestataire</th><th>Montant</th><th>Opérateur</th><th>Téléphone</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          {% for t in payout_withdrawals %}
+          <tr>
+            <td><strong>{{ t.provider.nom }}</strong></td>
+            <td style="font-weight:700;">{{ t.amount_fcfa|floatformat:0 }} FCFA</td>
+            <td>{{ t.operator|upper }}</td>
+            <td><code>{{ t.phone|default:"—" }}</code></td>
+            <td>
+              {% if t.status == 'pending' %}<span class="pill" style="background:#fef3c7;color:#92400e;">En attente</span>
+              {% elif t.status == 'processing' %}<span class="pill" style="background:#cffafe;color:#0e7490;">En cours</span>
+              {% elif t.status == 'failed' %}<span class="pill" style="background:#fee2e2;color:#b91c1c;">Échoué</span>
+              {% else %}<span class="pill">{{ t.status }}</span>{% endif %}
+            </td>
+            <td>{{ t.created_at|relative_time }}</td>
+            <td class="td-actions">
+              {% if t.status == 'pending' %}
+              <form method="post" class="inline-form" onsubmit="return confirm('Verser maintenant {{ t.amount_fcfa|floatformat:0 }} FCFA à {{ t.provider.nom|escapejs }} ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="withdrawal_relance">
+                <input type="hidden" name="tx_id" value="{{ t.id }}">
+                <button type="submit" class="table-btn table-btn--approve">Verser maintenant</button>
+              </form>
+              <form method="post" class="inline-delete" onsubmit="return confirm('Rejeter ce retrait et recréditer le solde ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="withdrawal_reject">
+                <input type="hidden" name="tx_id" value="{{ t.id }}">
+                <button type="submit" class="table-btn danger">Rejeter</button>
+              </form>
+              {% else %}
+              <span class="muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="empty-state">Aucun retrait à traiter.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <!-- Remboursements clients -------------------------------------------------->
+  <article class="card card-elevate">
+    <h3>Remboursements clients <span class="section-count">{{ payout_refunds|length }}</span></h3>
+    <p class="section-help">Remboursements décidés en litige. « Verser » déclenche le paiement Mobile Money vers le client (sinon le cron s'en charge).</p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Réf.</th><th>Client</th><th>Montant dû</th><th>Opérateur</th><th>Statut</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          {% for r in payout_refunds %}
+          <tr>
+            <td><code>{{ r.reference }}</code></td>
+            <td>{{ r.client }}</td>
+            <td style="font-weight:700;">{{ r.refund_owed_fcfa|floatformat:0 }} FCFA</td>
+            <td>{{ r.mobile_money_operator|default:"—" }}</td>
+            <td>
+              {% if r.refund_status == 'processing' %}<span class="pill" style="background:#cffafe;color:#0e7490;">En cours</span>
+              {% elif r.refund_status == 'failed' %}<span class="pill" style="background:#fee2e2;color:#b91c1c;">Échoué</span>
+              {% elif r.refund_status == 'manual' %}<span class="pill" style="background:#fef3c7;color:#92400e;">Manuel requis</span>
+              {% else %}<span class="pill">À verser</span>{% endif %}
+            </td>
+            <td class="td-actions">
+              {% if r.refund_status != 'processing' %}
+              <form method="post" class="inline-form" onsubmit="return confirm('Verser le remboursement de {{ r.refund_owed_fcfa|floatformat:0 }} FCFA au client ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="refund_relance">
+                <input type="hidden" name="reservation_id" value="{{ r.id }}">
+                <button type="submit" class="table-btn table-btn--approve">Verser</button>
+              </form>
+              {% else %}
+              <span class="muted">en cours…</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="empty-state">Aucun remboursement en attente.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</div>

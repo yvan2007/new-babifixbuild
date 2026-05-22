@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class ClientParrainageScreen extends StatefulWidget {
   const ClientParrainageScreen({super.key});
@@ -68,9 +69,11 @@ class _ClientParrainageScreenState extends State<ClientParrainageScreen> {
       );
       final data = jsonDecode(resp.body);
       if (resp.statusCode == 200 && data['ok'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('🎁 Code appliqué ! Votre bonus sera crédité à votre 1ère réservation.'), backgroundColor: Color(0xFF2E7D32)),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: '🎁 Code appliqué ! Votre bonus sera crédité à votre 1ère réservation.',
+      );
         _codeController.clear();
         await _load();
       } else {
@@ -80,13 +83,17 @@ class _ClientParrainageScreenState extends State<ClientParrainageScreen> {
           'self_referral_not_allowed': 'Vous ne pouvez pas utiliser votre propre code',
           'code_already_used': 'Vous avez déjà utilisé un code de parrainage',
         }[err] ?? err;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: Colors.red),
-        );
+        showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: msg,
+      );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: 'Erreur: $e',
       );
     } finally {
       setState(() { _applying = false; });
@@ -95,9 +102,11 @@ class _ClientParrainageScreenState extends State<ClientParrainageScreen> {
 
   void _copyCode() {
     Clipboard.setData(ClipboardData(text: _code));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Code copié !'), backgroundColor: Color(0xFF1565C0)),
-    );
+    showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Code copié !',
+      );
   }
 
   void _shareCode() {

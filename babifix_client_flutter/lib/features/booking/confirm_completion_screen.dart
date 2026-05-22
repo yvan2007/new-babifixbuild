@@ -14,6 +14,7 @@ import '../../shared/widgets/animated_check_circle.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../reservations/rate_provider_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class ConfirmCompletionScreen extends StatefulWidget {
   final String reservationReference;
@@ -64,8 +65,11 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
           (escrow['released_to_provider'] as num?)?.toDouble() ?? 0;
       _showSuccess(released, escrow);
     } on BabifixApiException catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: e.message,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -135,16 +139,18 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
         priorite: prio,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        backgroundColor: Colors.orange.shade700,
-        content: const Text(
-          "Litige ouvert. Un admin BABIFIX vous contactera.",
-        ),
-      ));
+      showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: "Litige ouvert. Un admin BABIFIX vous contactera.",
+      );
       Navigator.of(context).pop(false);
     } on BabifixApiException catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: e.message,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }

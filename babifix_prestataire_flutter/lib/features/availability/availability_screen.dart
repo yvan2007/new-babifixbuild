@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 // ─── Premium Colors ────────────────────────────────────────────────────────
 
@@ -165,14 +166,11 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFFC62828),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: message,
+      );
   }
 
   Future<void> _addSlot() async {
@@ -720,11 +718,13 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
                     slots: _slots,
                     onAdd: _addSlot,
                     onDelete: _deleteSlot,
+                    onRefresh: _loadAll,
                   ),
                   _UnavailabilityTab(
                     unavailabilities: _unavailabilities,
                     onAdd: _addUnavailability,
                     onDelete: _deleteUnavailability,
+                    onRefresh: _loadAll,
                   ),
                 ],
               ),
@@ -739,11 +739,13 @@ class _SlotsTab extends StatelessWidget {
   final List<_Slot> slots;
   final VoidCallback onAdd;
   final void Function(_Slot) onDelete;
+  final Future<void> Function() onRefresh;
 
   const _SlotsTab({
     required this.slots,
     required this.onAdd,
     required this.onDelete,
+    required this.onRefresh,
   });
 
   @override
@@ -805,9 +807,16 @@ class _SlotsTab extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: slots.isEmpty
-              ? _EmptyStateSlots()
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            color: const Color(0xFF4CC9F0),
+            child: slots.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [_EmptyStateSlots()],
+                )
               : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                   itemCount: 7,
                   itemBuilder: (_, dayIndex) {
@@ -864,6 +873,7 @@ class _SlotsTab extends StatelessWidget {
                     );
                   },
                 ),
+          ),
         ),
       ],
     );
@@ -1016,11 +1026,13 @@ class _UnavailabilityTab extends StatelessWidget {
   final List<_Unavailability> unavailabilities;
   final VoidCallback onAdd;
   final void Function(_Unavailability) onDelete;
+  final Future<void> Function() onRefresh;
 
   const _UnavailabilityTab({
     required this.unavailabilities,
     required this.onAdd,
     required this.onDelete,
+    required this.onRefresh,
   });
 
   @override
@@ -1072,9 +1084,16 @@ class _UnavailabilityTab extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: unavailabilities.isEmpty
-              ? _EmptyStateUnavailability()
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            color: const Color(0xFF4CC9F0),
+            child: unavailabilities.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [_EmptyStateUnavailability()],
+                )
               : ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                   itemCount: unavailabilities.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 10),
@@ -1083,6 +1102,7 @@ class _UnavailabilityTab extends StatelessWidget {
                     return _UnavailabilityCard(u: u, onDelete: () => onDelete(u));
                   },
                 ),
+          ),
         ),
       ],
     );
