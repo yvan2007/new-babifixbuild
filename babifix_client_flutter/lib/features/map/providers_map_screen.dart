@@ -41,7 +41,8 @@ class ProvidersMapScreen extends StatefulWidget {
   State<ProvidersMapScreen> createState() => _ProvidersMapScreenState();
 }
 
-class _ProvidersMapScreenState extends State<ProvidersMapScreen> {
+class _ProvidersMapScreenState extends State<ProvidersMapScreen>
+    with SingleTickerProviderStateMixin {
   final _mapCtrl = MapController();
   LatLng? _myPosition;
   List<_Provider> _providers = [];
@@ -50,10 +51,37 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen> {
   double _radiusKm = 25;
   _Provider? _selected;
 
+  // Animation "radar" (halo pulsant autour de ma position).
+  late final AnimationController _pulse;
+
   @override
   void initState() {
     super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
     _locate();
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    _mapCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Couleur selon la proximité : vert (proche) → orange (moyen) → rouge (loin).
+  Color _distanceColor(double km) {
+    if (km <= 5) return const Color(0xFF22C55E);
+    if (km <= 15) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  String _distanceLabel(double km) {
+    if (km <= 5) return 'Très proche';
+    if (km <= 15) return 'À proximité';
+    return 'Éloigné';
   }
 
   Future<void> _locate() async {
@@ -76,6 +104,15 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen> {
       _mapCtrl.move(_myPosition!, 12);
       await _loadProviders();
     } catch (e) {
+      // Repli : si le GPS est indisponible, on utilise l'adresse enregistrée
+      // dans le profil pour quand même respecter le périmètre de proximité.
+      final saved = await BabifixUserStore.loadAddressCoords();
+      if (saved != null) {
+        _myPosition = LatLng(saved.lat, saved.lng);
+        _mapCtrl.move(_myPosition!, 12);
+        await _loadProviders();
+        return;
+      }
       setState(() { _error = e.toString(); _loading = false; });
     }
   }
@@ -166,21 +203,50 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen> {
                     borderStrokeWidth: 2,
                   ),
                 ]),
-              // Ma position
+              // Ma position — halo "radar" pulsant
               if (_myPosition != null)
                 MarkerLayer(markers: [
                   Marker(
                     point: _myPosition!,
-                    width: 40,
-                    height: 40,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: BabifixDesign.cyan,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [BoxShadow(color: BabifixDesign.cyan.withValues(alpha: 0.5), blurRadius: 12)],
-                      ),
-                      child: const Icon(Icons.person, color: Colors.white, size: 20),
+                    width: 84,
+                    height: 84,
+                    child: AnimatedBuilder(
+                      animation: _pulse,
+                      builder: (_, __) {
+                        final t = _pulse.value;
+                        return Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 26 + t * 56,
+                              height: 26 + t * 56,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: BabifixDesign.cyan
+                                    .withValues(alpha: (1 - t) * 0.35),
+                              ),
+                            ),
+                            Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: BabifixDesign.cyan,
+                                shape: BoxShape.circle,
+                                border:
+                                    Border.all(color: Colors.white, width: 3),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: BabifixDesign.cyan
+                                          .withValues(alpha: 0.5),
+                                      blurRadius: 12)
+                                ],
+                              ),
+                              child: const Icon(Icons.person,
+                                  color: Colors.white, size: 16),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ]),
@@ -197,7 +263,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen> {
                       decoration: BoxDecoration(
                         color: _selected?.id == p.id
                             ? BabifixDesign.ciOrange
-                            : BabifixDesign.darkNavy,
+                            : _distanceColor(p.distanceKm),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                         boxShadow: [const BoxShadow(blurRadius: 8, color: Colors.black26)],
@@ -278,15 +344,42 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen> {
                                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                             Text(_selected!.city,
                                 style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            const SizedBox(height: 4),
                             Row(
                               children: [
-                                Icon(Icons.star_rounded, size: 14, color: BabifixDesign.ciOrange),
+                                Icon(Icons.star_rounded,
+                                    size: 14, color: BabifixDesign.ciOrange),
                                 Text(' ${_selected!.rating.toStringAsFixed(1)}',
                                     style: const TextStyle(fontSize: 12)),
                                 const SizedBox(width: 8),
-                                Icon(Icons.location_on_rounded, size: 14, color: BabifixDesign.cyan),
-                                Text(' ${_selected!.distanceKm.toStringAsFixed(1)} km',
-                                    style: TextStyle(fontSize: 12, color: BabifixDesign.cyan)),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: _distanceColor(_selected!.distanceKm)
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.location_on_rounded,
+                                          size: 13,
+                                          color: _distanceColor(
+                                              _selected!.distanceKm)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '${_selected!.distanceKm.toStringAsFixed(1)} km · ${_distanceLabel(_selected!.distanceKm)}',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: _distanceColor(
+                                              _selected!.distanceKm),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ],

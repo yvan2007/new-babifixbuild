@@ -12,6 +12,17 @@ abstract final class BabifixDesign {
   static const Color error = Color(0xFFEF4444);
   static const Color warning = Color(0xFFF59E0B);
 
+  // Couleurs d'icônes "neutres" pour un rendu pro : le cyan reste réservé
+  // aux états actifs/sélectionnés et aux boutons d'action.
+  // - iconOnLight : icônes sur fond clair (blanc/gris).
+  // - iconOnDark  : icônes sur fond sombre (navy).
+  static const Color iconOnLight = Color(0xFF334155); // slate 700
+  static const Color iconOnDark = Color(0xFFE2E8F0); // slate 200
+
+  /// Renvoie la couleur d'icône neutre adaptée au thème courant.
+  static Color iconColor(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? iconOnDark : iconOnLight;
+
   /// @deprecated Utiliser [cyan] à la place
   static const Color ciBlue = cyan;
   /// @deprecated Utiliser [success] à la place

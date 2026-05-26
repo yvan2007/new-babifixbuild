@@ -103,7 +103,7 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
           Row(
             children: [
               Icon(Icons.account_balance_wallet,
-                  color: BabifixDesign.ciBlue),
+                  color: BabifixDesign.iconOnLight),
               const SizedBox(width: 8),
               const Text('Vos revenus',
                   style: TextStyle(
@@ -175,7 +175,7 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
                   builder: (_) => const PrestataireEscrowPaymentsScreen(),
                 ),
               ),
-              icon: Icon(Icons.list_alt, size: 18, color: BabifixDesign.ciBlue),
+              icon: Icon(Icons.list_alt, size: 18, color: BabifixDesign.iconOnLight),
               label: Text(
                 'Voir mes paiements en attente',
                 style: TextStyle(

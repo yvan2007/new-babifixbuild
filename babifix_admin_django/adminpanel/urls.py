@@ -123,6 +123,7 @@ from .views import (
     api_prestataire_confirm_cash,
     api_prestataire_conversations,
     api_prestataire_create_devis,
+    api_prestataire_devis_draft,
     api_prestataire_decide_request,
     api_prestataire_demarrer_intervention,
     api_prestataire_earnings,
@@ -497,6 +498,11 @@ urlpatterns = [
         "api/prestataire/requests/<str:reference>/devis",
         api_prestataire_create_devis,
         name="api-prestataire-create-devis",
+    ),
+    path(
+        "api/prestataire/requests/<str:reference>/devis/draft",
+        api_prestataire_devis_draft,
+        name="api-prestataire-devis-draft",
     ),
     path(
         "api/client/reservations/<str:reference>/devis",

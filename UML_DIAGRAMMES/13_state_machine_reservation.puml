@@ -1,4 +1,4 @@
-@startuml BABIFIX - State Machine Reservation
+@startuml
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -17,11 +17,11 @@ skinparam arrow {
   FontColor #01579B
 }
 
-title **BABIFIX** - Diagramme d'Etat\nCycle de Vie d'une Reservation\n(Architecture cible — flux devis)
+title **BABIFIX** - Diagramme d'Etat\nCycle de Vie d'une Reservation\n(flux devis)
 
-note top
-  Version courante implementee : EN_ATTENTE → CONFIRMEE → EN_COURS → EN_ATTENTE_CLIENT → TERMINEE/ANNULEE
-  Ce diagramme represente l'architecture cible avec le flux de devis prevu en evolution.
+note as N1
+  Machine a etats implementee : transitions controlees et validees cote serveur.
+  La reservation suit le cycle du devis, de la demande a la cloture.
 end note
 
 [*] --> DEMANDE_ENVOYEE : Client cree\nla demande

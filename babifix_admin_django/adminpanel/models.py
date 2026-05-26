@@ -1380,6 +1380,17 @@ class Devis(models.Model):
 
     note_prestataire = models.TextField(blank=True, default="")
     validite_jours = models.IntegerField(default=7)
+    remise = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Remise commerciale accordée au client (déduite du sous-total).",
+    )
+    photos_prestataire = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Photos du diagnostic ajoutées par le prestataire au devis",
+    )
     statut = models.CharField(
         max_length=20, choices=Statut.choices, default=Statut.BROUILLON
     )
@@ -1426,20 +1437,46 @@ class Devis(models.Model):
                 pass
 
         sous_total = sum((ligne.total for ligne in self.lignes.all()), Decimal("0"))
+        # Remise commerciale : déduite du sous-total, bornée à [0, sous_total].
+        remise = self.remise or Decimal("0")
+        if remise < 0:
+            remise = Decimal("0")
+        if remise > sous_total:
+            remise = sous_total
+        base = sous_total - remise
         rate = Decimal(str(self.commission_rate or 0))
-        commission = (sous_total * rate / Decimal("100")).quantize(Decimal("0.01"))
+        commission = (base * rate / Decimal("100")).quantize(Decimal("0.01"))
         self.sous_total = sous_total
+        self.remise = remise
+        # total_ttc = ce que paye le client = sous_total - remise.
         self.commission_montant = commission
-        self.total_ttc = sous_total
-        self.net_prestataire = sous_total - commission
+        self.total_ttc = base
+        self.net_prestataire = base - commission
 
     def save(self, *args, **kwargs):
         if not self.reference:
             year = timezone.now().year
-            count = (
-                Devis.objects.filter(reference__startswith=f"DEV-{year}").count() + 1
-            )
-            self.reference = f"DEV-{year}-{count:04d}"
+            prefix = f"DEV-{year}-"
+            # Robuste : on prend le plus grand suffixe existant + 1 (et non un
+            # simple count, qui entre en collision dès qu'un devis est supprimé,
+            # ex. un brouillon), puis on vérifie l'unicité réelle.
+            existing = Devis.objects.filter(
+                reference__startswith=prefix
+            ).values_list("reference", flat=True)
+            max_n = 0
+            for ref in existing:
+                try:
+                    n = int(str(ref).rsplit("-", 1)[-1])
+                    if n > max_n:
+                        max_n = n
+                except (ValueError, IndexError):
+                    continue
+            n = max_n + 1
+            candidate = f"{prefix}{n:04d}"
+            while Devis.objects.filter(reference=candidate).exists():
+                n += 1
+                candidate = f"{prefix}{n:04d}"
+            self.reference = candidate
 
         if self.pk:
             self._recompute_totals()
@@ -1451,6 +1488,7 @@ class Devis(models.Model):
             super().save(
                 update_fields=[
                     "sous_total",
+                    "remise",
                     "commission_montant",
                     "total_ttc",
                     "net_prestataire",

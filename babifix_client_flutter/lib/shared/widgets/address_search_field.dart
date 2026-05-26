@@ -110,7 +110,7 @@ class _BabifixAddressSearchFieldState extends State<BabifixAddressSearchField> {
           onChanged: _onTextChanged,
           decoration: InputDecoration(
             hintText: 'Rechercher rue, quartier, ville…',
-            prefixIcon: Icon(Icons.place_outlined, color: BabifixDesign.cyan),
+            prefixIcon: Icon(Icons.place_outlined, color: BabifixDesign.iconOnDark),
             filled: true,
             fillColor: cs.surface,
             border: OutlineInputBorder(
@@ -179,7 +179,7 @@ class _BabifixAddressSearchFieldState extends State<BabifixAddressSearchField> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.place_rounded, size: 22, color: BabifixDesign.cyan),
+                              Icon(Icons.place_rounded, size: 22, color: BabifixDesign.iconOnDark),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(

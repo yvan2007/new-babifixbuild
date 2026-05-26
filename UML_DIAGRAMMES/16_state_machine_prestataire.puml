@@ -1,4 +1,4 @@
-@startuml BABIFIX - State Machine Prestataire
+@startuml
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -17,7 +17,7 @@ skinparam arrow {
   FontColor #01579B
 }
 
-title **BABIFIX** - Diagramme d'Etat\nCycle de Vie d'un Prestataire (ImplementationReelle)
+title **BABIFIX** - Diagramme d'Etat\nCycle de Vie d'un compte Prestataire
 
 [*] --> EN_ATTENTE : Inscription\ndans l'app
 
@@ -28,17 +28,19 @@ EN_ATTENTE : - Selection categories
 
 EN_ATTENTE --> VALIDE : Admin valide\nle dossier
 
-EN_ATTENTE --> REFUSE : Admin refuse\nle dossier
+EN_ATTENTE --> REFUSE : Admin refuse\nle dossier (motif)
 
-VALIDE : - Notification admin
-VALIDE : - Badge rouge panel
+REFUSE --> EN_ATTENTE : Prestataire corrige\net resoumet son dossier
+
+VALIDE : - Notification au prestataire
+VALIDE : - Badge dans le panel admin
 
 VALIDE --> SUSPENDU : Admin suspend\nle prestataire
 
-SUSPENDU --> VALIDE : Admin reactiva
+SUSPENDU --> VALIDE : Admin reactive\nle compte
 
 VALIDE --> [*] : Compte ferme
-REFUSE --> [*] : Abandon defini
+REFUSE --> [*] : Abandon definitif
 SUSPENDU --> [*] : Compte desactive
 
 note right of EN_ATTENTE
@@ -57,7 +59,7 @@ end note
 note right of SUSPENDU
   Pas visible client
   Ne recoit pas de missions
-  Possible reactivat
+  Reactivation possible
 end note
 
 note bottom of VALIDE

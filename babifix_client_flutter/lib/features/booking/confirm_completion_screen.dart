@@ -248,7 +248,7 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                 child: Row(
                   children: [
                     Icon(Icons.info_outline,
-                        color: BabifixDesign.ciBlue, size: 22),
+                        color: BabifixDesign.iconOnLight, size: 22),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(

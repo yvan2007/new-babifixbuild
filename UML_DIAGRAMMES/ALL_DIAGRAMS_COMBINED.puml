@@ -495,7 +495,7 @@ class Paiement {
   - montantPrestataire: double
   - type: TypePaiement
   - statut: StatutPaiement
-  - referenceCinetPay: String
+  - referenceGeniusPay: String
   - datePaiement: DateTime
   - valideParAdmin: Boolean
   - mobileMoneyOperator: String
@@ -785,7 +785,7 @@ skinparam arrow {
 actor "Client" as Client
 participant "BABIFIX Client\n(Flutter)" as App
 participant "Django API" as API
-participant "CinetPay API" as CinetPay
+participant "GeniusPay API" as GeniusPay
 database "PostgreSQL" as DB
 participant "Firebase\n(FCM)" as FCM
 participant "Prestataire" as Prestataire
@@ -844,11 +844,11 @@ alt Mobile Money
   App -> API : POST /api/payments/initiate/\n{reservation_id, amount, operator, phone}
   activate API
   API -> DB : Fetch reservation details
-  API -> CinetPay : POST /api/v1/payment\n{amount, currency: XOF, operator, phone}
-  activate CinetPay
+  API -> GeniusPay : POST /api/paiements/geniuspay/initier\n{amount, currency: XOF, operator, phone}
+  activate GeniusPay
   
-  CinetPay --> API : {transaction_id: "TXN123456", status: "PENDING"}
-  deactivate CinetPay
+  GeniusPay --> API : {transaction_id: "TXN123456", status: "PENDING"}
+  deactivate GeniusPay
   
   API -> DB : Create Payment record\n(status: PENDING)
   API --> App : {transaction_id, redirect_url}
@@ -856,18 +856,18 @@ alt Mobile Money
   
   App -> Client : "Suivez les instructions\nsur votre telephone"
   
-  == Webhook CinetPay ==
+  == Webhook GeniusPay ==
   
-  CinetPay -> API : POST /api/payments/webhook/cinetpay/\n{cpm_result: "00", cpm_trans_id, signature}
+  GeniusPay -> API : POST /api/payments/webhook/\n{status: "SUCCESS", transaction_id, signature}
   activate API
   
   API -> API : Verify HMAC signature
   alt Signature valide
     API -> DB : Update Payment\n(status: COMPLETE)
     API -> FCM : "Paiement recu" -> Prestataire
-    API --> CinetPay : 200 OK
+    API --> GeniusPay : 200 OK
   else Signature invalide
-    API --> CinetPay : 403 Forbidden
+    API --> GeniusPay : 403 Forbidden
   end
   deactivate API
   
@@ -1424,7 +1424,7 @@ node "Monitoring" {
 
 node "External Services" {
   artifact "Firebase FCM\n(Push Notifications)" as FCM
-  artifact "CinetPay API\n(Paiements Mobile Money)"
+  artifact "GeniusPay API\n(Paiements Mobile Money)"
   artifact "SMTP / SendGrid\n(Emails)"
 }
 
@@ -1457,8 +1457,8 @@ Nginx -down-> "Server 2 (App)"
 "Server 1 (App)" -down-> FCM : FCM HTTP API (push only)
 "Server 2 (App)" -down-> FCM
 
-"Server 1 (App)" -down-> CinetPay : API REST
-"Server 2 (App)" -down-> CinetPay
+"Server 1 (App)" -down-> GeniusPay : API REST
+"Server 2 (App)" -down-> GeniusPay
 
 "Server 1 (App)" -down-> SMTP : SendGrid/SMTP
 
@@ -1564,7 +1564,7 @@ package "Data Layer" {
 }
 
 package "External Services" {
-  component "CinetPay API\n(Mobile Money)" as CinetPay
+  component "GeniusPay API\n(Mobile Money)" as GeniusPay
   component "Firebase\n(FCM only)" as Firebase
   component "SMTP\n(Email)" as SMTP
   component "Sentry\n(Error Tracking)" as Sentry
@@ -1606,7 +1606,7 @@ Redis <-up-> Consumers : WebSocket State
 Redis <-up-> RateLimiter : Cache
 
 ' External services
-RESTAPI -down-> CinetPay : Payment API
+RESTAPI -down-> GeniusPay : Payment API
 RESTAPI -down-> Firebase : FCM push
 RESTAPI -down-> SMTP : Email
 RESTAPI -down-> Sentry : Error Logs

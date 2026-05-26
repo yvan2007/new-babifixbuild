@@ -155,6 +155,7 @@ class Devis {
   final double netPrestataire;
   final String notePrestataire;
   final int validiteJours;
+  final double remise;
   final DevisStatus statut;
   final List<LigneDevis> lignes;
 
@@ -172,6 +173,7 @@ class Devis {
     required this.netPrestataire,
     this.notePrestataire = '',
     this.validiteJours = 7,
+    this.remise = 0,
     required this.statut,
     required this.lignes,
   });
@@ -195,6 +197,7 @@ class Devis {
       netPrestataire: _asDouble(j['net_prestataire']),
       notePrestataire: _asStr(j['note_prestataire']),
       validiteJours: _asInt(j['validite_jours'], 7),
+      remise: _asDouble(j['remise']),
       statut: DevisStatus.fromCode(_asStr(j['statut'], 'BROUILLON')),
       lignes: lignes,
     );

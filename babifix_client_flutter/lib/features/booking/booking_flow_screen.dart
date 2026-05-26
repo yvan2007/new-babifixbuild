@@ -123,30 +123,12 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         _mapPinFromUser = true; // → on enverra lat/lng au backend
         _gpsState = GpsLocationState.detected;
       });
-      // Reverse-geocoding rapide via OpenStreetMap Nominatim
-      try {
-        final url = Uri.parse(
-          'https://nominatim.openstreetmap.org/reverse'
-          '?lat=${pos.latitude}&lon=${pos.longitude}&format=json&accept-language=fr',
-        );
-        final r = await http.get(
-          url,
-          headers: {'User-Agent': 'BABIFIX/1.0 client'},
-        ).timeout(const Duration(seconds: 6));
-        if (r.statusCode == 200 && mounted) {
-          final j = jsonDecode(r.body) as Map<String, dynamic>;
-          final display = (j['display_name'] ?? '').toString();
-          if (display.isNotEmpty && _addressCtrl.text.trim().isEmpty) {
-            _addressCtrl.text = display;
-          }
-        }
-      } catch (_) {
-        // Reverse-geocoding facultatif — pas de blocage si offline.
-        if (mounted && _addressCtrl.text.trim().isEmpty) {
-          _addressCtrl.text =
-              'Ma position (${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)})';
-        }
-      }
+      // Reverse-geocoding → libellé lisible « Quartier, Ville » (jamais de
+      // coordonnées brutes). Ne remplit que si l'utilisateur n'a rien saisi.
+      await _reverseGeocodeShort(
+        LatLng(pos.latitude, pos.longitude),
+        overwrite: _addressCtrl.text.trim().isEmpty,
+      );
     } catch (_) {
       // Échec : on bascule en état "denied" pour proposer la saisie manuelle.
       if (mounted) {
@@ -171,6 +153,79 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
 
   void _goTo(int step) {
     setState(() => _step = step);
+  }
+
+  // ── Reverse-geocoding « court » ────────────────────────────────────────────
+  // Construit un libellé lisible (« Cocody, Abidjan ») à partir des champs
+  // d'adresse Nominatim, plutôt qu'un display_name verbeux ou des coordonnées.
+  int _revGeoSeq = 0;
+
+  String _shortPlaceLabel(Map<String, dynamic> addr) {
+    String pick(List<String> keys) {
+      for (final k in keys) {
+        final v = (addr[k] ?? '').toString().trim();
+        if (v.isNotEmpty) return v;
+      }
+      return '';
+    }
+
+    final quartier = pick([
+      'suburb',
+      'neighbourhood',
+      'quarter',
+      'city_district',
+      'residential',
+      'hamlet',
+    ]);
+    final ville = pick([
+      'city',
+      'town',
+      'municipality',
+      'village',
+      'county',
+    ]);
+    final region = pick(['state', 'region']);
+    final parts = <String>[];
+    if (quartier.isNotEmpty) parts.add(quartier);
+    if (ville.isNotEmpty && ville != quartier) parts.add(ville);
+    if (parts.isEmpty && region.isNotEmpty) parts.add(region);
+    return parts.join(', ');
+  }
+
+  Future<void> _reverseGeocodeShort(LatLng p, {bool overwrite = true}) async {
+    final seq = ++_revGeoSeq;
+    try {
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse'
+        '?lat=${p.latitude}&lon=${p.longitude}'
+        '&format=json&addressdetails=1&accept-language=fr&zoom=16',
+      );
+      final r = await http
+          .get(url, headers: {'User-Agent': 'BABIFIX/1.0 client'})
+          .timeout(const Duration(seconds: 6));
+      // Une requête plus récente a pris le relais → on ignore ce résultat.
+      if (!mounted || seq != _revGeoSeq) return;
+      if (r.statusCode == 200) {
+        final j = jsonDecode(r.body) as Map<String, dynamic>;
+        final addr = (j['address'] as Map<String, dynamic>?) ?? const {};
+        var label = _shortPlaceLabel(addr);
+        if (label.isEmpty) {
+          label = (j['display_name'] ?? '')
+              .toString()
+              .split(',')
+              .take(2)
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .join(', ');
+        }
+        if (label.isNotEmpty &&
+            (overwrite || _addressCtrl.text.trim().isEmpty)) {
+          setState(() => _addressCtrl.text = label);
+        }
+      }
+    } catch (_) {
+      // Silencieux : on conserve l'adresse existante, jamais de coordonnées.
+    }
   }
 
   Future<void> _checkProviderAvailability(DateTime date) async {
@@ -463,6 +518,14 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
             _mapPin = p;
             _mapPinFromUser = true;
           }),
+          onMapTap: (p) {
+            setState(() {
+              _mapPin = p;
+              _mapPinFromUser = true;
+            });
+            // Convertit la position en libellé lisible « Quartier, Ville ».
+            _reverseGeocodeShort(p, overwrite: true);
+          },
           onNext: () {
             // GPS auto fait foi : si on a une position validée par
             // l'utilisateur, on accepte même si le champ texte est
@@ -477,11 +540,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       );
               return;
             }
-            // Si pas de texte mais GPS dispo, on remplit avec un libellé.
+            // Si pas de texte mais GPS dispo, on tente un libellé lisible
+            // (jamais de coordonnées brutes affichées à l'utilisateur).
             if (!hasText) {
-              _addressCtrl.text =
-                  'Ma position (${_mapPin.latitude.toStringAsFixed(4)}, '
-                  '${_mapPin.longitude.toStringAsFixed(4)})';
+              _addressCtrl.text = 'Position sélectionnée sur la carte';
+              _reverseGeocodeShort(_mapPin, overwrite: true);
             }
             _goTo(2);
           },
@@ -1082,6 +1145,7 @@ class _StepAddress extends StatefulWidget {
     required this.msgCtrl,
     required this.mapPin,
     required this.onMapPinChanged,
+    required this.onMapTap,
     required this.onNext,
     required this.onBack,
     required this.gpsState,
@@ -1093,7 +1157,12 @@ class _StepAddress extends StatefulWidget {
   final TextEditingController addressCtrl;
   final TextEditingController msgCtrl;
   final LatLng mapPin;
+  // Recherche / sélection d'un lieu : le libellé est déjà connu, on ne
+  // re-géocode pas (sinon on écraserait l'adresse choisie).
   final ValueChanged<LatLng> onMapPinChanged;
+  // Tap/déplacement sur la carte : déclenche un reverse-geocoding pour
+  // afficher « Quartier, Ville » au lieu de coordonnées brutes.
+  final ValueChanged<LatLng> onMapTap;
   final VoidCallback onNext;
   final VoidCallback onBack;
   final GpsLocationState gpsState;
@@ -1301,7 +1370,7 @@ class _StepAddressState extends State<_StepAddress> {
                   borderRadius: BorderRadius.circular(20),
                   child: BabifixOsmLocationPicker(
                     marker: mapPin,
-                    onMarkerMoved: onMapPinChanged,
+                    onMarkerMoved: widget.onMapTap,
                     height: 230,
                   ),
                 ),
@@ -2081,7 +2150,7 @@ class _PaymentModeTile extends StatelessWidget {
                           ],
                         ),
                       ),
-                      child: Icon(icon, color: BabifixDesign.cyan, size: 22),
+                      child: Icon(icon, color: BabifixDesign.iconOnDark, size: 22),
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -2316,7 +2385,7 @@ class _StepDone extends StatelessWidget {
                 child: Icon(
                   Icons.check_circle_rounded,
                   size: 60,
-                  color: BabifixDesign.cyan,
+                  color: BabifixDesign.iconOnDark,
                 ),
               ),
             ),

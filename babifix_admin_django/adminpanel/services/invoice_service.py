@@ -331,10 +331,35 @@ class InvoiceService:
             c.setFillColorRGB(0.04, 0.1, 0.2)  # Navy #0B1B34
             c.rect(0, height - 55*mm, width, 55*mm, fill=1, stroke=0)
 
-            # Logo BABIFIX
+            # Logo BABIFIX (image si disponible, sinon texte seul)
+            logo_drawn = False
+            try:
+                import os as _os
+                from django.conf import settings as _dj_settings
+                from reportlab.lib.utils import ImageReader
+
+                _logo_path = _os.path.join(
+                    str(_dj_settings.BASE_DIR),
+                    "static", "adminpanel", "logo_babifix.png",
+                )
+                if _os.path.exists(_logo_path):
+                    c.drawImage(
+                        ImageReader(_logo_path),
+                        20 * mm, height - 32 * mm,
+                        width=18 * mm, height=18 * mm,
+                        preserveAspectRatio=True, mask="auto",
+                    )
+                    logo_drawn = True
+            except Exception:
+                logo_drawn = False
+
+            _name_x = 42 * mm if logo_drawn else 20 * mm
             c.setFillColorRGB(0.14, 0.55, 0.86)  # Cyan
             c.setFont("Helvetica-Bold", 24)
-            c.drawString(20*mm, height - 25*mm, "BABIFIX")
+            c.drawString(_name_x, height - 23 * mm, "BABIFIX")
+            c.setFillColorRGB(0.80, 0.86, 0.92)
+            c.setFont("Helvetica", 8)
+            c.drawString(_name_x, height - 29 * mm, "Services a domicile - Cote d'Ivoire")
 
             # Titre document
             if doc_type == "receipt":

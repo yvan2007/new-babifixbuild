@@ -137,12 +137,40 @@ class _SmartAddressPickerState extends State<SmartAddressPicker> {
   }
 
   // ── Reverse geocoding via Nominatim ────────────────────────────────────────
+  // Construit un libellé lisible « Quartier, Ville » plutôt qu'un display_name
+  // verbeux. Aucune coordonnée brute n'est montrée à l'utilisateur.
+  static String _shortPlaceLabel(Map<String, dynamic> addr) {
+    String pick(List<String> keys) {
+      for (final k in keys) {
+        final v = (addr[k] ?? '').toString().trim();
+        if (v.isNotEmpty) return v;
+      }
+      return '';
+    }
+
+    final quartier = pick([
+      'suburb',
+      'neighbourhood',
+      'quarter',
+      'city_district',
+      'residential',
+      'hamlet',
+    ]);
+    final ville = pick(['city', 'town', 'municipality', 'village', 'county']);
+    final region = pick(['state', 'region']);
+    final parts = <String>[];
+    if (quartier.isNotEmpty) parts.add(quartier);
+    if (ville.isNotEmpty && ville != quartier) parts.add(ville);
+    if (parts.isEmpty && region.isNotEmpty) parts.add(region);
+    return parts.join(', ');
+  }
+
   Future<void> _reverseGeocode(LatLng pos) async {
     setState(() => _reverseInProgress = true);
     try {
       final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse'
-        '?format=jsonv2&accept-language=fr'
+        '?format=jsonv2&addressdetails=1&accept-language=fr&zoom=16'
         '&lat=${pos.latitude}&lon=${pos.longitude}',
       );
       final res = await http.get(uri, headers: {
@@ -151,9 +179,18 @@ class _SmartAddressPickerState extends State<SmartAddressPicker> {
       if (res.statusCode == 200) {
         final d = jsonDecode(res.body) as Map<String, dynamic>;
         if (!mounted) return;
-        setState(() {
-          _addressLabel = (d['display_name'] ?? '').toString();
-        });
+        final addr = (d['address'] as Map<String, dynamic>?) ?? const {};
+        var label = _shortPlaceLabel(addr);
+        if (label.isEmpty) {
+          label = (d['display_name'] ?? '')
+              .toString()
+              .split(',')
+              .take(2)
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .join(', ');
+        }
+        setState(() => _addressLabel = label);
       }
     } catch (_) {
       // Pas grave, l'utilisateur garde son lat/lon, pas de label.
@@ -490,15 +527,18 @@ class _SmartAddressPickerState extends State<SmartAddressPicker> {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
-            if (_target != null) ...[
+            if (_target != null && _addressLabel.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(
-                'GPS : ${_target!.latitude.toStringAsFixed(5)}, ${_target!.longitude.toStringAsFixed(5)}',
-                style: TextStyle(
-                  color: hintColor,
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                ),
+              Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded,
+                      color: _kSuccess, size: 14),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Position localisée sur la carte',
+                    style: TextStyle(color: hintColor, fontSize: 11.5),
+                  ),
+                ],
               ),
             ],
             if (_error != null) ...[

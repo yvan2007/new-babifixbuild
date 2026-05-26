@@ -227,7 +227,7 @@ class _PrestataireEscrowPaymentsScreenState
         children: [
           Row(
             children: [
-              Icon(Icons.account_balance, color: BabifixDesign.ciBlue),
+              Icon(Icons.account_balance, color: BabifixDesign.iconOnLight),
               const SizedBox(width: 8),
               Text(
                 'Total bloqué en escrow',

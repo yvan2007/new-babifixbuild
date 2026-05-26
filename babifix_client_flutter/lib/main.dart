@@ -2712,7 +2712,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             child: Icon(
               Icons.close_rounded,
               size: 14,
-              color: BabifixDesign.cyan,
+              color: BabifixDesign.iconOnLight,
             ),
           ),
         ],
@@ -3581,9 +3581,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   color: BabifixDesign.cyan.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.route_rounded,
-                  color: BabifixDesign.cyan,
+                  color: BabifixDesign.iconOnLight,
                   size: 18,
                 ),
               ),

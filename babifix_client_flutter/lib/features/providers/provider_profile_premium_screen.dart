@@ -553,7 +553,7 @@ class _ProviderProfilePremiumScreenState
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.near_me_outlined,
-                      size: 12, color: BabifixDesign.cyan),
+                      size: 12, color: BabifixDesign.iconOnLight),
                   const SizedBox(width: 4),
                   Text(
                     distanceKm < 1
@@ -568,7 +568,7 @@ class _ProviderProfilePremiumScreenState
                   if (sameCity) ...[
                     const SizedBox(width: 6),
                     Icon(Icons.location_city,
-                        size: 12, color: BabifixDesign.cyan),
+                        size: 12, color: BabifixDesign.iconOnLight),
                   ],
                 ],
               ),
@@ -685,7 +685,7 @@ class _ProviderProfilePremiumScreenState
             Row(
               children: [
                 Icon(Icons.info_outline,
-                    size: 16, color: BabifixDesign.cyan),
+                    size: 16, color: BabifixDesign.iconOnLight),
                 const SizedBox(width: 6),
                 Text(
                   'À propos',
@@ -731,7 +731,7 @@ class _ProviderProfilePremiumScreenState
           child: Row(
             children: [
               Icon(Icons.photo_library_outlined,
-                  size: 18, color: BabifixDesign.cyan),
+                  size: 18, color: BabifixDesign.iconOnLight),
               const SizedBox(width: 6),
               const Text(
                 'Portfolio',
@@ -828,7 +828,7 @@ class _ProviderProfilePremiumScreenState
           Row(
             children: [
               Icon(Icons.reviews_outlined,
-                  size: 18, color: BabifixDesign.cyan),
+                  size: 18, color: BabifixDesign.iconOnLight),
               const SizedBox(width: 6),
               const Text(
                 'Avis clients',

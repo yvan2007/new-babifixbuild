@@ -1,4 +1,4 @@
-@startuml BABIFIX - Diagramme de Séquence - Client : Réservation et Devis
+@startuml
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -147,8 +147,6 @@ API -> DB : updateReservation(statut = TERMINEE)
 API -> DB : Enregistrer paiement (especes ou mobile money)
 API -> FCM : Push prestataire "Paiement recu - Mission terminee"
 
-partition "Client" {
-  :Noter le prestataire;
-}
+Client -> API : Noter le prestataire
 
 @enduml

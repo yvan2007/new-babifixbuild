@@ -202,7 +202,7 @@ class _ClientJournalScreenState extends State<ClientJournalScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.menu_book, color: BabifixDesign.ciBlue),
+              Icon(Icons.menu_book, color: BabifixDesign.iconOnLight),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

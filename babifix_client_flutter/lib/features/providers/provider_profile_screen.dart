@@ -933,7 +933,7 @@ class _SectionTitle extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, size: 18, color: BabifixDesign.cyan),
+        Icon(icon, size: 18, color: BabifixDesign.iconOnLight),
         const SizedBox(width: 8),
         Text(
           title,

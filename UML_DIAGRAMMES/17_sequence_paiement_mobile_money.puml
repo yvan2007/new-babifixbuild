@@ -1,4 +1,4 @@
-@startuml BABIFIX - Séquence Paiement Mobile Money (Apres Validation)
+@startuml
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -33,12 +33,12 @@ title **BABIFIX** - Séquence Paiement Mobile Money\n(Apres validation de la pre
 actor "Client" as Client
 participant "BABIFIX Client\n(Flutter)" as App
 participant "Django API" as API
-participant "CinetPay API" as CinetPay
+participant "GeniusPay API" as GeniusPay
 database "PostgreSQL" as DB
 participant "Firebase\n(FCM)" as FCM
 participant "Prestataire" as Prestataire
 
-note top of Client
+note over Client
   IMPORTANT: Le paiement s'effectue APRES
   validation de la prestation par le client.
   Pas de séquestre/escrow - paiement direct
@@ -48,8 +48,8 @@ end note
 == 1. Reservation et Intervention (Flux simplifie — version actuelle) ==
 
 note over Client, Prestataire
-  EVOLUTION PREVUE : Le flux devis complet (DEMANDE_ENVOYEE → DEVIS_ENVOYE → DEVIS_ACCEPTE)
-  n'est pas encore implemente. Version actuelle : EN_ATTENTE → CONFIRMEE → EN_COURS → EN_ATTENTE_CLIENT.
+  Le flux de devis (DEMANDE_ENVOYEE → DEVIS_ENVOYE → DEVIS_ACCEPTE) precede ce paiement.
+  Le paiement Mobile Money intervient apres acceptation du devis par le client.
 end note
 
 Client -> App : Cree une reservation\n(description, adresse, date)
@@ -93,11 +93,11 @@ alt Mobile Money
   App -> API : POST /api/payments/initiate/\n{reservation_id, amount, operator, phone}
   activate API
   API -> DB : Fetch reservation details
-  API -> CinetPay : POST /api/v1/payment\n{amount, currency: XOF, operator, phone}
-  activate CinetPay
+  API -> GeniusPay : POST /api/paiements/geniuspay/initier\n{amount, currency: XOF, operator, phone}
+  activate GeniusPay
   
-  CinetPay --> API : {transaction_id: "TXN123456", status: "PENDING"}
-  deactivate CinetPay
+  GeniusPay --> API : {transaction_id: "TXN123456", status: "PENDING"}
+  deactivate GeniusPay
   
   API -> DB : Create Payment record\n(status: PENDING)
   API --> App : {transaction_id, redirect_url}
@@ -105,18 +105,18 @@ alt Mobile Money
   
   App -> Client : "Suivez les instructions\nsur votre telephone"
   
-  == Webhook CinetPay ==
+  == Webhook GeniusPay ==
   
-  CinetPay -> API : POST /api/payments/webhook/cinetpay/\n{cpm_result: "00", cpm_trans_id, signature}
+  GeniusPay -> API : POST /api/payments/webhook/\n{status: "SUCCESS", transaction_id, signature}
   activate API
   
   API -> API : Verify HMAC signature
   alt Signature valide
     API -> DB : Update Payment\n(status: COMPLETE)
     API -> FCM : "Paiement recu" -> Prestataire
-    API --> CinetPay : 200 OK
+    API --> GeniusPay : 200 OK
   else Signature invalide
-    API --> CinetPay : 403 Forbidden
+    API --> GeniusPay : 403 Forbidden
   end
   deactivate API
   

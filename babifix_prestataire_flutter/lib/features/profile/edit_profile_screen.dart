@@ -629,7 +629,7 @@ class _CniUploaderPremiumState extends State<_CniUploaderPremium> {
                       decoration: BoxDecoration(shape: BoxShape.circle,
                         gradient: LinearGradient(colors: [BabifixDesign.cyan.withValues(alpha: 0.15), BabifixDesign.cyan.withValues(alpha: 0.05)]),
                       ),
-                      child: const Icon(Icons.credit_card_rounded, color: BabifixDesign.cyan, size: 20),
+                      child: Icon(Icons.credit_card_rounded, color: BabifixDesign.iconOnDark, size: 20),
                     ),
                     const SizedBox(height: 8),
                     Text(widget.label, textAlign: TextAlign.center,
@@ -764,7 +764,7 @@ class _PortfolioEditorPremiumState extends State<_PortfolioEditorPremium> {
                     : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Container(width: 32, height: 32, decoration: BoxDecoration(shape: BoxShape.circle,
                             gradient: LinearGradient(colors: [BabifixDesign.cyan.withValues(alpha: 0.15), BabifixDesign.cyan.withValues(alpha: 0.05)])),
-                            child: const Icon(Icons.add_photo_alternate_rounded, color: BabifixDesign.cyan, size: 18)),
+                            child: Icon(Icons.add_photo_alternate_rounded, color: BabifixDesign.iconOnDark, size: 18)),
                         const SizedBox(height: 4),
                         const Text('Ajouter', style: TextStyle(fontSize: 10, color: BabifixDesign.cyan, fontWeight: FontWeight.w600)),
                       ]))),

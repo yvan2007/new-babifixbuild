@@ -1,4 +1,4 @@
-@startuml BABIFIX - Diagramme d'Activité - Notation Prestataire
+@startuml
 !theme plain
 
 skinparam backgroundColor #E3F2FD

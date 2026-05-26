@@ -424,7 +424,7 @@ class _PaiementSoldeScreenState extends State<PaiementSoldeScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_circle_rounded, color: BabifixDesign.cyan, size: 20),
+          Icon(Icons.check_circle_rounded, color: BabifixDesign.iconOnDark, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

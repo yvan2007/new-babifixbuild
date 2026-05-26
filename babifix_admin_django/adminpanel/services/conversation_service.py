@@ -135,6 +135,7 @@ def post_devis_card(reservation, devis) -> Optional[object]:
         ),
         "heure_fin": devis.heure_fin.isoformat() if devis.heure_fin else None,
         "sous_total": float(devis.sous_total),
+        "remise": float(devis.remise),
         "commission_rate": devis.commission_rate,
         "commission_montant": float(devis.commission_montant),
         "total_ttc": float(devis.total_ttc),
@@ -142,6 +143,7 @@ def post_devis_card(reservation, devis) -> Optional[object]:
         "statut": devis.statut,
         "validite_jours": devis.validite_jours,
         "note_prestataire": devis.note_prestataire,
+        "photos_prestataire": list(devis.photos_prestataire or []),
         "lignes": lignes,
     }
     sender = _system_sender(reservation)

@@ -76,7 +76,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 child: Icon(
                   Icons.mark_email_unread_rounded,
                   size: 56,
-                  color: BabifixDesign.cyan,
+                  color: BabifixDesign.iconOnDark,
                 ),
               ),
               const SizedBox(height: 36),

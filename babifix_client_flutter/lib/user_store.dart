@@ -22,6 +22,8 @@ class BabifixUserStore {
   static const _kEmail = 'babifix_profile_email';
   static const _kPhone = 'babifix_profile_phone';
   static const _kAddress = 'babifix_profile_address';
+  static const _kAddressLat = 'babifix_profile_address_lat';
+  static const _kAddressLng = 'babifix_profile_address_lng';
   static const _kAvatarB64 = 'babifix_profile_avatar_b64';
   static const _kUserId = 'babifix_user_id';
 
@@ -146,7 +148,18 @@ class BabifixUserStore {
       'email': p.getString(_kEmail) ?? '',
       'phone': p.getString(_kPhone) ?? '',
       'address': p.getString(_kAddress) ?? '',
+      'address_lat': p.getString(_kAddressLat) ?? '',
+      'address_lng': p.getString(_kAddressLng) ?? '',
     };
+  }
+
+  /// Coordonnées de l'adresse profil (repli proximité quand le GPS est coupé).
+  static Future<({double lat, double lng})?> loadAddressCoords() async {
+    final p = await SharedPreferences.getInstance();
+    final la = double.tryParse(p.getString(_kAddressLat) ?? '');
+    final lo = double.tryParse(p.getString(_kAddressLng) ?? '');
+    if (la == null || lo == null) return null;
+    return (lat: la, lng: lo);
   }
 
   static Future<Uint8List?> loadAvatarBytes() async {
@@ -165,12 +178,20 @@ class BabifixUserStore {
     String? email,
     String? phone,
     String? address,
+    double? addressLat,
+    double? addressLng,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (name != null) await prefs.setString(_kName, name);
     if (email != null) await prefs.setString(_kEmail, email);
     if (phone != null) await prefs.setString(_kPhone, phone);
     if (address != null) await prefs.setString(_kAddress, address);
+    if (addressLat != null) {
+      await prefs.setString(_kAddressLat, addressLat.toString());
+    }
+    if (addressLng != null) {
+      await prefs.setString(_kAddressLng, addressLng.toString());
+    }
   }
 
   static Future<void> saveAvatarBytes(Uint8List bytes) async {

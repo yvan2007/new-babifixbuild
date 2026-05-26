@@ -9,7 +9,6 @@ import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/payment_method_logo.dart';
-import 'create_devis_screen.dart';
 import 'devis_kanban_editor_screen.dart';
 import 'client_journal_viewer.dart';
 import 'rate_client_screen.dart';
@@ -304,7 +303,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 decoration: InputDecoration(
                   hintText: 'Rechercher client, service, reference…',
                   hintStyle: TextStyle(color: const Color(0xFF64748B).withValues(alpha: 0.8)),
-                  prefixIcon: const Icon(Icons.search_rounded, color: BabifixDesign.cyan, size: 20),
+                  prefixIcon: Icon(Icons.search_rounded, color: BabifixDesign.iconOnDark, size: 20),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear_rounded, color: Color(0xFF64748B), size: 18),
@@ -451,10 +450,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                   color: BabifixDesign.cyan.withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.assignment_outlined,
                                   size: 40,
-                                  color: BabifixDesign.cyan,
+                                  color: BabifixDesign.iconOnDark,
                                 ),
                               ),
                               const SizedBox(height: 20),
@@ -699,11 +698,50 @@ class _RequestsScreenState extends State<RequestsScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(
+          color: it.isUrgent ? const Color(0xFFEF4444) : const Color(0x1AFFFFFF),
+          width: it.isUrgent ? 1.5 : 1,
+        ),
+        boxShadow: it.isUrgent
+            ? [
+                BoxShadow(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Bandeau URGENT ────────────────────────────────────────────
+          if (it.isUrgent) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bolt_rounded, color: Colors.white, size: 15),
+                  SizedBox(width: 4),
+                  Text(
+                    'INTERVENTION URGENTE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 11,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           // ── En-tête client + tag ──────────────────────────────────────
           Row(
             children: [
@@ -713,9 +751,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   color: BabifixDesign.cyan.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.person_outline_rounded,
-                  color: BabifixDesign.cyan,
+                  color: BabifixDesign.iconOnDark,
                   size: 18,
                 ),
               ),
@@ -1112,6 +1150,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       (_) => DevisKanbanEditorScreen(
                         reservationReference: it.reference,
                         reservationTitle: it.service ?? '',
+                        clientName: it.client,
+                        clientProblem: it.clientMessage,
+                        clientPhotos: it.clientPhotos,
                       ),
                     ),
                   ).then((_) => _loadRequests()),
@@ -1333,7 +1374,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
             prixPropose: (e['prix_propose'] as num?)?.toDouble(),
           );
         }).toList();
-        setState(() => items = remote);
+        // Les demandes urgentes remontent en tête (ordre stable sinon).
+        final urgent = remote.where((e) => e.isUrgent).toList();
+        final normal = remote.where((e) => !e.isUrgent).toList();
+        setState(() => items = [...urgent, ...normal]);
         debugPrint('✅ LOADED ${remote.length} requests');
       } else {
         debugPrint('❌ LOAD FAILED — status: ${res.statusCode}');
@@ -1378,6 +1422,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
               (_) => DevisKanbanEditorScreen(
                 reservationReference: item.reference,
                 reservationTitle: item.service ?? '',
+                clientName: item.client,
+                clientProblem: item.clientMessage,
+                clientPhotos: item.clientPhotos,
               ),
             ),
           );

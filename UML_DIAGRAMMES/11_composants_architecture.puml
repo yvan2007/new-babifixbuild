@@ -1,4 +1,4 @@
-@startuml BABIFIX - Diagramme de Composants
+@startuml
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -79,7 +79,7 @@ package "Data Layer" {
 }
 
 package "External Services" {
-  component "CinetPay API\n(Mobile Money)" as CinetPay
+  component "GeniusPay API\n(Mobile Money)" as GeniusPay
   component "Firebase\n(FCM only)" as Firebase
   component "SMTP\n(Email)" as SMTP
   component "Sentry\n(Error Tracking)" as Sentry
@@ -121,7 +121,7 @@ Redis <-up-> Consumers : WebSocket State
 Redis <-up-> RateLimiter : Cache
 
 ' External services
-RESTAPI -down-> CinetPay : Payment API
+RESTAPI -down-> GeniusPay : Payment API
 RESTAPI -down-> Firebase : FCM push
 RESTAPI -down-> SMTP : Email
 RESTAPI -down-> Sentry : Error Logs

@@ -215,7 +215,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
           child: Row(
             children: [
               Icon(Icons.info_outline,
-                  color: BabifixDesign.ciBlue, size: 20),
+                  color: BabifixDesign.iconOnLight, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

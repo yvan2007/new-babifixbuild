@@ -79,6 +79,9 @@ class DevisApi {
     String? heureFin,
     int validiteJours = 7,
     String notePrestataire = '',
+    List<String> photosPrestataire = const [],
+    double remise = 0,
+    bool draft = false,
     required List<LigneDevis> lignes,
   }) async {
     final r = await BabifixUserStore.authPost(
@@ -90,12 +93,28 @@ class DevisApi {
         if (heureFin != null) 'heure_fin': heureFin,
         'validite_jours': validiteJours,
         'note_prestataire': notePrestataire,
+        if (photosPrestataire.isNotEmpty)
+          'photos_prestataire': photosPrestataire,
+        if (remise > 0) 'remise': remise,
+        if (draft) 'draft': true,
         'lignes': lignes.map((l) => l.toJson()).toList(),
       }),
     );
     _ensureOk(r);
     final j = _decode(r);
     return Devis.fromJson(Map<String, dynamic>.from(j['devis'] as Map));
+  }
+
+  /// Renvoie le brouillon de devis du prestataire (ou null s'il n'y en a pas).
+  static Future<Map<String, dynamic>?> getDraft(String reference) async {
+    final r = await BabifixUserStore.authGet(
+      '/api/prestataire/requests/$reference/devis/draft',
+    );
+    if (r.statusCode != 200) return null;
+    final j = _decode(r);
+    final draft = j['draft'];
+    if (draft is Map) return Map<String, dynamic>.from(draft);
+    return null;
   }
 }
 

@@ -995,7 +995,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                   onPressed: _showAttachmentMenu,
                   tooltip: 'Joindre un fichier',
                   icon: const Icon(Icons.add_circle_outline),
-                  color: BabifixDesign.cyan,
+                  color: BabifixDesign.iconOnDark,
                 ),
                 Expanded(
                   child: TextField(
@@ -1018,7 +1018,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                   onPressed: _sendText,
                   tooltip: 'Envoyer',
                   icon: const Icon(Icons.send),
-                  color: BabifixDesign.cyan,
+                  color: BabifixDesign.iconOnDark,
                 ),
               ],
             ),

@@ -49,7 +49,7 @@ print = _safe_print
 # Machine a etats stricte — utilisee dans tous les endpoints de changement de statut
 RESERVATION_VALID_TRANSITIONS = {
     "En attente": {"Confirmee", "Annulee"},
-    "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "Annulee"},
+    "DEMANDE_ENVOYEE": {"DEVIS_EN_COURS", "DEVIS_ENVOYE", "Annulee"},
     "DEVIS_EN_COURS": {"DEVIS_ENVOYE", "Annulee"},
     "DEVIS_ENVOYE": {"DEVIS_ACCEPTE", "DEMANDE_ENVOYEE", "Annulee"},
     "DEVIS_ACCEPTE": {"INTERVENTION_EN_COURS", "Annulee"},
@@ -3586,11 +3586,13 @@ def api_prestataire_requests(request):
                 "address": _shown_addr,
                 "address_is_approximate": not _reveal_addr,
                 "description": (
-                    item.client_message
-                    or item.description_probleme
+                    item.description_probleme
+                    or item.client_message
                     or f"Detail de la demande {item.reference}"
                 )[:500],
-                "client_message": item.description_probleme or "",
+                "client_message": (
+                    item.description_probleme or item.client_message or ""
+                ),
                 "client_photos": client_photos,
                 "disponibilites_client": item.disponibilites_client or "",
                 "is_urgent": item.is_urgent or False,
@@ -5652,18 +5654,51 @@ def api_prestataire_create_devis(request, reference):
     date_proposee = payload.get("date_proposee")
     heure_debut = payload.get("heure_debut")
     heure_fin = payload.get("heure_fin")
-    validite_jours = int(payload.get("validite_jours", 7))
+    try:
+        validite_jours = int(payload.get("validite_jours", 7))
+    except (TypeError, ValueError):
+        validite_jours = 7
+    if validite_jours <= 0:
+        validite_jours = 7
     note_prestataire = str(payload.get("note_prestataire", "")).strip()[:1000]
     lignes_data = payload.get("lignes", [])
+    if not isinstance(lignes_data, list):
+        lignes_data = []
 
-    if not diagnostic:
+    # Photos du diagnostic ajoutées par le prestataire (data URI base64), max 6.
+    raw_pphotos = payload.get("photos_prestataire") or []
+    photos_prestataire: list[str] = []
+    if isinstance(raw_pphotos, list):
+        for entry in raw_pphotos[:6]:
+            s = str(entry).strip()
+            if not s.startswith("data:image/"):
+                continue
+            if len(s) > 600_000:
+                s = s[:600_000]
+            photos_prestataire.append(s)
+
+    # Remise commerciale (bornée à [0, sous_total] par le modèle _recompute_totals).
+    remise_value = parse_money_amount(payload.get("remise", 0))
+
+    # Brouillon : enregistrer sans envoyer (statut BROUILLON, pas de notif,
+    # statut réservation inchangé). Diagnostic non obligatoire pour un brouillon.
+    is_draft = bool(payload.get("draft", False))
+
+    if not diagnostic and not is_draft:
         return JsonResponse({"error": "diagnostic_required"}, status=400)
 
     existing_devis = Devis.objects.filter(
         reservation=res, statut__in=[Devis.Statut.ENVOYE, Devis.Statut.ACCEPTE]
     ).first()
-    if existing_devis:
+    if existing_devis and not is_draft:
         return JsonResponse({"error": "devis_already_exists"}, status=400)
+    # Un seul brouillon par (réservation, prestataire) : on remplace l'ancien.
+    if is_draft:
+        Devis.objects.filter(
+            reservation=res,
+            prestataire=provider,
+            statut=Devis.Statut.BROUILLON,
+        ).delete()
 
     # Quota devis actifs simultanés selon le tier premium.
     # Standard=3, Silver=15, Gold=illimité.
@@ -5674,7 +5709,7 @@ def api_prestataire_create_devis(request, reference):
     }
     tier_key = (provider.premium_tier or "standard").lower() if provider.is_premium else "standard"
     quota = _ACTIVE_DEVIS_QUOTA.get(tier_key, 3)
-    if quota > 0:
+    if quota > 0 and not is_draft:
         active_count = Devis.objects.filter(
             prestataire=provider,
             statut__in=[Devis.Statut.ENVOYE, Devis.Statut.BROUILLON],
@@ -5721,93 +5756,127 @@ def api_prestataire_create_devis(request, reference):
     if category and hasattr(category, "commission"):
         commission_rate = category.commission.commission_rate
 
-    # Validation transition de statut
-    is_valid, allowed = validate_reservation_transition(res.statut, "DEVIS_ENVOYE")
-    if not is_valid:
+    # Validation transition de statut (uniquement pour un envoi réel).
+    if not is_draft:
+        is_valid, allowed = validate_reservation_transition(
+            res.statut, "DEVIS_ENVOYE"
+        )
+        if not is_valid:
+            return JsonResponse(
+                {
+                    "error": "invalid_transition",
+                    "current": res.statut,
+                    "allowed": allowed,
+                },
+                status=400,
+            )
+
+    valid_types = {c[0] for c in LigneDevis.TypeLigne.choices}
+    try:
+        devis = Devis.objects.create(
+            reference="",
+            reservation=res,
+            prestataire=provider,
+            diagnostic=diagnostic,
+            date_proposee=parsed_date,
+            heure_debut=parsed_heure_debut,
+            heure_fin=parsed_heure_fin,
+            validite_jours=validite_jours,
+            note_prestataire=note_prestataire,
+            photos_prestataire=photos_prestataire,
+            commission_rate=commission_rate,
+        )
+
+        sous_total = Decimal("0")
+        from .models import CatalogueItem
+        for ligne_data in lignes_data:
+            if not isinstance(ligne_data, dict):
+                continue
+            type_ligne = str(ligne_data.get("type_ligne", "AUTRE")).strip().upper()
+            if type_ligne not in valid_types:
+                type_ligne = "AUTRE"
+            description = str(ligne_data.get("description", "")).strip()[:255]
+            # Phase B : quantité décimale (ex 2.5 ml, 1.5 h)
+            try:
+                quantite = Decimal(str(ligne_data.get("quantite", 1)))
+            except Exception:
+                quantite = Decimal("1")
+            if quantite <= 0:
+                quantite = Decimal("1")
+            prix_unitaire = parse_money_amount(ligne_data.get("prix_unitaire", 0))
+            unite = str(ligne_data.get("unite", "")).strip()[:16]
+            marque = str(ligne_data.get("marque", "")).strip()[:80]
+            if not description and prix_unitaire <= 0:
+                continue
+            catalogue_item = None
+            cat_id = ligne_data.get("catalogue_item_id")
+            if cat_id:
+                try:
+                    catalogue_item = CatalogueItem.objects.filter(
+                        pk=int(cat_id), category_id=provider.category_id
+                    ).first()
+                    if catalogue_item:
+                        # Hériter unité/marque si vides
+                        if not unite:
+                            unite = catalogue_item.unite
+                        if not marque:
+                            marque = catalogue_item.marque
+                        if not description:
+                            description = catalogue_item.nom
+                except Exception:
+                    catalogue_item = None
+
+            ligne = LigneDevis.objects.create(
+                devis=devis,
+                type_ligne=type_ligne,
+                description=description or "Prestation",
+                quantite=quantite,
+                prix_unitaire=prix_unitaire,
+                unite=unite,
+                marque=marque,
+                catalogue_item=catalogue_item,
+            )
+            sous_total += ligne.total
+
+        # Règle BABIFIX : commission DÉDUITE du prestataire, JAMAIS ajoutée au client.
+        # total_ttc (ce que paye le client) = sous_total.
+        # commission_montant = sous_total * rate / 100 (notre part).
+        # net_prestataire = sous_total - commission_montant (sa part).
+        commission_montant = (
+            sous_total * Decimal(commission_rate) / Decimal("100")
+        ).quantize(Decimal("0.01"))
+        devis.sous_total = sous_total
+        devis.remise = remise_value
+        devis.commission_montant = commission_montant
+        devis.total_ttc = sous_total
+        devis.net_prestataire = sous_total - commission_montant
+        devis.statut = (
+            Devis.Statut.BROUILLON if is_draft else Devis.Statut.ENVOYE
+        )
+        # _recompute_totals() (dans save) applique la remise et recalcule
+        # commission/total/net de façon cohérente avec l'escrow/paiement.
+        devis.save()
+
+        # Brouillon : on ne change rien à la réservation et on ne notifie pas.
+        if not is_draft:
+            res.statut = Reservation.Status.DEVIS_ENVOYE
+            res.save(update_fields=["statut"])
+    except Exception as exc:  # noqa: BLE001 — éviter toute 500 brute côté app
+        logger.exception(
+            "api_prestataire_create_devis: échec création devis %s", reference
+        )
         return JsonResponse(
-            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+            {"error": "devis_creation_failed", "detail": str(exc)[:300]},
             status=400,
         )
 
-    devis = Devis.objects.create(
-        reference="",
-        reservation=res,
-        prestataire=provider,
-        diagnostic=diagnostic,
-        date_proposee=parsed_date,
-        heure_debut=parsed_heure_debut,
-        heure_fin=parsed_heure_fin,
-        validite_jours=validite_jours,
-        note_prestataire=note_prestataire,
-        commission_rate=commission_rate,
-    )
-
-    sous_total = Decimal("0")
-    from .models import CatalogueItem
-    for ligne_data in lignes_data:
-        type_ligne = str(ligne_data.get("type_ligne", "AUTRE")).strip().upper()
-        description = str(ligne_data.get("description", "")).strip()[:255]
-        # Phase B : quantité décimale (ex 2.5 ml, 1.5 h)
-        try:
-            quantite = Decimal(str(ligne_data.get("quantite", 1)))
-        except Exception:
-            quantite = Decimal("1")
-        prix_unitaire = Decimal(str(ligne_data.get("prix_unitaire", 0)))
-        unite = str(ligne_data.get("unite", "")).strip()[:16]
-        marque = str(ligne_data.get("marque", "")).strip()[:80]
-        catalogue_item = None
-        cat_id = ligne_data.get("catalogue_item_id")
-        if cat_id:
-            try:
-                catalogue_item = CatalogueItem.objects.filter(
-                    pk=int(cat_id), category_id=provider.category_id
-                ).first()
-                if catalogue_item:
-                    # Hériter unité/marque si vides
-                    if not unite:
-                        unite = catalogue_item.unite
-                    if not marque:
-                        marque = catalogue_item.marque
-                    if not description:
-                        description = catalogue_item.nom
-            except Exception:
-                catalogue_item = None
-
-        ligne = LigneDevis.objects.create(
-            devis=devis,
-            type_ligne=type_ligne,
-            description=description,
-            quantite=quantite,
-            prix_unitaire=prix_unitaire,
-            unite=unite,
-            marque=marque,
-            catalogue_item=catalogue_item,
+    if not is_draft:
+        _schedule(
+            [res.client_user_id],
+            "Nouveau devis reçu",
+            f"Prestataire {provider.nom} a envoyé un devis pour {res.reference}",
+            {"type": "devis.received", "reference": res.reference},
         )
-        sous_total += ligne.total
-
-    # Règle BABIFIX : commission DÉDUITE du prestataire, JAMAIS ajoutée au client.
-    # total_ttc (ce que paye le client) = sous_total.
-    # commission_montant = sous_total * rate / 100 (notre part).
-    # net_prestataire = sous_total - commission_montant (sa part).
-    commission_montant = (
-        sous_total * Decimal(commission_rate) / Decimal("100")
-    ).quantize(Decimal("0.01"))
-    devis.sous_total = sous_total
-    devis.commission_montant = commission_montant
-    devis.total_ttc = sous_total
-    devis.net_prestataire = sous_total - commission_montant
-    devis.statut = Devis.Statut.ENVOYE
-    devis.save()
-
-    res.statut = Reservation.Status.DEVIS_ENVOYE
-    res.save(update_fields=["statut"])
-
-    _schedule(
-        [res.client_user_id],
-        "Nouveau devis reçu",
-        f"Prestataire {provider.nom} a envoyé un devis pour {res.reference}",
-        {"type": "devis.received", "reference": res.reference},
-    )
 
     return JsonResponse(
         {
@@ -5826,7 +5895,9 @@ def api_prestataire_create_devis(request, reference):
                 "commission_rate": devis.commission_rate,
                 "total_ttc": float(devis.total_ttc),
                 "net_prestataire": float(devis.net_prestataire),
+                "remise": float(devis.remise),
                 "statut": devis.statut,
+                "photos_prestataire": list(devis.photos_prestataire or []),
                 "lignes": [
                     {
                         "id": l.id,
@@ -5842,6 +5913,59 @@ def api_prestataire_create_devis(request, reference):
                     for l in devis.lignes.all()
                 ],
             },
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["prestataire"])
+def api_prestataire_devis_draft(request, reference):
+    """Renvoie le brouillon de devis du prestataire pour cette réservation."""
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=403)
+    devis = (
+        Devis.objects.filter(
+            reservation=res,
+            prestataire=provider,
+            statut=Devis.Statut.BROUILLON,
+        )
+        .order_by("-updated_at")
+        .first()
+    )
+    if not devis:
+        return JsonResponse({"draft": None})
+    return JsonResponse(
+        {
+            "draft": {
+                "diagnostic": devis.diagnostic,
+                "date_proposee": str(devis.date_proposee)
+                if devis.date_proposee
+                else None,
+                "heure_debut": str(devis.heure_debut)
+                if devis.heure_debut
+                else None,
+                "heure_fin": str(devis.heure_fin) if devis.heure_fin else None,
+                "validite_jours": devis.validite_jours,
+                "note_prestataire": devis.note_prestataire,
+                "remise": float(devis.remise),
+                "photos_prestataire": list(devis.photos_prestataire or []),
+                "lignes": [
+                    {
+                        "type_ligne": l.type_ligne,
+                        "description": l.description,
+                        "quantite": float(l.quantite),
+                        "prix_unitaire": float(l.prix_unitaire),
+                        "unite": l.unite,
+                        "marque": l.marque,
+                    }
+                    for l in devis.lignes.all()
+                ],
+            }
         }
     )
 
@@ -5893,7 +6017,9 @@ def api_reservation_devis(request, reference):
                 "net_prestataire": float(devis.net_prestataire),
                 "note_prestataire": devis.note_prestataire,
                 "validite_jours": devis.validite_jours,
+                "remise": float(devis.remise),
                 "statut": devis.statut,
+                "photos_prestataire": list(devis.photos_prestataire or []),
                 "created_at": str(devis.created_at),
                 "lignes": [
                     {

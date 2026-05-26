@@ -56,6 +56,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   bool _saving = false;
 
+  // Coordonnées de l'adresse (alimentent le repli de proximité prestataires).
+  double? _addrLat;
+  double? _addrLng;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +68,17 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     phoneCtrl = TextEditingController(text: widget.initialPhone);
     addressCtrl = TextEditingController(text: widget.initialAddress);
     _avatarBytes = widget.initialAvatarBytes;
+
+    // Recharge les coordonnées déjà enregistrées (pour rouvrir la carte au
+    // bon endroit).
+    BabifixUserStore.loadAddressCoords().then((c) {
+      if (c != null && mounted) {
+        setState(() {
+          _addrLat = c.lat;
+          _addrLng = c.lng;
+        });
+      }
+    });
 
     nameCtrl.addListener(_onFieldChange);
     emailCtrl.addListener(_onFieldChange);
@@ -317,6 +332,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         email: emailCtrl.text.trim(),
         phone: phoneCtrl.text.trim(),
         address: addressCtrl.text.trim(),
+        addressLat: _addrLat,
+        addressLng: _addrLng,
       );
       if (_avatarChanged) {
         if (_avatarBytes != null) {
@@ -709,12 +726,16 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                     initialLabel: addressCtrl.text.isEmpty
                         ? null
                         : addressCtrl.text,
+                    initialLat: _addrLat,
+                    initialLon: _addrLng,
                   ),
                 ),
               );
               if (picked != null) {
                 setState(() {
                   addressCtrl.text = picked.label;
+                  _addrLat = picked.lat;
+                  _addrLng = picked.lon;
                 });
               }
             },

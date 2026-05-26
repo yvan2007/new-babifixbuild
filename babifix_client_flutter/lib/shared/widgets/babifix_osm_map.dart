@@ -93,66 +93,136 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
           borderRadius: BorderRadius.circular(18),
           child: SizedBox(
             height: widget.height,
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: widget.marker,
-                initialZoom: 15,
-                onTap: (_, point) => widget.onMarkerMoved(point),
-              ),
+            child: Stack(
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.babifix.client',
-                ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: widget.marker,
-                      width: 44,
-                      height: 44,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.location_on_rounded,
-                        size: 44,
-                        color: BabifixDesign.ciOrange,
-                        shadows: const [
-                          Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                        ],
-                      ),
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: widget.marker,
+                    initialZoom: 15,
+                    onTap: (_, point) => widget.onMarkerMoved(point),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.babifix.client',
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: widget.marker,
+                          width: 60,
+                          height: 60,
+                          alignment: Alignment.topCenter,
+                          child: _PinWithHalo(),
+                        ),
+                      ],
                     ),
                   ],
+                ),
+                // Bouton « Ma position » flottant sur la carte
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Material(
+                    color: Colors.white,
+                    elevation: 4,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _loadingGps ? null : _useMyPosition,
+                      child: Padding(
+                        padding: const EdgeInsets.all(11),
+                        child: _loadingGps
+                            ? SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: BabifixRingLoader.cyan(size: 30),
+                              )
+                            : const Icon(
+                                Icons.my_location_rounded,
+                                size: 22,
+                                color: Color(0xFF1D4ED8),
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Attribution OSM (obligatoire) — discrète
+                Positioned(
+                  left: 8,
+                  bottom: 6,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      '© OpenStreetMap',
+                      style: TextStyle(fontSize: 9, color: Color(0xFF475569)),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Row(
           children: [
+            Icon(Icons.touch_app_rounded,
+                size: 15,
+                color: isLight
+                    ? const Color(0xFF64748B)
+                    : const Color(0xFF94A3B8)),
+            const SizedBox(width: 6),
             Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _loadingGps ? null : _useMyPosition,
-                icon: _loadingGps
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: BabifixRingLoader.cyan(size: 28),
-                      )
-                    : const Icon(Icons.my_location_rounded, size: 20),
-                label: Text(_loadingGps ? 'Localisation…' : 'Ma position'),
+              child: Text(
+                'Touchez la carte pour placer le point, ou utilisez « Ma position ».',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isLight
+                      ? const Color(0xFF64748B)
+                      : const Color(0xFF94A3B8),
+                  height: 1.3,
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Touchez la carte pour ajuster le pin, ou utilisez la recherche d’adresse au-dessus / « Ma position ».',
-          style: TextStyle(
-            fontSize: 12,
-            color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-            height: 1.3,
+      ],
+    );
+  }
+}
+
+/// Marqueur stylé : halo + pin orange BABIFIX.
+class _PinWithHalo extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        Positioned(
+          top: 8,
+          child: Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: BabifixDesign.ciOrange.withValues(alpha: 0.20),
+            ),
           ),
+        ),
+        const Icon(
+          Icons.location_on_rounded,
+          size: 44,
+          color: BabifixDesign.ciOrange,
+          shadows: [
+            Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+          ],
         ),
       ],
     );

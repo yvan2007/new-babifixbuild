@@ -80,6 +80,45 @@ class DevisCardWidget extends StatelessWidget {
           if (devis.diagnostic.isNotEmpty) _diagnostic(),
           ..._sections(),
           _totals(),
+          _footer(),
+        ],
+      ),
+    );
+  }
+
+  Widget _footer() {
+    final hasNote = devis.notePrestataire.trim().isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasNote) ...[
+            Row(
+              children: [
+                Icon(Icons.sticky_note_2_outlined,
+                    size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 5),
+                Text('Note du prestataire',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade700)),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(devis.notePrestataire,
+                style: const TextStyle(fontSize: 12.5, height: 1.35)),
+            const SizedBox(height: 8),
+          ],
+          Row(
+            children: [
+              Icon(Icons.schedule, size: 13, color: Colors.grey.shade500),
+              const SizedBox(width: 5),
+              Text('Devis valable ${devis.validiteJours} jours',
+                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+            ],
+          ),
         ],
       ),
     );
@@ -100,7 +139,7 @@ class DevisCardWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.receipt_long, size: 20, color: BabifixDesign.ciBlue),
+          Icon(Icons.receipt_long, size: 20, color: BabifixDesign.iconOnLight),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -264,6 +303,7 @@ class DevisCardWidget extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
       child: MoneyBreakdownWidget(
         sousTotal: devis.sousTotal,
+        remise: devis.remise,
         commissionRate: devis.commissionRate,
         commissionMontant: devis.commissionMontant,
         totalTtc: devis.totalTtc,
@@ -293,6 +333,7 @@ class DevisCardWidget extends StatelessWidget {
 // ---------------------------------------------------------------------------
 class MoneyBreakdownWidget extends StatelessWidget {
   final double sousTotal;
+  final double remise;
   final int commissionRate;
   final double commissionMontant;
   final double totalTtc;
@@ -303,6 +344,7 @@ class MoneyBreakdownWidget extends StatelessWidget {
   const MoneyBreakdownWidget({
     super.key,
     required this.sousTotal,
+    this.remise = 0,
     required this.commissionRate,
     required this.commissionMontant,
     required this.totalTtc,
@@ -324,6 +366,9 @@ class MoneyBreakdownWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _row('Sous-total', fmtMoney(sousTotal), bold: false),
+          if (remise > 0)
+            _row('Remise', '− ${fmtMoney(remise)}',
+                color: BabifixDesign.ciGreen),
           if (!compact || showProviderNet) ...[
             _row(
               'Commission BABIFIX ($commissionRate%)',

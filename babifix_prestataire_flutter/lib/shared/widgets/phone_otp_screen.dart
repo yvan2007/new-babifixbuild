@@ -218,7 +218,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
             Icon(
               Icons.phone_android_rounded,
               size: 64,
-              color: BabifixDesign.cyan,
+              color: BabifixDesign.iconOnLight,
             ),
             const SizedBox(height: 16),
             Text(

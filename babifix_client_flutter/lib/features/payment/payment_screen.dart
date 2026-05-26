@@ -621,7 +621,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                 ),
                 child: Icon(
                   Icons.home_repair_service_rounded,
-                  color: BabifixDesign.cyan,
+                  color: BabifixDesign.iconOnDark,
                   size: 26,
                 ),
               ),
@@ -843,7 +843,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.lock_rounded, color: BabifixDesign.ciBlue, size: 20),
+          Icon(Icons.lock_rounded, color: BabifixDesign.iconOnDark, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

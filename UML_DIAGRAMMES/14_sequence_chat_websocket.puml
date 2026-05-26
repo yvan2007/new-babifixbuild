@@ -1,4 +1,4 @@
-@startuml BABIFIX - Sequence Chat Temps Reel
+@startuml
 !theme plain
 
 skinparam backgroundColor #E3F2FD

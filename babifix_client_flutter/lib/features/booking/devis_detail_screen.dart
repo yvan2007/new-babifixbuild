@@ -1017,10 +1017,10 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                           color: BabifixDesign.cyan.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.chat_bubble_outline_rounded,
                           size: 40,
-                          color: BabifixDesign.cyan,
+                          color: BabifixDesign.iconOnDark,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -1161,7 +1161,7 @@ class _SectionCard extends StatelessWidget {
                   color: BabifixDesign.cyan.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, size: 18, color: BabifixDesign.cyan),
+                child: Icon(icon, size: 18, color: BabifixDesign.iconOnDark),
               ),
               const SizedBox(width: 12),
               Text(

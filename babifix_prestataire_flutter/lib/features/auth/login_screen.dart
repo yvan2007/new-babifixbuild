@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
-import '../../services/zego_call_service.dart';
 import 'forgot_password_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -57,14 +56,21 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final email = _user.text.trim();
+    final identifier = _user.text.trim();
     final pass = _pass.text;
+    // L'identifiant peut être l'email OU le nom d'utilisateur (nom/prénom
+    // choisi à l'inscription). Le backend cherche d'abord par email puis par
+    // username : on route donc selon la présence d'un '@'.
+    final isEmail = identifier.contains('@');
     setState(() => _loading = true);
     try {
       final res = await http.post(
         Uri.parse('${babifixApiBaseUrl()}/api/auth/login/'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': email, 'password': pass}),
+        body: jsonEncode({
+          if (isEmail) 'email': identifier else 'username': identifier,
+          'password': pass,
+        }),
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -122,6 +128,7 @@ class _LoginScreenState extends State<LoginScreen>
       child: Scaffold(
         backgroundColor: _navyDeep,
         body: Stack(
+          fit: StackFit.expand,
           children: [
             // ── Fond gradient + orbes ──────────────────────────────────────
             Positioned.fill(
@@ -172,9 +179,19 @@ class _LoginScreenState extends State<LoginScreen>
             SafeArea(
               child: FadeTransition(
                 opacity: _fadeIn,
-                child: Center(
-                  child: Column(
-                    children: [
+                child: LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 32,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
                     // ── Logo + titre ─────────────────────────────────
                     Center(
                       child: Column(
@@ -382,6 +399,8 @@ class _LoginScreenState extends State<LoginScreen>
                             ),
                           ),
                         ],
+                      ),
+                        ),
                       ),
                     ),
                   ),

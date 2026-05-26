@@ -732,8 +732,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                 ? null
                                 : () => _subscribe(tierId,
                                     billingPeriod: 'trial'),
-                            icon: const Icon(Icons.bolt_rounded,
-                                size: 18, color: BabifixDesign.cyan),
+                            icon: Icon(Icons.bolt_rounded,
+                                size: 18, color: BabifixDesign.iconOnDark),
                             label: const Text(
                               'Essai gratuit 7 jours',
                               style: TextStyle(
@@ -932,7 +932,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.bolt_rounded, color: BabifixDesign.cyan, size: 28),
+          Icon(Icons.bolt_rounded, color: BabifixDesign.iconOnDark, size: 28),
           const SizedBox(width: 12),
           const Expanded(
             child: Column(
@@ -974,9 +974,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.lightbulb_outline_rounded,
-            color: BabifixDesign.cyan,
+            color: BabifixDesign.iconOnDark,
             size: 20,
           ),
           const SizedBox(width: 12),

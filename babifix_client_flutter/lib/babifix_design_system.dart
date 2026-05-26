@@ -10,6 +10,15 @@ abstract final class BabifixDesign {
   static const Color cyan = Color(0xFF4CC9F0);
   static const Color ciOrange = Color(0xFFE87722);
 
+  // ─── Icônes neutres (rendu pro) ──────────────────────────────────────────
+  // Le cyan reste réservé aux états actifs/sélectionnés et aux boutons.
+  static const Color iconOnLight = Color(0xFF334155); // slate 700 (fond clair)
+  static const Color iconOnDark = Color(0xFFE2E8F0); // slate 200 (fond sombre)
+
+  /// Couleur d'icône neutre adaptée au thème courant.
+  static Color iconColor(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? iconOnDark : iconOnLight;
+
   // ─── Couleurs sémantiques ────────────────────────────────────────────────
   static const Color success = Color(0xFF22C55E);
   static const Color warning = Color(0xFFF59E0B);

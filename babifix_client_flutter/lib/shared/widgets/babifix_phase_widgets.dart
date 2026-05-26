@@ -7,6 +7,8 @@
 /// - EscrowStatusBadge     : badge "En escrow" / "Cash main à main" / "Libéré".
 library babifix_phase_widgets;
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -50,6 +52,10 @@ class DevisCardWidget extends StatelessWidget {
       notePrestataire: (payload['note_prestataire'] ?? '').toString(),
       validiteJours: (payload['validite_jours'] as num?)?.toInt() ?? 7,
       statut: DevisStatus.fromCode((payload['statut'] ?? 'BROUILLON').toString()),
+      photosPrestataire: (payload['photos_prestataire'] as List? ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList(),
       lignes: lignes,
     );
     return DevisCardWidget(devis: devis, compact: compact);
@@ -78,11 +84,74 @@ class DevisCardWidget extends StatelessWidget {
         children: [
           _header(),
           if (devis.diagnostic.isNotEmpty) _diagnostic(),
+          if (devis.photosPrestataire.isNotEmpty) _photos(),
           ..._sections(),
           _totals(),
         ],
       ),
     );
+  }
+
+  Widget _photos() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.photo_library_outlined,
+                  size: 14, color: Colors.grey.shade600),
+              const SizedBox(width: 5),
+              Text('Photos du prestataire',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 70,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: devis.photosPrestataire.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) => ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _devisPhoto(devis.photosPrestataire[i], 70),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _devisPhoto(String src, double size) {
+    final ph = Container(
+      width: size,
+      height: size,
+      color: Colors.grey.shade200,
+      child: Icon(Icons.broken_image_outlined,
+          color: Colors.grey.shade400, size: 24),
+    );
+    final s = src.trim();
+    if (s.startsWith('data:image/')) {
+      try {
+        return Image.memory(base64Decode(s.split(',').last),
+            width: size, height: size, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => ph);
+      } catch (_) {
+        return ph;
+      }
+    }
+    if (s.startsWith('http')) {
+      return Image.network(s,
+          width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => ph);
+    }
+    return ph;
   }
 
   Widget _header() {
@@ -100,7 +169,7 @@ class DevisCardWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.receipt_long, size: 20, color: BabifixDesign.ciBlue),
+          Icon(Icons.receipt_long, size: 20, color: BabifixDesign.iconOnLight),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -264,6 +333,7 @@ class DevisCardWidget extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
       child: MoneyBreakdownWidget(
         sousTotal: devis.sousTotal,
+        remise: devis.remise,
         commissionRate: devis.commissionRate,
         commissionMontant: devis.commissionMontant,
         totalTtc: devis.totalTtc,
@@ -293,6 +363,7 @@ class DevisCardWidget extends StatelessWidget {
 // ---------------------------------------------------------------------------
 class MoneyBreakdownWidget extends StatelessWidget {
   final double sousTotal;
+  final double remise;
   final int commissionRate;
   final double commissionMontant;
   final double totalTtc;
@@ -303,6 +374,7 @@ class MoneyBreakdownWidget extends StatelessWidget {
   const MoneyBreakdownWidget({
     super.key,
     required this.sousTotal,
+    this.remise = 0,
     required this.commissionRate,
     required this.commissionMontant,
     required this.totalTtc,
@@ -324,6 +396,9 @@ class MoneyBreakdownWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _row('Sous-total', fmtMoney(sousTotal), bold: false),
+          if (remise > 0)
+            _row('Remise', '− ${fmtMoney(remise)}',
+                color: BabifixDesign.ciGreen),
           if (!compact || showProviderNet) ...[
             _row(
               'Commission BABIFIX ($commissionRate%)',

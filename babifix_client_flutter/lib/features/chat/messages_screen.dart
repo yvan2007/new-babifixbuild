@@ -180,7 +180,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   child: Icon(
                     Icons.lock_outline_rounded,
                     size: 36,
-                    color: BabifixDesign.cyan,
+                    color: BabifixDesign.iconOnLight,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -373,7 +373,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               child: Icon(
                                 Icons.chat_bubble_outline_rounded,
                                 size: 38,
-                                color: BabifixDesign.cyan,
+                                color: BabifixDesign.iconOnLight,
                               ),
                             ),
                           ),
