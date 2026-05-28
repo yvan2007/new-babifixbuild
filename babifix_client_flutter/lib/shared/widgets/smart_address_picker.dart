@@ -296,6 +296,8 @@ class _SmartAddressPickerState extends State<SmartAddressPicker> {
                 initialZoom: _target != null ? 16.0 : 12.0,
                 minZoom: 4,
                 maxZoom: 19,
+                backgroundColor:
+                    isLight ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                 ),

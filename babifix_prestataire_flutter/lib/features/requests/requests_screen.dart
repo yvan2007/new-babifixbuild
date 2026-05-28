@@ -1506,11 +1506,33 @@ class _RequestsScreenState extends State<RequestsScreen> {
         message: 'Intervention démarrée',
       );
         _loadRequests();
+      } else if (res.statusCode == 409 && mounted) {
+        final body = jsonDecode(res.body);
+        final amount = (body['amount_due_online'] as num?)?.toInt() ?? 0;
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: Icon(Icons.lock_outline, color: BabifixDesign.error, size: 56),
+            title: const Text('Acompte non versé'),
+            content: Text(
+              "Le client n'a pas encore versé l'acompte. "
+              "Vous ne pouvez pas démarrer l'intervention.\n\n"
+              "Montant attendu : $amount F CFA",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
       } else if (mounted) {
+        final msg = (jsonDecode(res.body)['message'] as String?) ?? 'Erreur ${res.statusCode}';
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur ${res.statusCode}',
+        message: msg,
       );
       }
     } catch (_) {

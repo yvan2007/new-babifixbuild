@@ -40,6 +40,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   String _noteAvg = '\u2014';
   String? _provStatut;
   String? _refusalReason;
+  String providerVille = '';
 
   bool _isAvailable = true;
   bool _togglingAvail = false;
@@ -91,6 +92,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
           _refusalReason = rr.isEmpty ? null : rr;
           _isAvailable = dispo == true || dispo == 1;
           _photoUrl = photo.isEmpty ? null : photo;
+          providerVille = '${prov['ville'] ?? ''}'.trim();
           _loadingMe = false;
         });
         return;
@@ -314,7 +316,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 10),
-                const _AppointmentCard(),
+                _AppointmentCard(ville: providerVille),
                 const SizedBox(height: 16),
                 _AvailabilityToggleCard(
                   isAvailable: _isAvailable,
@@ -920,7 +922,9 @@ class _Stat extends StatelessWidget {
 }
 
 class _AppointmentCard extends StatelessWidget {
-  const _AppointmentCard();
+  const _AppointmentCard({required this.ville});
+
+  final String ville;
 
   static const _accent = Color(0xFF0084D1);
 
@@ -1014,7 +1018,7 @@ class _AppointmentCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Abidjan, Côte d\'Ivoire',
+                  ville.isNotEmpty ? ville : 'Côte d\'Ivoire',
                   style: TextStyle(
                     color: Colors.blueGrey.shade800,
                     fontSize: 14,

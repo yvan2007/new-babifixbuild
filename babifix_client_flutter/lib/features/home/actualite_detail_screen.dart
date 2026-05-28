@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../models/client_models.dart';
 
@@ -25,6 +26,10 @@ class ActualiteDetailScreen extends StatelessWidget {
         backgroundColor: card,
         foregroundColor: text,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: const Text('Actualité'),
       ),
       body: SingleChildScrollView(

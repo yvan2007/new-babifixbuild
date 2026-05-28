@@ -245,6 +245,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
 
   Widget _actionsBar(Devis devis) {
     final canAct = devis.statut == DevisStatus.envoye;
+    final canPay = devis.statut == DevisStatus.accepte;
     return SafeArea(
       top: false,
       child: Container(
@@ -295,14 +296,46 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
                   ),
                 ],
               )
-            : Center(
-                child: Text(
-                  'Devis ${devis.statut.label.toLowerCase()}',
-                  style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w600),
-                ),
-              ),
+            : canPay
+                ? ElevatedButton.icon(
+                    onPressed: _busy
+                        ? null
+                        : () async {
+                            setState(() => _busy = true);
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => EscrowQuoteScreen(
+                                  reservationReference:
+                                      widget.reservationReference,
+                                ),
+                              ),
+                            );
+                            if (mounted) {
+                              setState(() => _busy = false);
+                              await _load();
+                            }
+                          },
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: BabifixRingLoader.cyan(size: 28))
+                        : const Icon(Icons.payment, size: 18),
+                    label: const Text('Payer maintenant'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BabifixDesign.ciOrange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  )
+                : Center(
+                    child: Text(
+                      'Devis ${devis.statut.label.toLowerCase()}',
+                      style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
       ),
     );
   }

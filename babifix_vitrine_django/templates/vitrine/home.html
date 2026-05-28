@@ -267,6 +267,14 @@ section[id], header[id] { scroll-margin-top: 80px; }
   animation-duration: 28s; animation-delay: -14s;
   opacity: .22;
 }
+/* Hero background image layer */
+.hero-bg-layer {
+  position: absolute; inset: 0;
+  background: url("{% static 'vitrine/photos/hero-bg.png' %}") center center / cover no-repeat;
+  opacity: .12;
+  pointer-events: none;
+  z-index: 1;
+}
 @keyframes orb-drift {
   0%   { transform: translate(0,0) scale(1) rotate(0deg); }
   25%  { transform: translate(20px,-24px) scale(1.05) rotate(3deg); }
@@ -1263,6 +1271,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   .newsletter-row { flex-direction: column; }
   .cta-btns { flex-direction: column; align-items: center; }
   .hero { padding: 110px 0 80px; }
+  .hero-bg-layer { background-size: cover; background-position: center 20%; }
   .wa-float { bottom: 20px; right: 20px; padding: 12px 18px 12px 12px; }
   .wa-text-wrap { display: none; }
   .wa-icon-wrap { width: 46px; height: 46px; }
@@ -1385,6 +1394,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
   </div>
+  <div class="hero-bg-layer" aria-hidden="true"></div>
   <div class="hero-wrap">
     <div class="container">
       <div class="hero-grid">

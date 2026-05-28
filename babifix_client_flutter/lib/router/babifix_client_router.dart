@@ -73,7 +73,13 @@ GoRouter createBabifixClientRouter({
     initialLocation: '/home',
     refreshListenable: refreshListenable,
     routes: [
-      GoRoute(path: '/home', builder: (ctx, _) => homeBuilder(ctx)),
+      GoRoute(
+        path: '/home',
+        pageBuilder: (ctx, state) => CustomTransitionPage(
+          child: homeBuilder(ctx),
+          transitionsBuilder: _fadeSlideTransition,
+        ),
+      ),
       GoRoute(path: '/onboarding', builder: (ctx, _) => onboardingBuilder(ctx)),
       GoRoute(
         path: '/',

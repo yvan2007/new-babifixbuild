@@ -1430,8 +1430,13 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   String _compactCity(String raw) {
     final t = raw.trim();
     if (t.isEmpty) return t;
-    final first = t.split(',').first.trim();
-    final out = first.isNotEmpty ? first : t;
+    final parts = t.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    if (parts.isEmpty) return t;
+    final country = parts.length > 1 ? parts.last : '';
+    if (country == 'Côte d\'Ivoire' || country == "Cote d'Ivoire") {
+      parts.removeLast();
+    }
+    final out = parts.take(2).join(', ');
     return out.length > 80 ? out.substring(0, 80) : out;
   }
 }

@@ -19,7 +19,7 @@ String formatFcfa(num? value) {
 }
 
 String formatFcfaFromString(String raw) {
-  final digits = raw.replaceAll(RegExp(r'[^\d]'), '');
-  if (digits.isEmpty) return raw;
-  return formatFcfa(int.tryParse(digits) ?? 0);
+  final n = double.tryParse(raw);
+  if (n == null || n == 0) return raw;
+  return formatFcfa(n.round());
 }

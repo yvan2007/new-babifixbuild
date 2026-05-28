@@ -207,7 +207,7 @@ class _EditProfilePrestataireScreenState
                 const SizedBox(height: 12),
                 _PremiumField(controller: _specialiteCtrl, label: 'Specialite', icon: Icons.work_rounded),
                 const SizedBox(height: 12),
-                _PremiumField(controller: _villeCtrl, label: 'Ville', icon: Icons.location_city_rounded),
+                _PremiumField(controller: _villeCtrl, label: 'Ville & zone d\'intervention', icon: Icons.location_on_rounded, hint: 'Ex: Cocody, Abidjan'),
               ],
             ),
           ),
@@ -373,10 +373,11 @@ class _PremiumField extends StatelessWidget {
   final String label;
   final IconData icon;
   final TextInputType keyboardType;
+  final String? hint;
 
   const _PremiumField({
     required this.controller, required this.label, required this.icon,
-    this.keyboardType = TextInputType.text,
+    this.keyboardType = TextInputType.text, this.hint,
   });
 
   @override
@@ -387,6 +388,7 @@ class _PremiumField extends StatelessWidget {
       style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: label,
+        hintText: hint,
         labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
         prefixIcon: Icon(icon, size: 18, color: BabifixDesign.cyan.withValues(alpha: 0.6)),
         filled: true,

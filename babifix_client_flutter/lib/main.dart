@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'dart:convert';
@@ -328,6 +329,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   static const _logoAsset = 'assets/images/babifix-logo.png';
   int navIndex = 0;
   int categoryIndex = 0;
+  DateTime? _lastBackPress;
 
   // ── Recherche et filtres services ────────────────────────────────────────
   String _searchQuery = '';
@@ -1213,7 +1215,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
               .toList();
     return Scaffold(
       extendBody: true,
-      body: Container(
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, _) {
+          if (didPop) return;
+          if (_lastBackPress != null &&
+              DateTime.now().difference(_lastBackPress!) <
+                  const Duration(seconds: 2)) {
+            SystemNavigator.pop();
+          } else {
+            _lastBackPress = DateTime.now();
+            showBabifixToast(
+              context,
+              message: 'Appuyez une seconde fois pour quitter',
+              type: BabifixToastType.info,
+              title: 'Quitter',
+              duration: const Duration(seconds: 2),
+            );
+          }
+        },
+        child: Container(
         decoration: BoxDecoration(
           gradient: _isLight
               ? BabifixDesign.pageGradientLight
@@ -1228,6 +1249,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             : navIndex == 3
             ? _buildReservations()
             : _buildProfile(),
+        ),
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
@@ -2281,7 +2303,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final item = actualites[index];
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: TweenAnimationBuilder<double>(
+      child: GestureDetector(
+        onTap: () => _openActualiteDetail(item),
+        child: TweenAnimationBuilder<double>(
         duration: Duration(milliseconds: 320 + (index * 70)),
         tween: Tween(begin: 0, end: 1),
         curve: Curves.easeOutCubic,
@@ -2393,7 +2417,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               const SizedBox(width: 4),
                               Text(
                                 item.dateLabel,
-                                style: const TextStyle(fontSize: 12),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.white),
                               ),
                             ],
                           ),
@@ -2428,6 +2453,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -4199,7 +4225,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         dateLabel: '${item['date_publication'] ?? ''}'.split('T').first,
       );
       if (!mounted) return;
-      context.go('/actualite/${full.id}', extra: full);
+      context.push('/actualite/${full.id}', extra: full);
     } catch (_) {}
   }
 
@@ -4321,7 +4347,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final totalEscrow = reservations
         .where((r) => r.status == 'En cours')
         .map(
-          (e) => int.tryParse(e.amount.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0,
+          (e) => (double.tryParse(e.amount) ?? 0).round(),
         )
         .fold<int>(0, (sum, value) => sum + value);
 
@@ -5648,6 +5674,31 @@ class _ClientHomePageState extends State<ClientHomePage> {
     return r.cashFlowStatus.isEmpty;
   }
 
+  /// Retourne un message utilisateur lisible selon le code HTTP.
+  String _friendlyHttpError(int code) {
+    switch (code) {
+      case 400:
+        return 'Données invalides. Vérifiez les informations saisies.';
+      case 401:
+        return 'Votre session a expiré. Veuillez vous reconnecter.';
+      case 403:
+        return 'Vous n\'avez pas les droits pour effectuer cette action.';
+      case 404:
+        return 'Ressource introuvable. Veuillez réessayer.';
+      case 409:
+        return 'Conflit détecté. Le paiement pourrait être déjà en cours.';
+      case 422:
+        return 'Données incomplètes. Remplissez tous les champs requis.';
+      case 429:
+        return 'Trop de tentatives. Patientez quelques instants.';
+      case 500:
+        return 'Erreur serveur. Notre équipe est informée.';
+      default:
+        if (code >= 500) return 'Erreur serveur temporaire. Réessayez dans un instant.';
+        return 'Une erreur est survenue (code $code). Veuillez réessayer.';
+    }
+  }
+
   Future<void> _declareCashPayment(ClientReservation r) async {
     if (authToken == null || r.reference.isEmpty) return;
     try {
@@ -5674,7 +5725,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: ${res.statusCode}',
+        message: _friendlyHttpError(res.statusCode),
       );
       }
     } catch (e) {
@@ -5682,7 +5733,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: 'Une erreur est survenue. Veuillez réessayer.',
       );
       }
     }
@@ -5725,10 +5776,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   String _formatAmountLabel(String raw) {
-    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
-    final n = int.tryParse(digits);
+    final n = double.tryParse(raw);
     if (n == null || n == 0) return raw;
-    return formatFcfa(n);
+    return formatFcfa(n.round());
   }
 
   void _showReservationDetails(ClientReservation r) {
@@ -6217,7 +6267,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: ${res.statusCode}',
+        message: _friendlyHttpError(res.statusCode),
       );
       }
     } catch (e) {
@@ -6225,7 +6275,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: 'Une erreur est survenue. Veuillez réessayer.',
       );
       }
     }
@@ -6382,7 +6432,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: ${res.statusCode}',
+        message: _friendlyHttpError(res.statusCode),
       );
       }
     } catch (e) {
@@ -6390,7 +6440,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: 'Une erreur est survenue. Veuillez réessayer.',
       );
       }
     }
@@ -6594,7 +6644,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur ${res.statusCode}',
+        message: _friendlyHttpError(res.statusCode),
       );
       }
     } catch (e) {
@@ -6602,7 +6652,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.info,
-        message: '$e',
+        message: 'Une erreur est survenue lors de l\'envoi de votre avis.',
       );
       }
     }

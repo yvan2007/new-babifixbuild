@@ -100,6 +100,8 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
                   options: MapOptions(
                     initialCenter: widget.marker,
                     initialZoom: 15,
+                    backgroundColor:
+                        isLight ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
                     onTap: (_, point) => widget.onMarkerMoved(point),
                   ),
                   children: [
@@ -252,6 +254,7 @@ class BabifixOsmStaticPreview extends StatelessWidget {
           options: MapOptions(
             initialCenter: center,
             initialZoom: 15,
+            backgroundColor: const Color(0xFFF1F5F9),
             interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
           ),
           children: [
