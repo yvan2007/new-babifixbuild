@@ -3480,10 +3480,18 @@ def api_prestataire_me(request):
     payments = Payment.objects.filter(prestataire=prov.nom)
     pay_sum = 0.0
     for pay in payments:
-        raw = pay.montant.replace("€", "").replace("FCFA", "").strip()
+        # Le champ Payment.montant a évolué : string libre → Decimal.
+        # On gère les 2 cas pour rester rétrocompatible.
+        m = pay.montant
         try:
-            pay_sum += float(raw)
-        except ValueError:
+            if isinstance(m, (int, float)):
+                pay_sum += float(m)
+            elif hasattr(m, "__float__"):  # Decimal
+                pay_sum += float(m)
+            else:
+                raw = str(m).replace("€", "").replace("FCFA", "").replace("XOF", "").strip()
+                pay_sum += float(raw or 0)
+        except (ValueError, TypeError):
             pass
     cat = prov.category
     return JsonResponse(
