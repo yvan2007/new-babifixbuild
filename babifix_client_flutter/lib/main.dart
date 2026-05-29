@@ -25,6 +25,8 @@ import 'json_utils.dart';
 import 'user_store.dart';
 
 import 'models/client_models.dart';
+import 'shared/geo_utils.dart';
+import 'shared/widgets/babifix_distance_chip.dart';
 import 'shared/in_app_notifications.dart';
 import 'shared/offline_cache.dart';
 import 'services/notification_sound_service.dart';
@@ -39,6 +41,7 @@ import 'features/auth/forgot_password_screen.dart';
 import 'features/disputes/my_disputes_screen.dart';
 import 'features/disputes/dispute_open_screen.dart';
 import 'features/profile/edit_profile_screen.dart';
+import 'features/map/providers_map_screen.dart';
 import 'features/chat/messages_screen.dart';
 import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
 import 'features/services/service_detail_screen.dart';
@@ -368,6 +371,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   /// Prestataires recents (carousel accueil).
   List<RecentProviderCard> recentProviders = <RecentProviderCard>[];
+
+  /// Rayon adaptatif renvoyé par le backend (km) — pour afficher un bandeau
+  /// "Recherche élargie à X km" quand le serveur a dû élargir.
+  double? _radiusUsedKm;
+  bool _radiusAdaptive = false;
 
   /// Email support (parametre site Django).
   String contactAdminEmail = '';
@@ -1620,6 +1628,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
+                    // Raccourci découverte : carte interactive des prestataires
+                    // à proximité (rayon adaptatif + radar pulsant animé).
+                    _HomeQuickChip(
+                      icon: Icons.map_outlined,
+                      label: 'Carte',
+                      isLight: _isLight,
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const ProvidersMapScreen(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     _HomeQuickChip(
                       icon: Icons.calendar_month_rounded,
                       label: 'Mes RDV',
@@ -1670,8 +1691,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ],
                 ),
               ),
+              // Bandeau « recherche élargie » (mode adaptatif backend).
+              if (_radiusAdaptive && _radiusUsedKm != null)
+                _RadiusBanner(radiusKm: _radiusUsedKm!),
               SizedBox(
-                height: 132,
+                // 144 = 132 d'origine + ~12 pour accommoder le chip distance
+                // (vert/cyan/orange/rouge) ajouté en dessous de la ville.
+                height: 144,
                 child: PageView.builder(
                   controller: _recentProvidersCarouselController,
                   itemCount: recentProviders.length,
@@ -1845,6 +1871,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                               ),
                                             ),
                                           ),
+                                          if (p.distanceKm != null) ...[
+                                            const SizedBox(height: 4),
+                                            BabifixDistanceChip(
+                                              distanceKm: p.distanceKm!,
+                                              compact: true,
+                                            ),
+                                          ],
                                           if (p.tarif != null) ...[
                                             const SizedBox(height: 4),
                                             Text(
@@ -5026,25 +5059,54 @@ class _ClientHomePageState extends State<ClientHomePage> {
         params['category'] = categoryId.toString();
       }
 
-      // Ajouter les coordonnées GPS si la permission est déjà accordée (non bloquant)
+      // Ajouter les coordonnées GPS si la permission est déjà accordée (non bloquant).
+      // On vérifie via Geolocator (le plugin qui sert réellement le GPS) — son
+      // check est plus fiable que permission_handler côté émulateur / certains
+      // ROM Android où les deux plugins peuvent désynchroniser leur état.
       try {
-        final perm = await Permission.locationWhenInUse.status;
-        if (perm.isGranted || perm.isLimited) {
-          final pos = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.medium,
-            ),
-          ).timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => throw TimeoutException('GPS timeout'),
-          );
-          params['lat'] = pos.latitude.toStringAsFixed(6);
-          params['lon'] = pos.longitude.toStringAsFixed(6);
-          params['radius'] = '15';
-          debugPrint('BABIFIX: Filtering providers near (${params['lat']}, ${params['lon']}) radius=15km');
+        debugPrint('BABIFIX-GPS: STEP 1 checkPermission()');
+        var gperm = await Geolocator.checkPermission();
+        debugPrint('BABIFIX-GPS: STEP 1 result = $gperm');
+        if (gperm == LocationPermission.denied) {
+          debugPrint('BABIFIX-GPS: STEP 2 requesting...');
+          gperm = await Geolocator.requestPermission();
+          debugPrint('BABIFIX-GPS: STEP 2 result = $gperm');
         }
-      } catch (_) {
-        // GPS non disponible ou timeout — on charge sans filtre géo
+        final gpsOK = gperm == LocationPermission.always
+            || gperm == LocationPermission.whileInUse;
+        debugPrint('BABIFIX-GPS: STEP 3 gpsOK=$gpsOK');
+        if (gpsOK) {
+          debugPrint('BABIFIX-GPS: STEP 4a getLastKnownPosition...');
+          // Essai 1 : position cache (instantané — marche sur émulateur).
+          Position? pos = await Geolocator.getLastKnownPosition();
+          if (pos == null) {
+            // Essai 2 : position fraîche (10 s max, accuracy basse pour rapidité).
+            debugPrint('BABIFIX-GPS: STEP 4b getCurrentPosition...');
+            pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.low,
+              ),
+            ).timeout(
+              const Duration(seconds: 10),
+              onTimeout: () => throw TimeoutException('GPS timeout'),
+            );
+          }
+          debugPrint('BABIFIX-GPS: STEP 4 pos=${pos.latitude},${pos.longitude}');
+          // Garde-fou émulateur (Mountain View → fallback Abidjan).
+          final useLat = isInCotedIvoire(pos.latitude, pos.longitude)
+              ? pos.latitude
+              : kAbidjanLat;
+          final useLon = isInCotedIvoire(pos.latitude, pos.longitude)
+              ? pos.longitude
+              : kAbidjanLon;
+          params['lat'] = useLat.toStringAsFixed(6);
+          params['lon'] = useLon.toStringAsFixed(6);
+          // Rayon adaptatif backend (5 → 15 → 30 → 50 km, premier non-vide).
+          params['radius'] = 'auto';
+          debugPrint('BABIFIX: Filtering providers near (${params['lat']}, ${params['lon']}) radius=auto');
+        }
+      } catch (e) {
+        debugPrint('BABIFIX-GPS: EXCEPTION $e');
       }
 
       final uri = Uri.parse('$base/api/public/providers/').replace(queryParameters: params);
@@ -5055,6 +5117,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
         final rows = (pdata['providers'] as List<dynamic>? ?? []);
         debugPrint('BABIFIX: Found ${rows.length} providers');
 
+        // Rayon adaptatif backend : on lit ce que le serveur a réellement utilisé.
+        final ru = pdata['radius_used'];
+        if (ru is num) _radiusUsedKm = ru.toDouble();
+        _radiusAdaptive = pdata['radius_adaptive'] == true;
+
         final rp = rows.map((x) {
           double? tf;
           final th = x['tarif_horaire'];
@@ -5063,6 +5130,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
           } else if (th != null) {
             tf = double.tryParse('$th');
           }
+          final dk = jsonDoubleNullable(x['distance_km']);
           return RecentProviderCard(
             id: jsonInt(x['id']),
             nom: '${x['nom'] ?? ''}',
@@ -5071,6 +5139,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             imageUrl: '${x['photo_portrait_url'] ?? x['image_url'] ?? ''}',
             tarif: tf,
             disponible: x['disponible'] != false,
+            distanceKm: dk,
           );
         }).toList();
 
@@ -5094,6 +5163,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 ? p.imageUrl
                 : 'assets/images/service-plomberie.jpg',
             providerId: p.id,
+            distanceKm: p.distanceKm,
             disponible: p.disponible,
           );
         }).toList();
@@ -5137,6 +5207,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
           final m = raw as Map<String, dynamic>;
           final nom = '${m['nom'] ?? m['name'] ?? ''}'.trim();
           if (nom.isEmpty) continue;
+          // Filtre : on cache les catégories sans aucun prestataire (UX propre).
+          final pc = m['providers_count'];
+          if (pc is num && pc <= 0) continue;
           final fk = babifixCategoryFilterKey(nom);
           final iconUrl = '${m['icone_url'] ?? ''}'.trim();
           nextTabs = [
@@ -7749,6 +7822,72 @@ class _SettingsSheetState extends State<_SettingsSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _RadiusBanner — bandeau "Recherche élargie à X km" affiché au-dessus de la
+// liste des prestataires quand le backend a dû élargir le rayon en mode auto.
+// ─────────────────────────────────────────────────────────────────────────────
+class _RadiusBanner extends StatefulWidget {
+  const _RadiusBanner({required this.radiusKm});
+  final double radiusKm;
+
+  @override
+  State<_RadiusBanner> createState() => _RadiusBannerState();
+}
+
+class _RadiusBannerState extends State<_RadiusBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: BabifixDesign.cyan.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          AnimatedBuilder(
+            animation: _ctl,
+            builder: (_, _) {
+              return Transform.rotate(
+                angle: _ctl.value * 6.283,
+                child: Icon(Icons.radar_rounded,
+                    size: 18, color: BabifixDesign.cyan),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Recherche élargie à ${widget.radiusKm.round()} km pour trouver des prestataires.',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }

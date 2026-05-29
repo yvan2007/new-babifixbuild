@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX Admin - Sequence Admin : Validation Prestataire et Gestion Categories
 !theme plain
 
 ' Parametres globaux

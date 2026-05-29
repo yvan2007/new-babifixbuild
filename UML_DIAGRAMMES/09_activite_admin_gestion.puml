@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX Admin - Diagramme d'Activité - Gestion du Système (Django)
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -80,6 +80,8 @@ fork
       :Envoyer notification FCM "Demande refusée : [motif]";
     endif
   }
+end fork
+
 fork again
   partition "Gestion Catégories" {
     :Menu "Catégories";
@@ -102,6 +104,8 @@ fork again
       :Catégorie devient invisible pour les clients;
     endif
   }
+end fork
+
 fork again
   partition "Statistiques & Rapports" {
     :Menu "Statistiques";
@@ -114,6 +118,8 @@ fork again
     |Admin|
     :Consulter / exporter rapports CSV;
   }
+end fork
+
 fork again
   partition "Validation Paiements Espèces" {
     :Menu "Paiements en attente (espèces)";
@@ -135,6 +141,8 @@ fork again
       :Notifier client et prestataire;
     endif
   }
+end fork
+
 fork again
   partition "Envoi Notifications Globales" {
     :Menu "Notifications / Campagnes";

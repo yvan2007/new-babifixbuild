@@ -1,128 +1,63 @@
-{% extends "emails/base_email.html" %}
-
-{% block subject %}Votre semaine sur BABIFIX — {{ missions_completed }} missions terminées{% endblock %}
-{% block preheader %}{{ missions_completed }} missions · {{ revenue }} FCFA · note {{ average_rating }}/5. Découvrez votre bilan complet.{% endblock %}
-
-{% block content %}
-<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-
-  <!-- Icône stats -->
-  <tr>
-    <td align="center" style="padding-bottom:18px;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#E0F2FE" style="background-color:#E0F2FE; border-radius:50%;">
-        <tr><td align="center" width="64" height="64" style="line-height:64px; font-size:28px;">📊</td></tr>
-      </table>
-    </td>
-  </tr>
-
-  <tr>
-    <td align="center" class="h1-mobile text-primary" style="color:#0B1B34; font-size:24px; font-weight:900; line-height:1.25; font-family:Arial,sans-serif; padding-bottom:10px;">
-      Votre semaine en chiffres
-    </td>
-  </tr>
-  <tr>
-    <td align="center" class="text-secondary" style="color:#475569; font-size:14.5px; line-height:1.6; font-family:Arial,sans-serif; padding-bottom:28px;">
-      Bonjour <strong style="color:#0B1B34;">{{ prestataire_name }}</strong>, voici votre récapitulatif d'activité sur BABIFIX.
-    </td>
-  </tr>
-
-  <!-- Grille stats : 2 colonnes × 2 lignes -->
-  <tr>
-    <td style="padding-bottom:14px;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-        <tr>
-          <td width="50%" valign="top" style="padding-right:7px;" class="stack">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#F0F9FF; border-radius:14px; border:1px solid #BAE6FD;">
-              <tr>
-                <td align="center" style="padding:20px 12px; font-family:Arial,sans-serif;">
-                  <div style="color:#4CC9F0; font-size:11px; font-weight:800; letter-spacing:1.2px; margin-bottom:6px;">MISSIONS TERMINÉES</div>
-                  <div style="color:#0B1B34; font-size:34px; font-weight:900; line-height:1;">{{ missions_completed }}</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-          <td width="50%" valign="top" style="padding-left:7px;" class="stack">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#F0FDF4; border-radius:14px; border:1px solid #BBF7D0;">
-              <tr>
-                <td align="center" style="padding:20px 12px; font-family:Arial,sans-serif;">
-                  <div style="color:#22C55E; font-size:11px; font-weight:800; letter-spacing:1.2px; margin-bottom:6px;">REVENUS</div>
-                  <div style="color:#0B1B34; font-size:22px; font-weight:900; line-height:1.1;">{{ revenue }}<span style="font-size:13px; color:#64748B; font-weight:600;"> F</span></div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-
-  <tr>
-    <td style="padding-bottom:24px;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-        <tr>
-          <td width="50%" valign="top" style="padding-right:7px;" class="stack">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#FFFBEB; border-radius:14px; border:1px solid #FDE68A;">
-              <tr>
-                <td align="center" style="padding:20px 12px; font-family:Arial,sans-serif;">
-                  <div style="color:#F59E0B; font-size:11px; font-weight:800; letter-spacing:1.2px; margin-bottom:6px;">EN ATTENTE</div>
-                  <div style="color:#0B1B34; font-size:34px; font-weight:900; line-height:1;">{{ pending_bookings }}</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-          <td width="50%" valign="top" style="padding-left:7px;" class="stack">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#0B1B34; background-image:linear-gradient(135deg,#0B1B34 0%,#1B4B7C 100%); border-radius:14px;">
-              <tr>
-                <td align="center" style="padding:20px 12px; font-family:Arial,sans-serif;">
-                  <div style="color:#4CC9F0; font-size:11px; font-weight:800; letter-spacing:1.2px; margin-bottom:6px;">NOTE MOYENNE</div>
-                  <div style="color:#FFFFFF; font-size:24px; font-weight:900; line-height:1.1;">
-                    {{ average_rating }}<span style="color:#94A3B8; font-size:14px; font-weight:600;"> / 5</span>
-                  </div>
-                  <div style="color:#94A3B8; font-size:11px; margin-top:4px;">{{ rating_count }} avis</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-
-  <!-- Encouragement -->
-  <tr>
-    <td>
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#F8FAFC; border-radius:14px; border-left:4px solid #4CC9F0;">
-        <tr>
-          <td style="padding:18px 22px; font-family:Arial,sans-serif;">
-            <div style="color:#334155; font-size:14px; line-height:1.6;">
-              💪 <strong style="color:#0B1B34;">Continuez sur cette lancée !</strong> Plus vous offrez un service excellent, plus vous attirez de clients. Maintenez votre disponibilité à jour pour maximiser vos opportunités.
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Votre récapitulatif hebdomadaire BABIFIX</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background-color: #FF6B00; padding: 30px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 24px; }
+        .content { padding: 30px; }
+        .stats-grid { display: flex; gap: 15px; margin: 20px 0; }
+        .stat-box { flex: 1; background: #FFF3E6; border-radius: 8px; padding: 20px; text-align: center; }
+        .stat-number { font-size: 32px; font-weight: bold; color: #FF6B00; }
+        .stat-label { font-size: 14px; color: #666666; margin-top: 5px; }
+        .section-title { font-size: 18px; color: #333333; margin: 25px 0 15px; border-bottom: 2px solid #FF6B00; padding-bottom: 8px; }
+        .rating { color: #FF6B00; font-size: 20px; }
+        .footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #666666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>BABIFIX</h1>
+        </div>
+        <div class="content">
+            <p>Bonjour <strong>{{ prestataire_name }}</strong>,</p>
+            <p>Voici votre récapitulatif de la semaine sur BABIFIX.</p>
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-number">{{ missions_completed }}</div>
+                    <div class="stat-label">Missions terminées</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ revenue }} FCFA</div>
+                    <div class="stat-label">Revenus de la semaine</div>
+                </div>
             </div>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-
-  <!-- CTA -->
-  <tr>
-    <td align="center" style="padding-top:22px;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-        <tr>
-          <td bgcolor="#4CC9F0" class="btn-cta" style="background-color:#4CC9F0; border-radius:12px;">
-            <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://babifix.ci/prestataire" style="height:50px;v-text-anchor:middle;width:240px;" arcsize="24%" stroke="f" fillcolor="#4CC9F0">
-              <w:anchorlock/>
-              <center style="color:#0B1B34;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">Voir mon tableau de bord</center>
-            </v:roundrect>
-            <![endif]-->
-            <!--[if !mso]><!-- -->
-            <a href="https://babifix.ci/prestataire" class="btn-mobile" style="display:inline-block; background-color:#4CC9F0; color:#0B1B34; padding:15px 32px; border-radius:12px; font-size:15px; font-weight:800; font-family:Arial,sans-serif; text-decoration:none;">Voir mon tableau de bord</a>
-            <!--<![endif]-->
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-
-</table>
-{% endblock %}
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-number">{{ pending_bookings }}</div>
+                    <div class="stat-label">Demandes en attente</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number rating">{{ average_rating }} / 5</div>
+                    <div class="stat-label">Note moyenne ({{ rating_count }} avis)</div>
+                </div>
+            </div>
+            
+            <p>Continuez à offrir un excellent service à vos clients !</p>
+            
+            <p>L'équipe BABIFIX — Côte d'Ivoire<br>
+            <a href="https://babifix.ci" style="color: #FF6B00;">babifix.ci</a></p>
+        </div>
+        <div class="footer">
+            <p>Cet email a été envoyé automatiquement. Merci de ne pas y répondre.</p>
+        </div>
+    </div>
+</body>
+</html>

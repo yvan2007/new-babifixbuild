@@ -31,6 +31,17 @@ logger = logging.getLogger(__name__)
 JWT_SECRET_KEY = getattr(
     settings, "JWT_SECRET_KEY", os.environ.get("JWT_SECRET_KEY", "change-me-in-production")
 )
+# Refus catégorique d'utiliser le secret par défaut en production.
+if (
+    os.environ.get("DJANGO_ENV", "development").lower() == "production"
+    and (not JWT_SECRET_KEY or JWT_SECRET_KEY == "change-me-in-production")
+    and not os.environ.get("JWT_PUBLIC_KEY_PATH")
+    and not getattr(settings, "JWT_PUBLIC_KEY", "")
+):
+    raise RuntimeError(
+        "JWT_SECRET_KEY (ou JWT_PUBLIC_KEY/JWT_PRIVATE_KEY) doit être configurée "
+        "en production. Le secret par défaut 'change-me-in-production' est REFUSÉ."
+    )
 JWT_PUBLIC_KEY = getattr(
     settings, "JWT_PUBLIC_KEY", os.environ.get("JWT_PUBLIC_KEY", "")
 )
@@ -145,37 +156,54 @@ def verify_access_token(token: str) -> Optional[dict]:
         Payload decode ou None si invalide
     """
     try:
-        # Check blacklist first
+        # Check blacklist first — décodage SANS vérification uniquement pour
+        # extraire le jti et faire le lookup blacklist. La vérif crypto
+        # complète est faite ENSUITE (sécurité défense-en-profondeur).
         decoded = jwt.decode(token, options={"verify_signature": False})
         jti = decoded.get("jti")
         if jti in _token_blacklist:
             logger.warning(f"Token revoked: {jti}")
             return None
-        
-        # Verify with appropriate key
+
+        # SÉCURITÉ : on ne mélange JAMAIS RS256 et HS256 dans la même liste
+        # d'algorithmes acceptés — sinon attaquant peut prendre la clé publique
+        # RSA (publique par définition) et l'utiliser comme secret HMAC HS256.
+        # On choisit l'algo en fonction de la présence d'une clé publique.
         public_key = _load_public_key()
         if public_key:
-            payload = jwt.decode(token, public_key, algorithms=["RS256", "HS256"], options={
-                "require": ["sub", "role", "type", "exp"],
-                "verify_aud": False,
-            })
+            payload = jwt.decode(
+                token,
+                public_key,
+                algorithms=["RS256"],
+                options={
+                    "require": ["sub", "role", "type", "exp", "iat", "iss"],
+                    "verify_aud": False,
+                },
+                issuer=TOKEN_ISSUER,
+            )
         else:
-            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"], options={
-                "require": ["sub", "role", "type", "exp"],
-                "verify_aud": False,
-            })
-        
+            payload = jwt.decode(
+                token,
+                JWT_SECRET_KEY,
+                algorithms=["HS256"],
+                options={
+                    "require": ["sub", "role", "type", "exp", "iat", "iss"],
+                    "verify_aud": False,
+                },
+                issuer=TOKEN_ISSUER,
+            )
+
         # Verify type
         if payload.get("type") != "access":
             return None
-        
+
         # Check expiration
         exp = payload.get("exp", 0)
         if exp < int(time.time()):
             return None
-        
+
         return payload
-        
+
     except jwt.ExpiredSignatureError:
         logger.debug("Token expired")
         return None
@@ -187,25 +215,37 @@ def verify_access_token(token: str) -> Optional[dict]:
 def verify_refresh_token(token: str) -> Optional[dict]:
     """
     Verifie un refresh token.
-    
+
     Args:
         token: Refresh JWT a verifier
-        
+
     Returns:
         Payload decode ou None
     """
     try:
         public_key = _load_public_key()
         if public_key:
-            payload = jwt.decode(token, public_key, algorithms=["RS256", "HS256"], options={
-                "require": ["sub", "role", "type", "exp"],
-                "verify_aud": False,
-            })
+            payload = jwt.decode(
+                token,
+                public_key,
+                algorithms=["RS256"],
+                options={
+                    "require": ["sub", "role", "type", "exp", "iat", "iss"],
+                    "verify_aud": False,
+                },
+                issuer=TOKEN_ISSUER,
+            )
         else:
-            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"], options={
-                "require": ["sub", "role", "type", "exp"],
-                "verify_aud": False,
-            })
+            payload = jwt.decode(
+                token,
+                JWT_SECRET_KEY,
+                algorithms=["HS256"],
+                options={
+                    "require": ["sub", "role", "type", "exp", "iat", "iss"],
+                    "verify_aud": False,
+                },
+                issuer=TOKEN_ISSUER,
+            )
         
         if payload.get("type") != "refresh":
             return None
@@ -298,47 +338,36 @@ def require_jwt_auth(roles: Optional[list] = None):
     from django.views.decorators.csrf import csrf_exempt
     
     allowed_roles = set(roles or [])
-
+    
     def decorator(view_func):
         @csrf_exempt
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
-            # 1. Header Authorization (cas standard API)
             auth_header = request.headers.get("Authorization", "")
-            token = ""
-            if auth_header.startswith("Bearer "):
-                token = auth_header.split(" ", 1)[1].strip()
-
-            # 2. Fallback : ?token=... en query string.
-            # Indispensable pour les téléchargements PDF ouverts via
-            # launchUrl() / un navigateur externe, qui n'envoie pas le
-            # header Authorization.
-            if not token:
-                token = (request.GET.get("token") or "").strip()
-
-            if not token:
+            if not auth_header.startswith("Bearer "):
                 return JsonResponse({"error": "missing_token"}, status=401)
-
+            
+            token = auth_header.split(" ", 1)[1].strip()
             payload = verify_access_token(token)
-
+            
             if not payload:
                 return JsonResponse(
                     {"error": "invalid_token", "code": "token_expired_or_revoked"},
                     status=401
                 )
-
+            
             role = payload.get("role")
             if allowed_roles and role not in allowed_roles:
                 return JsonResponse({"error": "forbidden_role"}, status=403)
-
+            
             request.api_user_id = int(payload.get("sub"))
             request.api_role = role
             request.token_payload = payload
-
+            
             return view_func(request, *args, **kwargs)
-
+        
         return wrapper
-
+    
     return decorator
 
 

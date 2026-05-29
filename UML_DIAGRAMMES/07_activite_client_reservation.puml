@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX - Diagramme d'Activite - Client : Reservation (Nouveau Flux Devis)
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -31,11 +31,12 @@ skinparam titleFontColor #01579B
 skinparam defaultFontName Segoe UI
 skinparam defaultFontSize 11
 
-title **BABIFIX** - Diagramme d'Activite : Flux Reservation Client
+title **BABIFIX** - Diagramme d'Activite : Flux Reservation Client (Architecture Cible — Evolution Prevue)
 
-legend top
-  Flux de reservation cote client : du choix du service au paiement et a la notation.
-endlegend
+note top
+  Version courante implementee : EN_ATTENTE → CONFIRMEE → EN_COURS → EN_ATTENTE_CLIENT → TERMINEE/ANNULEE
+  Ce diagramme represente l'architecture cible avec le flux de devis prevu en evolution.
+end note
 
 partition "Client" {
   start

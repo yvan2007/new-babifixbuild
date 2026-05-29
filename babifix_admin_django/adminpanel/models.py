@@ -107,15 +107,16 @@ class Provider(models.Model):
     is_premium = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Abonnement premium actif (bronze/silver/gold)",
+        help_text="Abonnement premium payant actif (silver/gold)",
     )
     premium_tier = models.CharField(
         max_length=20,
         blank=True,
         default="",
         choices=[
-            ("silver", "Argent"),
-            ("gold", "Or"),
+            ("standard", "Standard"),
+            ("silver", "Silver"),
+            ("gold", "Gold"),
         ],
     )
     premium_since = models.DateTimeField(
@@ -125,14 +126,6 @@ class Provider(models.Model):
     premium_until = models.DateTimeField(
         null=True,
         blank=True,
-    )
-    has_used_premium_trial = models.BooleanField(
-        default=False,
-        help_text="True dès qu'un essai gratuit 7j a été consommé (à vie).",
-    )
-    is_premium_annual = models.BooleanField(
-        default=False,
-        help_text="Abonnement annuel (vs mensuel). Verrouillé jusqu'à premium_until.",
     )
     # v2 — Galerie réalisations (max 12 photos, data URL base64)
     portfolio_photos = models.JSONField(
@@ -271,7 +264,6 @@ class WalletTransaction(models.Model):
 
     class TxStatus(models.TextChoices):
         PENDING = "pending", "En attente"
-        PROCESSING = "processing", "En cours de versement"
         SUCCESS = "success", "Réussi"
         FAILED = "failed", "Échoué"
 
@@ -371,7 +363,17 @@ class Reservation(models.Model):
     )
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
+    # `address_label` reste le résumé compact « Rue, Quartier, Ville »
+    # affiché par défaut ; les 5 champs ci-dessous permettent un affichage
+    # structuré et pro côté prestataire (chacun avec son icône).
     address_label = models.CharField(max_length=500, blank=True, default="")
+    address_street = models.CharField(max_length=200, blank=True, default="")
+    address_quartier = models.CharField(max_length=120, blank=True, default="")
+    address_ville = models.CharField(max_length=120, blank=True, default="")
+    address_pays = models.CharField(max_length=80, blank=True, default="Côte d'Ivoire")
+    # Repère textuel saisi librement par le client (« à côté de la pharmacie
+    # XYZ », « en face de l'école Sainte-Marie », etc.) — pas géocodable.
+    address_repere = models.CharField(max_length=300, blank=True, default="")
     location_captured_at = models.DateTimeField(null=True, blank=True)
     payment_type = models.CharField(
         max_length=24,
@@ -508,88 +510,27 @@ class Reservation(models.Model):
         blank=True,
         related_name="reservations",
     )
+    # B2B — rattachement éventuel à un site géré par un compte professionnel
+    pro_site = models.ForeignKey(
+        "ProSite",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reservations",
+        help_text="Site B2B concerné (intervention déclarée par un compte pro)",
+    )
+    # Programme de fidélité : points déjà attribués au client pour cette prestation ?
+    fidelite_awarded = models.BooleanField(default=False)
     # Flux paiement après prestation (UML + plan BABIFIX)
     prestation_terminee_at = models.DateTimeField(null=True, blank=True)
     client_confirme_prestation_at = models.DateTimeField(null=True, blank=True)
-    # Phase F — Escrow : horodatage de libération des fonds (wallet presta ou
-    # acte cash). Si null, les fonds sont encore bloqués côté plateforme.
-    funds_released_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text=(
-            "Horodatage de libération escrow. Null = fonds encore bloqués. "
-            "Set après client_confirme_prestation_at via EscrowService.release_funds."
-        ),
-    )
     preuve_photos = models.JSONField(default=list, blank=True)
-    # Journal client post-intervention (témoignage propre du client) :
-    # photos avant/après facultatives et commentaire libre. Distinct des
-    # `photos_avant`/`photos_apres` qui sont celles du prestataire.
-    client_photos_avant = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Photos avant prises par le client (témoignage, facultatif)",
-    )
-    client_photos_apres = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Photos après prises par le client (témoignage, facultatif)",
-    )
-    client_journal_note = models.TextField(
-        blank=True,
-        default="",
-        help_text=(
-            "Commentaire libre du client à la fin de l'intervention "
-            "(ressenti, détail des travaux, qualité…)."
-        ),
-    )
-    client_journal_updated_at = models.DateTimeField(null=True, blank=True)
-    # C1 — Annulation & remboursement
-    cancelled_at = models.DateTimeField(null=True, blank=True)
-    cancellation_by = models.CharField(
-        max_length=16,
-        blank=True,
-        default="",
-        help_text="CLIENT | PRESTATAIRE | ADMIN",
-    )
-    cancellation_stage = models.CharField(
-        max_length=24,
-        blank=True,
-        default="",
-        help_text="before_devis | after_devis | after_accept | after_start",
-    )
-    cancellation_motif = models.TextField(blank=True, default="")
-    refund_owed_fcfa = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        help_text="Montant que la plateforme doit rembourser au client (en attente admin)",
-    )
-    refund_paid_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Set une fois le remboursement client effectivement viré (payout).",
-    )
-    refund_reference = models.CharField(
-        max_length=80,
-        blank=True,
-        default="",
-        help_text="Référence externe du versement de remboursement (GeniusPay).",
-    )
-    refund_status = models.CharField(
-        max_length=12,
-        blank=True,
-        default="",
-        help_text="'' | processing | paid | failed | manual — état du remboursement client.",
-    )
     dispute_ouverte = models.BooleanField(default=False, db_index=True)
     payment_client_note = models.TextField(
         blank=True,
         default="",
         help_text="Message optionnel du client au moment du paiement",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.reference
@@ -617,13 +558,7 @@ class Reservation(models.Model):
             )
             if montant_decimal > 0:
                 self.montant = montant_decimal
-                # Commission via SystemSetting (fallback 18%)
-                try:
-                    setting = SystemSetting.objects.first()
-                    commission_pct = setting.commission if setting else 18
-                    self.commission = montant_decimal * Decimal(str(commission_pct)) / Decimal("100")
-                except Exception:
-                    self.commission = montant_decimal * Decimal("0.18")
+                self.commission = montant_decimal * Decimal("0.18")
         # Calcul des montants restants pour la sécurisation
         self.montant_restant = (self.montant or 0) - (self.montant_verse or 0)
         super().save(*args, **kwargs)
@@ -680,24 +615,8 @@ class Dispute(models.Model):
         RELEASE = "Liberer paiement", "Liberer paiement"
         SPLIT = "Partage partiel", "Partage partiel"
 
-    class Category(models.TextChoices):
-        TRAVAIL_NON_FAIT = "travail_non_fait", "Travail non réalisé"
-        TRAVAIL_BACLE = "travail_bacle", "Travail bâclé / mal fait"
-        PRESTA_ABSENT = "presta_absent", "Prestataire absent / pas venu"
-        RETARD = "retard", "Retard important"
-        PRIX_NON_CONFORME = "prix_non_conforme", "Prix non conforme au devis"
-        DEGATS = "degats", "Dégâts causés"
-        COMPORTEMENT = "comportement", "Comportement inapproprié"
-        AUTRE = "autre", "Autre"
-
     reference = models.CharField(max_length=40, unique=True)
-    motif = models.CharField(max_length=500)  # élargi pour textes plus longs
-    categorie = models.CharField(
-        max_length=32,
-        choices=Category.choices,
-        default=Category.AUTRE,
-        db_index=True,
-    )
+    motif = models.CharField(max_length=200)
     client = models.CharField(max_length=120)
     prestataire = models.CharField(max_length=120)
     priorite = models.CharField(
@@ -714,21 +633,6 @@ class Dispute(models.Model):
         blank=True,
         related_name="disputes",
     )
-    # v3 — pièces jointes (preuves photos) en data URLs base64, max 5.
-    photos_client = models.JSONField(default=list, blank=True)
-    # v3 — réponse du prestataire (sa version + ses preuves)
-    prestataire_response = models.TextField(blank=True, default="")
-    prestataire_response_at = models.DateTimeField(null=True, blank=True)
-    photos_prestataire = models.JSONField(default=list, blank=True)
-    # v3 — audit de la décision admin
-    decided_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name="disputes_decided",
-    )
-    decision_note = models.TextField(blank=True, default="")
-    decided_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):
@@ -757,9 +661,7 @@ class Payment(models.Model):
     commission = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="Commission BABIFIX calculée automatiquement",
+        help_text="Commission en francs CFA",
     )
     etat = models.CharField(max_length=20, choices=State.choices, default=State.PENDING)
     reservation = models.ForeignKey(
@@ -778,7 +680,7 @@ class Payment(models.Model):
         max_length=64,
         blank=True,
         default="",
-        help_text=" Référence CinetPay ou autre externe",
+        help_text=" Référence GeniusPay ou autre externe",
     )
     valide_par_admin = models.BooleanField(
         default=False,
@@ -801,24 +703,6 @@ class Payment(models.Model):
 
     def __str__(self):
         return self.reference
-
-    def save(self, *args, **kwargs):
-        # Calculer la commission automatiquement si non définie
-        if not self.commission and self.montant:
-            montant_decimal = (
-                self.montant
-                if isinstance(self.montant, Decimal)
-                else Decimal(str(self.montant))
-            )
-            if montant_decimal > 0:
-                try:
-                    from adminpanel.models import SystemSetting
-                    setting = SystemSetting.objects.first()
-                    commission_pct = setting.commission if setting else 18
-                    self.commission = montant_decimal * Decimal(str(commission_pct)) / Decimal("100")
-                except Exception:
-                    self.commission = montant_decimal * Decimal("0.18")
-        super().save(*args, **kwargs)
 
 
 class Category(models.Model):
@@ -1005,9 +889,14 @@ class UserProfile(models.Model):
         default=True,
         help_text="Accepte de recevoir des notifications WhatsApp",
     )
-    phone_verified = models.BooleanField(
-        default=False,
-        help_text="Telephone verifie via OTP Firebase",
+    # Programme de fidélité client (points cumulés à chaque prestation terminée)
+    points_fidelite = models.PositiveIntegerField(
+        default=0,
+        help_text="Points de fidélité cumulés (1 point par tranche de 1 000 FCFA dépensée)",
+    )
+    fidelite_credit_fcfa = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Crédit de réduction obtenu en convertissant des points de fidélité",
     )
 
     def __str__(self):
@@ -1054,12 +943,52 @@ class Conversation(models.Model):
         return f"{self.client_id}-{self.prestataire_id}"
 
 
-class Message(models.Model):
-    class Kind(models.TextChoices):
-        USER = "USER", "Message utilisateur"
-        DEVIS_CARD = "DEVIS_CARD", "Carte devis ancrée"
-        SYSTEM = "SYSTEM", "Événement système"
+class Call(models.Model):
+    """Appel audio/vidéo entre client et prestataire (via LiveKit).
 
+    Le modèle a été perdu lors d'une migration mais la table
+    `adminpanel_call` existe encore en DB — on la remappe.
+    """
+    class Kind(models.TextChoices):
+        VOICE = "VOICE", "Audio"
+        VIDEO = "VIDEO", "Vidéo"
+
+    class Status(models.TextChoices):
+        RINGING  = "RINGING",  "Sonne"
+        ANSWERED = "ANSWERED", "Décroché"
+        REJECTED = "REJECTED", "Refusé"
+        ENDED    = "ENDED",    "Terminé"
+        MISSED   = "MISSED",   "Manqué"
+
+    room_name = models.CharField(max_length=80, default="")
+    kind = models.CharField(max_length=8, choices=Kind.choices, default=Kind.VOICE)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.RINGING)
+
+    caller = models.ForeignKey(
+        "auth.User", on_delete=models.CASCADE,
+        related_name="calls_initiated",
+    )
+    callee = models.ForeignKey(
+        "auth.User", on_delete=models.CASCADE,
+        related_name="calls_received",
+    )
+    reservation = models.ForeignKey(
+        "Reservation", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="calls",
+    )
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-id"]
+        verbose_name = "Appel"
+        verbose_name_plural = "Appels"
+
+
+class Message(models.Model):
     conversation = models.ForeignKey(
         Conversation,
         on_delete=models.CASCADE,
@@ -1081,24 +1010,6 @@ class Message(models.Model):
         null=True,
         blank=True,
         related_name="replies",
-    )
-    kind = models.CharField(
-        max_length=16,
-        choices=Kind.choices,
-        default=Kind.USER,
-        db_index=True,
-        help_text=(
-            "USER = message libre. DEVIS_CARD = devis figé ancré au fil. "
-            "SYSTEM = événement (démarrage/fin/paiement)."
-        ),
-    )
-    payload_json = models.JSONField(
-        null=True,
-        blank=True,
-        help_text=(
-            "Données structurées pour les messages DEVIS_CARD/SYSTEM "
-            "(montants, références, statuts…)."
-        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     lu = models.BooleanField(
@@ -1350,47 +1261,15 @@ class Devis(models.Model):
     heure_debut = models.TimeField(null=True, blank=True)
     heure_fin = models.TimeField(null=True, blank=True)
 
-    sous_total = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        help_text="Total HT des lignes du devis = ce que le client paye",
-    )
+    sous_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     commission_rate = models.IntegerField(
         default=18, help_text="Commission plateforme (15-20% recommandé)"
     )
-    commission_montant = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        help_text="Part BABIFIX, DÉDUITE du sous_total (jamais ajoutée au client)",
-    )
-    total_ttc = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        help_text="Montant final payé par le client (= sous_total)",
-    )
-    net_prestataire = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        help_text="Montant reversé au prestataire = sous_total - commission_montant",
-    )
+    commission_montant = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_ttc = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     note_prestataire = models.TextField(blank=True, default="")
     validite_jours = models.IntegerField(default=7)
-    remise = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        help_text="Remise commerciale accordée au client (déduite du sous-total).",
-    )
-    photos_prestataire = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Photos du diagnostic ajoutées par le prestataire au devis",
-    )
     statut = models.CharField(
         max_length=20, choices=Statut.choices, default=Statut.BROUILLON
     )
@@ -1398,101 +1277,53 @@ class Devis(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def _recompute_totals(self):
-        """Recalcule sous_total, commission, total_ttc et net_prestataire.
-
-        Règle BABIFIX (confirmée par le métier) :
-        - sous_total       = somme des lignes (HT)
-        - total_ttc        = sous_total  (le client paye exactement le sous-total)
-        - commission_montant = sous_total * commission_rate / 100  (notre part)
-        - net_prestataire  = sous_total - commission_montant       (sa part)
-
-        La commission est DÉDUITE de ce que reçoit le prestataire, JAMAIS
-        ajoutée au prix payé par le client.
-
-        C11 — Si le prestataire est sur un tier premium (silver/gold),
-        on applique une réduction de commission cohérente avec
-        `_get_effective_commission_rate` du WalletService. Le `commission_rate`
-        stocké est celui effectivement appliqué (verrouillé à la création
-        du devis pour ne pas changer si l'admin modifie le taux ensuite).
-        """
-        # Premium adjust — appliqué UNE SEULE FOIS quand le devis vient
-        # d'être créé en brouillon ET que le taux est encore à la valeur
-        # par défaut (jamais modifié). Verrouillé par le booléen interne
-        # `_premium_adjusted` sur l'instance pour éviter une double
-        # application dans la même session save().
-        if (
-            self.statut == self.Statut.BROUILLON
-            and not getattr(self, "_premium_adjusted", False)
-        ):
-            try:
-                prov = self.prestataire
-                tier = (getattr(prov, "premium_tier", "") or "").lower()
-                reduction = {"silver": 5, "gold": 10}.get(tier, 0)
-                if reduction > 0 and self.commission_rate:
-                    new_rate = max(5, int(self.commission_rate) - reduction)
-                    self.commission_rate = new_rate
-                self._premium_adjusted = True
-            except Exception:
-                pass
-
-        sous_total = sum((ligne.total for ligne in self.lignes.all()), Decimal("0"))
-        # Remise commerciale : déduite du sous-total, bornée à [0, sous_total].
-        remise = self.remise or Decimal("0")
-        if remise < 0:
-            remise = Decimal("0")
-        if remise > sous_total:
-            remise = sous_total
-        base = sous_total - remise
-        rate = Decimal(str(self.commission_rate or 0))
-        commission = (base * rate / Decimal("100")).quantize(Decimal("0.01"))
-        self.sous_total = sous_total
-        self.remise = remise
-        # total_ttc = ce que paye le client = sous_total - remise.
-        self.commission_montant = commission
-        self.total_ttc = base
-        self.net_prestataire = base - commission
-
     def save(self, *args, **kwargs):
         if not self.reference:
             year = timezone.now().year
+            # On regarde le PLUS GRAND numéro existant (et pas le count) pour
+            # éviter les doublons quand un devis a été supprimé : count() ne
+            # « rebouchait » pas les trous, ce qui causait des UNIQUE conflicts.
+            from django.db.models import Max
             prefix = f"DEV-{year}-"
-            # Robuste : on prend le plus grand suffixe existant + 1 (et non un
-            # simple count, qui entre en collision dès qu'un devis est supprimé,
-            # ex. un brouillon), puis on vérifie l'unicité réelle.
-            existing = Devis.objects.filter(
-                reference__startswith=prefix
-            ).values_list("reference", flat=True)
-            max_n = 0
-            for ref in existing:
+            last_ref = (
+                Devis.objects
+                .filter(reference__startswith=prefix)
+                .aggregate(m=Max("reference"))
+                .get("m")
+            )
+            if last_ref:
                 try:
-                    n = int(str(ref).rsplit("-", 1)[-1])
-                    if n > max_n:
-                        max_n = n
+                    last_n = int(last_ref.split("-")[-1])
                 except (ValueError, IndexError):
-                    continue
-            n = max_n + 1
-            candidate = f"{prefix}{n:04d}"
-            while Devis.objects.filter(reference=candidate).exists():
-                n += 1
-                candidate = f"{prefix}{n:04d}"
-            self.reference = candidate
+                    last_n = 0
+            else:
+                last_n = 0
+            next_n = last_n + 1
+            # Garde-fou : si par hasard la ref existe quand même (course condition),
+            # on incrémente jusqu'à trouver un libre.
+            while Devis.objects.filter(reference=f"{prefix}{next_n:04d}").exists():
+                next_n += 1
+            self.reference = f"{prefix}{next_n:04d}"
 
         if self.pk:
-            self._recompute_totals()
+            self.sous_total = sum(ligne.total for ligne in self.lignes.all())
+            self.commission_montant = self.sous_total * self.commission_rate / 100
+            # Façon B : le client paie le prix annoncé ; la commission est déduite
+            # de la part du prestataire (jamais ajoutée au client).
+            self.total_ttc = self.sous_total
 
         super().save(*args, **kwargs)
 
+        if not self.pk:
+            self.pk = self.id
         if self.lignes.exists():
-            self._recompute_totals()
+            self.sous_total = sum(ligne.total for ligne in self.lignes.all())
+            self.commission_montant = self.sous_total * self.commission_rate / 100
+            # Façon B : le client paie le prix annoncé ; la commission est déduite
+            # de la part du prestataire (jamais ajoutée au client).
+            self.total_ttc = self.sous_total
             super().save(
-                update_fields=[
-                    "sous_total",
-                    "remise",
-                    "commission_montant",
-                    "total_ttc",
-                    "net_prestataire",
-                ]
+                update_fields=["sous_total", "commission_montant", "total_ttc"]
             )
 
     def __str__(self):
@@ -1511,36 +1342,8 @@ class LigneDevis(models.Model):
     devis = models.ForeignKey(Devis, on_delete=models.CASCADE, related_name="lignes")
     type_ligne = models.CharField(max_length=20, choices=TypeLigne.choices)
     description = models.CharField(max_length=255)
-    quantite = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal("1"),
-        help_text=(
-            "Quantité (peut être décimale : ex 2.5 m de tuyau, 1.5 h de main d'œuvre)."
-        ),
-    )
+    quantite = models.IntegerField(default=1)
     prix_unitaire = models.DecimalField(max_digits=10, decimal_places=2)
-    # Phase B — Devis catégoriel : enrichissement optionnel
-    unite = models.CharField(
-        max_length=16,
-        blank=True,
-        default="",
-        help_text="Unité (u, m, m², m³, ml, kg, h, jour, forfait…) — affichage UI",
-    )
-    marque = models.CharField(
-        max_length=80,
-        blank=True,
-        default="",
-        help_text="Marque/référence matériau (optionnel, vue Kanban)",
-    )
-    catalogue_item = models.ForeignKey(
-        "CatalogueItem",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="lignes_devis",
-        help_text="Référence du catalogue catégorie si choisi via le catalogue",
-    )
 
     @property
     def total(self):
@@ -1548,121 +1351,6 @@ class LigneDevis(models.Model):
 
     def __str__(self):
         return f"{self.description} x{self.quantite} = {self.total} francs CFA"
-
-
-class CatalogueItem(models.Model):
-    """Élément de catalogue par catégorie de métier (Phase B).
-
-    Permet au prestataire de choisir rapidement un matériau/prestation type
-    pour une catégorie donnée, sans interdire la saisie libre. Les prix
-    sont indicatifs : le prestataire peut toujours les surcharger sur la
-    ligne de devis.
-    """
-
-    category = models.ForeignKey(
-        "Category",
-        on_delete=models.CASCADE,
-        related_name="catalogue_items",
-    )
-    type_ligne = models.CharField(
-        max_length=20,
-        choices=LigneDevis.TypeLigne.choices,
-        default=LigneDevis.TypeLigne.FOURNITURE,
-        help_text="Section devis (Fourniture / Main d'œuvre / Déplacement / Autre)",
-    )
-    nom = models.CharField(max_length=120)
-    description = models.CharField(
-        max_length=255, blank=True, default=""
-    )
-    unite = models.CharField(
-        max_length=16,
-        blank=True,
-        default="u",
-        help_text="u, m, m², m³, ml, kg, h, jour, forfait…",
-    )
-    prix_unitaire_indicatif = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal("0"),
-        help_text="Prix indicatif (XOF). Le prestataire peut surcharger.",
-    )
-    marque = models.CharField(
-        max_length=80, blank=True, default=""
-    )
-    actif = models.BooleanField(default=True, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["category", "type_ligne", "nom"]
-        indexes = [
-            models.Index(fields=["category", "type_ligne", "actif"]),
-        ]
-
-    def __str__(self):
-        return f"[{self.category_id}/{self.type_ligne}] {self.nom}"
-
-
-class Call(models.Model):
-    """Trace d'appel audio/vidéo LiveKit entre client et prestataire (Phase D).
-
-    L'autorité de signalisation est le backend : c'est lui qui crée la
-    room, envoie un FCM data-message `call.incoming` au destinataire et
-    génère les tokens d'accès. Le SDK LiveKit côté app ne fait que
-    rejoindre la room avec le token reçu.
-    """
-
-    class Status(models.TextChoices):
-        RINGING = "RINGING", "Sonne"
-        ANSWERED = "ANSWERED", "Décroché"
-        REJECTED = "REJECTED", "Refusé"
-        MISSED = "MISSED", "Manqué"
-        ENDED = "ENDED", "Terminé"
-        CANCELLED = "CANCELLED", "Annulé par l'appelant"
-
-    class Kind(models.TextChoices):
-        VOICE = "VOICE", "Audio"
-        VIDEO = "VIDEO", "Vidéo"
-
-    reservation = models.ForeignKey(
-        "Reservation",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="calls",
-    )
-    caller = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="calls_initiated",
-    )
-    callee = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="calls_received",
-    )
-    room_name = models.CharField(max_length=80, unique=True)
-    kind = models.CharField(
-        max_length=8, choices=Kind.choices, default=Kind.VOICE
-    )
-    status = models.CharField(
-        max_length=12, choices=Status.choices, default=Status.RINGING, db_index=True
-    )
-    started_at = models.DateTimeField(auto_now_add=True)
-    answered_at = models.DateTimeField(null=True, blank=True)
-    ended_at = models.DateTimeField(null=True, blank=True)
-    duration_seconds = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ["-started_at"]
-        indexes = [
-            models.Index(fields=["caller", "-started_at"]),
-            models.Index(fields=["callee", "-started_at"]),
-            models.Index(fields=["reservation", "-started_at"]),
-        ]
-
-    def __str__(self):
-        return f"Call {self.room_name} ({self.status})"
 
 
 class Abonnement(models.Model):
@@ -1720,10 +1408,6 @@ class PlatformRevenue(models.Model):
         blank=True,
         related_name="platform_revenues",
     )
-    # C1 — Annulation : si une commission cash a été encaissée puis l'annulation
-    # autorise un remboursement, on marque l'entrée comme `refunded_at` pour
-    # l'exclure des dashboards de revenus.
-    refunded_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1731,3 +1415,110 @@ class PlatformRevenue(models.Model):
 
     def __str__(self):
         return f"Revenu {self.source} {self.amount_fcfa} FCFA"
+
+
+# =============================================================================
+# B2B — BABIFIX Pro (syndics, entreprises, agences immobilières)
+# Offre multi-sites + facturation mensuelle groupée + commission réduite + SLA
+# =============================================================================
+
+class ProAccount(models.Model):
+    """Compte professionnel B2B (un syndic / une entreprise gérant plusieurs sites)."""
+
+    class Formule(models.TextChoices):
+        STARTER = "starter", "Starter"          # 1-5 sites
+        BUSINESS = "business", "Business"        # 5-20 sites
+        ENTERPRISE = "enterprise", "Enterprise"  # 20+ sites
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="babifix_pro_account",
+        help_text="Compte de connexion du gestionnaire B2B",
+    )
+    raison_sociale = models.CharField(max_length=200)
+    contact_nom = models.CharField(max_length=120, blank=True, default="")
+    contact_telephone = models.CharField(max_length=30, blank=True, default="")
+    contact_email = models.EmailField(blank=True, default="")
+    formule = models.CharField(
+        max_length=20, choices=Formule.choices, default=Formule.STARTER
+    )
+    commission_rate = models.PositiveSmallIntegerField(
+        default=10, help_text="Commission B2B en % (Starter 10, Business 8, Enterprise négociée)"
+    )
+    sla_heures = models.PositiveSmallIntegerField(
+        default=24, help_text="Délai d'intervention contractuel en heures"
+    )
+    abonnement_mensuel_fcfa = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Abonnement mensuel récurrent (SaaS B2B)",
+    )
+    actif = models.BooleanField(default=True, db_index=True)
+    jour_facturation = models.PositiveSmallIntegerField(
+        default=1, help_text="Jour du mois où la facture groupée est émise (1-28)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["raison_sociale"]
+
+    def __str__(self):
+        return f"{self.raison_sociale} ({self.get_formule_display()})"
+
+
+class ProSite(models.Model):
+    """Site / immeuble géré par un compte B2B."""
+
+    pro_account = models.ForeignKey(
+        ProAccount, on_delete=models.CASCADE, related_name="sites"
+    )
+    nom = models.CharField(max_length=200, help_text="Ex : Résidence Les Palmiers, Bât. A")
+    adresse = models.CharField(max_length=500, blank=True, default="")
+    commune = models.CharField(max_length=120, blank=True, default="")
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    contact_sur_site = models.CharField(max_length=120, blank=True, default="")
+    telephone_sur_site = models.CharField(max_length=30, blank=True, default="")
+    actif = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["pro_account", "nom"]
+
+    def __str__(self):
+        return f"{self.nom} — {self.pro_account.raison_sociale}"
+
+
+class ProInvoice(models.Model):
+    """Facture mensuelle groupée d'un compte B2B (interventions + abonnement)."""
+
+    class Statut(models.TextChoices):
+        BROUILLON = "brouillon", "Brouillon"
+        EMISE = "emise", "Émise"
+        PAYEE = "payee", "Payée"
+
+    pro_account = models.ForeignKey(
+        ProAccount, on_delete=models.CASCADE, related_name="invoices"
+    )
+    reference = models.CharField(max_length=40, unique=True, blank=True, default="")
+    periode = models.CharField(max_length=7, help_text="Mois facturé, format AAAA-MM")
+    nombre_interventions = models.PositiveIntegerField(default=0)
+    montant_interventions_fcfa = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    abonnement_fcfa = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_fcfa = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.BROUILLON)
+    detail = models.JSONField(default=list, blank=True, help_text="Lignes : par site / intervention")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = ("pro_account", "periode")
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            from django.utils import timezone as _tz
+            self.reference = f"PRO-{self.periode}-{self.pro_account_id or 0:04d}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Facture {self.reference} — {self.total_fcfa} FCFA"

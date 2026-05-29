@@ -108,10 +108,26 @@ def on_reservation_change(
 
     uids = [instance.client_user_id, instance.prestataire_user_id]
     uids.extend(_reservation_prestataire_user_ids(instance))
+
+    # Message spécifique selon l'action (statut) — plus clair pour l'utilisateur.
+    ref = instance.reference
+    messages = {
+        "DEMANDE_ENVOYEE": ("BABIFIX — Demande envoyée", f"Votre demande {ref} a bien été envoyée."),
+        "DEVIS_EN_COURS": ("BABIFIX — Devis en préparation", f"Le prestataire prépare votre devis ({ref})."),
+        "DEVIS_ENVOYE": ("BABIFIX — Devis reçu", f"Vous avez reçu un devis pour {ref}."),
+        "DEVIS_ACCEPTE": ("BABIFIX — Devis accepté", f"Le devis de {ref} a été accepté."),
+        "INTERVENTION_EN_COURS": ("BABIFIX — Intervention démarrée", f"L'intervention pour {ref} a commencé."),
+        "En attente client": ("BABIFIX — Prestation terminée", f"Confirmez la prestation {ref} pour finaliser."),
+        "Terminee": ("BABIFIX — Réservation terminée", f"Prestation {ref} terminée. Pensez à noter votre prestataire !"),
+        "Annulee": ("BABIFIX — Réservation annulée", f"La réservation {ref} a été annulée."),
+    }
+    title, body = messages.get(
+        instance.statut, ("BABIFIX — Réservation", f"{ref} — {instance.statut}")
+    )
     _schedule(
         uids,
-        "BABIFIX — Réservation",
-        f"{instance.reference} — {instance.statut}",
+        title,
+        body,
         {
             "type": "reservation.updated",
             "reference": instance.reference,

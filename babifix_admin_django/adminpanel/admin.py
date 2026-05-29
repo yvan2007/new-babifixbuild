@@ -18,6 +18,9 @@ from .models import (
     Message,
     Notification,
     Payment,
+    ProAccount,
+    ProInvoice,
+    ProSite,
     Provider,
     Rating,
     Reservation,
@@ -272,6 +275,40 @@ class AbonnementAdmin(admin.ModelAdmin):
     )
     list_filter = ("statut", "date_debut", "date_fin")
     search_fields = ("client__username", "pack_nom")
+
+
+class ProSiteInline(admin.TabularInline):
+    model = ProSite
+    extra = 0
+    fields = ("nom", "commune", "adresse", "actif")
+
+
+@admin.register(ProAccount)
+class ProAccountAdmin(admin.ModelAdmin):
+    list_display = (
+        "raison_sociale", "formule", "commission_rate", "sla_heures",
+        "abonnement_mensuel_fcfa", "actif",
+    )
+    list_filter = ("formule", "actif")
+    search_fields = ("raison_sociale", "contact_nom", "contact_email")
+    inlines = [ProSiteInline]
+
+
+@admin.register(ProSite)
+class ProSiteAdmin(admin.ModelAdmin):
+    list_display = ("nom", "pro_account", "commune", "actif")
+    list_filter = ("actif", "commune")
+    search_fields = ("nom", "adresse", "pro_account__raison_sociale")
+
+
+@admin.register(ProInvoice)
+class ProInvoiceAdmin(admin.ModelAdmin):
+    list_display = (
+        "reference", "pro_account", "periode", "nombre_interventions",
+        "total_fcfa", "statut",
+    )
+    list_filter = ("statut", "periode")
+    search_fields = ("reference", "pro_account__raison_sociale")
 
 
 admin.site.site_header = "BABIFIX — Administration"

@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX - Diagramme de Sequence - Paiement en Especes
 !theme plain
 
 skinparam backgroundColor #E3F2FD

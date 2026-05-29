@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX Pro - Diagramme d'Activite - Inscription et Validation Prestataire
 !theme plain
 
 skinparam backgroundColor #E3F2FD

@@ -16,81 +16,50 @@ from ..models import Provider, UserProfile
 logger = logging.getLogger(__name__)
 
 
-# Configuration des abonnements premium prestataire BABIFIX.
-# Chaque avantage listé dans `features` est RÉELLEMENT appliqué côté
-# backend — pas de promesse marketing non tenue.
-#
-# Branchements :
-# - commission_reduction → wallet_service._get_effective_commission_rate
-# - visibility_boost     → geo_matching_service.rank_providers (score × boost)
-# - max_active_devis     → views.api_prestataire_create_devis (quota check)
-#
-# Le tier "standard" est implicite (tout prestataire non-premium) : il
-# n'est PAS dans PREMIUM_TIERS mais est exposé côté API via
-# STANDARD_TIER_DESCRIPTOR pour pouvoir l'afficher dans le tableau
-# comparatif Flutter.
+# ✅ Paliers premium — alignés sur le modèle économique BABIFIX (mémoire)
+#   Standard : gratuit, commission de base, 3 devis actifs max
+#   Silver   : 7 500 F/mois, −5 pts de commission, visibilité ×1.3, 15 devis, badge "Pro vérifié"
+#   Gold     : 15 000 F/mois, −10 pts de commission, visibilité ×1.6, devis illimités, badge "Top"
 
-PREMIUM_TIERS = {
-    "silver": {
-        "name": "Argent",
-        "price": 7500,             # CFA / mois
-        "price_annual": 72000,     # CFA / an  (−20 % = 7 500 × 12 × 0.8)
-        "badge": "silver",
-        "commission_reduction": 5,
-        "visibility_boost": 1.30,
-        "max_active_devis": 15,
-        "popular": True,           # badge "Le plus populaire" côté UI
-        "trial_days": 7,           # essai gratuit première souscription
-        "features": [
-            "Badge Argent sur votre profil",
-            "Vu par 3 clients sur 10 en plus (visibilité +30 %)",
-            "−5 points de commission sur chaque chantier",
-            "Jusqu'à 15 devis actifs en parallèle",
-            "Essai gratuit 7 jours à la 1ʳᵉ souscription",
-            "Économisez 20 % avec l'abonnement annuel",
-        ],
-    },
-    "gold": {
-        "name": "Or",
-        "price": 15000,            # CFA / mois
-        "price_annual": 144000,    # CFA / an  (−20 %)
-        "badge": "gold",
-        "commission_reduction": 10,
-        "visibility_boost": 1.60,
-        "max_active_devis": -1,    # illimité
-        "popular": False,
-        "trial_days": 7,
-        "features": [
-            "Badge Or sur votre profil (visibilité maximale)",
-            "Vu en premier par 6 clients sur 10 (visibilité +60 %)",
-            "−10 points de commission sur chaque chantier",
-            "Devis actifs illimités",
-            "Essai gratuit 7 jours à la 1ʳᵉ souscription",
-            "Économisez 20 % avec l'abonnement annuel",
-        ],
-    },
-}
-
-
-# Tier gratuit affiché en première colonne du tableau comparatif.
-STANDARD_TIER_DESCRIPTOR = {
+# Palier gratuit par défaut (non souscrit)
+STANDARD_TIER = {
     "id": "standard",
     "name": "Standard",
     "price": 0,
-    "price_annual": 0,
-    "badge": "standard",
+    "badge": "",
     "commission_reduction": 0,
-    "visibility_boost_pct": 0,
-    "max_active_devis": 3,
-    "popular": False,
-    "trial_days": 0,
-    "features": [
-        "Compte vérifié (KYC validé)",
-        "Apparaître dans les résultats de recherche",
-        "Jusqu'à 3 devis actifs en parallèle",
-        "Commission standard sur les chantiers",
-    ],
+    "visibility_boost": 1.0,
+    "devis_quota": 3,
+    "free": True,
 }
+
+# Paliers payants (souscriptibles)
+PREMIUM_TIERS = {
+    "silver": {
+        "name": "Silver",
+        "price": 7500,  # CFA/mois
+        "badge": "Pro vérifié",
+        "commission_reduction": 5,   # −5 points de commission
+        "visibility_boost": 1.3,
+        "devis_quota": 15,
+    },
+    "gold": {
+        "name": "Gold",
+        "price": 15000,
+        "badge": "Top",
+        "commission_reduction": 10,  # −10 points de commission
+        "visibility_boost": 1.6,
+        "devis_quota": None,         # illimité
+    },
+}
+
+
+def get_tier_config(tier: str) -> dict:
+    """Configuration d'un palier quelconque (standard inclus)."""
+    t = (tier or "").lower()
+    if t in PREMIUM_TIERS:
+        return PREMIUM_TIERS[t]
+    return STANDARD_TIER
 
 
 @dataclass
@@ -105,11 +74,12 @@ class SubscriptionResult:
 class ProviderSubscription:
     """Abonnement premium prestataire."""
     provider: Provider
-    tier: str  # bronze, silver, gold
+    tier: str  # silver, gold
     is_active: bool
     expires_at: Optional[date]
     badge: str
     visibility_multiplier: float
+    devis_quota: Optional[int] = None
 
 
 class ProviderSubscriptionService:
@@ -121,14 +91,18 @@ class ProviderSubscriptionService:
         cls,
         provider: Provider,
         tier: str,
-        billing_period: str = "monthly",   # "monthly" | "annual" | "trial"
+        duration_days: int = 30,
     ) -> SubscriptionResult:
-        """Souscrire à un abonnement premium.
-
-        billing_period :
-        - "monthly" → 30 jours, prix `price`
-        - "annual"  → 365 jours, prix `price_annual` (−20 %)
-        - "trial"   → 7 jours, gratuit, autorisé une seule fois par presta
+        """
+        Souscrire a un abonnement premium.
+        
+        Args:
+            provider: Prestataire
+            tier: bronze/silver/gold
+            duration_days: Duree en jours
+            
+        Returns:
+            SubscriptionResult
         """
         tier_config = PREMIUM_TIERS.get(tier.lower())
         if not tier_config:
@@ -136,44 +110,22 @@ class ProviderSubscriptionService:
                 success=False,
                 error="invalid_tier",
             )
-
-        if billing_period == "trial":
-            if provider.has_used_premium_trial:
-                return SubscriptionResult(
-                    success=False,
-                    error="trial_already_used",
-                )
-            duration_days = tier_config.get("trial_days", 7)
-            is_annual = False
-        elif billing_period == "annual":
-            duration_days = 365
-            is_annual = True
-        else:
-            duration_days = 30
-            is_annual = False
-
+        
         try:
-            update_fields = [
-                "is_premium",
-                "premium_tier",
-                "premium_since",
-                "premium_until",
-                "is_premium_annual",
-            ]
+            # Mettre a jour le provider
             provider.is_premium = True
             provider.premium_tier = tier.lower()
             provider.premium_since = timezone.now()
             provider.premium_until = timezone.now() + timezone.timedelta(days=duration_days)
-            provider.is_premium_annual = is_annual
-
-            if billing_period == "trial":
-                provider.has_used_premium_trial = True
-                update_fields.append("has_used_premium_trial")
-
-            provider.save(update_fields=update_fields)
-
+            provider.save(update_fields=[
+                "is_premium",
+                "premium_tier",
+                "premium_since",
+                "premium_until",
+            ])
+            
             logger.info(
-                f"Provider {provider.id} subscribed to {tier} ({billing_period}) until {provider.premium_until}"
+                f"Provider {provider.id} subscribed to {tier} until {provider.premium_until}"
             )
             
             return SubscriptionResult(
@@ -185,6 +137,7 @@ class ProviderSubscriptionService:
                     expires_at=provider.premium_until,
                     badge=tier_config["badge"],
                     visibility_multiplier=tier_config["visibility_boost"],
+                    devis_quota=tier_config.get("devis_quota"),
                 ),
             )
             
@@ -208,9 +161,11 @@ class ProviderSubscriptionService:
             provider.save(update_fields=["is_premium"])
             return None
         
-        tier = provider.premium_tier or "bronze"
-        config = PREMIUM_TIERS.get(tier, PREMIUM_TIERS["bronze"])
-        
+        tier = provider.premium_tier or ""
+        if tier not in PREMIUM_TIERS:
+            return None
+        config = PREMIUM_TIERS[tier]
+
         return ProviderSubscription(
             provider=provider,
             tier=tier,
@@ -218,6 +173,7 @@ class ProviderSubscriptionService:
             expires_at=provider.premium_until,
             badge=config["badge"],
             visibility_multiplier=config["visibility_boost"],
+            devis_quota=config.get("devis_quota"),
         )
     
     @classmethod
@@ -240,62 +196,211 @@ class ProviderSubscriptionService:
         
         return count
     
+    # ------------------------------------------------------------------
+    # Commission : barème dégressif par volume + réduction premium
+    # ------------------------------------------------------------------
+    DEGRESSIVE_SCALE = [
+        (26, 6),   # 26+ missions/mois → −6 points (≈ 12 %)
+        (11, 3),   # 11-25 missions/mois → −3 points (≈ 15 %)
+        (0, 0),    # 0-10 missions/mois → taux de base (18 %)
+    ]
+
+    @classmethod
+    def monthly_completed_missions(cls, provider: Provider) -> int:
+        """Nombre de missions terminées par le prestataire sur les 30 derniers jours."""
+        try:
+            from ..models import Reservation
+            since = timezone.now() - timezone.timedelta(days=30)
+            return Reservation.objects.filter(
+                assigned_provider=provider,
+                statut=Reservation.Status.DONE,
+                prestation_terminee_at__gte=since,
+            ).count()
+        except Exception:
+            return 0
+
+    @classmethod
+    def base_commission_rate(cls, provider: Provider) -> float:
+        """Taux de commission de base (%) : catégorie (ou 18) moins remise dégressive par volume."""
+        top = 18.0
+        if getattr(provider, "category_id", None):
+            try:
+                from ..models import CategoryCommission
+                cc = CategoryCommission.objects.filter(
+                    category_id=provider.category_id, actif=True
+                ).first()
+                if cc:
+                    top = float(cc.commission_rate)
+            except Exception:
+                pass
+        n = cls.monthly_completed_missions(provider)
+        discount = next(d for threshold, d in cls.DEGRESSIVE_SCALE if n >= threshold)
+        return max(5.0, top - discount)
+
     @classmethod
     def calculate_effective_commission(
         cls,
         provider: Provider,
-        base_commission: float = 18.0,
+        base_commission: Optional[float] = None,
     ) -> float:
         """
-        Calculer la commission effective avec reduction premium.
-        
-        Args:
-            provider: Prestataire
-            base_commission: Commission de base (18%)
-            
-        Returns:
-            Commission effective
+        Commission effective (%) = base dégressive (volume) − réduction premium.
         """
+        base = base_commission if base_commission is not None else cls.base_commission_rate(provider)
         sub = cls.get_subscription(provider)
-        if not sub:
-            return base_commission
-        
-        config = PREMIUM_TIERS.get(sub.tier, {})
-        reduction = config.get("commission_reduction", 0)
-        
-        return max(0, base_commission - reduction)
-    
+        reduction = 0
+        if sub:
+            reduction = PREMIUM_TIERS.get(sub.tier, {}).get("commission_reduction", 0)
+        return max(5.0, base - reduction)
+
     @classmethod
-    def get_available_tiers(cls, provider: Optional[Provider] = None) -> list[dict]:
-        """Lister tous les tiers, gratuit + payants, pour le tableau comparatif.
+    def visibility_multiplier(cls, provider: Provider) -> float:
+        """Multiplicateur de visibilité pour le matching (1.0 si standard)."""
+        sub = cls.get_subscription(provider)
+        return sub.visibility_multiplier if sub else 1.0
 
-        Si `provider` est fourni, on inclut `trial_available` (True ssi le
-        prestataire n'a jamais consommé son essai gratuit 7 jours).
-        """
-        trial_available = (
-            not bool(getattr(provider, "has_used_premium_trial", False))
-            if provider is not None else True
-        )
+    @classmethod
+    def devis_quota(cls, provider: Provider) -> Optional[int]:
+        """Quota de devis actifs autorisés (None = illimité)."""
+        sub = cls.get_subscription(provider)
+        if sub:
+            return PREMIUM_TIERS.get(sub.tier, {}).get("devis_quota")
+        return STANDARD_TIER["devis_quota"]
 
-        tiers: list[dict] = [dict(STANDARD_TIER_DESCRIPTOR)]
-        for tier_id, config in PREMIUM_TIERS.items():
-            price_monthly = config["price"]
-            price_annual = config.get("price_annual", price_monthly * 12)
-            tiers.append({
-                "id": tier_id,
-                "name": config["name"],
-                "price": price_monthly,
-                "price_annual": price_annual,
-                "annual_savings_pct": int(
-                    100 - (price_annual / (price_monthly * 12) * 100)
-                ) if price_monthly else 0,
-                "badge": config["badge"],
-                "commission_reduction": config["commission_reduction"],
-                "visibility_boost_pct": int((config["visibility_boost"] - 1) * 100),
-                "max_active_devis": config.get("max_active_devis", 3),
-                "popular": config.get("popular", False),
-                "trial_days": config.get("trial_days", 0),
-                "trial_available": trial_available and config.get("trial_days", 0) > 0,
-                "features": config.get("features", []),
-            })
+    @classmethod
+    def badge(cls, provider: Provider) -> str:
+        """Badge premium ('' si standard)."""
+        sub = cls.get_subscription(provider)
+        return sub.badge if sub else ""
+
+    @classmethod
+    def get_available_tiers(cls) -> list[dict]:
+        """Lister tous les paliers (Standard inclus) pour l'écran d'abonnement."""
+        def features(config):
+            quota = config.get("devis_quota")
+            quota_label = "Devis illimités" if quota is None else f"{quota} devis actifs"
+            boost = int((config["visibility_boost"] - 1) * 100)
+            feats = [
+                f"-{config['commission_reduction']} pts de commission"
+                if config["commission_reduction"] else "Commission de base",
+                f"+{boost}% de visibilité" if boost else "Visibilité normale",
+                quota_label,
+            ]
+            if config.get("badge"):
+                feats.append(f"Badge « {config['badge']} »")
+            return feats
+
+        tiers = [{
+            "id": STANDARD_TIER["id"],
+            "name": STANDARD_TIER["name"],
+            "price": STANDARD_TIER["price"],
+            "badge": STANDARD_TIER["badge"],
+            "free": True,
+            "features": features(STANDARD_TIER),
+        }]
+        tiers += [{
+            "id": tier_id,
+            "name": config["name"],
+            "price": config["price"],
+            "badge": config["badge"],
+            "free": False,
+            "features": features(config),
+        } for tier_id, config in PREMIUM_TIERS.items()]
         return tiers
+
+    # ------------------------------------------------------------------
+    # Calculateur de rentabilité premium (affiché dans l'app)
+    # ------------------------------------------------------------------
+    DEFAULT_BASKET = 25000  # panier moyen par défaut si aucun historique
+
+    @classmethod
+    def gmv_last_30d(cls, provider: Provider) -> float:
+        """Volume de transactions (FCFA) sur les missions terminées des 30 derniers jours."""
+        try:
+            from django.db.models import Sum
+            from ..models import Reservation
+            since = timezone.now() - timezone.timedelta(days=30)
+            agg = Reservation.objects.filter(
+                assigned_provider=provider,
+                statut=Reservation.Status.DONE,
+                prestation_terminee_at__gte=since,
+            ).aggregate(s=Sum("montant"))
+            return float(agg["s"] or 0)
+        except Exception:
+            return 0.0
+
+    @classmethod
+    def _fmt(cls, n) -> str:
+        """Formatage FCFA avec séparateur d'espace (style ivoirien)."""
+        return f"{int(round(n)):,}".replace(",", " ")
+
+    @classmethod
+    def profitability(cls, provider: Provider) -> dict:
+        """
+        Calcule, à partir de l'activité réelle des 30 derniers jours, l'intérêt
+        économique de chaque palier payant pour ce prestataire.
+
+        Logique :
+            economie  = GMV_30j × (réduction de commission en points / 100)
+            gain_net  = economie − prix de l'abonnement
+            seuil_gmv = prix / (réduction / 100)
+        """
+        missions = cls.monthly_completed_missions(provider)
+        gmv = cls.gmv_last_30d(provider)
+        basket = (gmv / missions) if missions else cls.DEFAULT_BASKET
+        base = cls.base_commission_rate(provider)
+        current = cls.calculate_effective_commission(provider)
+        current_tier = provider.premium_tier if provider.is_premium else "standard"
+
+        options = []
+        best = None
+        for tier_id, cfg in PREMIUM_TIERS.items():
+            red = cfg["commission_reduction"]
+            price = cfg["price"]
+            economie = gmv * red / 100.0
+            gain_net = economie - price
+            seuil_gmv = (price / (red / 100.0)) if red else None
+            seuil_missions = int(-(-seuil_gmv // basket)) if (seuil_gmv and basket) else None  # arrondi sup.
+            opt = {
+                "tier": tier_id,
+                "name": cfg["name"],
+                "price": price,
+                "reduction": red,
+                "economie": round(economie),
+                "gain_net": round(gain_net),
+                "seuil_gmv": round(seuil_gmv) if seuil_gmv else None,
+                "seuil_missions": seuil_missions,
+                "rentable": gain_net > 0,
+            }
+            options.append(opt)
+            if opt["rentable"] and (best is None or gain_net > best["gain_net"]):
+                best = opt
+
+        recommended = best["tier"] if best else "standard"
+        if best:
+            message = (
+                f"Ce mois-ci : {missions} mission(s) ({cls._fmt(gmv)} F). "
+                f"Avec {best['name']}, tu aurais gardé +{cls._fmt(best['gain_net'])} F."
+            )
+        else:
+            silver = next((o for o in options if o["tier"] == "silver"), None)
+            seuil_m = silver["seuil_missions"] if silver else None
+            if seuil_m:
+                message = (
+                    f"À ton volume actuel ({missions} mission(s)), le palier gratuit reste "
+                    f"le plus avantageux. Silver devient rentable dès {seuil_m} missions/mois."
+                )
+            else:
+                message = "À ton volume actuel, le palier gratuit reste le plus avantageux."
+
+        return {
+            "missions_30j": missions,
+            "gmv_30j": round(gmv),
+            "panier_moyen": round(basket),
+            "base_commission": base,
+            "current_commission": current,
+            "current_tier": current_tier,
+            "options": options,
+            "recommended": recommended,
+            "message": message,
+        }

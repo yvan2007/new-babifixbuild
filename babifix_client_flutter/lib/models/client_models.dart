@@ -38,6 +38,7 @@ class RecentProviderCard {
     required this.imageUrl,
     this.tarif,
     this.disponible = true,
+    this.distanceKm,
   });
 
   final int id;
@@ -48,6 +49,10 @@ class RecentProviderCard {
   final double? tarif;
   final bool disponible;
 
+  /// Distance (km) entre le client et ce prestataire — fournie par l'API
+  /// `/api/public/providers/?lat=&lon=` (champ `distance_km`).
+  final double? distanceKm;
+
   RecentProviderCard copyWith({bool? disponible}) => RecentProviderCard(
     id: id,
     nom: nom,
@@ -56,6 +61,7 @@ class RecentProviderCard {
     imageUrl: imageUrl,
     tarif: tarif,
     disponible: disponible ?? this.disponible,
+    distanceKm: distanceKm,
   );
 }
 
@@ -71,7 +77,11 @@ class ClientService {
     required this.imageUrl,
     this.providerId = 0,
     this.disponible = true,
+    this.distanceKm,
   });
+
+  /// Distance (km) du prestataire derrière ce service.
+  final double? distanceKm;
 
   final String title;
   final String category;

@@ -90,10 +90,9 @@ def api_referral(request):
 @require_api_auth(["prestataire", "admin"])
 @require_GET
 def api_premium_tiers(request):
-    """GET → liste des offres premium disponibles (incl. Standard gratuit)."""
+    """GET → liste des offres premium disponibles."""
     from .services.provider_subscription_service import ProviderSubscriptionService
-    provider = Provider.objects.filter(user_id=request.api_user_id).first()
-    tiers = ProviderSubscriptionService.get_available_tiers(provider=provider)
+    tiers = ProviderSubscriptionService.get_available_tiers()
     return JsonResponse({"tiers": tiers}, status=200)
 
 
@@ -102,9 +101,8 @@ def api_premium_tiers(request):
 def api_premium_subscribe(request):
     """
     GET  → statut abonnement actuel
-    POST → souscrire/changer tier
-           Body: {tier: 'silver'|'gold', billing_period: 'monthly'|'annual'|'trial'}
-    Paiement déduit du wallet prestataire (sauf trial = gratuit).
+    POST → souscrire/changer tier {tier: 'bronze'|'silver'|'gold', duration_days: 30}
+    Paiement déduit du wallet prestataire (ou initié via GeniusPay si insuffisant).
     """
     from .services.provider_subscription_service import ProviderSubscriptionService, PREMIUM_TIERS
     from .services.wallet_service import WalletService
@@ -119,8 +117,6 @@ def api_premium_subscribe(request):
         return JsonResponse({
             "is_premium": provider.is_premium,
             "tier": provider.premium_tier or "standard",
-            "is_annual": bool(getattr(provider, "is_premium_annual", False)),
-            "trial_available": not bool(getattr(provider, "has_used_premium_trial", False)),
             "premium_since": provider.premium_since.isoformat() if provider.premium_since else None,
             "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
             "days_remaining": max(
@@ -141,34 +137,28 @@ def api_premium_subscribe(request):
             return JsonResponse({"error": "invalid_json"}, status=400)
 
         tier = str(body.get("tier") or "").lower()
-        billing_period = str(body.get("billing_period") or "monthly").lower()
-        if billing_period not in ("monthly", "annual", "trial"):
-            return JsonResponse({"error": "invalid_billing_period"}, status=400)
+        duration_days = int(body.get("duration_days") or 30)
+
+        # Retour au palier gratuit (résiliation)
+        if tier == "standard":
+            provider.is_premium = False
+            provider.premium_tier = ""
+            provider.save(update_fields=["is_premium", "premium_tier"])
+            return JsonResponse({
+                "ok": True,
+                "tier": "standard",
+                "premium_until": None,
+                "commission_effective": float(
+                    ProviderSubscriptionService.calculate_effective_commission(provider)
+                ),
+            }, status=200)
 
         if tier not in PREMIUM_TIERS:
             return JsonResponse({"error": "tier_invalide", "valid": list(PREMIUM_TIERS.keys())}, status=400)
 
-        # Trial : aucun débit, vérif anti-réutilisation
-        if billing_period == "trial":
-            if provider.has_used_premium_trial:
-                return JsonResponse({
-                    "error": "trial_already_used",
-                    "message": "Vous avez déjà utilisé votre essai gratuit. Choisissez un abonnement mensuel ou annuel.",
-                }, status=403)
-            result = ProviderSubscriptionService.subscribe(provider, tier, billing_period="trial")
-            if not result.success:
-                return JsonResponse({"error": result.error}, status=500)
-            return _premium_subscribe_success(provider, tier, billing_period)
+        price = Decimal(str(PREMIUM_TIERS[tier]["price"]))
 
-        # Mensuel ou annuel : calcul du prix
-        tier_cfg = PREMIUM_TIERS[tier]
-        if billing_period == "annual":
-            price = Decimal(str(tier_cfg.get("price_annual", tier_cfg["price"] * 12)))
-            duration_label = "1 an"
-        else:
-            price = Decimal(str(tier_cfg["price"]))
-            duration_label = "30 j"
-
+        # Tenter de débiter le wallet
         if (provider.solde_fcfa or Decimal("0")) >= price:
             from django.db import transaction
             with transaction.atomic():
@@ -179,63 +169,154 @@ def api_premium_subscribe(request):
                     provider=prov,
                     tx_type="debit",
                     amount_fcfa=price,
-                    reference=f"PREMIUM-{tier}-{billing_period}",
-                    description=f"Abonnement Premium {tier.title()} ({duration_label})",
+                    reference=f"PREMIUM-{tier}",
+                    description=f"Souscription abonnement Premium {tier.title()} ({duration_days}j)",
                     status="success",
                 )
+            # Enregistrer dans les revenus BABIFIX
             WalletService.credit_provider_premium(provider, tier, price)
         else:
+            # Solde insuffisant → retourner les infos pour paiement Mobile Money (GeniusPay)
             return JsonResponse({
                 "error": "insufficient_wallet",
                 "price": float(price),
                 "solde_actuel": float(provider.solde_fcfa or 0),
                 "message": "Solde insuffisant. Veuillez recharger votre wallet ou payer via Mobile Money.",
-                "cinetpay_required": True,
+                "geniuspay_required": True,
                 "tier": tier,
-                "billing_period": billing_period,
+                "duration_days": duration_days,
             }, status=402)
 
-        result = ProviderSubscriptionService.subscribe(provider, tier, billing_period=billing_period)
+        result = ProviderSubscriptionService.subscribe(provider, tier, duration_days)
         if not result.success:
             return JsonResponse({"error": result.error}, status=500)
 
-        return _premium_subscribe_success(provider, tier, billing_period)
+        # Notification push
+        try:
+            from .push_dispatch import _schedule
+            _schedule(
+                [provider.user_id],
+                "BABIFIX Premium activé !",
+                f"Votre abonnement {tier.title()} est actif jusqu'au {provider.premium_until.strftime('%d/%m/%Y')}.",
+                {
+                    "type": "premium.activated",
+                    "tier": tier,
+                    "route": "/prestataire/premium",
+                },
+            )
+        except Exception:
+            pass
+
+        return JsonResponse({
+            "ok": True,
+            "tier": tier,
+            "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
+            "commission_effective": float(
+                ProviderSubscriptionService.calculate_effective_commission(provider)
+            ),
+        }, status=200)
 
     return JsonResponse({"error": "method_not_allowed"}, status=405)
 
 
-def _premium_subscribe_success(provider, tier: str, billing_period: str):
-    """Réponse + notif push commune à trial / mensuel / annuel."""
+# =============================================================================
+# CALCULATEUR DE RENTABILITÉ PREMIUM — GET /api/prestataire/premium/calculator/
+# =============================================================================
+
+@require_api_auth(["prestataire", "admin"])
+@require_GET
+def api_premium_calculator(request):
+    """
+    Calcule, à partir de l'activité réelle (GMV des 30 derniers jours), l'intérêt
+    économique de chaque palier payant et la formule recommandée pour ce prestataire.
+    """
     from .services.provider_subscription_service import ProviderSubscriptionService
 
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    return JsonResponse(ProviderSubscriptionService.profitability(provider), status=200)
+
+
+# =============================================================================
+# FIDÉLITÉ CLIENT — GET/POST /api/client/fidelite/
+# =============================================================================
+
+# Niveaux de fidélité : (seuil_min, nom, couleur, réduction %)
+FIDELITE_NIVEAUX = [
+    (0, "Bronze", "#CD7F32", 0),
+    (5, "Argent", "#64748B", 5),
+    (10, "Or", "#F59E0B", 10),
+    (20, "Platine", "#A855F7", 15),
+]
+
+FIDELITE_GARANTIES = [
+    {"icon": "verified_rounded", "titre": "Prestataires vérifiés",
+     "description": "Identité contrôlée (CNI + photo) et dossier validé par BABIFIX avant toute mission."},
+    {"icon": "lock_rounded", "titre": "Paiement sécurisé",
+     "description": "Votre argent est encadré et libéré uniquement une fois la prestation confirmée."},
+    {"icon": "support_agent_rounded", "titre": "Litige sous 48 h",
+     "description": "Un souci ? Ouvrez un litige : BABIFIX tranche (remboursement, partage ou libération)."},
+    {"icon": "star_rounded", "titre": "Notation transparente",
+     "description": "Chaque prestataire est noté par les clients après chaque intervention."},
+]
+
+
+def _fidelite_niveau(nb_missions: int):
+    """Retourne (niveau_courant, prochain_niveau, prochain_seuil)."""
+    current = FIDELITE_NIVEAUX[0]
+    nxt = None
+    for i, niv in enumerate(FIDELITE_NIVEAUX):
+        if nb_missions >= niv[0]:
+            current = niv
+            nxt = FIDELITE_NIVEAUX[i + 1] if i + 1 < len(FIDELITE_NIVEAUX) else None
+    return current, nxt
+
+
+@require_api_auth(["client", "admin"])
+@require_GET
+def api_client_fidelite(request):
+    """GET → programme de fidélité du client : niveau, réduction, garanties, parrainage."""
+    from django.contrib.auth.models import User
+    from .models import UserProfile
+    from .services.referral_service import ReferralService
+    from .services.fidelite_service import FideliteService
+
     try:
-        from .push_dispatch import _schedule
-        label = {"trial": "Essai gratuit", "monthly": "Mensuel", "annual": "Annuel"}.get(billing_period, "")
-        _schedule(
-            [provider.user_id],
-            "BABIFIX Premium activé !",
-            (f"Votre abonnement {tier.title()} ({label}) est actif jusqu'au "
-             f"{provider.premium_until.strftime('%d/%m/%Y')}."),
-            {
-                "type": "premium.activated",
-                "tier": tier,
-                "billing_period": billing_period,
-                "route": "/prestataire/premium",
-            },
-        )
-    except Exception:
-        pass
+        user = User.objects.get(pk=request.api_user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "user_not_found"}, status=404)
+
+    nb_missions = Reservation.objects.filter(
+        client_user_id=user.id, statut=Reservation.Status.DONE
+    ).count()
+
+    current, nxt = _fidelite_niveau(nb_missions)
+
+    # S'assurer que le client a un code de parrainage
+    profile = UserProfile.objects.filter(user=user).first()
+    if profile and not profile.referral_code:
+        try:
+            ReferralService.create_referral_code(user)
+        except Exception:
+            pass
+    stats = ReferralService.get_referral_stats(user)
+    points = FideliteService.summary(user)
 
     return JsonResponse({
-        "ok": True,
-        "tier": tier,
-        "billing_period": billing_period,
-        "is_annual": billing_period == "annual",
-        "is_trial": billing_period == "trial",
-        "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
-        "commission_effective": float(
-            ProviderSubscriptionService.calculate_effective_commission(provider)
-        ),
+        "niveau": current[1],
+        "couleur": current[2],
+        "reduction_pct": current[3],
+        "nb_reservations": nb_missions,
+        "prochain_niveau": nxt[1] if nxt else None,
+        "prochain_seuil": nxt[0] if nxt else None,
+        "garanties": FIDELITE_GARANTIES,
+        "referral_code": stats.get("code") or "",
+        "referral_credits": stats.get("credits_earned", 0),
+        "filleuls_count": stats.get("filleuls", 0),
+        # Bonus : compteur de points cumulés (1 pt / 1 000 F dépensés)
+        "points": points.get("points", 0),
     }, status=200)
 
 
@@ -378,55 +459,177 @@ def api_admin_platform_revenue(request):
     }, status=200)
 
 
+def _compute_business_kpis(days: int = 30) -> dict:
+    """KPIs business BABIFIX (stratégie) : GMV, take rate, missions/jour,
+    rétention prestataire M+1, escrow vs espèces, note moyenne / NPS."""
+    from django.db.models import Sum, Count, Avg
+    from .models import Rating
+
+    now = timezone.now()
+    start = now - timezone.timedelta(days=days)
+    prev_start = now - timezone.timedelta(days=2 * days)
+
+    # Réservation n'a pas de created_at : on date les missions par prestation_terminee_at.
+    done = Reservation.objects.filter(
+        statut=Reservation.Status.DONE,
+        prestation_terminee_at__isnull=False,
+    )
+    done_period = done.filter(prestation_terminee_at__gte=start)
+
+    gmv = float(done_period.aggregate(s=Sum("montant"))["s"] or 0)
+    missions = done_period.count()
+    missions_per_day = round(missions / days, 1) if days else 0
+
+    # Take rate effectif = commission encaissée / GMV
+    commission_rev = float(
+        PlatformRevenue.objects.filter(source="commission", created_at__gte=start)
+        .aggregate(s=Sum("amount_fcfa"))["s"] or 0
+    )
+    take_rate = round(commission_rev / gmv * 100, 1) if gmv else 0
+
+    # Rétention prestataire M+1 : actifs sur la période précédente ET la période courante
+    prev_ids = set(
+        done.filter(prestation_terminee_at__gte=prev_start, prestation_terminee_at__lt=start)
+        .values_list("assigned_provider_id", flat=True)
+    )
+    prev_ids.discard(None)
+    cur_ids = set(
+        done_period.values_list("assigned_provider_id", flat=True)
+    )
+    cur_ids.discard(None)
+    retained = len(prev_ids & cur_ids)
+    retention_pct = round(retained / len(prev_ids) * 100, 1) if prev_ids else 0
+
+    # Escrow (Mobile Money / Carte) vs espèces sur les missions terminées
+    by_pay = dict(
+        done_period.values_list("payment_type").annotate(n=Count("id"))
+    )
+    cash = by_pay.get("ESPECES", 0)
+    escrow = sum(v for k, v in by_pay.items() if k != "ESPECES")
+    total_pay = cash + escrow
+    escrow_pct = round(escrow / total_pay * 100, 1) if total_pay else 0
+    cash_pct = round(cash / total_pay * 100, 1) if total_pay else 0
+
+    # Note moyenne + NPS (promoteurs note>=4 − détracteurs note<=2)
+    ratings = Rating.objects.filter(created_at__gte=start)
+    nb_ratings = ratings.count()
+    avg_rating = round(float(ratings.aggregate(a=Avg("note"))["a"] or 0), 2)
+    if nb_ratings:
+        promoters = ratings.filter(note__gte=4).count()
+        detractors = ratings.filter(note__lte=2).count()
+        nps = round((promoters - detractors) / nb_ratings * 100)
+    else:
+        nps = 0
+
+    # Premium
+    premium_silver = Provider.objects.filter(is_premium=True, premium_tier="silver").count()
+    premium_gold = Provider.objects.filter(is_premium=True, premium_tier="gold").count()
+
+    def _fmt(n):
+        return f"{int(round(n)):,}".replace(",", " ")
+
+    return {
+        "period_days": days,
+        "gmv_fcfa": round(gmv),
+        "gmv_display": _fmt(gmv),
+        "missions": missions,
+        "missions_per_day": missions_per_day,
+        "commission_revenue_fcfa": round(commission_rev),
+        "commission_display": _fmt(commission_rev),
+        "take_rate_pct": take_rate,
+        "retention_m1_pct": retention_pct,
+        "retention_base": len(prev_ids),
+        "escrow_pct": escrow_pct,
+        "cash_pct": cash_pct,
+        "escrow_count": escrow,
+        "cash_count": cash,
+        "avg_rating": avg_rating,
+        "nb_ratings": nb_ratings,
+        "nps": nps,
+        "premium_silver": premium_silver,
+        "premium_gold": premium_gold,
+    }
+
+
+@login_required
+@require_GET
+def api_admin_business_kpis(request):
+    """GET /api/admin/business-kpis/ — KPIs business (JSON)."""
+    try:
+        days = max(1, min(365, int(request.GET.get("days", 30))))
+    except (TypeError, ValueError):
+        days = 30
+    return JsonResponse(_compute_business_kpis(days), status=200)
+
+
+@login_required
+def kpi_dashboard_page(request):
+    """Page admin : tableau de bord des KPIs business."""
+    if not (request.user.is_staff or request.user.is_superuser):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Accès réservé aux administrateurs BABIFIX.")
+    from django.shortcuts import render
+    try:
+        days = max(1, min(365, int(request.GET.get("days", 30))))
+    except (TypeError, ValueError):
+        days = 30
+    kpis = _compute_business_kpis(days)
+    return render(request, "adminpanel/kpi_dashboard.html", {"kpis": kpis, "days": days})
+
+
 @csrf_exempt
 @login_required
 def api_admin_validate_withdrawal(request, tx_id):
     """
     POST /api/admin/wallet/withdrawals/<tx_id>/validate/
-    Body JSON optionnel : {action: "approve"|"reject", reason}
-
-    - approve (défaut) : déclenche le VERSEMENT réel (payout GeniusPay) tout de
-      suite (override manuel — sinon le cron le fait automatiquement après le
-      délai de sécurité).
-    - reject : annule le retrait et recrédite le solde du prestataire.
+    Marque un retrait comme traité (après virement Manuel ou API Mobile Money).
     """
     if request.method != "POST":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
 
-    # SÉCURITÉ : action financière → réservée aux administrateurs (staff).
-    if not (request.user.is_staff or request.user.is_superuser):
-        return JsonResponse({"error": "forbidden"}, status=403)
-
     try:
-        body = json.loads(request.body or b"{}")
-    except (json.JSONDecodeError, TypeError, ValueError):
-        body = {}
-    action = str(body.get("action", "approve")).strip().lower()
-
-    from .services.wallet_service import WalletService
-
-    tx = WalletTransaction.objects.filter(pk=tx_id, tx_type="debit").first()
-    if not tx:
+        tx = WalletTransaction.objects.select_related("provider").get(
+            pk=tx_id, tx_type="debit", status="pending"
+        )
+    except WalletTransaction.DoesNotExist:
         return JsonResponse({"error": "transaction_not_found"}, status=404)
-    if tx.status != "pending":
-        return JsonResponse(
-            {"error": "not_pending", "status": tx.status}, status=400
-        )
 
-    if action == "reject":
-        WalletService._refund_withdrawal(
-            tx.pk, reason=str(body.get("reason") or "Rejeté par l'administrateur")
-        )
-        return JsonResponse(
-            {"ok": True, "tx_id": tx_id, "status": "failed", "refunded": True},
-            status=200,
-        )
+    tx.status = "success"
+    tx.save(update_fields=["status"])
 
-    # approve → versement réel immédiat
-    result = WalletService.process_withdrawal(tx.pk)
-    if "error" in result:
-        return JsonResponse(result, status=400)
-    return JsonResponse({"ok": True, "tx_id": tx_id, **result}, status=200)
+    # Notifier le prestataire
+    try:
+        from .push_dispatch import _schedule
+        _schedule(
+            [tx.provider.user_id],
+            "BABIFIX — Retrait effectué",
+            f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA via {tx.operator.upper()} a été traité.",
+            {
+                "type": "wallet.withdrawal_done",
+                "tx_id": str(tx.pk),
+                "route": "/prestataire/wallet",
+            },
+        )
+    except Exception:
+        pass
+
+    # WebSocket temps réel
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"prestataire_{tx.provider.user_id}",
+            {
+                "type": "prestataire_notify",
+                "event_type": "wallet.withdrawal_done",
+                "payload": {"tx_id": tx.pk, "amount": float(tx.amount_fcfa), "status": "success"},
+            },
+        )
+    except Exception:
+        pass
+
+    return JsonResponse({"ok": True, "tx_id": tx_id, "status": "success"}, status=200)
 
 
 # =============================================================================
@@ -479,6 +682,7 @@ def api_client_devis_compare(request, reference):
             "sous_total": float(d.sous_total),
             "commission": float(d.commission_montant),
             "total_ttc": float(d.total_ttc),
+            "net_prestataire": float(d.sous_total - d.commission_montant),
             "note_prestataire": d.note_prestataire,
             "validite_jours": d.validite_jours,
             "lignes": lignes,

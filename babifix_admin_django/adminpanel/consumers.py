@@ -46,8 +46,11 @@ def _extract_token(scope: dict) -> str | None:
 class ClientEventsConsumer(AsyncWebsocketConsumer):
     """
     Flux temps réel pour apps client & prestataire (JWT).
-    Nouveau prestataire approuvé, actualités publiées, etc.
-    Groupe : babifix_client_events
+
+    L'app s'abonne automatiquement à 2 groupes :
+      • `babifix_client_events`        — events globaux (catégories, providers…)
+      • `babifix_client_<user_id>`     — events ciblés (mes réservations,
+                                          devis reçus, statut changé…)
     """
 
     group_name = 'babifix_client_events'
@@ -65,7 +68,20 @@ class ClientEventsConsumer(AsyncWebsocketConsumer):
         ):
             await self.close(code=4403)
             return
+
+        # Groupe global (broadcast à tous les clients).
         await self.channel_layer.group_add(self.group_name, self.channel_name)
+
+        # Groupe ciblé pour CE user uniquement.
+        try:
+            uid = int(pl.get('uid') or pl.get('sub') or 0)
+        except (TypeError, ValueError):
+            uid = 0
+        self._user_group: str | None = None
+        if uid:
+            self._user_group = f'babifix_client_{uid}'
+            await self.channel_layer.group_add(self._user_group, self.channel_name)
+
         await self.accept()
         await self.send(text_data=json.dumps({
             'type': 'system.connected',
@@ -74,6 +90,9 @@ class ClientEventsConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        ug = getattr(self, '_user_group', None)
+        if ug:
+            await self.channel_layer.group_discard(ug, self.channel_name)
 
     async def client_notify(self, event):
         await self.send(text_data=json.dumps({
@@ -207,27 +226,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'is_typing': bool(data.get('is_typing', False)),
             })
 
-        elif msg_type == 'call_offer':
-            await self.channel_layer.group_send(self.group_name, {
-                'type': 'chat_call_offer',
-                'sender_id': self._uid,
-                'room_name': data.get('room_name', ''),
-                'is_video': bool(data.get('is_video', False)),
-                'caller_name': data.get('caller_name', ''),
-            })
-
-        elif msg_type == 'call_accept':
-            await self.channel_layer.group_send(self.group_name, {
-                'type': 'chat_call_accept',
-                'sender_id': self._uid,
-            })
-
-        elif msg_type == 'call_reject':
-            await self.channel_layer.group_send(self.group_name, {
-                'type': 'chat_call_reject',
-                'sender_id': self._uid,
-            })
-
     # --- Group message handlers ---
 
     async def chat_message(self, event):
@@ -242,27 +240,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'type': 'typing',
                 'sender_id': event['sender_id'],
                 'is_typing': event['is_typing'],
-            }))
-
-    async def chat_call_offer(self, event):
-        if event.get('sender_id') != self._uid:
-            await self.send(text_data=json.dumps({
-                'type': 'call_offer',
-                'room_name': event.get('room_name', ''),
-                'is_video': event.get('is_video', False),
-                'caller_name': event.get('caller_name', ''),
-            }))
-
-    async def chat_call_accept(self, event):
-        if event.get('sender_id') != self._uid:
-            await self.send(text_data=json.dumps({
-                'type': 'call_accept',
-            }))
-
-    async def chat_call_reject(self, event):
-        if event.get('sender_id') != self._uid:
-            await self.send(text_data=json.dumps({
-                'type': 'call_reject',
             }))
 
     # --- DB helpers ---

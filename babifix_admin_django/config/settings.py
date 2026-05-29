@@ -35,6 +35,28 @@ def _load_local_env():
 
 _load_local_env()
 
+
+def _autodetect_firebase_credentials():
+    """Branche automatiquement la clé de service Firebase si elle est présente.
+
+    Cherche un fichier de compte de service à la racine du projet admin (ignoré
+    par git) et définit FIREBASE_CREDENTIALS_JSON_PATH si aucune valeur n'est déjà
+    fournie. Permet d'activer les push FCM sans variable d'environnement manuelle.
+    """
+    if os.getenv("FIREBASE_CREDENTIALS_JSON_PATH") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+        return
+    for candidate in (
+        "firebase-admin-key.json",
+        "service-account-firebase.json",
+    ):
+        p = BASE_DIR / candidate
+        if p.is_file():
+            os.environ["FIREBASE_CREDENTIALS_JSON_PATH"] = str(p)
+            break
+
+
+_autodetect_firebase_credentials()
+
 # =============================================================================
 # PRODUCTION CHECKS — Empêcher config insécurisée en production
 # =============================================================================
@@ -114,7 +136,10 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # BABIFIX : CSP, Permissions-Policy, COOP, anti-cache admin.
+    "adminpanel.security_middleware.BabifixSecurityHeadersMiddleware",
 ]
+_BABIFIX_ENV = _env
 
 # CORS - Lire depuis env var
 CORS_ALLOWED_ORIGINS = [
@@ -220,6 +245,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 10},
     },
     {
         "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
@@ -227,6 +253,15 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
+]
+
+# Hashers : Argon2 en priorité (bien plus résistant au brute-force que PBKDF2 par défaut).
+# Nécessite `argon2-cffi` (à ajouter dans requirements.txt).
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
 ]
 
 
@@ -307,29 +342,21 @@ BABIFIX_THROTTLE_LOGIN_RATE = int(os.getenv("BABIFIX_THROTTLE_LOGIN_RATE", "5"))
 BABIFIX_THROTTLE_LOGIN_WINDOW = int(os.getenv("BABIFIX_THROTTLE_LOGIN_WINDOW", "60"))
 
 # =============================================================================
-# CINETPAY (Mobile Money CI)
-# =============================================================================
-CINETPAY_APIKEY = os.getenv("CINETPAY_APIKEY", "")
-CINETPAY_SITE_ID = os.getenv("CINETPAY_SITE_ID", "")
-CINETPAY_NOTIFY_URL = os.getenv("CINETPAY_NOTIFY_URL", "")
-CINETPAY_RETURN_URL = os.getenv("CINETPAY_RETURN_URL", "")
-
-# =============================================================================
 # GENIUSPAY (Mobile Money CI — Wave, Orange, MTN, PawaPay)
-# Toutes les clés sont fournies UNIQUEMENT via variables d'environnement
-# (jamais en dur dans le code). Voir .env / variables Render.
-#   Base URL : https://pay.genius.ci/api/v1/merchant
+# Base URL : https://pay.genius.ci/api/v1/merchant
 # =============================================================================
 GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  "")
 GENIUSPAY_SECRET_KEY  = os.getenv("GENIUSPAY_SECRET_KEY",  "")
-GENIUSPAY_API_URL     = os.getenv("GENIUSPAY_API_URL", "https://pay.genius.ci/api/v1/merchant")
 GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", "")   # ex: https://api.babifix.ci/api/paiements/geniuspay/webhook/
 GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", "")   # ex: https://app.babifix.ci/payment-success
 GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   "")   # ex: https://app.babifix.ci/payment-error
-# Versements sortants (payouts vers prestataires). wallet_id du compte marchand
-# (laisser vide → wallet principal). Délai avant versement auto (anti-fraude).
-GENIUSPAY_WALLET_ID   = os.getenv("GENIUSPAY_WALLET_ID", "")
-WITHDRAWAL_AUTO_HOLD_MINUTES = int(os.getenv("WITHDRAWAL_AUTO_HOLD_MINUTES", "15"))
+
+# En production, refuser de démarrer si les clés GeniusPay manquent.
+if _env == "production" and (not GENIUSPAY_PUBLIC_KEY or not GENIUSPAY_SECRET_KEY):
+    raise RuntimeError(
+        "GENIUSPAY_PUBLIC_KEY et GENIUSPAY_SECRET_KEY doivent être définies en production. "
+        "Ne JAMAIS hardcoder ces valeurs — utiliser des variables d'environnement."
+    )
 
 # =============================================================================
 # SENTRY (monitoring erreurs en production)
@@ -343,15 +370,11 @@ if _sentry_dsn:
         sentry_sdk.init(
             dsn=_sentry_dsn,
             integrations=[DjangoIntegration()],
-            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            traces_sample_rate=0.1,
             send_default_pii=False,
-            environment=os.getenv("SENTRY_ENV", "production"),
-            release=os.getenv("SENTRY_RELEASE", ""),
         )
     except ImportError:
         pass  # sentry-sdk non installé — ignorer silencieusement
-    except Exception:  # noqa: BLE001
-        pass  # ne jamais bloquer le démarrage à cause du monitoring
 
 # Connexion dashboard (CRUD) — même session que django-admin
 LOGIN_URL = "/admin/login/"
@@ -451,20 +474,62 @@ if _env != "development":
         LOGGING["loggers"]["adminpanel"]["handlers"] = ["console", "file"]
 
 # =============================================================================
-# Security headers en production (ajoutés selon les recommandations de sécurité)
+# Security headers — appliqués SYSTÉMATIQUEMENT (dev + prod) pour protéger les
+# cookies, prévenir XSS, clickjacking, MIME-sniffing, et exfiltration via referer.
 # =============================================================================
+
+# --- Cookies ---------------------------------------------------------------
+# HttpOnly : empêche le JavaScript du navigateur (et toute injection XSS) de
+# lire le cookie de session.
+SESSION_COOKIE_HTTPONLY = True
+# SameSite=Lax : bloque l'envoi du cookie sur les requêtes cross-site (CSRF).
+SESSION_COOKIE_SAMESITE = "Lax"
+# Durée de session limitée (8 h) ; expire à la fermeture du navigateur.
+SESSION_COOKIE_AGE = 60 * 60 * 8
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+# CSRF cookie : SameSite=Lax + non lisible côté JS (token est aussi rendu côté template).
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = "Lax"
+
+# --- Headers communs ------------------------------------------------------
+SECURE_CONTENT_TYPE_NOSNIFF = True       # X-Content-Type-Options: nosniff
+SECURE_BROWSER_XSS_FILTER = True         # X-XSS-Protection (legacy)
+SECURE_REFERRER_POLICY = "same-origin"   # Empêche fuite d'URL via Referer
+X_FRAME_OPTIONS = "DENY"                 # Anti clickjacking
+# Permissions-Policy : désactive les API sensibles non utilisées.
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
+# CSRF Trusted Origins pour les sous-domaines BABIFIX (et Render).
+_csrf_trusted_env = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()
+if _csrf_trusted_env:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_trusted_env.split(",") if o.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        "https://babifix.ci",
+        "https://www.babifix.ci",
+        "https://*.babifix.ci",
+        "https://*.onrender.com",
+    ]
+
+# Borner la taille des requêtes pour limiter les DoS / uploads abusifs.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024     # 10 MB de form-data en mémoire
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024     # 10 MB par fichier en mémoire
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000               # anti-DoS sur formulaires monstres
+
+# Permissions strictes pour les fichiers uploadés.
+FILE_UPLOAD_PERMISSIONS = 0o644
+
+# --- Production-only -------------------------------------------------------
 if _env == "production":
     # Render termine le SSL lui-même (load balancer) — ne pas rediriger vers HTTPS
     # sinon boucle infinie. On fait confiance au header X-Forwarded-Proto de Render.
     SECURE_SSL_REDIRECT = False
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_SECONDS = 31536000              # 1 an
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_PRELOAD = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    X_FRAME_OPTIONS = "DENY"
 
 # =============================================================================
 # CELERY CONFIGURATION (tâches asynchrones)

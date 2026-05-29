@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX - Diagramme de Déploiement
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -89,7 +89,7 @@ node "Monitoring" {
 
 node "External Services" {
   artifact "Firebase FCM\n(Push Notifications)" as FCM
-  artifact "GeniusPay API\n(Paiements Mobile Money)"
+  artifact "CinetPay API\n(Paiements Mobile Money)"
   artifact "SMTP / SendGrid\n(Emails)"
 }
 
@@ -121,8 +121,8 @@ Nginx -down-> "Server 2 (App)"
 "Server 1 (App)" -down-> FCM : FCM HTTP API (push only)
 "Server 2 (App)" -down-> FCM
 
-"Server 1 (App)" -down-> GeniusPay : API REST
-"Server 2 (App)" -down-> GeniusPay
+"Server 1 (App)" -down-> CinetPay : API REST
+"Server 2 (App)" -down-> CinetPay
 
 "Server 1 (App)" -down-> SMTP : SendGrid/SMTP
 

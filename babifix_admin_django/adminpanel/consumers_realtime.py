@@ -12,10 +12,10 @@ from asgiref.sync import sync_to_async
 class RealtimeUpdatesConsumer(AsyncWebsocketConsumer):
     """Consumer for real-time push updates (replaces polling)"""
 
-    group_name = "babifix_client_events"
-
     async def connect(self):
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        self.room_group_name = "realtime_updates"
+
+        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
 
         await self.accept()
         await self.send(
@@ -25,7 +25,7 @@ class RealtimeUpdatesConsumer(AsyncWebsocketConsumer):
         )
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
         data = json.loads(text_data)
@@ -34,35 +34,43 @@ class RealtimeUpdatesConsumer(AsyncWebsocketConsumer):
         if action == "ping":
             await self.send(text_data=json.dumps({"type": "pong"}))
 
-    async def client_notify(self, event):
-        """Handle broadcasts from realtime.py (type: client.notify)"""
-        await self.send(
-            text_data=json.dumps({
-                "type": event["event_type"],
-                **event.get("payload", {}),
-            })
-        )
-
     async def categories_update(self, event):
         await self.send(
-            text_data=json.dumps({
-                "type": "categories_update",
-                "categories": event.get("categories", []),
-            })
+            text_data=json.dumps(
+                {"type": "categories_update", "categories": event.get("categories", [])}
+            )
         )
 
     async def providers_update(self, event):
         await self.send(
-            text_data=json.dumps({
-                "type": "providers_update",
-                "providers": event.get("providers", []),
-            })
+            text_data=json.dumps(
+                {"type": "providers_update", "providers": event.get("providers", [])}
+            )
         )
 
     async def new_provider(self, event):
         await self.send(
-            text_data=json.dumps({
-                "type": "new_provider",
-                "provider": event.get("provider", {}),
-            })
+            text_data=json.dumps(
+                {"type": "new_provider", "provider": event.get("provider", {})}
+            )
         )
+
+
+async def broadcast_categories_update(categories):
+    """Helper to broadcast categories update to all clients"""
+    from channels.layers import get_channel_layer
+
+    layer = get_channel_layer()
+    await layer.group_send(
+        "realtime_updates", {"type": "categories_update", "categories": categories}
+    )
+
+
+async def broadcast_providers_update(providers):
+    """Helper to broadcast providers update to all clients"""
+    from channels.layers import get_channel_layer
+
+    layer = get_channel_layer()
+    await layer.group_send(
+        "realtime_updates", {"type": "providers_update", "providers": providers}
+    )

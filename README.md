@@ -1,276 +1,586 @@
-# BABIFIX — Plateforme de Mise en Relation Prestataires & Clients
+# 🏠 BABIFIX - Plateforme de Services à Domicile
 
-**BABIFIX** est une plateforme digitale ivoirienne connectant des clients à des prestataires de services qualifiés (plomberie, électricité, nettoyage, mécanique, etc.). Elle gère l'intégralité du cycle de vie d'une prestation : réservation, devis, paiement sécurisé, chat, appels, et litiges.
+> **Plateforme full-stack de réservation de prestataires de services en Côte d'Ivoire**  
+> Architecture microservices : Django REST API + Flutter (Client & Prestataire)
+
+![Flutter](https://img.shields.io/badge/Flutter-3.24.0-blue?logo=flutter)
+![Django](https://img.shields.io/badge/Django-5.2-green?logo=django)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)
+![Redis](https://img.shields.io/badge/Redis-7-red?logo=redis)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
-## 📦 Architecture du Projet
+## 📋 Table des matières
+
+- [Architecture](#architecture)
+- [Stack technique](#stack-technique)
+- [Fonctionnalités](#fonctionnalités)
+- [Installation & démarrage](#installation--démarrage)
+- [Configuration](#configuration)
+- [API Endpoints](#api-endpoints)
+- [Flux métier](#flux-métier)
+- [Scripts utiles](#scripts-utiles)
+- [Contribuer](#contribuer)
+- [Licence](#licence)
+
+---
+
+## 🏗️ Architecture
 
 ```
-BABIFIX_BUILD/
-├── babifix_admin_django/         ← Backend principal (Django REST API + Panel Admin)
-├── babifix_client_flutter/       ← Application mobile client (Flutter)
-├── babifix_prestataire_flutter/  ← Application mobile prestataire (Flutter)
-├── babifix_shared/               ← Package Dart partagé
-├── babifix_vitrine_django/       ← Site vitrine / page d'accueil publique
-└── UML_DIAGRAMMES/               ← Diagrammes d'architecture (PlantUML)
+┌─────────────────────────────────────────────────────────────────────┐
+│                          Internet / Mobile                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                         Load Balancer (Nginx)                       │
+├─────────────┬───────────────────────┬───────────────────────────────┤
+│   Client    │   Prestataire App     │   Admin Dashboard              │
+│   Flutter   │   Flutter (Android/iOS│   Django Admin + React          │
+│   (APK/IPA) │   /Web)               │   (babifix_admin_django)        │
+└─────┬───────┴───────────┬───────────┴───────────────┬───────────────┘
+      │                   │                           │
+      │ REST API / JSON   │ REST API / JSON          │ REST API / JSON
+      │ (HTTPS)           │ (HTTPS)                  │ (HTTPS)
+      ▼                   ▼                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              Django REST Framework (API Central)                    │
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │  Views • Serializers • Services • Auth • WebSockets • Push   │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────────┤
+│                         PostgreSQL 16                              │
+│            (Users, Reservations, Payments, KYC, etc.)              │
+├─────────────────────────────────────────────────────────────────────┤
+│                         Redis (Cache + WS)                         │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 🧩 Backend — `babifix_admin_django/`
+---
 
-| Technologie | Usage |
-|-------------|-------|
-| **Django 5.2** / Django REST Framework | API RESTful complète |
-| **Django Channels 4.2** + Daphne | WebSocket temps réel (chat, notifications) |
-| **Celery 5.4** | Tâches asynchrones (notifications, timeouts) |
-| **PostgreSQL / MySQL / SQLite** | Base de données (selon environnement) |
-| **Redis** | Cache, Channel Layer, Celery broker |
-| **JWT (PyJWT)** | Authentification par tokens |
-| **Firebase Admin SDK** | Notifications push FCM |
-| **GeniusPay API** | Paiement Mobile Money (Wave, Orange Money, MTN MoMo) |
-| **LiveKit Cloud** | Appels voix/vidéo |
-| **HTMX + Alpine.js** | Interface d'administration dynamique |
-| **Sentry** | Monitoring des erreurs |
-| **ReportLab** | Génération de reçus PDF |
+## 🛠️ Stack technique
 
-### 📱 Applications Mobile — `babifix_client_flutter` & `babifix_prestataire_flutter/`
+### Backend — Django
+| Composant | Version | Rôle |
+|-----------|---------|------|
+| Django | 5.2 | Framework principal |
+| Django REST Framework | 3.15 | API REST |
+| Django Channels | 4.1 | WebSockets (temps réel) |
+| PostgreSQL | 16 | Base de données |
+| Redis | 7 | Cache + Broker channels |
+| Celery | 5.4 | Tâches asynchrones |
+| Daphne | 4.1 | Serveur ASGI |
 
-| Technologie | Usage |
-|-------------|-------|
-| **Flutter ^3.8** (Dart ^3.8) | Framework cross-platform |
-| **GoRouter** | Navigation et routage |
-| **LiveKit Client ^2.7** | Appels audio/vidéo |
-| **Firebase Messaging** | Notifications push |
-| **flutter_dotenv** | Configuration par environnement |
-| **web_socket_channel** | Communication WebSocket |
-| **flutter_map + OpenStreetMap** | Cartographie et géolocalisation |
-| **Google Sign-In / Apple Sign-In** | Authentification sociale |
-| **Local Auth** | Authentification biométrique |
-| **PDF + Printing** | Génération et impression de reçus |
+### Frontend — Flutter
+| Composant | Version | Rôle |
+|-----------|---------|------|
+| Flutter SDK | 3.24 | Framework mobile |
+| Dart | 3.5 | Langage |
+| Provider | ^6.11 | State management |
+| GoRouter | ^14.0 | Navigation |
+| http | ^1.2 | Client API |
+| socket_io_client | ^2.0 | WebSockets |
+| firebase_messaging | ^15.2 | Push notifications |
+| flutter_secure_storage | ^9.2 | Stockage sécurisé tokens |
+
+### DevOps & Outils
+- **Git** - Versioning
+- **Makefile** - Orchestration des commandes
+- **Docker & docker-compose** - Conteneurisation (optionnel)
+- **Gunicorn + Daphne** - Serveurs de production
+- **Nginx** - Reverse proxy + static files
+- **Sentry** - Monitoring erreurs
 
 ---
 
-## 🚀 Fonctionnalités Principales
+## ✨ Fonctionnalités
 
-### 🔐 Authentification & Comptes
-- Inscription/connexion (email, Google, Apple)
-- Profil client / prestataire
-- KYC avec vérification automatique (CNI, selfie, vidéo)
-- Authentification biométrique
+### 👤 Client Flutter (`babifix_client_flutter`)
+- **Inscription / Connexion** (email, téléphone, Google, Apple)
+- **Recherche de prestataires** (filtres : catégorie, localisation, notes)
+- **Réservations** (création, suivi, annulation)
+- **Messagerie temps réel** (WebSocket)
+- **Paiement sécurisé** (CinetPay Mobile Money / Carte)
+- **Historique & factures** (PDF)
+- **Fidélité & parrainage** (codes promo, crédits wallet)
+- **Notifications Push** (Firebase)
 
-### 📋 Réservations & Devis
-1. **Client** : Crée une demande avec date, adresse, message et photos
-2. **Prestataire** : Reçoit la demande → Accepte ou refuse
-3. **Devis détaillé** : Le prestataire crée un devis structuré avec :
-   - **Main-d'œuvre** (catégorie, description, tarif horaire, quantité)
-   - **Fournitures** (nom, prix unitaire, quantité)
-   - **Autres frais** (déplacement, location, etc.)
-4. **Client** : Visualise le devis en format kanban → Accepte ou refuse avec message
+### 🔧 Prestataire Flutter (`babifix_prestataire_flutter`)
+- **Espace prestataire** (dashboard, statistiques)
+- **Gestion des disponibilités** (créneaux hebdomadaires, congés)
+- **Demandes de réservation** (accept/refuse, devis)
+- ** Intervention en temps réel** (démarrer/terminer, photos)
+- **KYC / Vérification identité** (upload documents, statut)
+- **Contrat numérique** (signature électronique)
+- **Wallet & retraits** (solde, historique, demandes)
+- **Parrainage** (code parrain, crédits)
+- **Premium** (abonnement Bronze/Silver/Gold)
 
-### 💬 Messagerie Temps Réel
-- Chat WebSocket avec indicateurs de saisie
-- Messages texte, images, et messages système (devis, paiement, etc.)
-- Notifications FCM hors-ligne
-- Accès conditionné après acceptation du devis
-
-### 📞 Appels Audio/Vidéo (LiveKit)
-- Appels directs depuis le chat
-- Signalisation WebSocket (sonnerie, acceptation, refus, fin d'appel)
-- Historique des appels
-
-### 💳 Paiements & Escrow
-- **Mobile Money** via GeniusPay (Wave, Orange Money, MTN MoMo)
-- **Espèces** avec flux de validation à 3 niveaux (client → prestataire → admin)
-- **Commission 18 %** automatique prélevée sur chaque transaction
-- **Système d'escrow** : les fonds sont bloqués jusqu'à la confirmation des travaux
-- Reçus PDF générés automatiquement
-
-### ⚙️ Exécution des Prestations
-- **Démarrer** → Prestataire lance l'intervention
-- **Terminer** → Prestataire marque comme terminée
-- **Confirmer** → Client valide les travaux effectués
-- **Noter** → Évaluation 1–5 étoiles avec commentaire
-
-### 🏦 Portefeuille Prestataire
-- Suivi des gains en temps réel
-- Voir les fonds en attente (escrow) et disponibles
-- Demandes de retrait
-
-### ⚖️ Litiges
-- Ouverture de litige avec preuves (photos)
-- Réponse du prestataire
-- Décision admin (remboursement, partage, libération)
-- Clôture automatique après 7 jours d'inactivité
-
-### 🛠️ Administration
-- Dashboard complet avec statistiques
-- Gestion des catégories, prestataires, réservations
-- Diffusion de notifications push à tous les utilisateurs
-- Export CSV, logs d'audit, actions groupées
+### ⚙️ Admin Django (`babifix_admin_django`)
+- **Backoffice complet** (validation prestataires, KYC, réservations)
+- **Gestion financière** (transactions, commissions, retraits)
+- **Statistiques & Analytics** (revenus, croissance)
+- **Push notifications broadcast**
+- **Export CSV** (réservations, paiements, utilisateurs)
+- **Modération** (litiges, signalements)
+- **Audit log** (trace des actions admin)
 
 ---
 
-## 🛠️ Installation & Développement
+## 📦 Installation & Démarrage
 
 ### Prérequis
-- Python 3.12+
-- Flutter SDK ^3.8
-- MySQL / PostgreSQL (optionnel — SQLite par défaut en dev)
-- Redis (optionnel — channel layer en mémoire par défaut)
+- **Python 3.12+** (avec pip, venv)
+- **Node.js 20+** + **Flutter 3.24+**
+- **PostgreSQL 16** + **Redis 7**
+- **Git**
 
-### 🖥️ Backend Django
-
+### 1. Cloner le dépôt
 ```bash
-# 1. Cloner le projet
-git clone https://github.com/yvan2007/new-babifixbuild.git
-cd BABIFIX_BUILD/babifix_admin_django
+git clone https://github.com/votre-org/babifix-build.git
+cd BABIFIX_BUILD
+```
 
-# 2. Environnement virtuel
-python -m venv venv
-# Windows : venv\Scripts\activate
-# Linux/Mac : source venv/bin/activate
+### 2. Backend — Django
+```bash
+# Créer et activer l'environnement virtuel
+cd babifix_admin_django
+python -m venv ../venv
+.\..\venv\Scripts\Activate.ps1  # PowerShell (Windows)
+# ou source venv/bin/activate (Mac/Linux)
 
-# 3. Dépendances
+# Installer les dépendances
 pip install -r requirements.txt
 
-# 4. Configuration
-cp .env.example .env   # Adapter les variables
-
-# 5. Base de données
+# Configurer la base de données
 python manage.py migrate
+python manage.py collectstatic --noinput
 
-# 6. Données de démonstration (optionnel)
-python manage.py seed_catalogue
-python manage.py seed_demo_data
+# Créer un superutilisateur admin
+python manage.py createsuperuser
 
-# 7. Lancer le serveur
+# Lancer le serveur de développement
 python manage.py runserver 0.0.0.0:8002
 ```
+→ API accessible sur **http://localhost:8002**
 
-Les WebSocket nécessitent Daphne :
-```bash
-daphne -b 0.0.0.0 -p 8002 config.asgi:application
-```
-
-### 📱 Application Flutter Client
-
+### 3. Client Flutter
 ```bash
 cd babifix_client_flutter
 flutter pub get
-# Configurer .env (voir section Variables d'Environnement)
-flutter run
+flutter run --release  # ou flutter run -d android
 ```
+→ APK généré dans `build/app/outputs/flutter-apk/`
 
-### 📱 Application Flutter Prestataire
-
+### 4. Prestataire Flutter
 ```bash
 cd babifix_prestataire_flutter
 flutter pub get
-# Configurer .env
-flutter run
+flutter run --release
 ```
 
-### 🌐 Site Vitrine
+### 5. (Optionnel) Docker Compose
+```bash
+docker-compose up -d
+```
+→ Stack complète : PostgreSQL + Redis + Django + Nginx
+
+---
+
+## ⚙️ Configuration
+
+### Variables d'environnement (.env)
+Créer un fichier `.env` à la racine de `babifix_admin_django/` :
 
 ```bash
-cd babifix_vitrine_django
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python manage.py runserver 0.0.0.0:8001
+# Django
+SECRET_KEY=your-secret-key-here
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Database
+DB_NAME=babifix
+DB_USER=babifix_user
+DB_PASSWORD=your_password
+DB_HOST=localhost
+DB_PORT=5432
+
+# Redis & Channels
+REDIS_URL=redis://localhost:6379/0
+
+# Firebase (Flutter)
+FIREBASE_PROJECT_ID=babifix
+FIREBASE_ANDROID_API_KEY=...
+FIREBASE_IOS_API_KEY=...
+
+# CinetPay (paiements)
+CINETPAY_SITE_ID=...
+CINETPAY_SECRET_KEY=...
+
+# AWS S3 (uploads KYC photos)
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_STORAGE_BUCKET_NAME=babifix-kyc
+AWS_S3_REGION=af-south-1
+```
+
+### Firebase Configuration
+Les fichiers `firebase_options.dart` sont générés via :
+```bash
+flutterfire configure
+```
+Ils se trouvent dans :
+- `babifix_client_flutter/lib/firebase_options.dart`
+- `babifix_prestataire_flutter/lib/firebase_options.dart`
+
+---
+
+## 🌐 API Endpoints
+
+### Public
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/public/providers/` | GET | Liste des prestataires |
+| `/api/public/categories/` | GET | Catégories de services |
+| `/api/public/vitrine/` | GET | Page d'accueil publique |
+
+### Authentification
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/auth/register` | POST | Inscription (client/prestataire) |
+| `/api/auth/login` | POST | Connexion |
+| `/api/auth/me` | GET | Profil utilisateur connecté |
+| `/api/auth/refresh` | POST | Rafraîchir token JWT |
+| `/api/auth/forgot-password` | POST | Reset mot de passe |
+
+### Client
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/client/home` | GET | Dashboard client |
+| `/api/client/reservations` | POST | Créer une réservation |
+| `/api/client/reservations/list` | GET | Liste réservations client |
+| `/api/client/favorites/` | GET/POST | Favoris prestataires |
+| `/api/client/fidelite/` | GET | Crédits fidélité |
+
+### Prestataire
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/prestataire/me` | GET | Profil prestataire |
+| `/api/prestataire/availability/slots/` | GET/POST/DELETE | Gestion créneaux |
+| `/api/prestataire/availability/unavailability/` | GET/POST/DELETE | Gestion congés |
+| `/api/prestataire/requests` | GET | Demandes entrantes |
+| `/api/prestataire/requests/<ref>/decision` | POST | Accepter/refuser |
+| `/api/prestataire/requests/<ref>/devis` | POST | Créer un devis |
+| `/api/prestataire/earnings` | GET | Revenus (wallet) |
+| `/api/prestataire/wallet/` | GET | Solde wallet |
+| `/api/prestataire/wallet/withdraw/` | POST | Demande de retrait |
+| `/api/prestataire/kyc/status/` | GET | Statut KYC |
+| `/api/prestataire/kyc/submit/` | POST | Soumettre KYC |
+| `/api/prestataire/contrat/` | GET | Détail contrat |
+| `/api/prestataire/contrat/sign/` POST | Signer contrat |
+| `/api/auth/referral/` | GET/POST | Parrainage (code, stats) |
+| `/api/prestataire/premium/tiers/` | GET | Tiers premium |
+| `/api/prestataire/premium/subscribe/` | POST | Abonnement premium |
+
+### Admin
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/admin/platform-revenue/` | GET | Revenus plateforme |
+| `/api/admin/reservations/<ref>/cash-validate` | POST | Valider paiement cash |
+| `/api/admin/prestataires/bulk-action/` | POST | Actions bulk prestataires |
+| `/api/admin/export/<kind>/` | GET | Export CSV |
+
+---
+
+## 🔄 Flux métier
+
+### 1. Flow Demande → Devis → Paiement → Intervention
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant B as Backend
+    participant P as Prestataire
+
+    C->>B: POST /api/client/reservations (demande)
+    B->>C: 201 Created (DEMANDE_ENVOYEE)
+
+    Note over P: Notification push
+    P->>B: POST /api/prestataire/requests/<ref>/decision (accept)
+    B->>P: 200 OK (DEVIS_EN_COURS)
+
+    P->>B: POST /api/prestataire/requests/<ref>/devis (créer devis)
+    B->>C: Notification push
+    C->>B: POST /api/client/reservations/<ref>/devis/accept
+    B->>C: 200 OK (DEVIS_ACCEPTE)
+
+    C->>B: POST /api/client/reservations/<ref>/confirm-prestation (confirme + paie)
+    B->>P: 200 OK (CONFIRMÉE)
+    P->>B: POST /api/prestataire/requests/<ref>/demarrer (démarre intervention)
+    B->>P: 200 OK (INTERVENTION_EN_COURS)
+    P->>B: POST /api/prestataire/requests/<ref>/terminer (termine)
+    B->>C: 200 OK (EN_ATTENTE_CLIENT)
+    C->>B: POST /api/client/reservations/<ref>/pay-post-prestation (valide & paie)
+    B->>B: Webhook CinetPay → Marquer COMPLETE
+```
+
+### 2. Flow Parrainage
+1. Parrain génère son code via `GET /api/auth/referral/`
+2. Filleul s'inscrit avec code → crédit 2000 FCFA parrain + 1000 FCFA filleul (1ère résa)
+3. Transactions créées dans `WalletTransaction`
+
+### 3. Flow KYC
+1. Prestataire remplit formulaire KYC dans l'app → `POST /api/prestataire/kyc/submit/`
+2. Documents sauvegardés (base64 → S3)
+3. Statut = `pending`
+4. Admin examine via backoffice → statut = `approved` / `rejected`
+5. Prestataire notifié par push
+
+---
+
+## 🎨 Palette de couleurs
+
+| Rôle | Couleur | Usage |
+|------|---------|-------|
+| Primary Navy | `#0F172A` | Fond sombre, headers |
+| Accent Emerald | `#10B981` | Validation, succès |
+| Cyan | `#06B6D4` (#4CC9F0) | Boutons principaux |
+| Orange | `#F59E0B` | Avertissements |
+| Red | `#EF4444` | Erreurs, suppression |
+
+---
+
+## 📁 Structure du projet
+
+```
+BABIFIX_BUILD/
+├── babifix_admin_django/         # Backend Django (API + Admin)
+│   ├── adminpanel/
+│   │   ├── models.py             # Tous les modèles (UserProfile, Provider, Reservation…)
+│   │   ├── views.py              # Vues API principales
+│   │   ├── views_extra.py        # Vues supplémentaires (dispo, KYC, contrat…)
+│   │   ├── services/             # Services métier
+│   │   │   ├── reservation_service.py
+│   │   │   ├── referral_service.py
+│   │   │   └── …
+│   │   ├── serializers.py
+│   │   ├── urls.py               # Routes API
+│   │   └── …
+│   ├── manage.py
+│   └── requirements.txt
+│
+├── babifix_client_flutter/       # App Client Mobile (Android/iOS)
+│   ├── lib/
+│   │   ├── main.dart
+│   │   ├── features/
+│   │   │   ├── auth/
+│   │   │   ├── home/
+│   │   │   ├── reservations/
+│   │   │   ├── parrainage/
+│   │   │   └── …
+│   │   ├── shared/
+│   │   │   ├── services/
+│   │   │   │   ├── babifix_user_store.dart  # Session + API calls
+│   │   │   │   └── …
+│   │   │   └── widgets/
+│   │   ├── core/
+│   │   │   ├── babifix_api_config.dart
+│   │   │   └── babifix_design_system.dart
+│   │   └── firebase_options.dart
+│   ├── pubspec.yaml
+│   └── android/ ios/ web/
+│
+├── babifix_prestataire_flutter/  # App Prestataire Mobile
+│   ├── lib/
+│   │   ├── features/
+│   │   │   ├── availability/      # Gestion créneaux + congés
+│   │   │   ├── kyc/               # Vérification identité
+│   │   │   ├── contrat/           # Contrat numérique
+│   │   │   ├── premium/           # Abonnement premium
+│   │   │   ├── parrainage/        # Programme de parrainage
+│   │   │   ├── earnings/          # Wallet & revenus
+│   │   │   └── …
+│   │   └── shared/…
+│   ├── pubspec.yaml
+│   └── …
+│
+├── venv/                         # Environnement virtuel Python
+├── docker-compose.yml            # Stack complète (Postgres, Redis, Nginx…)
+├── Makefile                      # Commandes courtes
+├── start_babifix.bat             # Windows : lance tout
+├── START_BABIFIX.ps1             # PowerShell : lance tout
+└── README.md                     # Ce fichier
 ```
 
 ---
 
-## 🔑 Variables d'Environnement
+## 🚀 Commandes utiles
 
-### Backend — `babifix_admin_django/.env`
-
-| Variable | Description | Requise |
-|----------|-------------|---------|
-| `DJANGO_SECRET_KEY` | Clé secrète Django | Oui |
-| `DJANGO_DEBUG` | Mode debug (True/False) | Oui |
-| `DATABASE_URL` | URL complète de la base de données | Prod |
-| `POSTGRES_DB` / `USER` / `PASSWORD` / `HOST` / `PORT` | Config PostgreSQL | Alternative |
-| `MYSQL_DATABASE` / `USER` / `PASSWORD` / `HOST` / `PORT` | Config MySQL | Alternative |
-| `REDIS_URL` | URL Redis (Channels + Celery) | Prod |
-| `GENIUSPAY_PUBLIC_KEY` | Clé publique GeniusPay | Oui |
-| `GENIUSPAY_SECRET_KEY` | Clé secrète GeniusPay | Oui |
-| `LIVEKIT_URL` | URL du serveur LiveKit | Oui |
-| `LIVEKIT_API_KEY` | Clé API LiveKit | Oui |
-| `LIVEKIT_API_SECRET` | Clé secrète LiveKit | Oui |
-| `FIREBASE_PROJECT_ID` | Projet Firebase (FCM) | Oui |
-| `FIREBASE_CREDENTIALS_JSON_PATH` | Chemin fichier credentials Firebase | Oui |
-| `EMAIL_HOST_USER` | Adresse email SMTP | Oui |
-| `EMAIL_HOST_PASSWORD` | Mot de passe SMTP | Oui |
-| `SENTRY_DSN` | DSN Sentry (monitoring) | Optionnel |
-| `DJANGO_SUPERUSER_EMAIL` | Email superadmin | Optionnel |
-| `DJANGO_SUPERUSER_PASSWORD` | Mot de passe superadmin | Optionnel |
-
-### Flutter — `babifix_client_flutter/.env` & `babifix_prestataire_flutter/.env`
-
-| Variable | Description | Exemple (dev) |
-|----------|-------------|---------------|
-| `BABIFIX_API_BASE` | URL de l'API | `http://10.0.2.2:8002` |
-| `BABIFIX_WS_BASE` | URL WebSocket | `ws://10.0.2.2:8002` |
-| `LIVEKIT_URL` | URL LiveKit | `wss://babifix-h1giwqew.livekit.cloud` |
-| `LIVEKIT_API_KEY` | Clé API LiveKit | `APIHmepmCSoou3K` |
-| `LIVEKIT_API_SECRET` | Clé secrète LiveKit | `Cets7RORRaNS61Ie4dyCY0rE33lyzxTBrG7NYQifs6IA` |
-| `BABIFIX_ENV` | Environnement | `development` |
-
----
-
-## 🚢 Déploiement (Render)
-
-Le projet est configuré pour Render via `babifix_admin_django/render.yaml` :
-
-```yaml
-services:
-  - type: web
-    name: babifix-api
-    buildCommand: |
-      pip install -r requirements.txt
-      python manage.py collectstatic --no-input
-      python manage.py migrate
-    startCommand: daphne -b 0.0.0.0 -p $PORT config.asgi:application
+### Via Makefile (recommandé)
+```bash
+make help          # Affiche toutes les commandes
+make backend       # Lance le backend Django
+make client        # Lance l'app client Flutter
+make prestataire   # Lance l'app prestataire
+make dev           # Lance tout en mode développement
+make prod          # Build production (APK + serveur)
+make test          # Exécute les tests
+make lint          # Linting Python + Dart
+make format        # Formatage auto (black + dart format)
+make clean         # Nettoie tous les caches
 ```
 
-**Services associés :**
-- PostgreSQL (gratuit)
-- Redis (gratuit)
+### Manuelles
+```bash
+# Backend
+cd babifix_admin_django
+python manage.py runserver 0.0.0.0:8002
 
-**Endpoints de monitoring :**
-- `GET /api/health/` — Santé du serveur
-- `GET /api/admin/health/config` — Configuration actuelle
+# Migrations
+python manage.py makemigrations
+python manage.py migrate
+
+# Shell Django
+python manage.py shell
+
+# Tests Python
+pytest adminpanel/tests/
+
+# Flutter
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --release
+flutter build ios --release
+
+# Nettoyage Flutter
+flutter clean
+```
 
 ---
 
 ## 🧪 Tests
 
+### Backend Django
 ```bash
-# Tests Django (backend)
 cd babifix_admin_django
-python manage.py test adminpanel.tests.test_phase_f_to_b12 -v 2
+pytest adminpanel/tests/
+# ou
+python manage.py test adminpanel
+```
 
-# Analyse Flutter
-cd babifix_client_flutter
-flutter analyze
+### Flutter
+```bash
+# Unit tests
+flutter test
 
-cd babifix_prestataire_flutter
-flutter analyze
+# Integration tests (sur émulateur)
+flutter test integration_test/
+
+# Code coverage
+flutter test --coverage
+genhtml coverage/lcov.info -o coverage/html
 ```
 
 ---
 
-## 📚 Ressources
+## 📊 Monitoring & Logs
 
-- [Diagrammes UML](UML_DIAGRAMMES/README.md) — Architecture complète (19 diagrammes)
-- [Guide de Migration](babifix_admin_django/MIGRATION_GUIDE.md) — Migrations Phase A → G
-- [Plan de Refactoring Flutter](babifix_client_flutter/REFACTORING%20PLAN.md)
-- **Swagger / OpenAPI** : `http://localhost:8002/api/docs/`
+- **Sentry** : erreurs applicatives (frontend + backend)
+- **Django logs** : `babifix_admin_django/logs/`
+- **Nginx logs** : `/var/log/nginx/` (si Docker)
+- **Flutter DevTools** : Profiling performance (Android Studio / VS Code)
+
+---
+
+## 🔐 Sécurité
+
+- **HTTPS** obligatoire en production (Let's Encrypt)
+- **JWT** avec expiration courte (15 min) + refresh token
+- **Flutter Secure Storage** pour stockage local tokens
+- **CORS** whitelistée (`django-cors-headers`)
+- **Rate limiting** sur endpoints sensibles (login, register)
+- **Validation côté serveur** systématique (pas de confiance client)
+- **Images KYC** stockées S3 avec politique bucket privé
+- **Audit log** : toutes les actions admin tracées
+
+---
+
+## 📱 Build & Publication
+
+### Android (Client & Prestataire)
+```bash
+# Générer la keystore (une fois)
+keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000
+
+# Build release signé
+flutter build apk --release --build-number=1.0.0
+flutter build appbundle --release
+```
+→ APK/AAB dans `build/app/outputs/`
+
+### iOS
+```bash
+flutter build ios --release
+# Puis archive via Xcode pour App Store Connect
+```
+
+### Backend (Production)
+```bash
+# Avec Gunicorn + Daphne
+gunicorn --bind 0.0.0.0:8000 babifix_admin_django.wsgi:application
+daphne -b 0.0.0.0 -p 8001 babifix_admin_django.asgi:application
+
+# Avec Docker
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+---
+
+## 🐛 Résolution de problèmes
+
+| Problème | Solution |
+|----------|----------|
+| `ModuleNotFoundError` (Python) | Vérifier venv activé + `pip install -r requirements.txt` |
+| `adb device unauthorized` | `adb kill-server && adb start-server` |
+| `Gradle build failed` | `flutter clean && flutter pub get` |
+| `JWT Token expired` | Clear storage Flutter (settings → apps → BABIFIX → Clear data) |
+| `Redis connection error` | `redis-server` démarré ? |
+| `CORS error` | Vérifier `CORS_ALLOWED_ORIGINS` dans `settings.py` |
+| `WebSocket connection refused` | Channels worker démarré (`celery -A babifix_admin_django worker`) |
+
+---
+
+## 📚 Documentation
+
+- **Architecture détaillée** : [`MEMOIRE_REDIGE_COMPLET_BABIFIX.md`](./MEMOIRE_REDIGE_COMPLET_BABIFIX.md)
+- **Plan d'action** : [`TOUT_FAIT.md`](./TOUT_FAIT.md)
+- **UML** : [`UML_DIAGRAMMES/`](./UML_DIAGRAMMES/)
+- **API Swagger** : http://localhost:8002/api/docs/ (une fois le backend lancé)
+- **API ReDoc** : http://localhost:8002/api/redoc/
+
+---
+
+## 👥 Contributeurs
+
+- **[Votre Nom]** - Lead Developer Fullstack
+- **Equipe BABIFIX** - Product Owner, Design, Tests
 
 ---
 
 ## 📄 Licence
 
-Projet privé — Tous droits réservés © BABIFIX CI
+MIT © 2026 BABIFIX. Tous droits réservés.
+
+---
+
+## 📞 Support
+
+Pour toute question ou bug :
+- **Email** : dev@babifix.ci
+- **Téléphone** : +225 07 000 00 00
+- **WhatsApp** : +225 07 000 00 00
+- **Discord** : [Invitation](https://discord.gg/babifix-dev)
+
+---
+
+> **"BABIFIX — Votre service, notre priorité."** 🇨🇮

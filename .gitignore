@@ -56,21 +56,62 @@ node_modules/
 *.doc
 *.pdf
 
-# Firebase
-babifix-firebase-adminsdk.json
-*firebase-adminsdk*.json
-
-# Temp / Claude
-.claude/
-_showReservationDetails_temp.txt
-
-# GitHub
-.github/
-
-# Environment files
+# ============================================================================
+# SECRETS — NE JAMAIS COMMITTER
+# ============================================================================
+# Variables d'environnement
 .env
 .env.*
 !.env.example
+*.env.local
 
-# Media uploads
-babifix_admin_django/media/babifix_uploads/
+# Clés JWT / TLS
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*_private_key*
+
+# Firebase / Google services (contiennent des IDs de projet sensibles)
+firebase-admin-*.json
+service-account*.json
+serviceAccount*.json
+google-services.json
+GoogleService-Info.plist
+
+# Certificats Apple / signatures
+*.mobileprovision
+*.p8
+
+# Mots de passe / tokens dump
+*.token
+secrets.yaml
+secrets.yml
+secrets.json
+credentials*.json
+
+# Archives potentiellement sensibles
+*.bak
+*.backup
+*.dump
+*.sql.gz
+dump_*.sql
+# ─── Outils & scripts personnels (locaux uniquement) ───
+_test_*.py
+_gen_*.py
+_diagrammes/
+_screenshots/
+_tools/
+_babifix_github_restore/
+BABIFIX_Enquete_Terrain.xlsx
+BABIFIX_GoogleForm.gs
+
+# ─── Clés service account / certificats privés ───
+babifix-firebase-adminsdk.json
+firebase-admin-key.json
+*firebase-adminsdk*.json
+serviceAccountKey.json
+*.pem
+keys/*.pem
+

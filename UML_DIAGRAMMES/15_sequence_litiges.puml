@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX - Séquence Gestion des Litiges
 !theme plain
 
 skinparam backgroundColor #E3F2FD

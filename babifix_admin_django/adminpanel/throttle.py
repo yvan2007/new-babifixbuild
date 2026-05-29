@@ -1,6 +1,6 @@
 """
 Rate limiting simple basé sur le cache Django.
-Utilisé sur les endpoints sensibles (login, register, CinetPay initiate).
+Utilisé sur les endpoints sensibles (login, register, GeniusPay initiate).
 """
 import hashlib
 import json

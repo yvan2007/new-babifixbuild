@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BABIFIX — Tableau de bord KPI</title>
+  <style>
+    :root { --blue:#1565C0; --navy:#01579B; --bg:#F0F4FF; --card:#fff; --ok:#2E7D32; --warn:#EF6C00; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:#1a2740; }
+    header { background:var(--blue); color:#fff; padding:18px 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+    header h1 { font-size:20px; margin:0; font-weight:700; }
+    header .sub { opacity:.85; font-size:13px; }
+    .periods a { color:#fff; text-decoration:none; padding:6px 12px; border-radius:20px; border:1px solid rgba(255,255,255,.5); font-size:13px; margin-left:6px; }
+    .periods a.active { background:#fff; color:var(--blue); font-weight:700; }
+    .back { color:#fff; text-decoration:none; font-size:13px; opacity:.9; }
+    main { padding:28px; max-width:1100px; margin:0 auto; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:18px; }
+    .card { background:var(--card); border-radius:16px; padding:20px; box-shadow:0 4px 14px rgba(0,0,0,.06); }
+    .card .label { font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+    .card .value { font-size:28px; font-weight:800; color:var(--navy); margin-top:6px; }
+    .card .hint { font-size:12px; color:#94a3b8; margin-top:6px; }
+    .card.accent { border-left:4px solid var(--blue); }
+    .card.ok { border-left:4px solid var(--ok); }
+    .card.warn { border-left:4px solid var(--warn); }
+    .section-title { font-size:15px; font-weight:700; color:var(--navy); margin:26px 0 10px; }
+    .bar { height:10px; border-radius:6px; background:#e2e8f0; overflow:hidden; margin-top:10px; display:flex; }
+    .bar > span { display:block; height:100%; }
+    .legend { font-size:12px; color:#475569; margin-top:8px; }
+    .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>BABIFIX — Tableau de bord KPI</h1>
+      <div class="sub">Pilotage business · {{ days }} derniers jours</div>
+    </div>
+    <div>
+      <span class="periods">
+        <a href="?days=7" class="{% if days == 7 %}active{% endif %}">7 j</a>
+        <a href="?days=30" class="{% if days == 30 %}active{% endif %}">30 j</a>
+        <a href="?days=90" class="{% if days == 90 %}active{% endif %}">90 j</a>
+      </span>
+      <div style="margin-top:8px"><a class="back" href="/dashboard/">← Retour au tableau de bord</a></div>
+    </div>
+  </header>
+
+  <main>
+    <div class="section-title">Activité & revenus</div>
+    <div class="grid">
+      <div class="card accent">
+        <div class="label">GMV (volume transigé)</div>
+        <div class="value">{{ kpis.gmv_display }} F</div>
+        <div class="hint">Missions terminées sur la période</div>
+      </div>
+      <div class="card accent">
+        <div class="label">Take rate effectif</div>
+        <div class="value">{{ kpis.take_rate_pct }} %</div>
+        <div class="hint">Commission encaissée / GMV</div>
+      </div>
+      <div class="card">
+        <div class="label">Revenu commission</div>
+        <div class="value">{{ kpis.commission_display }} F</div>
+        <div class="hint">Commissions perçues</div>
+      </div>
+      <div class="card">
+        <div class="label">Missions / jour</div>
+        <div class="value">{{ kpis.missions_per_day }}</div>
+        <div class="hint">{{ kpis.missions }} missions au total</div>
+      </div>
+    </div>
+
+    <div class="section-title">Santé de la place de marché</div>
+    <div class="grid">
+      <div class="card {% if kpis.retention_m1_pct >= 50 %}ok{% else %}warn{% endif %}">
+        <div class="label">Rétention prestataire M+1</div>
+        <div class="value">{{ kpis.retention_m1_pct }} %</div>
+        <div class="hint">Base : {{ kpis.retention_base }} prestataires actifs</div>
+      </div>
+      <div class="card {% if kpis.avg_rating >= 4 %}ok{% else %}warn{% endif %}">
+        <div class="label">Note moyenne</div>
+        <div class="value">{{ kpis.avg_rating }} ★</div>
+        <div class="hint">{{ kpis.nb_ratings }} avis</div>
+      </div>
+      <div class="card {% if kpis.nps >= 0 %}ok{% else %}warn{% endif %}">
+        <div class="label">NPS</div>
+        <div class="value">{{ kpis.nps }}</div>
+        <div class="hint">Promoteurs − détracteurs</div>
+      </div>
+      <div class="card">
+        <div class="label">Abonnés premium</div>
+        <div class="value">{{ kpis.premium_silver }} / {{ kpis.premium_gold }}</div>
+        <div class="hint">Silver / Gold</div>
+      </div>
+    </div>
+
+    <div class="section-title">Sécurité des paiements (anti-fuite de commission)</div>
+    <div class="card" style="max-width:520px">
+      <div class="label">Escrow / Mobile Money vs espèces</div>
+      <div class="bar">
+        <span style="width:{{ kpis.escrow_pct }}%; background:var(--ok)"></span>
+        <span style="width:{{ kpis.cash_pct }}%; background:var(--warn)"></span>
+      </div>
+      <div class="legend">
+        <span class="dot" style="background:var(--ok)"></span>Escrow / Mobile Money : {{ kpis.escrow_pct }} % ({{ kpis.escrow_count }})
+        &nbsp;&nbsp;
+        <span class="dot" style="background:var(--warn)"></span>Espèces : {{ kpis.cash_pct }} % ({{ kpis.cash_count }})
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -81,6 +81,12 @@ def auto_confirm_interventions():
                 "sans retour du client."
             )
             resa.save(update_fields=["statut", "note_client"])
+            # Programme de fidélité : créditer les points au client
+            try:
+                from adminpanel.services.fidelite_service import FideliteService
+                FideliteService.award_for_reservation(resa)
+            except Exception as exc:
+                logger.warning("fidélité auto-confirm %s: %s", resa.reference, exc)
             _notify_auto_confirm(resa)
             count += 1
         except Exception as exc:

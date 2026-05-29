@@ -206,7 +206,7 @@ class PaymentCalculationTests(TestCase):
         
         total = 0.0
         for pay in payments:
-            raw = str(pay.montant or '0').replace('€', '').replace('FCFA', '').strip()
+            raw = pay.montant.replace('€', '').replace('FCFA', '').strip()
             try:
                 total += float(raw)
             except ValueError:

@@ -46,82 +46,11 @@ from .models import (
     Rating,
     Reservation,
     UserProfile,
-    WalletTransaction,
     recalc_provider_rating_stats,
 )
 from .push_dispatch import _schedule
 
 logger = logging.getLogger(__name__)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Version minimale des apps (force update) — public, sans auth.
-# Pilotable par variables d'environnement, sans redéploiement de code.
-# ─────────────────────────────────────────────────────────────────────────────
-@require_http_methods(["GET"])
-def api_app_version(request):
-    """Renvoie la version minimale requise + la dernière version par app/plateforme.
-
-    L'app compare sa version installée à `min_version` ; si elle est
-    inférieure, elle affiche un écran de mise à jour bloquant.
-    Paramètre `?app=client|prestataire` (défaut: client).
-    """
-    import os
-
-    app = (request.GET.get("app", "client") or "client").strip().lower()
-    prefix = "PRESTA" if app.startswith("presta") else "CLIENT"
-
-    def _env(name, default=""):
-        return os.getenv(f"APP_{prefix}_{name}", os.getenv(f"APP_{name}", default))
-
-    return JsonResponse(
-        {
-            "app": app,
-            "android": {
-                "min_version": _env("MIN_VERSION_ANDROID", "1.0.0"),
-                "latest_version": _env("LATEST_VERSION_ANDROID", "1.0.0"),
-                "store_url": _env(
-                    "STORE_URL_ANDROID",
-                    "https://play.google.com/store/apps/details?id=ci.babifix",
-                ),
-            },
-            "ios": {
-                "min_version": _env("MIN_VERSION_IOS", "1.0.0"),
-                "latest_version": _env("LATEST_VERSION_IOS", "1.0.0"),
-                "store_url": _env("STORE_URL_IOS", ""),
-            },
-            "message": _env(
-                "UPDATE_MESSAGE",
-                "Une nouvelle version de BABIFIX est disponible. Mettez à jour pour continuer.",
-            ),
-        }
-    )
-
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def api_app_log_error(request):
-    """Reçoit les crashs des apps mobiles et les journalise (logger.error).
-
-    Si Sentry est actif côté serveur, ces erreurs y remontent automatiquement
-    (intégration logging). Alternative légère à sentry_flutter (qui cassait le
-    build mobile). Public + rate-limité ; ne renvoie jamais d'erreur à l'app.
-    """
-    from .throttle import check_rate_limit
-
-    if check_rate_limit(request, "log_error", max_requests=20, window=60):
-        return JsonResponse({"ok": True})  # silencieux : on ignore le surplus
-    try:
-        p = json.loads(request.body or b"{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"ok": True})
-    msg = str(p.get("message", ""))[:500]
-    stack = str(p.get("stack", ""))[:4000]
-    app = str(p.get("app", ""))[:20]
-    version = str(p.get("version", ""))[:20]
-    platform = str(p.get("platform", ""))[:20]
-    logger.error("MOBILE[%s/%s v%s] %s\n%s", app, platform, version, msg, stack)
-    return JsonResponse({"ok": True})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -284,10 +213,6 @@ def api_client_open_dispute(request, reference):
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_auth_forgot_password(request):
-    # Anti-spam / anti-énumération : limiter les demandes de réinitialisation.
-    from .throttle import check_rate_limit, rate_limited_response
-    if check_rate_limit(request, "forgot_password", max_requests=4, window=300):
-        return rate_limited_response()
     try:
         payload = json.loads(request.body or b"{}")
     except json.JSONDecodeError:
@@ -473,91 +398,16 @@ def api_auth_delete_account(request):
             status=400,
         )
 
-    from decimal import Decimal as _D
+    user.is_active = False
+    user.save(update_fields=["is_active"])
 
-    from django.db.models import Q as _Q
+    profile = getattr(user, "profile", None)
+    if profile:
+        profile.active = False
+        profile.save(update_fields=["active"])
 
-    provider = Provider.objects.filter(user_id=uid).first()
-
-    # ── Garde-fous : on n'efface pas un compte avec de l'argent ou des
-    #    engagements en cours (sécurité financière + protection des tiers). ──
-    _ACTIVE = [
-        "En attente", "Confirmee", "En cours", "En attente client",
-        "DEMANDE_ENVOYEE", "DEVIS_EN_COURS", "DEVIS_ENVOYE",
-        "DEVIS_ACCEPTE", "INTERVENTION_EN_COURS", "Litige",
-    ]
-    if provider and (provider.solde_fcfa or _D("0")) > 0:
-        return JsonResponse(
-            {
-                "error": "solde_non_nul",
-                "message": "Retirez d'abord votre solde wallet avant de supprimer votre compte.",
-            },
-            status=400,
-        )
-    if provider and WalletTransaction.objects.filter(
-        provider=provider, tx_type="debit", status__in=["pending", "processing"]
-    ).exists():
-        return JsonResponse(
-            {
-                "error": "retrait_en_cours",
-                "message": "Un retrait est en cours. Attendez sa finalisation avant de supprimer le compte.",
-            },
-            status=400,
-        )
-    res_filter = _Q(client_user_id=uid) | _Q(prestataire_user_id=uid)
-    if provider:
-        res_filter |= _Q(assigned_provider=provider)
-    if Reservation.objects.filter(res_filter).filter(
-        _Q(statut__in=_ACTIVE) | _Q(dispute_ouverte=True)
-    ).exists():
-        return JsonResponse(
-            {
-                "error": "engagements_en_cours",
-                "message": "Terminez ou annulez vos prestations et litiges en cours avant de supprimer votre compte.",
-            },
-            status=400,
-        )
-    if Reservation.objects.filter(
-        client_user_id=uid, refund_owed_fcfa__gt=0, refund_paid_at__isnull=True
-    ).exists():
-        return JsonResponse(
-            {
-                "error": "remboursement_en_attente",
-                "message": "Un remboursement vous est dû. Il sera versé avant la suppression du compte.",
-            },
-            status=400,
-        )
-
-    # ── Anonymisation (loi ivoirienne n°2013-450 — droit à l'effacement).
-    #    Soft-delete : on conserve les écritures comptables liées mais on
-    #    retire les données personnelles. ──
-    with transaction.atomic():
-        stamp = uuid.uuid4().hex[:8]
-        user.is_active = False
-        user.username = f"deleted_{user.id}_{stamp}"
-        user.email = ""
-        user.first_name = ""
-        user.last_name = ""
-        user.set_unusable_password()
-        user.save()
-
-        profile = getattr(user, "profile", None)
-        if profile:
-            profile.active = False
-            if hasattr(profile, "is_deleted"):
-                profile.is_deleted = True
-            if hasattr(profile, "phone_e164"):
-                profile.phone_e164 = ""
-            profile.save()
-
-        if provider:
-            provider.is_deleted = True
-            provider.disponible = False
-            provider.statut = Provider.Status.SUSPENDED
-            provider.save(update_fields=["is_deleted", "disponible", "statut"])
-
-        DeviceToken.objects.filter(user=user).delete()
-        Notification.objects.filter(user=user).delete()
+    DeviceToken.objects.filter(user=user).delete()
+    Notification.objects.filter(user=user).delete()
 
     return JsonResponse({"ok": True, "message": "Compte supprimé avec succès."})
 

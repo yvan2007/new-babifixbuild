@@ -91,11 +91,15 @@ class MatchingService:
             results = []
             for p in qs[:limit * 2]:
                 score = cls._calculate_rating_score(p)
+                boost = cls._premium_boost(p)
+                reasons = ["Note elevee"] if score > 4.0 else []
+                if boost > 1.0:
+                    reasons.append("Premium")
                 results.append(ProviderScore(
                     provider=p,
-                    score=score,
+                    score=score * boost,
                     distance_km=None,
-                    reasons=["Note elevee"] if score > 4.0 else [],
+                    reasons=reasons,
                 ))
             results.sort(key=lambda x: x.score, reverse=True)
             return results[:limit]
@@ -126,7 +130,11 @@ class MatchingService:
                 score_avail * cls.WEIGHT_AVAILABILITY +
                 score_price * cls.WEIGHT_PRICE
             )
-            
+
+            # Boost premium (Silver x1.3, Gold x1.6)
+            boost = cls._premium_boost(p)
+            total *= boost
+
             # Reasons
             reasons = []
             if dist is not None and dist < 10:
@@ -137,6 +145,8 @@ class MatchingService:
                 reasons.append("Disponible")
             if criteria.price_max and p.tarif_horaire and p.tarif_horaire <= criteria.price_max:
                 reasons.append("Tarif correct")
+            if boost > 1.0:
+                reasons.append("Premium")
             
             scored.append(ProviderScore(
                 provider=p,
@@ -165,6 +175,15 @@ class MatchingService:
             return 0.4
         return max(0, 1 - (distance_km / radius_km))
     
+    @classmethod
+    def _premium_boost(cls, provider: Provider) -> float:
+        """Multiplicateur de visibilité premium (1.0 si standard)."""
+        try:
+            from .provider_subscription_service import ProviderSubscriptionService
+            return ProviderSubscriptionService.visibility_multiplier(provider)
+        except Exception:
+            return 1.0
+
     @classmethod
     def _calculate_rating_score(cls, provider: Provider) -> float:
         """Score based on rating: note 5 = 1.0, note 0 = 0.0."""

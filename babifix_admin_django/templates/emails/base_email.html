@@ -1,156 +1,125 @@
-{% load static %}<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" lang="fr">
+<!DOCTYPE html>
+<html lang="fr">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="x-apple-disable-message-reformatting" />
-  <meta name="color-scheme" content="light dark" />
-  <meta name="supported-color-schemes" content="light dark" />
-  <title>{% block subject %}BABIFIX{% endblock %}</title>
-  <!--[if mso]>
-  <noscript>
-    <xml>
-      <o:OfficeDocumentSettings>
-        <o:PixelsPerInch>96</o:PixelsPerInch>
-      </o:OfficeDocumentSettings>
-    </xml>
-  </noscript>
-  <![endif]-->
-  <style>
-    /* Reset */
-    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
-    body { margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: #F1F5F9; }
-    a { color: #4CC9F0; text-decoration: none; }
-
-    /* Hover */
-    .btn-cta:hover { background-color: #22A6D6 !important; }
-    .link-hover:hover { text-decoration: underline !important; }
-
-    /* Responsive */
-    @media screen and (max-width: 600px) {
-      .container { width: 100% !important; }
-      .px-mobile { padding-left: 22px !important; padding-right: 22px !important; }
-      .py-mobile { padding-top: 28px !important; padding-bottom: 28px !important; }
-      .h1-mobile { font-size: 22px !important; line-height: 1.3 !important; }
-      .btn-mobile { display: block !important; width: 100% !important; box-sizing: border-box !important; }
-      .stack { display: block !important; width: 100% !important; }
-    }
-
-    /* Dark mode */
-    @media (prefers-color-scheme: dark) {
-      body, .body-bg { background-color: #050D1A !important; }
-      .card-bg { background-color: #0F1F38 !important; }
-      .text-primary { color: #FFFFFF !important; }
-      .text-secondary { color: #B4C2D9 !important; }
-      .text-muted { color: #94A3B8 !important; }
-      .divider { border-color: #1F3357 !important; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BABIFIX</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; }
+        .email-container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        
+        /* HEADER AVEC LOGO */
+        .email-header {
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
+            padding: 35px 30px;
+            text-align: center;
+        }
+        .logo-img {
+            height: 60px;
+            margin-bottom: 10px;
+        }
+        .logo-text {
+            font-size: 32px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .logo-subtitle {
+            color: rgba(255,255,255,0.9);
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .email-body { padding: 40px 30px; }
+        .email-body h1 { color: #1a1a2e; font-size: 24px; margin: 0 0 20px; }
+        .email-body p { color: #495057; font-size: 16px; line-height: 1.7; margin: 0 0 15px; }
+        
+        .highlight { color: #FF6B00; }
+        .bold { font-weight: 700; color: #1a1a2e; }
+        
+        .info-box {
+            background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+        .info-box p { margin: 8px 0; }
+        .info-label { color: #6c757d; font-size: 14px; }
+        .info-value { font-weight: 600; color: #1a1a2e; }
+        .info-value.highlight { color: #FF6B00; font-size: 20px; }
+        
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8C00 100%);
+            color: #fff;
+            padding: 16px 35px;
+            text-decoration: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(255,107,0,0.3);
+        }
+        
+        .features-list {
+            margin: 20px 0;
+            padding: 0;
+            list-style: none;
+        }
+        .features-list li {
+            padding: 10px 0;
+            display: flex;
+            align-items: center;
+            color: #495057;
+        }
+        .features-list li::before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .email-footer {
+            background: #1a1a2e;
+            padding: 30px;
+            text-align: center;
+        }
+        .email-footer .logo { font-size: 20px; font-weight: bold; color: #FF6B00; }
+        .email-footer p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 14px; }
+        .email-footer .copyright { color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 15px; }
+        
+        @media (max-width: 480px) {
+            .email-container { margin: 10px; }
+            .email-header, .email-body, .email-footer { padding: 25px 20px; }
+            .btn { display: block; padding: 14px 20px; }
+        }
+    </style>
 </head>
-<body class="body-bg" style="margin:0; padding:0; background-color:#F1F5F9; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-
-  <!-- Preheader (aperçu invisible dans la boîte de réception) -->
-  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">
-    {% block preheader %}BABIFIX — Services à domicile premium en Côte d'Ivoire.{% endblock %}
-  </div>
-
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" bgcolor="#F1F5F9" class="body-bg">
-    <tr>
-      <td align="center" style="padding: 28px 12px;">
-
-        <!-- Carte principale 600px -->
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="container card-bg" bgcolor="#FFFFFF"
-               style="width:600px; max-width:600px; background-color:#FFFFFF; border-radius:18px; overflow:hidden; box-shadow:0 8px 28px rgba(11,27,52,0.08);">
-
-          <!-- HEADER : gradient navy → cyan -->
-          <tr>
-            <td bgcolor="#0B1B34" style="background-color:#0B1B34; background-image:linear-gradient(135deg,#0B1B34 0%,#14375E 55%,#1B4B7C 100%); padding:32px 30px; text-align:center;">
-              <!--[if mso]>
-              <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px; height:140px;">
-                <v:fill type="gradient" color="#0B1B34" color2="#1B4B7C" angle="135"/>
-                <v:textbox inset="0,0,0,0">
-              <![endif]-->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
-                <tr>
-                  <td align="center" style="padding:0;">
-                    <!-- Logo : pastille cyan + texte BABIFIX -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-                      <tr>
-                        <td valign="middle" style="padding-right:10px;">
-                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#4CC9F0" style="background-color:#4CC9F0; border-radius:12px; width:44px; height:44px;">
-                            <tr>
-                              <td align="center" valign="middle" width="44" height="44" style="color:#0B1B34; font-size:22px; font-weight:900; font-family:Arial,sans-serif; line-height:44px;">B</td>
-                            </tr>
-                          </table>
-                        </td>
-                        <td valign="middle" style="color:#FFFFFF; font-size:26px; font-weight:900; letter-spacing:2px; font-family:Arial,sans-serif;">BABIFIX</td>
-                      </tr>
-                    </table>
-                    <div style="color:#B4D9EE; font-size:12px; margin-top:8px; letter-spacing:0.6px; font-family:Arial,sans-serif;">Services à domicile · Côte d'Ivoire</div>
-                  </td>
-                </tr>
-              </table>
-              <!--[if mso]>
-                </v:textbox>
-              </v:rect>
-              <![endif]-->
-            </td>
-          </tr>
-
-          <!-- BODY -->
-          <tr>
-            <td class="px-mobile py-mobile" style="padding:36px 36px 28px 36px;">
-              {% block content %}{% endblock %}
-            </td>
-          </tr>
-
-          <!-- DIVIDER -->
-          <tr>
-            <td style="padding:0 36px;">
-              <div class="divider" style="border-top:1px solid #E2E8F0; height:1px; line-height:1px; font-size:1px;">&nbsp;</div>
-            </td>
-          </tr>
-
-          <!-- FOOTER -->
-          <tr>
-            <td bgcolor="#0B1B34" style="background-color:#0B1B34; padding:28px 36px; text-align:center; font-family:Arial,sans-serif;">
-              <div style="color:#4CC9F0; font-size:18px; font-weight:900; letter-spacing:2px; margin-bottom:6px;">BABIFIX</div>
-              <div style="color:#B4D9EE; font-size:12px; margin-bottom:14px;">Confiance · Sécurité · Qualité</div>
-              <div style="color:#94A3B8; font-size:11.5px; line-height:1.6;">
-                Abidjan, Côte d'Ivoire<br/>
-                <a href="mailto:contact@babifix.ci" class="link-hover" style="color:#4CC9F0; text-decoration:none;">contact@babifix.ci</a>
-              </div>
-              <div style="margin:16px 0 6px 0;">
-                <a href="https://babifix.ci" class="link-hover" style="color:#4CC9F0; text-decoration:none; font-size:12px; margin:0 8px;">Site web</a>
-                <span style="color:#3B5174;">·</span>
-                <a href="https://babifix.ci/aide" class="link-hover" style="color:#4CC9F0; text-decoration:none; font-size:12px; margin:0 8px;">Aide</a>
-                <span style="color:#3B5174;">·</span>
-                <a href="https://babifix.ci/cgu" class="link-hover" style="color:#4CC9F0; text-decoration:none; font-size:12px; margin:0 8px;">CGU</a>
-              </div>
-              <div style="color:#5A7090; font-size:10.5px; margin-top:14px;">© {% now "Y" %} BABIFIX. Tous droits réservés.</div>
-            </td>
-          </tr>
-
-        </table>
-
-        <!-- Mention sous la carte -->
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="container" style="width:600px; max-width:600px;">
-          <tr>
-            <td align="center" style="padding:16px 12px 0; font-family:Arial,sans-serif;">
-              <div class="text-muted" style="color:#94A3B8; font-size:11px; line-height:1.5;">
-                Vous recevez cet email parce que vous utilisez BABIFIX.<br/>
-                Pour vous désabonner ou modifier vos préférences,
-                <a href="https://babifix.ci/preferences" class="link-hover" style="color:#94A3B8; text-decoration:underline;">cliquez ici</a>.
-              </div>
-            </td>
-          </tr>
-        </table>
-
-      </td>
-    </tr>
-  </table>
-
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <img src="https://babifix.ci/static/adminpanel/logo_babifix.png" alt="BABIFIX" class="logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <div class="logo-text" style="display:none;">BABIFIX</div>
+            <div class="logo-text">BABIFIX</div>
+            <div class="logo-subtitle">Services à domicile en Côte d'Ivoire</div>
+        </div>
+        
+        <div class="email-body">
+            {% block content %}{% endblock %}
+        </div>
+        
+        <div class="email-footer">
+            <div class="logo">BABIFIX</div>
+            <p>Connection. Service. Confiance.</p>
+            <p>Abidjan, Côte d'Ivoire | contact@babifix.ci</p>
+            <div style="margin: 15px 0;">
+                <a href="https://babifix.ci" style="color: #FF6B00; text-decoration: none; margin: 0 10px;">Site Web</a>
+                <a href="https://babifix.ci/aide" style="color: #FF6B00; text-decoration: none; margin: 0 10px;">Aide</a>
+            </div>
+            <p class="copyright">© 2026 BABIFIX. Tous droits réservés.</p>
+        </div>
+    </div>
 </body>
 </html>

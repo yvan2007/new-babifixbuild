@@ -54,11 +54,22 @@ class CategorySerializer(serializers.ModelSerializer):
         return value.strip()
 
 
+def _premium_badge(obj):
+    """Badge premium ('' si standard) — exposé côté client."""
+    try:
+        from ..services.provider_subscription_service import ProviderSubscriptionService
+        return ProviderSubscriptionService.badge(obj)
+    except Exception:
+        return ""
+
+
 class ProviderListSerializer(serializers.ModelSerializer):
     """Serializer pour liste des prestataires."""
-    
+
     categories_names = serializers.SerializerMethodField()
-    
+    premium_badge = serializers.SerializerMethodField()
+    premium_tier = serializers.SerializerMethodField()
+
     class Meta:
         model = Provider
         fields = [
@@ -71,11 +82,19 @@ class ProviderListSerializer(serializers.ModelSerializer):
             "disponible",
             "tarif_horaire",
             "commune",
+            "premium_badge",
+            "premium_tier",
         ]
         read_only_fields = fields
-    
+
     def get_categories_names(self, obj):
         return [c.name for c in obj.categories.all()[:3]]
+
+    def get_premium_badge(self, obj):
+        return _premium_badge(obj)
+
+    def get_premium_tier(self, obj):
+        return obj.premium_tier if obj.is_premium else "standard"
 
 
 class ProviderDetailSerializer(serializers.ModelSerializer):
@@ -84,7 +103,9 @@ class ProviderDetailSerializer(serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
     completed_missions = serializers.SerializerMethodField()
     rating_breakdown = serializers.SerializerMethodField()
-    
+    premium_badge = serializers.SerializerMethodField()
+    premium_tier = serializers.SerializerMethodField()
+
     class Meta:
         model = Provider
         fields = [
@@ -102,9 +123,17 @@ class ProviderDetailSerializer(serializers.ModelSerializer):
             "telephone",
             "completed_missions",
             "rating_breakdown",
+            "premium_badge",
+            "premium_tier",
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_premium_badge(self, obj):
+        return _premium_badge(obj)
+
+    def get_premium_tier(self, obj):
+        return obj.premium_tier if obj.is_premium else "standard"
     
     def get_completed_missions(self, obj):
         return Reservation.objects.filter(

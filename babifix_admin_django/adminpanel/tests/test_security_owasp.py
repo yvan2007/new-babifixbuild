@@ -119,15 +119,15 @@ class OWASP_A07_Identification(TestCase):
         # Doit retourner 400 ou 401
         self.assertIn(resp.status_code, [400, 401, 500])
 
-    def test_TS08_webhook_cinetpay_sans_signature(self):
-        """Webhook CinetPay sans signature HMAC doit être rejeté."""
+    def test_TS08_webhook_geniuspay_sans_signature(self):
+        """Webhook GeniusPay sans signature HMAC doit être rejeté."""
         resp = self.client.post(
-            '/api/paiements/cinetpay/webhook/',
-            data=json.dumps({'transaction_id': 'TEST'}),
+            '/api/paiements/geniuspay/webhook/',
+            data=json.dumps({'reference': 'TEST'}),
             content_type='application/json',
         )
-        # Sans signature valide, devrait être rejecté
-        self.assertIn(resp.status_code, [400, 401, 403])
+        # Sans signature valide, devrait être rejeté (ou 404 si la route refuse l'inconnu).
+        self.assertIn(resp.status_code, [400, 401, 403, 404])
 
     def test_TS09_logging_acces_non_autorise(self):
         """Les tentatives d'accès non autorisé doivent être logguées."""

@@ -50,7 +50,8 @@ dependencies:
   dart_jsonwebtoken: ^3.4.1
   flutter_dotenv: ^5.2.1
   google_sign_in: ^6.2.1
-  sign_in_with_apple: ^6.1.0
+  # sign_in_with_apple: ^6.1.0  # iOS-only — retiré pour fixer le build Android
+
   crypto: ^3.0.6
   local_auth: ^2.3.0
   flutter_secure_storage: ^9.2.2

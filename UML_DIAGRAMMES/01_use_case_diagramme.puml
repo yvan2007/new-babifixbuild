@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX - Diagramme de Cas d'Utilisation
 !theme plain
 skinparam backgroundColor #E3F2FD
 skinparam actorStyle awesome

@@ -709,17 +709,25 @@ def api_client_payments(request):
     if not client_user:
         return JsonResponse({"error": "auth_required"}, status=401)
 
-    payments = Payment.objects.filter(client_user=client_user).order_by("-created_at")
+    # Le modèle Payment n'a pas de FK user ni d'horodatage : on relie via la
+    # réservation (Reservation.client_user) et on lit les champs réels.
+    payments = (
+        Payment.objects.filter(reservation__client_user_id=client_user.id)
+        .select_related("reservation")
+        .order_by("-id")
+    )
 
     data = [
         {
             "id": p.id,
             "reference": p.reference,
-            "montant": p.montant,
+            "montant": float(p.montant) if p.montant is not None else 0,
             "etat": p.etat,
-            "operator": p.mobile_money_operator,
-            "reservation_reference": p.reservation.reference if p.reservation else None,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "type_paiement": p.type_paiement,
+            "operator": (
+                getattr(p.reservation, "mobile_money_operator", "") if p.reservation_id else ""
+            ),
+            "reservation_reference": p.reservation.reference if p.reservation_id else None,
         }
         for p in payments
     ]
@@ -732,201 +740,28 @@ def api_client_payments(request):
 @require_GET
 @require_api_auth(["prestataire", "admin"])
 def api_prestataire_disputes(request):
-    """Litiges pour le prestataire connecté.
-
-    Le modèle Dispute stocke `prestataire` en CharField (nom), donc on
-    passe par la FK `reservation.assigned_provider` qui est fiable.
-    """
+    """Litiges pour le prestataire connecté."""
     provider = Provider.objects.filter(user_id=request.api_user_id).first()
     if not provider:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
-    disputes = (
-        Dispute.objects
-        .filter(reservation__assigned_provider=provider)
-        .select_related("reservation")
-        .order_by("-created_at")
-    )
+    disputes = Dispute.objects.filter(
+        reservation__assigned_provider=provider
+    ).order_by("-created_at")
 
-    def _serialize(d):
-        res = d.reservation
-        return {
+    data = [
+        {
             "id": d.id,
             "reference": d.reference,
             "motif": d.motif,
-            "categorie": d.categorie,
-            "categorie_label": d.get_categorie_display(),
             "priorite": d.priorite,
             "decision": d.decision,
-            "decision_note": d.decision_note,
-            "is_open": d.decision == Dispute.Decision.OPEN,
-            "has_presta_response": bool(d.prestataire_response),
-            "prestataire_response": d.prestataire_response,
-            "photos_client_count": len(d.photos_client or []),
-            "photos_prestataire_count": len(d.photos_prestataire or []),
-            "client_name": d.client,
-            "reservation_reference": res.reference if res else None,
-            "reservation_title": (res.title if res else "") or "",
-            "montant_concerne": (
-                float(res.montant_verse or 0) if res else 0.0
-            ),
+            "reservation_reference": d.reservation.reference if d.reservation else None,
             "created_at": d.created_at.isoformat() if d.created_at else None,
-            "decided_at": d.decided_at.isoformat() if d.decided_at else None,
         }
-
-    return JsonResponse({
-        "disputes": [_serialize(d) for d in disputes],
-        "count_open": sum(1 for d in disputes if d.decision == Dispute.Decision.OPEN),
-    })
-
-
-# =============================================================================
-# LITIGE — RÉPONSE PRESTATAIRE — POST /api/prestataire/disputes/<ref>/respond/
-# Permet au prestataire d'apporter sa version + ses preuves photos.
-# =============================================================================
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["prestataire", "admin"])
-def api_prestataire_respond_dispute(request, dispute_ref):
-    import json as _json
-    provider = Provider.objects.filter(user_id=request.api_user_id).first()
-    if not provider:
-        return JsonResponse({"error": "provider_not_found"}, status=404)
-    d = (
-        Dispute.objects
-        .filter(reference=dispute_ref, reservation__assigned_provider=provider)
-        .first()
-    )
-    if not d:
-        return JsonResponse({"error": "not_found"}, status=404)
-    if d.decision != Dispute.Decision.OPEN:
-        return JsonResponse(
-            {"error": "already_resolved", "decision": d.decision}, status=409
-        )
-
-    try:
-        body = _json.loads(request.body.decode("utf-8") or "{}")
-    except _json.JSONDecodeError:
-        body = {}
-
-    response_text = str(body.get("response", "")).strip()[:2000]
-    photos_raw = body.get("photos", []) or []
-    if not isinstance(photos_raw, list):
-        photos_raw = []
-    photos = [
-        str(p)[:600000]
-        for p in photos_raw[:5]
-        if isinstance(p, str) and p.startswith("data:image/")
+        for d in disputes
     ]
-
-    if not response_text and not photos:
-        return JsonResponse({"error": "response_or_photos_required"}, status=400)
-
-    from django.utils import timezone as _tz
-    d.prestataire_response = response_text
-    d.prestataire_response_at = _tz.now()
-    if photos:
-        d.photos_prestataire = photos
-    d.save(update_fields=[
-        "prestataire_response",
-        "prestataire_response_at",
-        "photos_prestataire",
-    ])
-
-    # Notif admin + message système dans le chat.
-    try:
-        from .services.conversation_service import post_system_event
-        if d.reservation:
-            post_system_event(
-                d.reservation,
-                event_type="dispute.presta_responded",
-                body=(
-                    f"Le prestataire a apporté sa version au litige "
-                    f"{d.reference}."
-                ),
-                extra={
-                    "dispute_ref": d.reference,
-                    "has_photos": bool(photos),
-                },
-            )
-    except Exception:
-        pass
-
-    try:
-        from .push_dispatch import _schedule
-        admin_ids = list(
-            User.objects.filter(is_staff=True, is_active=True)
-            .values_list("id", flat=True)
-        )
-        if admin_ids:
-            _schedule(
-                admin_ids,
-                "BABIFIX — Réponse prestataire au litige",
-                f"{provider.nom} a répondu au litige {d.reference}.",
-                {
-                    "type": "dispute.presta_responded",
-                    "dispute_ref": d.reference,
-                    "route": "/admin/disputes",
-                },
-            )
-    except Exception:
-        pass
-
-    return JsonResponse({
-        "ok": True,
-        "dispute_reference": d.reference,
-        "responded_at": d.prestataire_response_at.isoformat(),
-    })
-
-
-# =============================================================================
-# LITIGES CLIENT — GET /api/client/disputes/
-# =============================================================================
-@require_GET
-@require_api_auth(["client", "admin"])
-def api_client_disputes(request):
-    """Liste des litiges du client connecté.
-
-    Filtrage via `reservation.client_user_id` pour cohérence avec l'auth.
-    """
-    uid = int(request.api_user_id)
-    disputes = (
-        Dispute.objects
-        .filter(reservation__client_user_id=uid)
-        .select_related("reservation")
-        .order_by("-created_at")
-    )
-
-    def _serialize(d):
-        res = d.reservation
-        return {
-            "id": d.id,
-            "reference": d.reference,
-            "motif": d.motif,
-            "categorie": d.categorie,
-            "categorie_label": d.get_categorie_display(),
-            "priorite": d.priorite,
-            "decision": d.decision,
-            "decision_note": d.decision_note,
-            "is_open": d.decision == Dispute.Decision.OPEN,
-            "has_presta_response": bool(d.prestataire_response),
-            "prestataire_response": d.prestataire_response,
-            "photos_client_count": len(d.photos_client or []),
-            "photos_prestataire_count": len(d.photos_prestataire or []),
-            "prestataire_name": d.prestataire,
-            "reservation_reference": res.reference if res else None,
-            "reservation_title": (res.title if res else "") or "",
-            "montant_concerne": (
-                float(res.montant_verse or 0) if res else 0.0
-            ),
-            "created_at": d.created_at.isoformat() if d.created_at else None,
-            "decided_at": d.decided_at.isoformat() if d.decided_at else None,
-        }
-
-    return JsonResponse({
-        "disputes": [_serialize(d) for d in disputes],
-        "count_open": sum(1 for d in disputes if d.decision == Dispute.Decision.OPEN),
-    })
+    return JsonResponse({"disputes": data})
 
 
 # =============================================================================
@@ -1046,6 +881,28 @@ def send_weekly_digest_email(prestataire: "Provider", stats_dict: dict) -> None:
             },
         ),
     )
+
+
+def send_babifix_email(to_email: str, subject: str, body: str) -> None:
+    """Envoi d'un e-mail BABIFIX en texte simple (transactionnel)."""
+    from django.conf import settings
+    from django.core.mail import send_mail
+
+    if not to_email or not body:
+        return
+    try:
+        send_mail(
+            subject=subject,
+            message=body,
+            from_email=getattr(
+                settings, "DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.ci>"
+            ),
+            recipient_list=[to_email],
+            fail_silently=False,
+        )
+        logger.info("Email (texte) envoye a %s: %s", to_email, subject)
+    except Exception as exc:
+        logger.warning("Email (texte) non envoyé (%s) : %s", to_email, exc)
 
 
 def send_babifix_email_html(
@@ -1263,11 +1120,6 @@ def api_prestataire_wallet_withdraw(request):
     POST /api/prestataire/wallet/withdraw/
     Body JSON : {amount_fcfa, phone, operator}
     """
-    # Anti-abus : limiter les demandes de retrait (action financière).
-    from .throttle import check_rate_limit, rate_limited_response
-    if check_rate_limit(request, "wallet_withdraw", max_requests=5, window=60):
-        return rate_limited_response()
-
     user_id = request.api_user_id
 
     provider = Provider.objects.filter(user_id=user_id).first()
@@ -1690,7 +1542,7 @@ def api_reservation_paiement_acompte(request):
     taux_acompte = Decimal('0.30')
     acompte = (reservation.montant * taux_acompte).quantize(Decimal('0.01'))
 
-    # --- SIMULATION PAIEMENT (CinetPay / GeniusPay) ---
+    # --- SIMULATION PAIEMENT (GeniusPay) ---
     # Ici, vous appelez votre fournisseur de paiement.
     # Ex: succes = genius_pay.debiter(acompte, reservation.client_user)
     succes_paiement = True  # Simulé pour MVP/Démo
@@ -1758,7 +1610,7 @@ def api_reservation_paiement_solde(request):
         reservation.statut = Reservation.Status.TERMINEE
         reservation.save()
 
-        # ICI : VRAI TRANSFERT VERS LE PRESTATAIRE (Banque/Génius/CinetPay)
+        # ICI : VRAI TRANSFERT VERS LE PRESTATAIRE (Banque / GeniusPay)
         # transferer_fonds(reservation.assigned_provider, reservation.montant)
 
         # Notifier le Prestataire : il reçoit son argent
@@ -1847,67 +1699,5 @@ def api_prestataire_ratings(request):
         })
 
     return JsonResponse({"ratings": ratings})
-
-
-# =============================================================================
-# PRESTATAIRE — Historique des paiements
-# =============================================================================
-@csrf_exempt
-@require_api_auth(["prestataire", "admin"])
-@require_GET
-def api_prestataire_payments_history(request):
-    """
-    GET /api/prestataire/payments/history/
-    Retourne tous les paiements du prestataire avec détails (réservation, client, etc.).
-    """
-    user_id = request.api_user_id
-    provider = Provider.objects.filter(user_id=user_id).first()
-    if not provider:
-        return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
-
-    payments = Payment.objects.filter(prestataire=provider.nom).order_by("-created_at")[:100]
-    result = []
-    for pay in payments:
-        res = pay.reservation
-        client_name = ""
-        service_title = ""
-        reference = ""
-        if res:
-            reference = res.reference
-            service_title = getattr(res, "titre", None) or getattr(res, "title", "") or ""
-            if res.client_user:
-                client_name = res.client_user.get_full_name() or res.client_user.username
-            elif res.client:
-                client_name = res.client
-
-        raw_montant = str(pay.montant or "0").replace("€", "").replace("FCFA", "").strip()
-        try:
-            gross_val = float(raw_montant)
-        except ValueError:
-            gross_val = 0.0
-
-        raw_commission = str(pay.commission or "0").replace("€", "").replace("FCFA", "").strip()
-        try:
-            commission_val = float(raw_commission)
-        except ValueError:
-            commission_val = 0.0
-
-        net_val = gross_val - commission_val
-
-        result.append({
-            "id": pay.pk,
-            "reference": pay.reference,
-            "reservation_reference": reference,
-            "client_name": client_name,
-            "service_title": service_title,
-            "montant_brut": int(gross_val),
-            "commission": int(commission_val),
-            "net": int(net_val),
-            "etat": pay.etat,
-            "type_paiement": pay.type_paiement,
-            "date": pay.created_at.isoformat() if pay.created_at else None,
-        })
-
-    return JsonResponse({"payments": result})
 
 

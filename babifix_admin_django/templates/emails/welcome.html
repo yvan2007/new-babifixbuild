@@ -1,161 +1,338 @@
-{% extends "emails/base_email.html" %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bienvenue sur BABIFIX</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #0A0F1E;
+      padding: 32px 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper { max-width: 600px; margin: 0 auto; }
 
-{% block subject %}Bienvenue sur BABIFIX !{% endblock %}
-{% block preheader %}Votre compte BABIFIX est prêt. Découvrez les services à domicile premium en Côte d'Ivoire.{% endblock %}
+    /* ── HEADER ── */
+    .header {
+      background: linear-gradient(135deg, #050D1A 0%, #0D1B2E 100%);
+      border-radius: 20px 20px 0 0;
+      padding: 40px 32px 32px;
+      text-align: center;
+      border-bottom: 1px solid rgba(76,201,240,0.15);
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(76,201,240,0.12) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -40px; left: -40px;
+      width: 160px; height: 160px;
+      background: radial-gradient(circle, rgba(249,115,22,0.10) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .logo-badge {
+      display: inline-block;
+      border-radius: 18px;
+      width: 80px; height: 80px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(76,201,240,0.35);
+      overflow: hidden;
+    }
+    .logo-badge img {
+      width: 80px; height: 80px;
+      display: block;
+      border-radius: 18px;
+    }
+    .brand-name {
+      font-size: 30px;
+      font-weight: 900;
+      color: #FFFFFF;
+      letter-spacing: 6px;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .brand-tagline {
+      font-size: 13px;
+      color: rgba(76,201,240,0.8);
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
 
-{% block content %}
-<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-  <tr>
-    <td align="center" style="padding-bottom:20px;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-        <tr>
-          <td bgcolor="#22C55E" style="background-color:#22C55E; border-radius:24px; padding:8px 16px; color:#FFFFFF; font-size:11.5px; font-weight:700; letter-spacing:1.2px; font-family:Arial,sans-serif;">
-            COMPTE ACTIVÉ
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" class="h1-mobile text-primary" style="color:#0B1B34; font-size:26px; font-weight:900; line-height:1.25; font-family:Arial,sans-serif; padding-bottom:12px;">
-      Bienvenue {{ username }} !
-    </td>
-  </tr>
-  <tr>
-    <td align="center" class="text-secondary" style="color:#475569; font-size:15px; line-height:1.6; font-family:Arial,sans-serif; padding-bottom:28px;">
-      {{ role_description|default:"Votre plateforme de services à domicile premium en Côte d'Ivoire." }}
-    </td>
-  </tr>
+    /* ── HERO ── */
+    .hero {
+      background: #0D1B2E;
+      padding: 36px 32px 28px;
+      text-align: center;
+    }
+    .hero-icon {
+      font-size: 52px;
+      display: block;
+      margin-bottom: 16px;
+    }
+    .hero h2 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin-bottom: 10px;
+      letter-spacing: -0.3px;
+    }
+    .hero p {
+      font-size: 15px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.6;
+    }
+    .hero strong { color: #4CC9F0; }
 
-  <!-- Bouton CTA -->
-  <tr>
-    <td align="center" style="padding-bottom:32px;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-        <tr>
-          <td bgcolor="#4CC9F0" class="btn-cta" style="background-color:#4CC9F0; border-radius:12px;">
-            <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ app_url }}" style="height:50px;v-text-anchor:middle;width:240px;" arcsize="24%" stroke="f" fillcolor="#4CC9F0">
-              <w:anchorlock/>
-              <center style="color:#0B1B34;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">{{ cta_text|default:"Découvrir BABIFIX" }}</center>
-            </v:roundrect>
-            <![endif]-->
-            <!--[if !mso]><!-- -->
-            <a href="{{ app_url }}" class="btn-mobile" style="display:inline-block; background-color:#4CC9F0; color:#0B1B34; padding:15px 32px; border-radius:12px; font-size:15px; font-weight:800; font-family:Arial,sans-serif; text-decoration:none; letter-spacing:0.3px;">
-              {{ cta_text|default:"Découvrir BABIFIX" }}
-            </a>
-            <!--<![endif]-->
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
+    /* ── BODY ── */
+    .body {
+      background: #0D1B2E;
+      padding: 0 32px 32px;
+    }
 
-  <!-- 3 atouts -->
-  <tr>
-    <td>
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#F8FAFC; border-radius:14px; border:1px solid #E2E8F0;">
-        <tr>
-          <td style="padding:22px 22px 8px 22px;">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-              <tr>
-                <td valign="top" width="42" style="padding-bottom:14px;">
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#E0F2FE" style="background-color:#E0F2FE; border-radius:10px;">
-                    <tr><td align="center" width="36" height="36" style="line-height:36px; font-size:18px;">🔒</td></tr>
-                  </table>
-                </td>
-                <td valign="top" style="padding:0 0 14px 12px; font-family:Arial,sans-serif;">
-                  <div style="color:#0B1B34; font-size:14px; font-weight:800; margin-bottom:3px;">Paiement sécurisé</div>
-                  <div style="color:#64748B; font-size:13px; line-height:1.5;">Mobile Money (MTN, Orange, Moov, Wave) avec garantie BABIFIX.</div>
-                </td>
-              </tr>
-              <tr>
-                <td valign="top" width="42" style="padding-bottom:14px;">
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#E0F2FE" style="background-color:#E0F2FE; border-radius:10px;">
-                    <tr><td align="center" width="36" height="36" style="line-height:36px; font-size:18px;">⭐</td></tr>
-                  </table>
-                </td>
-                <td valign="top" style="padding:0 0 14px 12px; font-family:Arial,sans-serif;">
-                  <div style="color:#0B1B34; font-size:14px; font-weight:800; margin-bottom:3px;">Prestataires vérifiés</div>
-                  <div style="color:#64748B; font-size:13px; line-height:1.5;">Tous nos artisans passent par une vérification KYC.</div>
-                </td>
-              </tr>
-              <tr>
-                <td valign="top" width="42" style="padding-bottom:14px;">
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#E0F2FE" style="background-color:#E0F2FE; border-radius:10px;">
-                    <tr><td align="center" width="36" height="36" style="line-height:36px; font-size:18px;">⚡</td></tr>
-                  </table>
-                </td>
-                <td valign="top" style="padding:0 0 14px 12px; font-family:Arial,sans-serif;">
-                  <div style="color:#0B1B34; font-size:14px; font-weight:800; margin-bottom:3px;">Service rapide</div>
-                  <div style="color:#64748B; font-size:13px; line-height:1.5;">Intervention sous 24 h ou sur rendez-vous.</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
+    /* ── FEATURE CARDS ── */
+    .features { margin: 8px 0 24px; }
+    .feature-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 20px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(76,201,240,0.12);
+      border-radius: 14px;
+      margin-bottom: 10px;
+    }
+    .feature-icon {
+      font-size: 26px;
+      flex-shrink: 0;
+      line-height: 1;
+      margin-top: 2px;
+    }
+    .feature-text h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 4px;
+    }
+    .feature-text p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.50);
+      line-height: 1.5;
+    }
 
-  {% if is_prestataire %}
-  <!-- Étapes presta -->
-  <tr>
-    <td style="padding-top:28px;">
-      <div style="color:#4CC9F0; font-size:11.5px; font-weight:800; letter-spacing:1.5px; font-family:Arial,sans-serif; margin-bottom:14px;">PROCHAINES ÉTAPES</div>
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-        <tr>
-          <td width="36" valign="top" style="padding-bottom:14px;">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#4CC9F0" style="background-color:#4CC9F0; border-radius:50%;">
-              <tr><td align="center" width="28" height="28" style="color:#FFFFFF; font-weight:900; font-size:13px; line-height:28px; font-family:Arial,sans-serif;">1</td></tr>
-            </table>
-          </td>
-          <td valign="middle" style="color:#334155; font-size:14px; line-height:1.5; padding-bottom:14px; font-family:Arial,sans-serif;">
-            Complétez votre profil avec photo et description.
-          </td>
-        </tr>
-        <tr>
-          <td width="36" valign="top" style="padding-bottom:14px;">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#4CC9F0" style="background-color:#4CC9F0; border-radius:50%;">
-              <tr><td align="center" width="28" height="28" style="color:#FFFFFF; font-weight:900; font-size:13px; line-height:28px; font-family:Arial,sans-serif;">2</td></tr>
-            </table>
-          </td>
-          <td valign="middle" style="color:#334155; font-size:14px; line-height:1.5; padding-bottom:14px; font-family:Arial,sans-serif;">
-            Validez votre KYC (pièce d'identité + justificatifs).
-          </td>
-        </tr>
-        <tr>
-          <td width="36" valign="top">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#4CC9F0" style="background-color:#4CC9F0; border-radius:50%;">
-              <tr><td align="center" width="28" height="28" style="color:#FFFFFF; font-weight:900; font-size:13px; line-height:28px; font-family:Arial,sans-serif;">3</td></tr>
-            </table>
-          </td>
-          <td valign="middle" style="color:#334155; font-size:14px; line-height:1.5; font-family:Arial,sans-serif;">
-            Recevez vos premières demandes et créez vos devis.
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-  {% endif %}
+    /* ── STEPS (prestataire) ── */
+    .steps-section {
+      margin: 20px 0;
+      padding: 20px;
+      background: rgba(249,115,22,0.07);
+      border: 1px solid rgba(249,115,22,0.2);
+      border-radius: 14px;
+    }
+    .steps-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #F97316;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .step:last-child { margin-bottom: 0; }
+    .step-num {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #fff;
+    }
+    .step-label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.75);
+      line-height: 1.4;
+    }
 
-  <!-- Trust badges -->
-  <tr>
-    <td style="padding-top:30px;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#F0F9FF; border-radius:14px; border:1px solid #BAE6FD;">
-        <tr>
-          <td align="center" style="padding:20px 18px; font-family:Arial,sans-serif;">
-            <div style="color:#0B1B34; font-size:13px; font-weight:800; margin-bottom:10px;">Pourquoi BABIFIX ?</div>
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-              <tr>
-                <td align="center" style="padding:0 12px; color:#0369A1; font-size:12px;">🛡️ Garantie</td>
-                <td align="center" style="padding:0 12px; color:#0369A1; font-size:12px;">✅ Vérifié</td>
-                <td align="center" style="padding:0 12px; color:#0369A1; font-size:12px;">🇨🇮 Made in CI</td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-{% endblock %}
+    /* ── CTA ── */
+    .cta-section { text-align: center; padding: 20px 0 8px; }
+    .cta-btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+      color: #FFFFFF;
+      text-decoration: none;
+      padding: 16px 40px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      box-shadow: 0 8px 24px rgba(249,115,22,0.35);
+    }
+
+    /* ── TRUST BADGES ── */
+    .trust {
+      margin: 24px 0 0;
+      padding: 18px;
+      background: rgba(16,185,129,0.07);
+      border: 1px solid rgba(16,185,129,0.18);
+      border-radius: 14px;
+      text-align: center;
+    }
+    .trust p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .badges {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 12px;
+      color: #10B981;
+      font-weight: 600;
+    }
+    .badge span { display: block; font-size: 20px; margin-bottom: 4px; }
+
+    /* ── FOOTER ── */
+    .footer {
+      background: #050D1A;
+      border-radius: 0 0 20px 20px;
+      padding: 28px 32px;
+      text-align: center;
+      border-top: 1px solid rgba(76,201,240,0.1);
+    }
+    .footer-brand {
+      font-size: 16px;
+      font-weight: 900;
+      color: #4CC9F0;
+      letter-spacing: 3px;
+      margin-bottom: 8px;
+    }
+    .footer p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+      margin: 3px 0;
+      line-height: 1.5;
+    }
+    .footer a { color: #4CC9F0; text-decoration: none; }
+    .footer .social { margin: 12px 0; }
+    .footer .social a { margin: 0 10px; font-size: 12px; font-weight: 600; }
+    .footer .copyright { color: rgba(255,255,255,0.25); font-size: 11px; margin-top: 12px; }
+
+    @media (max-width: 480px) {
+      body { padding: 16px 8px; }
+      .header, .hero, .body, .footer { padding-left: 20px; padding-right: 20px; }
+      .cta-btn { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="logo-badge">
+        <img src="https://babifix.ci/static/adminpanel/logo_babifix.png" alt="BABIFIX" onerror="this.src='https://babifix.ci/static/adminpanel/logo_babifix.png'">
+      </div>
+      <span class="brand-name">BABIFIX</span>
+      <span class="brand-tagline">Services à domicile · Côte d'Ivoire</span>
+    </div>
+
+    <!-- HERO -->
+    <div class="hero">
+      <span class="hero-icon">🎉</span>
+      <h2>Bienvenue, {{ username }} !</h2>
+      <p>{{ role_description }}<br>Votre compte <strong>BABIFIX</strong> est maintenant actif.</p>
+    </div>
+
+    <!-- BODY -->
+    <div class="body">
+      <div class="features">
+        <div class="feature-card">
+          <div class="feature-icon">💳</div>
+          <div class="feature-text">
+            <h4>Paiement Mobile Money sécurisé</h4>
+            <p>MTN, Orange Money, Moov Money avec protection intégrée.</p>
+          </div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✅</div>
+          <div class="feature-text">
+            <h4>Prestataires certifiés</h4>
+            <p>Tous nos professionnels sont vérifiés, formés et notés.</p>
+          </div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <div class="feature-text">
+            <h4>Intervention rapide</h4>
+            <p>Sous 24h ou sur rendez-vous selon votre agenda.</p>
+          </div>
+        </div>
+      </div>
+
+      {% if is_prestataire %}
+      <div class="steps-section">
+        <div class="steps-title">Prochaines étapes</div>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-label">Complétez votre profil avec photo et description</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-label">Lisez et acceptez votre contrat prestataire</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-label">Recevez des demandes et gérez vos missions</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="cta-section">
+        <a href="{{ app_url }}" class="cta-btn">{{ cta_text }}</a>
+      </div>
+
+      <div class="trust">
+        <p>Pourquoi BABIFIX ?</p>
+        <div class="badges">
+          <div class="badge"><span>🔒</span>Paiement sécurisé</div>
+          <div class="badge"><span>⭐</span>Vérifié & Approuvé</div>
+          <div class="badge"><span>🇨🇮</span>Made in CI</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <div class="footer-brand">BABIFIX</div>
+      <p>Connection. Service. Confiance.</p>
+      <p>📍 Abidjan, Côte d'Ivoire</p>
+      <div class="social">
+        <a href="https://babifix.ci">babifix.ci</a>
+        <a href="mailto:contact@babifix.ci">contact@babifix.ci</a>
+      </div>
+      <p class="copyright">© 2026 BABIFIX — Tous droits réservés.</p>
+    </div>
+
+  </div>
+</body>
+</html>

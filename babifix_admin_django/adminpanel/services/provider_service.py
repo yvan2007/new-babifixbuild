@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Case, When, Value, IntegerField
 from django.contrib.auth.models import User
 
 from ..models import (
@@ -73,13 +73,21 @@ class ProviderService:
                 Q(description__icontains=input_data.query)
             )
         
-        # Trier
-        if input_data.sort_by == "rating":
-            qs = qs.order_by("-note_moyenne", "-nombre_notes")
-        elif input_data.sort_by == "price":
-            qs = order_by("tarif_horaire")
-        else:
-            qs = qs.order_by("-note_moyenne")
+        # Rang premium : Gold (2) > Silver (1) > Standard (0) — mise en avant des abonnés
+        qs = qs.annotate(
+            premium_rank=Case(
+                When(is_premium=True, premium_tier="gold", then=Value(2)),
+                When(is_premium=True, premium_tier="silver", then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+
+        # Trier (le premium est toujours mis en avant en tête de tri)
+        if input_data.sort_by == "price":
+            qs = qs.order_by("-premium_rank", "tarif_horaire")
+        else:  # rating (défaut)
+            qs = qs.order_by("-premium_rank", "-note_moyenne", "-nombre_notes")
         
         # Pagination
         start = (input_data.page - 1) * input_data.page_size

@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX - Diagramme de Classes Complet (Nouveau Flux Devis)
 !theme plain
 
 skinparam backgroundColor #E3F2FD
@@ -129,14 +129,18 @@ enum StatutValidation {
 }
 
 enum StatutReservation {
-  DEMANDE_ENVOYEE
-  DEVIS_EN_COURS
-  DEVIS_ENVOYE
-  DEVIS_ACCEPTE
-  INTERVENTION_EN_COURS
+  EN_ATTENTE
+  CONFIRMEE
+  EN_COURS
   EN_ATTENTE_CLIENT
   TERMINEE
   ANNULEE
+  ' --- Evolution prevue : flux devis ---
+  ' DEMANDE_ENVOYEE
+  ' DEVIS_EN_COURS
+  ' DEVIS_ENVOYE
+  ' DEVIS_ACCEPTE
+  ' INTERVENTION_EN_COURS
 }
 
 enum StatutPaiement {
@@ -253,6 +257,7 @@ class Reservation {
   - commission: double
   - dateCreation: DateTime
   - motifRefusDemande: String
+  - is_urgent: Boolean
   --
   + getClientId(): String
   + getPrestataireId(): String
@@ -276,12 +281,9 @@ class Devis {
   - heureDebut: Time
   - heureFin: Time
   - sousTotal: double
-  - remise: double
   - commissionRate: int
   - commissionMontant: double
   - totalTTC: double
-  - netPrestataire: double
-  - photosPrestataire: List<String>
   - notePrestataire: String
   - validiteJours: int
   - statut: StatutDevis
@@ -315,7 +317,7 @@ class Paiement {
   - montantPrestataire: double
   - type: TypePaiement
   - statut: StatutPaiement
-  - referenceGeniusPay: String
+  - referenceCinetPay: String
   - datePaiement: DateTime
   - valideParAdmin: Boolean
   - mobileMoneyOperator: String
@@ -391,14 +393,14 @@ Conversation "1" -- "*" Message : contient
 Prestataire "1" -- "0..1" KYCSubmission : soumet
 KYCSubmission ..> StatutKYC
 
-' Cycle de devis (cœur du système BABIFIX)
+' Devis et LigneDevis : evolution prevue (pas encore implementee)
 Prestataire "1" -- "*" Devis : crée
 Reservation "1" -- "0..1" Devis : génère
 Devis "1" -- "*" LigneDevis : contient
 
 note top of Devis
-  Cycle de devis : diagnostic, lignes détaillées,
-  remise, commission et net prestataire.
+  EVOLUTION PREVUE
+  Non implementee dans la version courante
 end note
 
 Prestataire ..> StatutValidation

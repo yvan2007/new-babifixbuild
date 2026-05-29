@@ -1,11 +1,10 @@
 {% load static %}
-
 <div class="categories-admin-layout">
   {% if user.is_staff %}
   <article class="card card-elevate category-import-card">
     <h3>Importer le catalogue officiel BABIFIX</h3>
-    <p class="section-help">Crée ou met à jour les catégories du catalogue à partir de <code>data/categories-services-domicile.json</code> (ordre, descriptions, slugs d'icônes). Les compteurs <strong>services</strong> et <strong>réservations</strong> ne sont pas remis à zéro.</p>
-    <form method="post" class="inline-import-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Lancer l'import du catalogue JSON ?');">
+    <p class="section-help">Crée ou met à jour les catégories du catalogue à partir de <code>data/categories-services-domicile.json</code> (ordre, descriptions, slugs d’icônes). Les compteurs <strong>services</strong> et <strong>réservations</strong> ne sont pas remis à zéro.</p>
+    <form method="post" class="inline-import-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Lancer l’import du catalogue JSON ?');">
       {% csrf_token %}
       <input type="hidden" name="action" value="category_import_catalog">
       <button type="submit" class="btn-primary">Importer le catalogue JSON</button>
@@ -30,7 +29,7 @@
     </article>
 
     <article class="card card-elevate category-picker-panel" x-data="{ searchIcon: '' }">
-      <h3>Bibliothèque d'icônes</h3>
+      <h3>Bibliothèque d’icônes</h3>
       <label class="category-icon-search-label" for="category-icon-search">Filtrer les pictogrammes</label>
       <input id="category-icon-search" type="search" class="category-icon-search-input" placeholder="Ex. plomberie, goutte, ménage…" x-model="searchIcon" autocomplete="off">
       <p class="picker-label">Cliquer une vignette remplit le champ « slug » du formulaire.</p>
@@ -65,12 +64,12 @@
       <h3>Liste des catégories</h3>
       {% if user.is_staff %}
       <div class="category-list-actions">
-        <form method="post" class="category-clear-icons-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Effacer le slug d'icône et l'URL d'icône pour toutes les catégories actives ? Les fichiers SVG ne sont pas supprimés du serveur.');">
+        <form method="post" class="category-clear-icons-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Effacer le slug d’icône et l’URL d’icône pour toutes les catégories actives ? Les fichiers SVG ne sont pas supprimés du serveur.');">
           {% csrf_token %}
           <input type="hidden" name="action" value="category_clear_icons_active">
           <button type="submit" class="table-btn danger category-clear-icons-btn">Effacer toutes les icônes (actives)</button>
         </form>
-        <form method="post" class="category-delete-all-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('SUPPRIMER DÉFINITIVEMENT toutes les catégories ?\n\nCette action est irréversible. Les comptes prestataires ne sont pas supprimés : leur catégorie sera simplement vide jusqu'à nouvelle attribution ou réimport du catalogue JSON.');">
+        <form method="post" class="category-delete-all-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('SUPPRIMER DÉFINITIVEMENT toutes les catégories ?\n\nCette action est irréversible. Les comptes prestataires ne sont pas supprimés : leur catégorie sera simplement vide jusqu’à nouvelle attribution ou réimport du catalogue JSON.');">
           {% csrf_token %}
           <input type="hidden" name="action" value="category_delete_all">
           <button type="submit" class="table-btn danger category-delete-all-btn">Supprimer toutes les catégories</button>
@@ -78,15 +77,10 @@
       </div>
       {% endif %}
     </div>
-    <div class="bulk-bar" id="bulk-bar-category" style="display:none;">
-      <span class="bulk-bar__count" id="bulk-count-category"><b>0</b> sélectionné(s)</span>
-      <button type="button" class="bulk-bar__btn" id="bulk-btn-category" onclick="babifixBulkDelete('category')" disabled>🗑 Supprimer la sélection</button>
-    </div>
     <div class="table-wrap category-table-desktop">
       <table>
         <thead>
           <tr>
-            <th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="category" onclick="babifixBulkToggleAll('category', this)"></th>
             <th class="th-icon">Icône</th>
             <th>Catégorie</th>
             <th>Description</th>
@@ -99,7 +93,6 @@
         <tbody>
           {% for cat in categories %}
           <tr>
-            <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="category" value="{{ cat.id }}" onchange="babifixBulkUpdate('category')"></td>
             <td class="td-icon">
               {% if cat.icone_slug %}
               <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="36" height="36" class="category-row-thumb" loading="lazy">
@@ -129,7 +122,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="8">Aucune catégorie — importez le catalogue ou ajoutez une ligne.</td></tr>
+          <tr><td colspan="7">Aucune catégorie — importez le catalogue ou ajoutez une ligne.</td></tr>
           {% endfor %}
         </tbody>
       </table>

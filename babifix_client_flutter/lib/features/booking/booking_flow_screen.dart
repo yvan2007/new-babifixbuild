@@ -51,6 +51,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
 
   final _problemeCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
+  // Point de repère libre saisi par le client (ex : « à côté de la pharmacie
+  // Saint-Joseph », « en face de l'école Sainte-Marie »). Affiché en
+  // surbrillance dans la fiche prestataire — c'est souvent la donnée la
+  // plus utile pour trouver le client sur place.
+  final _repereCtrl = TextEditingController();
   final _msgCtrl = TextEditingController();
   final _prixProposeCtrl = TextEditingController();
   bool _submitting = false;
@@ -146,6 +151,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   @override
   void dispose() {
     _addressCtrl.dispose();
+    _repereCtrl.dispose();
     _msgCtrl.dispose();
     _prixProposeCtrl.dispose();
     super.dispose();
@@ -169,6 +175,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       return '';
     }
 
+    // Rue + numéro (essentiels pour qu'un artisan puisse trouver l'adresse).
+    final house = pick(['house_number']);
+    final road = pick(['road', 'street', 'pedestrian', 'footway', 'path']);
     final quartier = pick([
       'suburb',
       'neighbourhood',
@@ -185,10 +194,19 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       'county',
     ]);
     final region = pick(['state', 'region']);
+
     final parts = <String>[];
-    if (quartier.isNotEmpty) parts.add(quartier);
-    if (ville.isNotEmpty && ville != quartier) parts.add(ville);
+    // 1. Rue (+ numéro si dispo) — la plus précise
+    if (road.isNotEmpty) {
+      parts.add(house.isNotEmpty ? '$house $road' : road);
+    }
+    // 2. Quartier — repère intermédiaire
+    if (quartier.isNotEmpty && !parts.contains(quartier)) parts.add(quartier);
+    // 3. Ville — toujours utile au cas où l'artisan vient d'ailleurs
+    if (ville.isNotEmpty && !parts.contains(ville)) parts.add(ville);
+    // 4. Fallback : si rien d'autre, au moins la région
     if (parts.isEmpty && region.isNotEmpty) parts.add(region);
+
     return parts.join(', ');
   }
 
@@ -369,6 +387,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       'title': widget.serviceTitle,
       'description_probleme': _problemeCtrl.text.trim(),
       'address_label': _addressCtrl.text.trim(),
+      'address_repere': _repereCtrl.text.trim(),
       'client_message': _msgCtrl.text.trim(),
       'disponibilites_client': _disponibilites,
       'is_urgent': _isUrgent,
@@ -510,6 +529,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           textColor: text,
           subColor: sub,
           addressCtrl: _addressCtrl,
+          repereCtrl: _repereCtrl,
           msgCtrl: _msgCtrl,
           mapPin: _mapPin,
           gpsState: _gpsState,
@@ -1142,6 +1162,7 @@ class _StepAddress extends StatefulWidget {
     required this.textColor,
     required this.subColor,
     required this.addressCtrl,
+    required this.repereCtrl,
     required this.msgCtrl,
     required this.mapPin,
     required this.onMapPinChanged,
@@ -1155,6 +1176,9 @@ class _StepAddress extends StatefulWidget {
   final Color textColor;
   final Color subColor;
   final TextEditingController addressCtrl;
+  // Point de repère libre saisi par le client — affiché en surbrillance
+  // dans la fiche prestataire (donnée la plus précieuse sur le terrain).
+  final TextEditingController repereCtrl;
   final TextEditingController msgCtrl;
   final LatLng mapPin;
   // Recherche / sélection d'un lieu : le libellé est déjà connu, on ne
@@ -1332,6 +1356,12 @@ class _StepAddressState extends State<_StepAddress> {
                       controller: addressCtrl,
                       onPlaceSelected: (latLng, _) => onMapPinChanged(latLng),
                     ),
+                    const SizedBox(height: 12),
+                    // ── Champ Point de repère (libre, optionnel) ──────────
+                    // Affiché en surbrillance dans la fiche prestataire :
+                    // c'est souvent l'info la plus utile pour trouver le
+                    // client sur place (« en face de la pharmacie X »).
+                    _RepereTextField(controller: widget.repereCtrl),
                   ],
                 ),
               ),
@@ -2662,6 +2692,66 @@ class _DuplicateDialog extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _RepereTextField — champ texte « Point de repère » avec icône pin verte,
+// libellé clair et placeholder concret. Optionnel mais fortement recommandé
+// pour aider l'artisan à trouver le client sur place.
+// ─────────────────────────────────────────────────────────────────────────────
+class _RepereTextField extends StatelessWidget {
+  const _RepereTextField({required this.controller});
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF22C55E);
+    return Container(
+      decoration: BoxDecoration(
+        color: green.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: green.withValues(alpha: 0.30), width: 1.2),
+      ),
+      child: TextField(
+        controller: controller,
+        maxLength: 200,
+        maxLines: 2,
+        minLines: 1,
+        style: const TextStyle(color: Colors.white, fontSize: 14),
+        decoration: InputDecoration(
+          isDense: true,
+          counterText: '',
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          border: InputBorder.none,
+          prefixIcon: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: green.withValues(alpha: 0.20),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.pin_drop_rounded, size: 18, color: green),
+          ),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 0, minHeight: 0),
+          labelText: 'Point de repère (optionnel)',
+          labelStyle: const TextStyle(
+            color: green,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            letterSpacing: 0.4,
+          ),
+          hintText: 'ex : en face de la pharmacie Saint-Joseph',
+          hintStyle: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 12.5,
+            fontStyle: FontStyle.italic,
+          ),
         ),
       ),
     );

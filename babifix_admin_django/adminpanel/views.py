@@ -138,7 +138,6 @@ from .constants import CATEGORY_ICON_SLUGS, PAYMENT_METHOD_STATIC
 from .push_dispatch import _schedule
 from .forms import (
     ActualiteForm,
-    CatalogueItemForm,
     CategoryForm,
     ClientForm,
     DisputeForm,
@@ -150,7 +149,7 @@ from .forms import (
 
 from .models import (
     Actualite,
-    CatalogueItem,
+    AdminAuditLog,
     Category,
     Client,
     Conversation,
@@ -161,7 +160,6 @@ from .models import (
     Message,
     Notification,
     Payment,
-    PlatformRevenue,
     Provider,
     PrestataireUnavailability,
     Rating,
@@ -169,7 +167,6 @@ from .models import (
     SiteContent,
     SystemSetting,
     UserProfile,
-    WalletTransaction,
     recalc_provider_rating_stats,
 )
 
@@ -443,6 +440,21 @@ def _static_absolute(request, relative_path: str) -> str:
     return url
 
 
+def _premium_badge_label(provider) -> str:
+    """Libellé du badge premium ('' si standard). Lecture seule, sans écriture BDD."""
+    try:
+        from .services.provider_subscription_service import PREMIUM_TIERS
+        if getattr(provider, "is_premium", False):
+            until = getattr(provider, "premium_until", None)
+            from django.utils import timezone as _tz
+            if until and until < _tz.now():
+                return ""
+            return PREMIUM_TIERS.get(provider.premium_tier or "", {}).get("badge", "")
+    except Exception:
+        pass
+    return ""
+
+
 def _category_icon_url(request, category):
     if not category:
         return ""
@@ -679,8 +691,6 @@ def _dashboard_forms_context(request, section):
     ctx = {}
     if section == "prestataires":
         eid = request.GET.get("edit_provider")
-        view_mode = request.GET.get("view", "kanban")
-        ctx["provider_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Provider.objects.get(pk=int(eid))
@@ -690,21 +700,8 @@ def _dashboard_forms_context(request, section):
                 ctx["provider_form"] = ProviderForm()
         else:
             ctx["provider_form"] = ProviderForm()
-        if view_mode == "kanban":
-            kanban_providers = {}
-            for s in ["En attente", "Valide", "Refusé", "Suspendu"]:
-                kanban_providers[s] = list(
-                    Provider.objects.filter(statut=s)
-                    .select_related("user", "category")
-                    .order_by("-user__date_joined")[:20]
-                )
-            ctx["kanban_providers"] = kanban_providers
-        else:
-            pass
     elif section == "clients":
         eid = request.GET.get("edit_client")
-        view_mode = request.GET.get("view", "kanban")
-        ctx["client_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Client.objects.get(pk=int(eid))
@@ -714,20 +711,8 @@ def _dashboard_forms_context(request, section):
                 ctx["client_form"] = ClientForm()
         else:
             ctx["client_form"] = ClientForm()
-        if view_mode == "kanban":
-            kanban_clients = {}
-            for s in ["Abidjan", "Bouaké", "Yamoussoukro", "Daloa", "San-Pédro", "Autre"]:
-                qs = Client.objects.filter(ville__icontains=s).order_by("-id")[:20]
-                if not qs.exists() and s == "Autre":
-                    qs = Client.objects.exclude(
-                        ville__in=["Abidjan", "Bouaké", "Yamoussoukro", "Daloa", "San-Pédro"]
-                    ).order_by("-id")[:20]
-                kanban_clients[s] = list(qs)
-            ctx["kanban_clients"] = kanban_clients
     elif section == "reservations":
         eid = request.GET.get("edit_reservation")
-        view_mode = request.GET.get("view", "kanban")
-        ctx["reservation_view"] = view_mode
         ctx["reservation_form"] = None
         if eid and str(eid).isdigit():
             try:
@@ -736,25 +721,8 @@ def _dashboard_forms_context(request, section):
                 ctx["edit_reservation_id"] = inst.pk
             except Reservation.DoesNotExist:
                 pass
-        if view_mode == "kanban":
-            kanban_reservations = {}
-            statuses = [
-                "DEMANDE_ENVOYEE",
-                "DEVIS_EN_COURS",
-                "DEVIS_ENVOYE",
-                "DEVIS_ACCEPTE",
-                "INTERVENTION_EN_COURS",
-                "En attente client",
-                "Terminee",
-            ]
-            for s in statuses:
-                kanban_reservations[s] = list(
-                    Reservation.objects.filter(statut=s)
-                    .select_related("client_user", "assigned_provider")
-                    .order_by("-id")[:20]
-                )
-            ctx["kanban_reservations"] = kanban_reservations
     elif section == "kanban":
+        # Kanban view - get all reservations grouped by status
         kanban_reservations = {}
         statuses = [
             "DEMANDE_ENVOYEE",
@@ -769,13 +737,11 @@ def _dashboard_forms_context(request, section):
             kanban_reservations[s] = list(
                 Reservation.objects.filter(statut=s)
                 .select_related("client_user", "assigned_provider")
-                .order_by("-id")[:20]
+                .order_by("-created_at")[:20]
             )
         ctx["kanban_reservations"] = kanban_reservations
     elif section == "litiges":
         eid = request.GET.get("edit_litige")
-        view_mode = request.GET.get("view", "kanban")
-        ctx["litige_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Dispute.objects.get(pk=int(eid))
@@ -785,16 +751,8 @@ def _dashboard_forms_context(request, section):
                 ctx["litige_form"] = DisputeForm()
         else:
             ctx["litige_form"] = DisputeForm()
-        if view_mode == "kanban":
-            kanban_litiges = {}
-            for s in ["OPEN", "REFUND", "RELEASE", "SPLIT"]:
-                qs = Dispute.objects.filter(decision=s).order_by("-created_at")[:20]
-                kanban_litiges[s] = list(qs)
-            ctx["kanban_litiges"] = kanban_litiges
     elif section == "paiements":
         eid = request.GET.get("edit_paiement")
-        view_mode = request.GET.get("view", "kanban")
-        ctx["paiement_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Payment.objects.get(pk=int(eid))
@@ -804,17 +762,9 @@ def _dashboard_forms_context(request, section):
                 ctx["paiement_form"] = PaymentForm()
         else:
             ctx["paiement_form"] = PaymentForm()
-        if view_mode == "kanban":
-            kanban_paiements = {}
-            for s in ["Pending", "Complete", "Litige"]:
-                qs = Payment.objects.filter(etat=s).order_by("-id")[:20]
-                kanban_paiements[s] = list(qs)
-            ctx["kanban_paiements"] = kanban_paiements
     elif section == "categories":
         ctx["category_icon_slugs"] = CATEGORY_ICON_SLUGS
         eid = request.GET.get("edit_category")
-        view_mode = request.GET.get("view", "kanban")
-        ctx["category_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Category.objects.get(pk=int(eid))
@@ -824,71 +774,8 @@ def _dashboard_forms_context(request, section):
                 ctx["category_form"] = CategoryForm()
         else:
             ctx["category_form"] = CategoryForm()
-        if view_mode == "kanban":
-            kanban_categories = {}
-            kanban_categories["Actives"] = list(
-                Category.objects.filter(actif=True, is_deleted=False).order_by("ordre_affichage")[:30]
-            )
-            kanban_categories["Inactives"] = list(
-                Category.objects.filter(actif=False, is_deleted=False).order_by("ordre_affichage")[:30]
-            )
-            kanban_categories["Supprimées"] = list(
-                Category.objects.filter(is_deleted=True).order_by("-ordre_affichage")[:30]
-            )
-            ctx["kanban_categories"] = kanban_categories
-    elif section == "catalogue":
-        # Éditeur de catalogue (fournitures / prestations types) par catégorie.
-        all_cats = list(Category.objects.order_by("nom"))
-        ctx["catalogue_categories"] = all_cats
-        sel_id = request.GET.get("cat_id")
-        selected = None
-        if sel_id and str(sel_id).isdigit():
-            selected = Category.objects.filter(pk=int(sel_id)).first()
-        if selected is None and all_cats:
-            selected = all_cats[0]
-        ctx["catalogue_selected"] = selected
-        if selected:
-            ctx["catalogue_items"] = list(
-                CatalogueItem.objects.filter(category=selected).order_by(
-                    "type_ligne", "nom"
-                )
-            )
-        else:
-            ctx["catalogue_items"] = []
-        # Formulaire d'ajout/édition
-        eid = request.GET.get("edit_catalogue")
-        if eid and str(eid).isdigit():
-            inst = CatalogueItem.objects.filter(pk=int(eid)).first()
-            if inst:
-                ctx["catalogue_form"] = CatalogueItemForm(instance=inst)
-                ctx["edit_catalogue_id"] = inst.pk
-            else:
-                ctx["catalogue_form"] = CatalogueItemForm(
-                    initial={"category": selected} if selected else None
-                )
-        else:
-            ctx["catalogue_form"] = CatalogueItemForm(
-                initial={"category": selected} if selected else None
-            )
-    elif section == "finances":
-        ctx["finance"] = _finance_reconciliation()
-    elif section == "payouts":
-        ctx["payout_withdrawals"] = list(
-            WalletTransaction.objects.filter(
-                tx_type="debit", status__in=["pending", "processing", "failed"]
-            )
-            .select_related("provider")
-            .order_by("-created_at")[:60]
-        )
-        ctx["payout_refunds"] = list(
-            Reservation.objects.filter(refund_owed_fcfa__gt=0)
-            .exclude(refund_status="paid")
-            .order_by("-id")[:60]
-        )
     elif section == "notifications":
         eid = request.GET.get("edit_notification")
-        view_mode = request.GET.get("view", "kanban")
-        ctx["notification_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Notification.objects.get(pk=int(eid))
@@ -898,19 +785,8 @@ def _dashboard_forms_context(request, section):
                 ctx["notification_form"] = NotificationForm()
         else:
             ctx["notification_form"] = NotificationForm()
-        if view_mode == "kanban":
-            kanban_notifications = {}
-            for s in ["Non lues", "Lues"]:
-                if s == "Non lues":
-                    qs = Notification.objects.filter(lu=False).order_by("-created_at")[:30]
-                else:
-                    qs = Notification.objects.filter(lu=True).order_by("-created_at")[:30]
-                kanban_notifications[s] = list(qs)
-            ctx["kanban_notifications"] = kanban_notifications
     elif section == "actualites":
         eid = request.GET.get("edit_actualite")
-        view_mode = request.GET.get("view", "kanban")
-        ctx["actualite_view"] = view_mode
         if eid and str(eid).isdigit():
             try:
                 inst = Actualite.objects.get(pk=int(eid))
@@ -920,18 +796,6 @@ def _dashboard_forms_context(request, section):
                 ctx["actualite_form"] = ActualiteForm()
         else:
             ctx["actualite_form"] = ActualiteForm()
-        if view_mode == "kanban":
-            kanban_actualites = {}
-            for s in ["Publiées", "Brouillons"]:
-                if s == "Publiées":
-                    qs = Actualite.objects.filter(publie=True).order_by("-date_publication")[:30]
-                else:
-                    qs = Actualite.objects.filter(publie=False).order_by("-date_publication")[:30]
-                kanban_actualites[s] = list(qs)
-            ctx["kanban_actualites"] = kanban_actualites
-    elif section == "parametres":
-        view_mode = request.GET.get("view", "kanban")
-        ctx["parametre_view"] = view_mode
     return ctx
 
 
@@ -1018,10 +882,9 @@ def _sync_missing_clients():
         Client.objects.bulk_create(to_create, ignore_conflicts=True)
 
 
-def _filter_lists_for_section(section, search_q, statut=None, date_start=None, date_end=None):
+def _filter_lists_for_section(section, search_q):
     """
-    Filtre les listes selon la section et les paramètres GET.
-    Supporte recherche full-text, filtre par statut, et plage de dates.
+    Filtre les listes selon la section courante et le paramètre GET q=.
     """
     q = (search_q or "").strip()
     providers = Provider.objects.filter(is_deleted=False).select_related(
@@ -1029,35 +892,12 @@ def _filter_lists_for_section(section, search_q, statut=None, date_start=None, d
     )
     reservations = Reservation.objects.all()
     litiges = Dispute.objects.all()
+    # Synchroniser les clients réels depuis UserProfile (rattrapage des inscriptions passées)
     _sync_missing_clients()
     clients = Client.objects.all()
     paiements = Payment.objects.all()
     categories = Category.objects.all()
-    notifications = Notification.objects.all()
-
-    # Filtre par statut (réservations, paiements, prestataires)
-    if statut:
-        statut = statut.strip()
-        if section == "reservations":
-            reservations = reservations.filter(statut=statut)
-        elif section == "paiements":
-            paiements = paiements.filter(etat=statut)
-        elif section == "prestataires":
-            providers = providers.filter(statut=statut)
-
-    # Filtre par plage de dates
-    if date_start:
-        try:
-            reservations = reservations.filter(created_at__gte=date_start)
-            paiements = paiements.filter(created_at__gte=date_start)
-        except Exception:
-            pass
-    if date_end:
-        try:
-            reservations = reservations.filter(created_at__lte=f"{date_end} 23:59:59")
-            paiements = paiements.filter(created_at__lte=f"{date_end} 23:59:59")
-        except Exception:
-            pass
+    notifications = Notification.objects.all()[:20]
 
     if not q:
         return (
@@ -1128,7 +968,7 @@ def _filter_lists_for_section(section, search_q, statut=None, date_start=None, d
     elif section == "notifications":
         notifications = Notification.objects.filter(
             Q(title__icontains=q) | Q(time__icontains=q)
-        )
+        )[:20]
 
     return (
         providers,
@@ -1278,145 +1118,6 @@ def export_dashboard_csv(request, kind):
     return response
 
 
-def _build_page_range(current, total, max_visible=9):
-    """Build a compact page range for pagination, showing ellipsis gaps."""
-    if total <= max_visible:
-        return list(range(1, total + 1))
-    half = max_visible // 2
-    start = max(1, current - half)
-    end = min(total, current + half)
-    if end - start < max_visible - 1:
-        if start == 1:
-            end = min(total, start + max_visible - 1)
-        else:
-            start = max(1, end - max_visible + 1)
-    pages = list(range(start, end + 1))
-    if pages[0] > 1:
-        pages = [1, "..."] + pages
-    if pages[-1] < total:
-        pages = pages + ["...", total]
-    return pages
-
-
-# Modèles autorisés pour la suppression groupée (multi-sélection admin).
-_BULK_DELETE_MODELS = {
-    "provider": Provider,
-    "client": Client,
-    "reservation": Reservation,
-    "litige": Dispute,
-    "paiement": Payment,
-    "category": Category,
-    "notification": Notification,
-    "actualite": Actualite,
-    "catalogue": CatalogueItem,
-}
-
-
-def _dashboard_redirect(request, section):
-    """Redirige vers le dashboard en CONSERVANT l'état d'affichage courant
-    (vue tableau/kanban, recherche, filtres, page). Évite de repartir sur la
-    vue kanban par défaut après une suppression/enregistrement."""
-    from urllib.parse import urlencode
-
-    params = {"section": section}
-    view = request.POST.get("view") or request.GET.get("view")
-    if view:
-        params["view"] = view
-    # Catégorie sélectionnée dans l'éditeur de catalogue (rester dessus).
-    cat_id = request.POST.get("cat_id") or request.GET.get("cat_id")
-    if cat_id:
-        params["cat_id"] = cat_id
-    for key in ("q", "statut", "date_start", "date_end", "page"):
-        val = request.GET.get(key)
-        if val:
-            params[key] = val
-    return redirect("/?" + urlencode(params))
-
-
-def _finance_reconciliation():
-    """Recoupe les flux d'argent BABIFIX pour repérer tout écart.
-
-    Lecture seule — n'écrit rien. Identité de cohérence du wallet :
-    Σ soldes ≈ Σ crédits + Σ remboursements − Σ débits (tous statuts),
-    car chaque débit décrémente le solde une fois et un débit échoué est
-    compensé par un crédit de remboursement.
-    """
-    from decimal import Decimal as _D
-    from django.db.models import Count, Sum
-
-    def _s(qs, field="amount_fcfa"):
-        return qs.aggregate(t=Sum(field))["t"] or _D("0")
-
-    pr = PlatformRevenue.objects.filter(refunded_at__isnull=True)
-    revenue_total = _s(pr)
-    revenue_by_source = [
-        {
-            "source": row["source"],
-            "total": float(row["total"] or 0),
-            "count": row["n"],
-        }
-        for row in pr.values("source").annotate(total=Sum("amount_fcfa"), n=Count("id"))
-    ]
-
-    credits = _s(WalletTransaction.objects.filter(tx_type="credit", status="success"))
-    refunds_wallet = _s(
-        WalletTransaction.objects.filter(tx_type="refund", status="success")
-    )
-    debits_paid = _s(WalletTransaction.objects.filter(tx_type="debit", status="success"))
-    debits_inflight = _s(
-        WalletTransaction.objects.filter(
-            tx_type="debit", status__in=["pending", "processing"]
-        )
-    )
-    debits_failed = _s(
-        WalletTransaction.objects.filter(tx_type="debit", status="failed")
-    )
-    balances = Provider.objects.aggregate(t=Sum("solde_fcfa"))["t"] or _D("0")
-
-    expected_balance = (
-        credits + refunds_wallet - (debits_paid + debits_inflight + debits_failed)
-    )
-    ecart = balances - expected_balance
-
-    owed = Reservation.objects.filter(
-        refund_owed_fcfa__gt=0, refund_paid_at__isnull=True
-    ).aggregate(t=Sum("refund_owed_fcfa"), n=Count("id"))
-    paid = Reservation.objects.filter(refund_paid_at__isnull=False).aggregate(
-        t=Sum("refund_owed_fcfa"), n=Count("id")
-    )
-
-    return {
-        "revenue_total": float(revenue_total),
-        "revenue_by_source": revenue_by_source,
-        "wallet_credits": float(credits),
-        "wallet_refunds": float(refunds_wallet),
-        "withdrawals_paid": float(debits_paid),
-        "withdrawals_inflight": float(debits_inflight),
-        "withdrawals_failed_amount": float(debits_failed),
-        "wallet_balances": float(balances),
-        "wallet_expected": float(expected_balance),
-        "wallet_ecart": float(ecart),
-        "wallet_ok": abs(ecart) < _D("1"),
-        "refunds_owed_total": float(owed["t"] or 0),
-        "refunds_owed_count": owed["n"] or 0,
-        "refunds_paid_total": float(paid["t"] or 0),
-        "refunds_paid_count": paid["n"] or 0,
-        # Alertes nécessitant une action humaine
-        "alert_withdrawals_failed": WalletTransaction.objects.filter(
-            tx_type="debit", status="failed"
-        ).count(),
-        "alert_withdrawals_inflight": WalletTransaction.objects.filter(
-            tx_type="debit", status__in=["pending", "processing"]
-        ).count(),
-        "alert_refunds_failed": Reservation.objects.filter(
-            refund_status="failed"
-        ).count(),
-        "alert_refunds_manual": Reservation.objects.filter(
-            refund_status="manual"
-        ).count(),
-    }
-
-
 @login_required(login_url="/admin/login/")
 def dashboard(request):
     if not (request.user.is_staff or request.user.is_superuser):
@@ -1427,17 +1128,14 @@ def dashboard(request):
         "dashboard",
         "prestataires",
         "reservations",
-        "kanban",
         "litiges",
         "clients",
         "paiements",
         "categories",
-        "catalogue",
-        "finances",
-        "payouts",
         "notifications",
         "actualites",
         "parametres",
+        "audit",
     }
     if section not in allowed_sections:
         section = "dashboard"
@@ -1541,24 +1239,10 @@ def dashboard(request):
         elif action == "litige_decision":
             litige_id = request.POST.get("litige_id", "")
             decision = request.POST.get("decision", "")
-            dispute = (
-                Dispute.objects.select_related("reservation")
-                .filter(reference=litige_id)
-                .first()
-            )
+            dispute = Dispute.objects.filter(reference=litige_id).first()
             if dispute:
                 dispute.decision = decision
                 dispute.save(update_fields=["decision"])
-                # Appliquer la décision sur les fonds (versement / remboursement).
-                if dispute.reservation and (decision or "").strip().upper() != "OPEN":
-                    try:
-                        from .services.escrow_service import EscrowService
-                        EscrowService.resolve_dispute(dispute.reservation, decision)
-                    except Exception as exc:
-                        import logging
-                        logging.getLogger(__name__).warning(
-                            "resolve_dispute %s échec: %s", litige_id, exc
-                        )
             Notification.objects.create(
                 title=f"Decision litige {litige_id}: {decision}"
             )
@@ -1590,97 +1274,6 @@ def dashboard(request):
             if pk and str(pk).isdigit():
                 Category.objects.filter(pk=int(pk)).delete()
                 messages.success(request, "Catégorie supprimée.")
-        elif action == "catalogue_save":
-            pk = (request.POST.get("pk") or "").strip()
-            inst = (
-                CatalogueItem.objects.filter(pk=int(pk)).first()
-                if pk.isdigit()
-                else None
-            )
-            form = CatalogueItemForm(request.POST, instance=inst)
-            if form.is_valid():
-                obj = form.save()
-                # Rester sur la catégorie éditée après enregistrement.
-                request.GET = request.GET.copy()
-                request.GET["cat_id"] = str(obj.category_id)
-                messages.success(request, "Fourniture enregistrée.")
-            else:
-                messages.error(request, form.errors.as_text())
-            section = "catalogue"
-        elif action == "catalogue_delete":
-            pk = request.POST.get("pk")
-            if pk and str(pk).isdigit():
-                CatalogueItem.objects.filter(pk=int(pk)).delete()
-                messages.success(request, "Fourniture supprimée.")
-            section = "catalogue"
-        elif action == "catalogue_seed":
-            if not request.user.is_staff:
-                messages.error(
-                    request, "Action réservée aux comptes administrateur (staff)."
-                )
-            else:
-                try:
-                    from io import StringIO
-                    from django.core.management import call_command
-
-                    out = StringIO()
-                    call_command("seed_catalogue", stdout=out)
-                    lines = [l for l in out.getvalue().strip().splitlines() if l.strip()]
-                    messages.success(
-                        request,
-                        lines[-1] if lines else "Catalogue de base importé.",
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    messages.error(request, f"Import catalogue : {exc}")
-            section = "catalogue"
-        elif action == "withdrawal_relance":
-            if not request.user.is_staff:
-                messages.error(request, "Action réservée aux administrateurs.")
-            else:
-                tx_id = request.POST.get("tx_id")
-                if tx_id and str(tx_id).isdigit():
-                    from .services.wallet_service import WalletService
-                    r = WalletService.process_withdrawal(int(tx_id))
-                    if r.get("ok"):
-                        messages.success(request, f"Versement déclenché (retrait #{tx_id}).")
-                    else:
-                        messages.error(
-                            request,
-                            f"Échec versement : {r.get('detail') or r.get('error')}",
-                        )
-            section = "payouts"
-        elif action == "withdrawal_reject":
-            if not request.user.is_staff:
-                messages.error(request, "Action réservée aux administrateurs.")
-            else:
-                tx_id = request.POST.get("tx_id")
-                if tx_id and str(tx_id).isdigit():
-                    from .services.wallet_service import WalletService
-                    WalletService._refund_withdrawal(
-                        int(tx_id), reason="Rejeté par l'administrateur"
-                    )
-                    messages.success(
-                        request, f"Retrait rejeté, solde recrédité (#{tx_id})."
-                    )
-            section = "payouts"
-        elif action == "refund_relance":
-            if not request.user.is_staff:
-                messages.error(request, "Action réservée aux administrateurs.")
-            else:
-                pk = request.POST.get("reservation_id")
-                if pk and str(pk).isdigit():
-                    res = Reservation.objects.filter(pk=int(pk)).first()
-                    if res:
-                        from .services.escrow_service import EscrowService
-                        r = EscrowService.process_client_refund(res)
-                        if r.get("error"):
-                            messages.error(
-                                request,
-                                f"Remboursement : {r.get('error')}",
-                            )
-                        else:
-                            messages.success(request, "Remboursement déclenché.")
-            section = "payouts"
         elif action == "notification_save":
             pk = (request.POST.get("pk") or "").strip()
             inst = (
@@ -1778,27 +1371,6 @@ def dashboard(request):
                     "(réassignation ou réimport du catalogue JSON possible).",
                 )
             section = "categories"
-        elif action == "bulk_delete":
-            if not (request.user.is_staff or request.user.is_superuser):
-                messages.error(request, "Action réservée aux administrateurs.")
-            else:
-                model_key = (request.POST.get("model") or "").strip()
-                model = _BULK_DELETE_MODELS.get(model_key)
-                ids = [
-                    int(x)
-                    for x in request.POST.getlist("ids")
-                    if str(x).strip().isdigit()
-                ]
-                if model and ids:
-                    deleted, _ = model.objects.filter(pk__in=ids).delete()
-                    messages.success(
-                        request,
-                        f"{len(ids)} élément(s) supprimé(s).",
-                    )
-                elif not ids:
-                    messages.warning(request, "Aucun élément sélectionné.")
-                else:
-                    messages.error(request, "Type d'élément inconnu.")
         elif action == "params_update":
             commission = request.POST.get("commission", "").strip()
             if commission.isdigit():
@@ -1809,94 +1381,21 @@ def dashboard(request):
                 request.POST.get("mode_paiement") or ""
             ).strip()[:120]
             settings_obj.save()
-        return _dashboard_redirect(request, section)
+        return redirect(f"/?section={section}")
 
     search_q = request.GET.get("q", "").strip()
-    statut = request.GET.get("statut", "").strip()
-    date_start = request.GET.get("date_start", "").strip()
-    date_end = request.GET.get("date_end", "").strip()
-    page_str = request.GET.get("page", "1").strip()
-    current_page = 1
-    try:
-        current_page = max(1, int(page_str))
-    except (ValueError, TypeError):
-        current_page = 1
-
-    from django.core.paginator import Paginator
-    PAGE_SIZE = 20
-
     stats, kpi, kpi_chart = _dashboard_kpi_payload()
     providers, reservations, litiges, clients, paiements, categories, notifications = (
         _filter_lists_for_section(
             section,
             search_q,
-            statut=statut,
-            date_start=date_start,
-            date_end=date_end,
         )
     )
-
-    total_pages = 1
-    page_range = [1]
-    if section == "reservations":
-        paginator = Paginator(reservations, PAGE_SIZE)
-        total_pages = paginator.num_pages
-        current_page = min(current_page, total_pages) if total_pages > 0 else 1
-        reservations = paginator.get_page(current_page)
-        page_range = _build_page_range(current_page, total_pages)
-    elif section == "paiements":
-        paginator = Paginator(paiements, PAGE_SIZE)
-        total_pages = paginator.num_pages
-        current_page = min(current_page, total_pages) if total_pages > 0 else 1
-        paiements = paginator.get_page(current_page)
-        page_range = _build_page_range(current_page, total_pages)
-    elif section == "prestataires":
-        paginator = Paginator(providers, PAGE_SIZE)
-        total_pages = paginator.num_pages
-        current_page = min(current_page, total_pages) if total_pages > 0 else 1
-        providers = paginator.get_page(current_page)
-        page_range = _build_page_range(current_page, total_pages)
-
-    actualites = Actualite.objects.filter(publie=True).order_by("-date_publication")[:20]
+    actualites = Actualite.objects.all().order_by("-date_publication")
     if section == "actualites" and search_q:
-        actualites = Actualite.objects.all().order_by("-date_publication").filter(
+        actualites = actualites.filter(
             Q(titre__icontains=search_q) | Q(description__icontains=search_q)
         )
-
-    # Unifier notifications + actualités récentes pour le dropdown topbar
-    from django.db.models import Case, When, Value, CharField
-    from django.utils import timezone
-
-    notifications_qs = Notification.objects.filter(user=request.user).order_by("-id")[:15]
-    actualites_recentes = Actualite.objects.filter(publie=True).order_by("-date_publication")[:10]
-
-    unified_notifications = []
-    for n in notifications_qs:
-        unified_notifications.append({
-            "title": n.title,
-            "body": n.body or "",
-            "created_at": n.created_at,
-            "is_read": n.lu,
-            "notif_type": n.notif_type,
-            "is_actualite": False,
-            "id": n.pk,
-            "reference": n.reference or "",
-        })
-    for a in actualites_recentes:
-        unified_notifications.append({
-            "title": a.titre,
-            "body": a.description[:200] if a.description else "",
-            "created_at": a.date_publication,
-            "is_read": False,
-            "notif_type": "actualite",
-            "is_actualite": True,
-            "id": a.pk,
-            "reference": str(a.pk),
-            "image_url": a.image.url if a.image else "",
-            "categorie_tag": a.categorie_tag,
-        })
-    unified_notifications.sort(key=lambda x: 0 if not x["is_read"] else 1)
-    unified_notifications = unified_notifications[:20]
 
     if request.GET.get("partial") == "stats" and section == "dashboard":
         return render(
@@ -1912,58 +1411,61 @@ def dashboard(request):
         ),
         "prestataires": (
             "Prestataires",
-            "Vue Kanban — glissez pour changer le statut. Les prestataires s'inscrivent sur l'app ; ici : vérifier, approuver, suspendre ou refuser.",
+            "Vous n'inventez pas les dossiers : les prestataires s'inscrivent sur l'app. Ici : vérifier, approuver, suspendre ou refuser.",
         ),
         "reservations": (
             "Réservations",
-            "Vue Kanban — pipeline des missions. Suivi des statuts, paiement (espèces, Mobile Money, carte) et flux espèces.",
+            "Suivi des missions, mode de paiement (espèces, Mobile Money Orange/MTN/Wave/Moov, carte) et flux espèces.",
         ),
         "kanban": (
             "Kanban Réservations",
             "Vue drag & drop du pipeline de réservations — glissez pour changer le statut.",
         ),
-        "litiges": (
-            "Litiges",
-            "Vue Kanban — médiation et décisions enregistrées côté plateforme.",
-        ),
+        "litiges": ("Litiges", "Médiation et décisions enregistrées côté plateforme."),
         "clients": (
             "Clients",
-            "Vue Kanban — distribution géographique. Suivi des fiches issues de l'activité.",
+            "Lecture / suivi des fiches issues de l'activité — pas de saisie manuelle des noms comme sur un guichet.",
         ),
         "paiements": (
             "Paiements",
-            "Vue Kanban — suivi des transactions par état. Commissions & états (espèces, Mobile Money, carte).",
+            "Commissions & états (espèces, Orange/MTN/Wave/Moov, carte selon config).",
         ),
         "categories": (
             "Catégories",
-            "Vue Kanban — services affichés sur la vitrine et dans les apps.",
+            "Services affichés sur la vitrine et dans les apps.",
         ),
-        "catalogue": (
-            "Fournitures / Catalogue",
-            "Fournitures, main d'œuvre et déplacements proposés au prestataire lors du devis, propres à chaque catégorie. Modifiez prix, unités et articles — répercuté en temps réel dans l'app.",
-        ),
-        "finances": (
-            "Finances / Réconciliation",
-            "Vue de contrôle (lecture seule) : commissions encaissées, versements prestataires, soldes wallet et remboursements clients. Repérez tout écart d'un coup d'œil.",
-        ),
-        "payouts": (
-            "Versements & remboursements",
-            "Pilotez les retraits prestataires et les remboursements clients : versez maintenant, rejetez, ou relancez un versement échoué.",
-        ),
-        "notifications": (
-            "Notifications",
-            "Vue Kanban — centre d'alertes internes équipe admin.",
-        ),
+        "notifications": ("Notifications", "Alertes internes équipe admin."),
         "actualites": (
             "Actualités",
-            "Vue Kanban — annonces publiques pour les apps client et prestataire.",
+            "Annonces publiques pour les apps client et prestataire — publication instantanée (WebSocket + push).",
         ),
         "parametres": (
             "Paramètres",
-            "Configuration globale — commission, maintenance, sécurité. Impacte les apps connectées.",
+            "Commission, maintenance — impacte le comportement des apps connectées.",
+        ),
+        "audit": (
+            "Journal d'audit",
+            "Historique de toutes les actions administrateurs sur la plateforme.",
         ),
     }
     page_heading, page_subtitle = _headings.get(section, _headings["dashboard"])
+
+    audit_logs = []
+    if section == "audit":
+        audit_logs = list(
+            AdminAuditLog.objects.select_related("admin_user")
+            .order_by("-created_at")[:100]
+            .values(
+                "id",
+                "action",
+                "target_type",
+                "target_id",
+                "target_label",
+                "details",
+                "created_at",
+                "admin_user__username",
+            )
+        )
 
     context = {
         "section": section,
@@ -1980,12 +1482,9 @@ def dashboard(request):
         "paiements": paiements,
         "categories": categories,
         "notifications": notifications,
-        "unified_notifications": unified_notifications,
         "actualites": actualites,
         "params": settings_obj,
-        "page": current_page,
-        "total_pages": total_pages,
-        "page_range": page_range,
+        "audit_logs": audit_logs,
     }
     context.update(_dashboard_forms_context(request, section))
     return render(request, "adminpanel/dashboard.html", context)
@@ -2027,35 +1526,19 @@ def api_client_home(request):
     client_name = (user.get_full_name() or user.username) if user else ""
     reservations = []
 
-    _STATUS_LABELS = {
-        "DEMANDE_ENVOYEE": "En attente de devis",
-        "DEVIS_EN_COURS": "Devis en préparation",
-        "DEVIS_ENVOYE": "Devis reçu",
-        "DEVIS_ACCEPTE": "Devis accepté",
-        "INTERVENTION_EN_COURS": "Intervention en cours",
-        "En attente client": "À confirmer",
-        "Confirmee": "Confirmée",
-        "En cours": "En cours",
-        "Terminee": "Terminée",
-        "Annulee": "Annulée",
-        "En attente": "En attente",
-    }
-
     def _push_reservation_row(item):
         has_rating = Rating.objects.filter(reservation=item).exists()
         can_rate = (
             item.statut == "Terminee" and item.client_user_id == uid and not has_rating
         )
-        status_label = _STATUS_LABELS.get(item.statut, item.statut)
         reservations.append(
             {
                 "id": int(item.id),
                 "reference": item.reference,
-                "title": item.title or item.reference,
-                "when_label": f"{status_label} · {item.client}",
+                "title": item.reference,
+                "when_label": f"{item.statut} - {item.client}",
                 "amount": item.montant,
                 "status": item.statut,
-                "status_label": status_label,
                 "payment_type": item.payment_type,
                 "mobile_money_operator": item.mobile_money_operator or "",
                 "cash_flow_status": item.cash_flow_status,
@@ -2069,11 +1552,10 @@ def api_client_home(request):
                 if item.client_confirme_prestation_at
                 else None,
                 "dispute_ouverte": bool(item.dispute_ouverte),
-                "can_confirm_service": item.statut
-                in (Reservation.Status.WAITING_CLIENT, Reservation.Status.DONE)
-                and item.client_user_id == uid
-                and not item.client_confirme_prestation_at,
-                "can_pay": item.statut == Reservation.Status.DONE
+                "can_confirm_service": item.statut == "En attente client"
+                and item.client_user_id == uid,
+                "can_pay": item.statut == "Terminee"
+                and bool(item.client_confirme_prestation_at)
                 and not Payment.objects.filter(
                     reservation=item, etat=Payment.State.COMPLETE
                 ).exists(),
@@ -2214,70 +1696,92 @@ def api_public_providers(request):
         except ValueError:
             pass
 
-    # Filtre géographique : la vraie logique est déléguée au
-    # GeoMatchingService plus bas (rayon adaptatif 5→15→30→50, boost
-    # même ville, score composite). On capture juste les paramètres ici.
+    # Filtre géographique (latitude, longitude, rayon en km).
+    # On garde lat_f / lon_f pour calculer ensuite la distance Haversine et
+    # potentiellement trier les prestataires par proximité.
     lat = request.GET.get("lat")
     lon = request.GET.get("lon")
-    radius = request.GET.get("radius") or request.GET.get("radius_km") or ""
-    radius_km = radius  # gardé pour rétro-compat (logs)
+    radius = request.GET.get("radius")
+    # Mode adaptatif (5 → 15 → 30 → 50 km) si pas de rayon fixe demandé.
+    PUB_RADIUS_STEPS = [5, 15, 30, 50]
+    pub_is_adaptive = bool(lat and lon and (not radius or str(radius).lower() == "auto"))
+    lat_f = lon_f = None
 
-    # Géo : extrait coordonnées + ville pour mode adaptatif
-    client_lat_f = None
-    client_lon_f = None
-    explicit_radius_f = None
     if lat and lon:
         try:
-            client_lat_f = float(lat)
-            client_lon_f = float(lon)
-        except (TypeError, ValueError):
-            pass
-    if radius and radius not in ("auto", "0"):
-        try:
-            explicit_radius_f = float(radius)
-        except (TypeError, ValueError):
-            pass
-    client_city = (request.GET.get("client_city") or "").strip()
-    geo_mode = client_lat_f is not None or bool(client_city)
+            lat_f = float(lat)
+            lon_f = float(lon)
+            radius_km = PUB_RADIUS_STEPS[-1] if pub_is_adaptive else float(radius)
 
-    # Tri
-    sort_param = request.GET.get("sort", "rating")
+            lat_delta = radius_km / 111.0
+            lon_delta = radius_km / (111.0 * abs(math.cos(math.radians(lat_f))))
+
+            # Inclure les prestataires dans la zone GEO OU sans coordonnées
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(
+                    latitude__isnull=False,
+                    longitude__isnull=False,
+                    latitude__gte=lat_f - lat_delta,
+                    latitude__lte=lat_f + lat_delta,
+                    longitude__gte=lon_f - lon_delta,
+                    longitude__lte=lon_f + lon_delta,
+                )
+                | Q(latitude__isnull=True)
+                | Q(longitude__isnull=True)
+            )
+        except (ValueError, TypeError):
+            lat_f = lon_f = None
+
+    # Tri — on ne fait `order_by` ici QUE pour les modes non-distance, car le
+    # tri par distance se fait après calcul Haversine en Python.
+    sort_param = (request.GET.get("sort", "rating") or "rating").strip().lower()
     if sort_param == "tarif_asc":
         qs = qs.order_by("tarif_horaire")
     elif sort_param == "tarif_desc":
         qs = qs.order_by("-tarif_horaire")
+    elif sort_param == "distance":
+        # Tri en Python plus bas. SQL : on garde l'ordre dispo'abord puis rating
+        # comme stable secondary key au cas où la distance est nulle.
+        qs = qs.order_by("-disponible", "-average_rating")
     else:
         qs = qs.order_by("-average_rating", "-rating_count")
 
-    # Mode géo : matérialise jusqu'à 300 prestataires, trie via le service
-    distance_by_id = {}
-    same_city_by_id = {}
-    if geo_mode:
-        from .services.geo_matching_service import rank_providers
-        materialized = list(qs[:300])
-        ranked = rank_providers(
-            materialized,
-            client_lat=client_lat_f,
-            client_lon=client_lon_f,
-            client_city=client_city or None,
-            explicit_radius_km=explicit_radius_f,
-        )
-        distance_by_id = {c.provider.id: c.distance_km for c in ranked}
-        same_city_by_id = {c.provider.id: c.same_city for c in ranked}
-        page_items = [c.provider for c in ranked]
-    else:
-        page_items = list(qs)
+    def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """Distance Haversine en kilomètres entre deux points GPS."""
+        r = 6371.0
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        dphi = math.radians(lat2 - lat1)
+        dlmb = math.radians(lon2 - lon1)
+        a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2) ** 2
+        c = 2 * math.asin(min(1.0, math.sqrt(a)))
+        return round(r * c, 2)
 
     items = []
-    for p in page_items:
+    for p in qs:
         uid = p.user_id
         avg = (
             round(float(p.average_rating), 2)
             if (p.rating_count and p.average_rating)
             else None
         )
-        dist_km = distance_by_id.get(p.id) if geo_mode else None
-        same_city = same_city_by_id.get(p.id, False) if geo_mode else False
+
+        # Distance client → prestataire (None si l'un des deux n'a pas de GPS).
+        distance_km = None
+        if (
+            lat_f is not None
+            and lon_f is not None
+            and p.latitude is not None
+            and p.longitude is not None
+        ):
+            try:
+                distance_km = _haversine_km(
+                    lat_f, lon_f, float(p.latitude), float(p.longitude)
+                )
+            except (TypeError, ValueError):
+                distance_km = None
+
         items.append(
             {
                 "id": int(p.id),
@@ -2294,10 +1798,6 @@ def api_public_providers(request):
                 if p.tarif_horaire is not None
                 else None,
                 "disponible": p.disponible,
-                "latitude": p.latitude,
-                "longitude": p.longitude,
-                "distance_km": round(dist_km, 1) if dist_km is not None else None,
-                "same_city": same_city,
                 "category_nom": (p.category.nom if p.category_id else "") or "",
                 "category_icone_slug": (p.category.icone_slug or "").strip()
                 if p.category_id
@@ -2310,13 +1810,54 @@ def api_public_providers(request):
                 "has_portfolio": bool(p.portfolio_photos),
                 "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or "", request),
                 "image_url": _safe_photo_url(p.photo_portrait_url or "", request),
-                # Premium — pour afficher le badge Argent/Or côté client.
-                "is_premium": bool(getattr(p, "is_premium", False)),
-                "premium_tier": (getattr(p, "premium_tier", "") or ""),
+                "premium_tier": (p.premium_tier if p.is_premium else "standard"),
+                "premium_badge": _premium_badge_label(p),
+                # Coordonnées + distance (utilisées par les apps pour afficher
+                # « à 1.4 km de vous » et trier par proximité côté UI au besoin).
+                "latitude": float(p.latitude) if p.latitude is not None else None,
+                "longitude": float(p.longitude) if p.longitude is not None else None,
+                "distance_km": distance_km,
             }
         )
 
-    return JsonResponse({"providers": items, "count": len(items)})
+    # Tri par distance demandé : on remonte les plus proches.
+    # Les prestataires sans coordonnées (distance None) sont placés à la fin.
+    if sort_param == "distance" and lat_f is not None and lon_f is not None:
+        items.sort(
+            key=lambda it: (
+                0 if it.get("disponible") else 1,
+                it["distance_km"] if it["distance_km"] is not None else 9_999.0,
+                -1 * (it["average_rating"] or 0.0),
+            )
+        )
+
+    # Rayon adaptatif : on garde le plus petit palier qui produit ≥ 1 résultat GPS.
+    radius_used = None
+    if pub_is_adaptive:
+        gps_items = [it for it in items if it.get("distance_km") is not None]
+        nogps_items = [it for it in items if it.get("distance_km") is None]
+        for step in PUB_RADIUS_STEPS:
+            within = [it for it in gps_items if it["distance_km"] <= step]
+            if within:
+                radius_used = step
+                items = within + nogps_items
+                break
+        if radius_used is None:
+            radius_used = PUB_RADIUS_STEPS[-1]
+            items = nogps_items
+    elif lat_f is not None and lon_f is not None:
+        try:
+            radius_used = float(radius) if radius else None
+        except (ValueError, TypeError):
+            radius_used = None
+
+    return JsonResponse({
+        "providers": items,
+        "count": len(items),
+        "radius_used": radius_used,
+        "radius_adaptive": pub_is_adaptive,
+        "radius_steps": PUB_RADIUS_STEPS,
+    })
 
 
 @require_GET
@@ -2342,21 +1883,24 @@ def api_client_prestataires(request):
         qs = qs.filter(
             Q(nom__icontains=q) | Q(specialite__icontains=q) | Q(ville__icontains=q)
         )
-    # Filtre géolocalisation avec rayon (Haversine)
+    # Filtre géolocalisation avec rayon (Haversine) — supporte le mode adaptatif :
+    # si radius_km est absent ou == 'auto', on essaie progressivement 5 → 15 → 30 → 50 km.
     lat = request.GET.get("lat")
     lon = request.GET.get("lon")
     radius_km = request.GET.get("radius_km")
-    if lat and lon and radius_km:
+    RADIUS_STEPS_KM = [5, 15, 30, 50]
+    is_adaptive = bool(lat and lon and (not radius_km or str(radius_km).lower() == "auto"))
+    if lat and lon:
         try:
             client_lat = float(lat)
             client_lon = float(lon)
-            max_radius = float(radius_km)
+            # En mode adaptatif on prend le plus large pour ne rien manquer ;
+            # ensuite on filtre par paliers en Python.
+            max_radius = RADIUS_STEPS_KM[-1] if is_adaptive else float(radius_km)
 
-            # Simple bounding box pre-filter
             lat_float = float(lat)
             lon_float = float(lon)
-            approx_deg = max_radius / 111.0  # 1 degree ≈ 111km
-            # Inclure les prestataires dans la zone GEO OU sans coordonnées
+            approx_deg = max_radius / 111.0
             from django.db.models import Q
             qs = qs.filter(
                 Q(
@@ -2370,7 +1914,7 @@ def api_client_prestataires(request):
                 | Q(latitude__isnull=True)
                 | Q(longitude__isnull=True)
             )
-        except ValueError:
+        except (ValueError, TypeError):
             pass
 
     # Filtre catégorie
@@ -2399,38 +1943,54 @@ def api_client_prestataires(request):
             qs = qs.filter(tarif_horaire__lte=max_t)
         except ValueError:
             pass
-    # Géo : extrait lat/lon/ville pour décider du mode de tri
+    # Rang premium : Gold (2) > Silver (1) > Standard (0) — mise en avant des abonnés
+    from django.db.models import Case, When, Value, IntegerField
+    qs = qs.annotate(
+        premium_rank=Case(
+            When(is_premium=True, premium_tier="gold", then=Value(2)),
+            When(is_premium=True, premium_tier="silver", then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    )
+    # Tri (le premium est toujours mis en avant en tête de tri)
+    sort_param = request.GET.get("sort", "rating")
+    if sort_param == "tarif_asc":
+        qs = qs.order_by("-premium_rank", "tarif_horaire")
+    elif sort_param == "tarif_desc":
+        qs = qs.order_by("-premium_rank", "-tarif_horaire")
+    else:
+        qs = qs.order_by("-premium_rank", "-average_rating", "-rating_count")
+
+    # Préparer le calcul de distance Haversine
+    import math as _math
+
     client_lat_f = None
     client_lon_f = None
-    explicit_radius_f = None
-    geo_radius_raw = request.GET.get("radius_km") or request.GET.get("radius")
+    max_radius_f = None
     if lat and lon:
         try:
             client_lat_f = float(lat)
             client_lon_f = float(lon)
-        except (TypeError, ValueError):
+            # Cap au plus large palier en mode adaptatif (50 km),
+            # ou rayon explicite si fourni.
+            max_radius_f = (
+                float(RADIUS_STEPS_KM[-1]) if is_adaptive else float(radius_km)
+            )
+        except (ValueError, TypeError):
             pass
-    if geo_radius_raw and geo_radius_raw not in ("auto", "0"):
-        try:
-            explicit_radius_f = float(geo_radius_raw)
-        except (TypeError, ValueError):
-            pass
-    client_city = (request.GET.get("client_city") or "").strip()
 
-    # Tri
-    sort_param = request.GET.get("sort", "rating")
-    geo_mode = client_lat_f is not None or bool(client_city)
-
-    if sort_param == "tarif_asc":
-        qs = qs.order_by("tarif_horaire")
-    elif sort_param == "tarif_desc":
-        qs = qs.order_by("-tarif_horaire")
-    elif geo_mode and sort_param == "rating":
-        # Mode géo : on récupère tout (cap 300) et on trie en Python.
-        # L'order_by SQL ne sert plus, mais on garde un tie-breaker.
-        qs = qs.order_by("-average_rating", "-rating_count")
-    else:
-        qs = qs.order_by("-average_rating", "-rating_count")
+    def haversine_km(lat1, lon1, lat2, lon2):
+        R = 6371.0
+        dlat = _math.radians(lat2 - lat1)
+        dlon = _math.radians(lon2 - lon1)
+        a = (
+            _math.sin(dlat / 2) ** 2
+            + _math.cos(_math.radians(lat1))
+            * _math.cos(_math.radians(lat2))
+            * _math.sin(dlon / 2) ** 2
+        )
+        return R * 2 * _math.atan2(_math.sqrt(a), _math.sqrt(1 - a))
 
     # Pagination
     try:
@@ -2439,47 +1999,29 @@ def api_client_prestataires(request):
     except ValueError:
         page = 1
         page_size = 20
-
-    # Si mode géo, on matérialise jusqu'à 300 résultats et on trie via le service.
-    geo_ranked = None
-    distance_by_id = {}
-    same_city_by_id = {}
-    if geo_mode:
-        from .services.geo_matching_service import rank_providers
-        materialized = list(qs[:300])
-        geo_ranked = rank_providers(
-            materialized,
-            client_lat=client_lat_f,
-            client_lon=client_lon_f,
-            client_city=client_city or None,
-            explicit_radius_km=explicit_radius_f,
-        )
-        distance_by_id = {
-            c.provider.id: c.distance_km for c in geo_ranked
-        }
-        same_city_by_id = {
-            c.provider.id: c.same_city for c in geo_ranked
-        }
-        ordered_providers = [c.provider for c in geo_ranked]
-        total_filtered = len(ordered_providers)
-        offset = (page - 1) * page_size
-        page_items = ordered_providers[offset:offset + page_size]
-    else:
-        total_filtered = qs.count()
-        offset = (page - 1) * page_size
-        page_items = list(qs[offset:offset + page_size])
+    total_filtered = qs.count()
+    offset = (page - 1) * page_size
+    qs = qs[offset:offset + page_size]
 
     items = []
-    for p in page_items:
+    for p in qs:
         uid = p.user_id
         avg = (
             round(float(p.average_rating), 2)
             if (p.rating_count and p.average_rating)
             else None
         )
-        # Distance déjà calculée par le service géo (si actif)
-        dist_km = distance_by_id.get(p.id) if geo_mode else None
-        same_city = same_city_by_id.get(p.id, False) if geo_mode else False
+        # Calcul distance si position dispo
+        dist_km = None
+        if client_lat_f and client_lon_f and p.latitude and p.longitude:
+            try:
+                dist_km = haversine_km(
+                    client_lat_f, client_lon_f, float(p.latitude), float(p.longitude)
+                )
+                if max_radius_f and dist_km > max_radius_f:
+                    continue  # Skip if beyond radius
+            except (ValueError, TypeError):
+                pass
         items.append(
             {
                 "id": int(p.id),
@@ -2498,8 +2040,7 @@ def api_client_prestataires(request):
                 "disponible": p.disponible,
                 "latitude": p.latitude,
                 "longitude": p.longitude,
-                "distance_km": round(dist_km, 1) if dist_km is not None else None,
-                "same_city": same_city,
+                "distance_km": round(dist_km, 1) if dist_km else None,
                 "category_nom": (p.category.nom if p.category_id else "") or "",
                 "category_icone_slug": (p.category.icone_slug or "").strip()
                 if p.category_id
@@ -2512,16 +2053,38 @@ def api_client_prestataires(request):
                 "has_portfolio": bool(p.portfolio_photos),
                 "is_certified": p.is_certified,
                 "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or "", request),
-                "is_premium": bool(getattr(p, "is_premium", False)),
-                "premium_tier": (getattr(p, "premium_tier", "") or ""),
+                "premium_tier": (p.premium_tier if p.is_premium else "standard"),
+                "premium_badge": _premium_badge_label(p),
             }
         )
+    # ── Rayon adaptatif : choisir le plus petit palier non vide ────────────────
+    radius_used = None
+    if is_adaptive:
+        gps_items = [it for it in items if it.get("distance_km") is not None]
+        nogps_items = [it for it in items if it.get("distance_km") is None]
+        for step in RADIUS_STEPS_KM:
+            within = [it for it in gps_items if it["distance_km"] <= step]
+            if within:
+                radius_used = step
+                items = within + nogps_items
+                break
+        if radius_used is None:
+            # Aucun prestataire GPS dans le périmètre max → on retourne ce qu'il y a.
+            radius_used = RADIUS_STEPS_KM[-1]
+            items = nogps_items
+        total_filtered = len(items)
+    elif max_radius_f:
+        radius_used = max_radius_f
+
     return JsonResponse({
         "items": items,
         "total": total_filtered,
         "page": page,
         "page_size": page_size,
         "total_pages": (total_filtered + page_size - 1) // page_size,
+        "radius_used": radius_used,
+        "radius_adaptive": is_adaptive,
+        "radius_steps": RADIUS_STEPS_KM,
     })
 
 
@@ -2562,13 +2125,59 @@ def api_client_conversations(request):
 
 @require_GET
 def api_client_prestataire_detail(request, pk):
-    """API client: get single provider detail."""
+    """API client: get single provider detail (avec avis + photos de travaux)."""
     try:
         p = Provider.objects.filter(pk=int(pk), statut="Valide").first()
     except ValueError:
         return JsonResponse({"error": "invalid_provider_id"}, status=400)
     if not p:
         return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    # ── Avis reçus (note, commentaire, client, date, photos jointes) ──────────
+    avis = []
+    ratings = (
+        Rating.objects.filter(provider=p)
+        .select_related("client", "reservation")
+        .order_by("-created_at")[:50]
+    )
+    for r in ratings:
+        client_name = "Client"
+        if r.client:
+            client_name = (r.client.get_full_name() or r.client.username or "Client").strip()
+        _photos = [_safe_photo_url(u, request) for u in (r.photo_attachments or [])]
+        avis.append(
+            {
+                "note": r.note,
+                "commentaire": r.commentaire or "",
+                # alias multiples pour compat UI
+                "client": client_name,
+                "auteur": client_name,
+                "client_name": client_name,
+                "date": r.created_at.strftime("%d/%m/%Y") if r.created_at else "",
+                "photos": _photos,
+                "photo_proof": _photos,
+            }
+        )
+
+    # ── Photos des travaux réalisés (avis + preuves de prestations terminées) ──
+    travaux = []
+    for r in ratings:
+        for u in (r.photo_attachments or []):
+            travaux.append(_safe_photo_url(u, request))
+    done_res = (
+        Reservation.objects.filter(
+            assigned_provider=p, statut=Reservation.Status.DONE
+        )
+        .order_by("-prestation_terminee_at")[:30]
+    )
+    for res in done_res:
+        for field in (res.preuve_photos, res.photos_apres, res.photos_avant):
+            for u in (field or []):
+                travaux.append(_safe_photo_url(u, request))
+    # Dédoublonnage en gardant l'ordre, limite raisonnable
+    seen = set()
+    travaux = [u for u in travaux if u and not (u in seen or seen.add(u))][:24]
+
     return JsonResponse(
         {
             "id": p.id,
@@ -2578,19 +2187,22 @@ def api_client_prestataire_detail(request, pk):
             "tarif_horaire": float(p.tarif_horaire) if p.tarif_horaire else None,
             "disponible": p.disponible,
             "rating_count": p.rating_count or 0,
+            "nb_avis": p.rating_count or 0,
             "average_rating": float(p.average_rating) if p.average_rating else 0.0,
             "bio": p.bio or "",
             "years_experience": p.years_experience or 0,
             "is_certified": p.is_certified,
+            "premium_tier": (p.premium_tier if p.is_premium else "standard"),
+            "premium_badge": _premium_badge_label(p),
             "latitude": p.latitude,
             "longitude": p.longitude,
             "photo_portrait_url": _safe_photo_url(p.photo_portrait_url or "", request),
             "portfolio_photos": p.portfolio_photos or [],
+            "avis": avis,
+            "travaux": travaux,
             "category": {"id": p.category.id, "nom": p.category.nom}
             if p.category
             else None,
-            "is_premium": bool(getattr(p, "is_premium", False)),
-            "premium_tier": (getattr(p, "premium_tier", "") or ""),
         }
     )
 
@@ -2694,10 +2306,13 @@ def api_messages_send_by_reservation(request):
     ):
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    from .services.conversation_service import get_or_create_conversation_for_reservation
-    conv = get_or_create_conversation_for_reservation(res)
-    if conv is None:
-        return JsonResponse({"error": "no_conversation_possible"}, status=400)
+    conv = Conversation.objects.filter(reservation=res).first()
+    if not conv:
+        conv = Conversation.objects.create(
+            client_id=res.client_user_id,
+            prestataire_id=res.assigned_provider_id,
+            reservation=res,
+        )
 
     sender = User.objects.filter(pk=uid).first()
     message = Message.objects.create(
@@ -2717,6 +2332,26 @@ def api_messages_send_by_reservation(request):
         {"type": "chat.message", "reference": reservation_ref},
     )
 
+    # Broadcast WebSocket : les 2 apps reçoivent le nouveau message en live
+    # (bannière toast + son si l'app est ouverte sur l'écran chat ou même
+    # ailleurs — le service WS global déclenche la notif overlay).
+    try:
+        from . import realtime
+        realtime.broadcast_chat_message(
+            conv.id,
+            {
+                "id": message.id,
+                "conversation_id": conv.id,
+                "sender_id": sender.id,
+                "sender_role": request.api_role,
+                "body": message.body,
+                "created_at": message.created_at.isoformat() if hasattr(message, "created_at") and message.created_at else "",
+                "reservation_reference": reservation_ref,
+            },
+        )
+    except Exception as exc:
+        logger.warning("WS broadcast chat_message failed: %s", exc)
+
     return JsonResponse(
         {
             "ok": True,
@@ -2726,13 +2361,13 @@ def api_messages_send_by_reservation(request):
 
 
 @csrf_exempt
+@require_http_methods(["GET"])
 @require_api_auth(["client", "prestataire"])
-def _api_messages_list(request):
-    uid = int(request.api_user_id)
-    conv_id = request.GET.get("conversation_id")
+def api_messages(request):
     prestataire_id = request.GET.get("prestataire_id")
     client_id = request.GET.get("client_id")
     reservation_id = request.GET.get("reservation_id")
+    conv_id = request.GET.get("conversation_id") or request.GET.get("conv_id")
     conv = None
     if conv_id and str(conv_id).isdigit():
         conv = (
@@ -2757,46 +2392,32 @@ def _api_messages_list(request):
             .first()
         )
         if conv is None and res.client_user_id and res.prestataire_user_id:
-            from .services.conversation_service import get_or_create_conversation_for_reservation
-            conv = get_or_create_conversation_for_reservation(res)
-            if conv:
-                conv = (
-                    Conversation.objects.filter(pk=conv.pk)
-                    .select_related("reservation")
-                    .first()
-                )
-    elif prestataire_id and str(prestataire_id).isdigit() and request.api_role == "client":
-        pid = int(prestataire_id)
-        conv = (
-            Conversation.objects.filter(client_id=uid, prestataire_id=pid)
-            .select_related("reservation")
-            .order_by("-id")
-            .first()
-        )
-        if conv is None:
-            return JsonResponse(
-                {
-                    "error": "reservation_required",
-                    "detail": "Le chat BABIFIX est ouvert uniquement après une réservation (passer reservation_id).",
-                },
-                status=400,
+            conv = Conversation.objects.create(
+                client_id=res.client_user_id,
+                prestataire_id=res.prestataire_user_id,
+                reservation_id=rid,
             )
-    elif client_id and str(client_id).isdigit() and request.api_role == "prestataire":
-        cid = int(client_id)
-        conv = (
-            Conversation.objects.filter(client_id=cid, prestataire_id=uid)
-            .select_related("reservation")
-            .order_by("-id")
-            .first()
-        )
-        if conv is None:
-            return JsonResponse(
-                {
-                    "error": "reservation_required",
-                    "detail": "Le chat BABIFIX est ouvert uniquement après une réservation (passer reservation_id).",
-                },
-                status=400,
+            conv = (
+                Conversation.objects.filter(pk=conv.pk)
+                .select_related("reservation")
+                .first()
             )
+    elif prestataire_id and request.api_role == "client":
+        return JsonResponse(
+            {
+                "error": "reservation_required",
+                "detail": "Le chat BABIFIX est ouvert uniquement après une réservation (passer reservation_id).",
+            },
+            status=400,
+        )
+    elif client_id and request.api_role == "prestataire":
+        return JsonResponse(
+            {
+                "error": "reservation_required",
+                "detail": "Le chat BABIFIX est ouvert uniquement après une réservation (passer reservation_id).",
+            },
+            status=400,
+        )
     else:
         return JsonResponse({"error": "conversation_or_peer_required"}, status=400)
 
@@ -2848,6 +2469,12 @@ def _api_messages_send(request):
             except ValueError:
                 reply_to_id = None
         image = request.FILES.get("image")
+        if image is not None:
+            from .secure_uploads import SafeUploadError, validate_image_upload
+            try:
+                image = validate_image_upload(image, max_mb=8)
+            except SafeUploadError as exc:
+                return JsonResponse({"error": str(exc)}, status=400)
     else:
         try:
             payload = json.loads(request.body.decode("utf-8") or "{}")
@@ -2892,98 +2519,6 @@ def _api_messages_send(request):
     return JsonResponse({"ok": True, "message": _msg_dict(request, msg)}, status=201)
 
 
-# Statuts considérés comme « en cours » (réservation non terminée / non annulée).
-# Sert à empêcher les doublons : on ne compte que les prestations actives.
-_ACTIVE_RESERVATION_STATUSES = {
-    Reservation.Status.PENDING,            # "En attente"
-    Reservation.Status.CONFIRMED,          # "Confirmee"
-    Reservation.Status.IN_PROGRESS,        # "En cours"
-    Reservation.Status.WAITING_CLIENT,     # "En attente client"
-    Reservation.Status.DEMANDE_ENVOYEE,
-    Reservation.Status.DEVIS_EN_COURS,
-    Reservation.Status.DEVIS_ENVOYE,
-    Reservation.Status.DEVIS_ACCEPTE,
-    Reservation.Status.INTERVENTION_EN_COURS,
-}
-
-
-def _reservation_category_key(provider, title: str) -> str:
-    """Clé de catégorie pour comparer deux prestations.
-
-    - Si le prestataire a une catégorie → "cat:<id>".
-    - Sinon on retombe sur le titre normalisé → "title:<KEY>".
-    """
-    if provider is not None and getattr(provider, "category_id", None):
-        return f"cat:{provider.category_id}"
-    return f"title:{_normalize_category_key(title or '')}"
-
-
-def _find_reservation_conflicts(user, provider, title: str):
-    """Retourne (duplicate_provider, duplicate_category) parmi les prestations
-    ACTIVES du client.
-
-    - duplicate_provider : une prestation active EXISTE déjà avec CE prestataire
-      → blocage strict (on ne peut pas re-réserver le même prestataire).
-    - duplicate_category : une prestation active existe dans la MÊME catégorie
-      mais avec un AUTRE prestataire → simple avertissement (confirmable).
-    Chaque valeur est un dict {reference, prestataire, title, category} ou None.
-    """
-    if user is None:
-        return None, None
-    actives = list(
-        Reservation.objects.filter(
-            client_user=user, statut__in=_ACTIVE_RESERVATION_STATUSES
-        )
-        .select_related("assigned_provider", "assigned_provider__category")
-        .order_by("-pk")[:50]
-    )
-    current_key = _reservation_category_key(provider, title)
-    dup_provider = None
-    dup_category = None
-    for r in actives:
-        if provider is not None and r.assigned_provider_id == provider.id:
-            if dup_provider is None:
-                dup_provider = {
-                    "reference": r.reference,
-                    "prestataire": r.prestataire,
-                    "title": r.title or r.reference,
-                }
-            continue
-        # Autre prestataire : comparer la catégorie
-        if dup_category is None:
-            r_key = _reservation_category_key(r.assigned_provider, r.title)
-            if r_key == current_key:
-                cat_label = ""
-                if r.assigned_provider_id and r.assigned_provider and r.assigned_provider.category_id:
-                    cat_label = r.assigned_provider.category.nom
-                dup_category = {
-                    "reference": r.reference,
-                    "prestataire": r.prestataire,
-                    "title": r.title or r.reference,
-                    "category": cat_label or (r.title or ""),
-                }
-    return dup_provider, dup_category
-
-
-@csrf_exempt
-@require_http_methods(["GET"])
-@require_api_auth(["client", "admin"])
-def api_client_check_duplicate_reservation(request):
-    """Pré-vérification (avant de réserver) : prévient l'app si le client a
-    déjà une prestation active avec ce prestataire (blocage) ou dans la même
-    catégorie chez un autre prestataire (avertissement)."""
-    user = User.objects.filter(id=request.api_user_id).first()
-    provider = None
-    pid = request.GET.get("provider_id")
-    if pid and str(pid).isdigit():
-        provider = Provider.objects.filter(id=int(pid)).select_related("category").first()
-    title = str(request.GET.get("title", "") or "").strip()
-    dup_provider, dup_category = _find_reservation_conflicts(user, provider, title)
-    return JsonResponse(
-        {"duplicate_provider": dup_provider, "duplicate_category": dup_category}
-    )
-
-
 @csrf_exempt
 @require_http_methods(["POST"])
 @require_api_auth(["client", "admin"])
@@ -3005,12 +2540,12 @@ def api_client_create_reservation(request):
     prov = None
     pid = payload.get("provider_id")
     if pid is not None and str(pid).isdigit():
-        # Chercher le provider par ID (peu importe le statut)
-        prov = Provider.objects.filter(id=int(pid)).first()
-        print(f"[RESERVATION] provider_id={pid}, prov={prov}, statut={prov.statut if prov else None}, user_id={prov.user_id if prov else None}")
+        prov = Provider.objects.filter(
+            id=int(pid), statut=Provider.Status.VALID
+        ).first()
 
-    # Vérifier si le prestataire est disponible (uniquement si VALID)
-    if prov and prov.statut == Provider.Status.VALID and not prov.disponible:
+    # Vérifier si le prestataire est disponible
+    if prov and not prov.disponible:
         return JsonResponse(
             {
                 "error": "provider_unavailable",
@@ -3038,25 +2573,6 @@ def api_client_create_reservation(request):
                 status=400,
             )
 
-    # ── Anti-doublon ───────────────────────────────────────────────────────
-    # Blocage strict : on ne peut pas avoir 2 prestations actives avec le MÊME
-    # prestataire. L'avertissement « même catégorie, autre prestataire » est
-    # géré côté app (confirmable) ; ici on ne bloque QUE le même prestataire.
-    dup_provider, _dup_category = _find_reservation_conflicts(user, prov, title)
-    if dup_provider is not None:
-        return JsonResponse(
-            {
-                "error": "duplicate_provider",
-                "message": (
-                    "Vous avez déjà une prestation en cours avec ce prestataire "
-                    f"(réf. {dup_provider['reference']}). Terminez-la avant d'en "
-                    "réserver une nouvelle."
-                ),
-                "existing": dup_provider,
-            },
-            status=409,
-        )
-
     prest_label = prov.nom if prov else "A affecter"
     prest_user_id = prov.user_id if prov else None
 
@@ -3072,6 +2588,80 @@ def api_client_create_reservation(request):
         lon_f = None
 
     address_label = str(payload.get("address_label", "") or "")[:500]
+    # Champs structurés (peut être envoyés explicitement par le client).
+    address_street = str(payload.get("address_street", "") or "")[:200]
+    address_quartier = str(payload.get("address_quartier", "") or "")[:120]
+    address_ville = str(payload.get("address_ville", "") or "")[:120]
+    address_pays = str(payload.get("address_pays", "") or "Côte d'Ivoire")[:80]
+    address_repere = str(payload.get("address_repere", "") or "")[:300]
+
+    # Fallback : si aucune adresse texte n'a été fournie mais qu'on a des
+    # coordonnées GPS, le backend fait lui-même un reverse geocoding
+    # Nominatim et remplit les 5 champs structurés + le label résumé.
+    _need_geocode = (
+        not (address_label.strip() or address_street.strip()
+             or address_quartier.strip() or address_ville.strip())
+        and lat_f is not None and lon_f is not None
+    )
+    if _need_geocode:
+        try:
+            import requests as _req
+            nom = _req.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={
+                    "lat": lat_f,
+                    "lon": lon_f,
+                    "format": "json",
+                    "addressdetails": 1,
+                    "accept-language": "fr",
+                    "zoom": 16,
+                },
+                headers={"User-Agent": "BABIFIX/1.0 backend"},
+                timeout=4,
+            )
+            if nom.status_code == 200:
+                jd = nom.json()
+                ad = jd.get("address") or {}
+                # Rue (+ numéro si dispo)
+                house = (ad.get("house_number") or "").strip()
+                road = (ad.get("road") or ad.get("street")
+                        or ad.get("pedestrian") or "").strip()
+                if road:
+                    address_street = (f"{house} {road}".strip())[:200]
+                # Quartier
+                q = (ad.get("suburb") or ad.get("neighbourhood")
+                     or ad.get("quarter") or ad.get("city_district")
+                     or ad.get("hamlet") or "").strip()
+                if q:
+                    address_quartier = q[:120]
+                # Ville
+                v = (ad.get("city") or ad.get("town")
+                     or ad.get("municipality") or ad.get("village")
+                     or ad.get("county") or "").strip()
+                if v:
+                    address_ville = v[:120]
+                # Pays
+                p = (ad.get("country") or "").strip()
+                if p:
+                    address_pays = p[:80]
+                # Résumé compact
+                pieces = [x for x in [address_street, address_quartier, address_ville] if x]
+                if pieces:
+                    address_label = ", ".join(pieces)[:500]
+                elif jd.get("display_name"):
+                    parts = [p.strip() for p in str(jd["display_name"]).split(",")][:3]
+                    address_label = ", ".join([p for p in parts if p])[:500]
+        except Exception:
+            # Échec silencieux : la résa est créée quand même avec lat/lon
+            # seuls. L'app prestataire pourra ouvrir Google Maps avec les
+            # coordonnées brutes.
+            pass
+    # Si address_label vide mais champs structurés remplis (cas où le client
+    # envoie déjà la décomposition), on reconstruit le résumé compact.
+    if not address_label.strip():
+        pieces = [x for x in [address_street, address_quartier, address_ville] if x.strip()]
+        if pieces:
+            address_label = ", ".join(pieces)[:500]
     loc_time = timezone.now() if (lat_f is not None and lon_f is not None) else None
 
     pt_raw = str(payload.get("payment_type", "") or "").upper().replace(" ", "_")
@@ -3151,6 +2741,11 @@ def api_client_create_reservation(request):
         latitude=lat_f,
         longitude=lon_f,
         address_label=address_label,
+        address_street=address_street,
+        address_quartier=address_quartier,
+        address_ville=address_ville,
+        address_pays=address_pays,
+        address_repere=address_repere,
         location_captured_at=loc_time,
         client_user=user,
         prestataire_user_id=prest_user_id,
@@ -3158,7 +2753,7 @@ def api_client_create_reservation(request):
         payment_type=payment_type,
         mobile_money_operator=mobile_money_operator,
         client_message=client_message,
-        photos_probleme=preuve_list,
+        preuve_photos=preuve_list,
         prix_propose=prix_propose,
         description_probleme=str(payload.get("description_probleme", "") or "")[:2000],
         disponibilites_client=str(payload.get("disponibilites_client", "") or "")[:255],
@@ -3167,7 +2762,6 @@ def api_client_create_reservation(request):
         idempotency_key=idem_key,
         appel_masque=True,  # Activer masquage par défaut
     )
-    print(f"[RESERVATION CREATED] ref={reference}, prestataire='{prest_label}', user_id={prest_user_id}, provider_id={prov.id if prov else None}, status={initial_status}")
     if res_obj.client_user_id and res_obj.prestataire_user_id:
         Conversation.objects.get_or_create(
             reservation=res_obj,
@@ -3177,23 +2771,6 @@ def api_client_create_reservation(request):
             },
         )
     Notification.objects.create(title=f"Nouvelle reservation creee: {title}")
-
-    # Notification au prestataire de la nouvelle demande
-    if prov and prov.user_id:
-        Notification.objects.create(
-            user_id=prov.user_id,
-            title="Nouvelle demande reçue",
-            body=f"{client_label} a demandé votre service : {title}",
-            notif_type=Notification.NotifType.BROADCAST,
-            reference=f"reservation:{reference}",
-            lu=False,
-        )
-        _schedule(
-            [prov.user_id],
-            "Nouvelle demande",
-            f"{client_label} sollicite vos services pour : {title}",
-            {"type": "demande.received", "reference": reference},
-        )
 
     # Notification WhatsApp urgence au prestataire
     if is_urgent and prov and prov.user_id:
@@ -3469,62 +3046,13 @@ def api_prestataire_register(request):
     )
 
 
-# Statuts à partir desquels le prestataire est réellement engagé sur la
-# mission → on lui révèle l'adresse exacte. Avant ça (demande reçue,
-# devis en cours/envoyé), il ne voit qu'une zone approximative pour
-# préserver la confidentialité du client.
-_ADDRESS_REVEAL_STATUSES = {
-    Reservation.Status.DEVIS_ACCEPTE,
-    Reservation.Status.INTERVENTION_EN_COURS,
-    Reservation.Status.CONFIRMED,
-    Reservation.Status.IN_PROGRESS,
-    Reservation.Status.DONE,
-}
-
-
-def _approx_address(label: str) -> str:
-    """Version approximative d'une adresse (commune + ville), sans le
-    numéro ni la rue, pour ne pas exposer l'adresse exacte du client
-    avant que le prestataire ne soit engagé sur la mission.
-
-    Ex. "12 Rue des Jardins, Cocody, Abidjan, Côte d'Ivoire"
-        → "Cocody, Abidjan"
-    """
-    if not label:
-        return "Zone non précisée"
-    parts = [p.strip() for p in str(label).split(",") if p.strip()]
-    filtered = []
-    for p in parts:
-        low = p.lower()
-        # Retirer le pays et les codes postaux purement numériques.
-        if "ivoire" in low or "côte d" in low or "cote d" in low:
-            continue
-        if p.replace(" ", "").isdigit():
-            continue
-        filtered.append(p)
-    if not filtered:
-        return "Zone non précisée"
-    # On garde les 2 derniers segments significatifs (commune, ville),
-    # en sautant le 1er segment qui contient souvent le n° + la rue.
-    if len(filtered) >= 3:
-        approx = filtered[-2:]
-    elif len(filtered) == 2:
-        # "Rue X, Cocody" → on ne garde que "Cocody"
-        approx = filtered[-1:]
-    else:
-        approx = filtered
-    return ", ".join(approx)
-
-
-@csrf_exempt
-@require_http_methods(["GET"])
+@require_GET
 @require_api_auth(["prestataire", "admin"])
 def api_prestataire_requests(request):
     _bootstrap_data()
     status = request.GET.get("status")
     uid = request.api_user_id
     prov = _prestataire_provider_for_user(uid)
-    print(f"[PRESTATAIRE REQUESTS] user_id={uid}, prov={prov}, prov.nom={prov.nom if prov else None}, prov.id={prov.id if prov else None}")
 
     queryset = Reservation.objects.all()
     if prov:
@@ -3533,11 +3061,8 @@ def api_prestataire_requests(request):
             | Q(prestataire=prov.nom)
             | Q(assigned_provider_id=prov.id)
         )
-        print(f"[PRESTATAIRE REQUESTS] filter: user_id={uid} OR prestataire='{prov.nom}' OR assigned_provider_id={prov.id}")
     if status:
         queryset = queryset.filter(statut=status)
-
-    print(f"[PRESTATAIRE REQUESTS] total items: {queryset.count()}")
 
     data = []
     for item in queryset[:20]:
@@ -3547,63 +3072,52 @@ def api_prestataire_requests(request):
             if prov_obj and prov_obj.rating_count
             else 4.7
         )
-
-        # Récupérer les photos du client (JSONFields + base64)
-        client_photos = []
-        for url in (item.photos_probleme or []):
-            if url and isinstance(url, str):
-                client_photos.append(url)
-        for url in (item.preuve_photos or []):
-            if url and isinstance(url, str):
-                client_photos.append(url)
-
-        montant_fmt = 0
-        if item.montant:
-            try:
-                montant_fmt = float(item.montant)
-            except (ValueError, TypeError):
-                montant_fmt = 0
-
-        # Confidentialité : adresse exacte révélée seulement une fois le
-        # prestataire engagé (devis accepté → intervention). Avant ça,
-        # zone approximative (commune, ville).
-        _reveal_addr = item.statut in _ADDRESS_REVEAL_STATUSES
-        _full_addr = item.address_label or ""
-        _shown_addr = _full_addr if _reveal_addr else _approx_address(_full_addr)
-
+        client_text = (
+            item.description_probleme or item.client_message or ""
+        ).strip()
+        client_photos = [
+            str(p).strip()
+            for p in (item.preuve_photos or item.photos_probleme or [])
+            if str(p).strip()
+        ]
         data.append(
             {
                 "id": item.id,
                 "reference": item.reference,
-                "client": item.client or "Client",
+                "client": item.client,
                 "service": item.title or "Intervention domiciliaire",
                 "date": item.location_captured_at.strftime("%d %b %Y")
                 if item.location_captured_at
-                else "",
+                else "—",
                 "hour": item.location_captured_at.strftime("%H:%M")
                 if item.location_captured_at
-                else "",
-                "address": _shown_addr,
-                "address_is_approximate": not _reveal_addr,
+                else "—",
+                "address": item.address_label or "—",
+                # Adresse structurée — affichage pro côté prestataire avec une
+                # icône par champ (rue / quartier / ville / pays / repère).
+                "address_street": item.address_street or "",
+                "address_quartier": item.address_quartier or "",
+                "address_ville": item.address_ville or "",
+                "address_pays": item.address_pays or "",
+                "address_repere": item.address_repere or "",
+                "address_lat": item.latitude,
+                "address_lon": item.longitude,
                 "description": (
-                    item.description_probleme
-                    or item.client_message
-                    or f"Detail de la demande {item.reference}"
+                    client_text or f"Detail de la demande {item.reference}"
                 )[:500],
-                "client_message": (
-                    item.description_probleme or item.client_message or ""
-                ),
+                "client_message": client_text,
                 "client_photos": client_photos,
                 "disponibilites_client": item.disponibilites_client or "",
-                "is_urgent": item.is_urgent or False,
-                "amount": montant_fmt,
-                "amount_label": f"{montant_fmt:.0f} FCFA" if montant_fmt > 0 else "À définir",
+                "is_urgent": item.is_urgent,
+                "urgence_surcharge_pct": item.urgence_surcharge_pct or 0,
+                "amount": float(item.montant) if item.montant else 0,
                 "status": item.statut,
-                "payment_type": item.payment_type or "ESPECES",
+                "payment_type": item.payment_type,
                 "mobile_money_operator": item.mobile_money_operator or "",
-                "cash_flow_status": item.cash_flow_status or "",
+                "cash_flow_status": item.cash_flow_status,
                 "rating": ravg,
                 "prix_propose": float(item.prix_propose) if item.prix_propose else None,
+                "bookingId": item.id,
             }
         )
     return JsonResponse({"items": data})
@@ -3837,41 +3351,27 @@ def api_prestataire_earnings(request):
     period = request.GET.get("period", "month")
     prov = _prestataire_provider_for_user(request.api_user_id)
     name = prov.nom if prov else ""
-    payments = Payment.objects.filter(
-        prestataire=name, etat=Payment.State.COMPLETE
-    ) if name else Payment.objects.none()
+    payments = (
+        Payment.objects.filter(prestataire=name) if name else Payment.objects.none()
+    )
 
     total = 0.0
     for pay in payments:
-        raw = str(pay.montant or "0").replace("€", "").replace("FCFA", "").strip()
+        raw = pay.montant.replace("€", "").replace("FCFA", "").strip()
         try:
             total += float(raw)
         except ValueError:
             pass
 
-    from adminpanel.services.wallet_service import WalletService
-    wallet = WalletService.get_wallet_summary(prov.pk) if prov else {}
-    wallet_txs = wallet.get("transactions", [])
-    wallet_solde = wallet.get("solde_fcfa", 0)
-
     transactions = []
     for x in payments[:20]:
-        net_amount = 0.0
-        raw_montant = str(x.montant or "0").replace("€", "").replace("FCFA", "").strip()
-        try:
-            gross = float(raw_montant)
-            raw_commission = str(x.commission or "0").replace("€", "").replace("FCFA", "").strip()
-            commission = float(raw_commission)
-            net_amount = gross - commission
-        except ValueError:
-            net_amount = 0.0
         transactions.append(
             {
                 "client": x.client,
                 "service": "Prestation",
-                "gross": raw_montant,
-                "commission": str(x.commission or "0"),
-                "net": str(int(net_amount)),
+                "gross": x.montant,
+                "commission": x.commission,
+                "net": x.montant,
                 "status": x.etat,
             }
         )
@@ -3884,11 +3384,7 @@ def api_prestataire_earnings(request):
         "month": {"total": month_total, "count": pc},
     }
     data = summary.get(period, summary["month"])
-    return JsonResponse({
-        "summary": data,
-        "transactions": transactions,
-        "wallet_balance": wallet_solde,
-    })
+    return JsonResponse({"summary": data, "transactions": transactions})
 
 
 @require_GET
@@ -3967,7 +3463,7 @@ def api_prestataire_me(request):
     payments = Payment.objects.filter(prestataire=prov.nom)
     pay_sum = 0.0
     for pay in payments:
-        raw = str(pay.montant or "0").replace("€", "").replace("FCFA", "").strip()
+        raw = pay.montant.replace("€", "").replace("FCFA", "").strip()
         try:
             pay_sum += float(raw)
         except ValueError:
@@ -3996,11 +3492,6 @@ def api_prestataire_me(request):
                 "category_id": int(cat.id) if cat else None,
                 "category_icone_url": (cat.icone_url or "").strip() if cat else "",
                 "years_experience": int(prov.years_experience or 0),
-                "contrat_signe": prov.contrat_accepte_at is not None,
-                "contrat_accepte_at": (
-                    prov.contrat_accepte_at.isoformat()
-                    if prov.contrat_accepte_at else None
-                ),
             },
             "stats": {
                 "reservations_total": qs.count(),
@@ -4048,6 +3539,7 @@ def api_auth_login(request):
         return JsonResponse({"error": "username_password_required"}, status=400)
 
     # Chercher par email d'abord, puis par username
+    # Si username ressemble à un email, on essaie aussi la colonne email
     user = None
     if email:
         try:
@@ -4059,16 +3551,37 @@ def api_auth_login(request):
             user = User.objects.get(username__iexact=username)
         except User.DoesNotExist:
             pass
+    if not user and username and '@' in username:
+        try:
+            user = User.objects.get(email__iexact=username)
+        except User.DoesNotExist:
+            pass
 
+    # Anti-timing-attack : on hash TOUJOURS un mot de passe — même si user inconnu —
+    # pour que la durée de la réponse ne révèle pas l'existence d'un compte.
+    from django.contrib.auth.hashers import check_password as _hasher_check
+    _DUMMY_HASH = (
+        "argon2$argon2id$v=19$m=102400,t=2,p=8$"
+        "ZHVtbXktc2FsdC1iYWJpZml4$KW5fF3nq3a3WZ9o/9c8Z4w"
+    )
     if not user:
+        _hasher_check(password, _DUMMY_HASH)
         return JsonResponse({"error": "invalid_credentials"}, status=401)
     if not user.check_password(password):
         return JsonResponse({"error": "invalid_credentials"}, status=401)
+    if not user.is_active:
+        return JsonResponse({"error": "account_disabled"}, status=403)
     profile = UserProfile.objects.filter(user=user, active=True).first()
     if not profile:
         return JsonResponse({"error": "user_role_not_found"}, status=403)
     token = create_token(user.id, profile.role)
     refresh = create_refresh_token(user.id, profile.role)
+    # Mémoriser la dernière connexion (utile pour audits / detection compromise).
+    try:
+        from django.utils import timezone
+        User.objects.filter(pk=user.pk).update(last_login=timezone.now())
+    except Exception:
+        pass
     return JsonResponse(
         {
             "token": token,
@@ -4134,8 +3647,8 @@ def api_auth_register(request):
         country_code=country_code,
         email_verify_token=email_token,
     )
-    # Envoi email de vérification si email fourni
-    if user.email:
+    # Envoi email de vérification uniquement pour les prestataires
+    if user.email and role == UserProfile.Role.PRESTATAIRE:
         from .views_v2 import _send_verification_email
 
         _send_verification_email(user.email, email_token)
@@ -4177,13 +3690,37 @@ def api_auth_register(request):
     )
 
 
-@require_GET
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 @require_api_auth()
 def api_auth_me(request):
     user = User.objects.filter(id=request.api_user_id).first()
     if not user:
         return JsonResponse({"error": "user_not_found"}, status=404)
     profile = UserProfile.objects.filter(user=user).first()
+
+    # POST : mise à jour du numéro enregistré (réutilisé pour paiement/retraits).
+    if request.method == "POST":
+        try:
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            return JsonResponse({"error": "invalid_json"}, status=400)
+        if not profile:
+            profile = UserProfile.objects.create(
+                user=user, role=request.api_role or "client", active=True
+            )
+        phone_e164 = str(payload.get("phone_e164") or payload.get("phone") or "").strip()[:24]
+        country = str(payload.get("country_code") or "").strip()[:5]
+        fields = []
+        if phone_e164:
+            profile.phone_e164 = phone_e164
+            fields.append("phone_e164")
+        if country:
+            profile.country_code = country
+            fields.append("country_code")
+        if fields:
+            profile.save(update_fields=fields)
+
     return JsonResponse(
         {
             "id": int(user.id),
@@ -4660,13 +4197,20 @@ def api_client_confirm_prestation(request, reference):
     res.statut = "Terminee"
     res.client_confirme_prestation_at = timezone.now()
     res.save(update_fields=["statut", "client_confirme_prestation_at"])
+    # Programme de fidélité : créditer les points au client
+    points_gagnes = 0
+    try:
+        from .services.fidelite_service import FideliteService
+        points_gagnes = FideliteService.award_for_reservation(res)
+    except Exception:
+        logger.exception("fidélité: échec attribution points %s", res.reference)
     _schedule(
         [res.prestataire_user_id],
         "BABIFIX — Client a confirmé",
         f"Réservation {res.reference} — vous pouvez demander le paiement.",
         {"type": "client.confirmed", "reference": res.reference},
     )
-    return JsonResponse({"ok": True, "status": res.statut})
+    return JsonResponse({"ok": True, "status": res.statut, "points_fidelite_gagnes": points_gagnes})
 
 
 from django.db import transaction
@@ -4699,13 +4243,7 @@ def api_client_pay_post_prestation(request, reference):
         )
     note = str(payload.get("message", "") or "")[:2000]
     ref_pay = f"PAY-{res.reference}-{int(timezone.now().timestamp())}"
-    from adminpanel.services.wallet_service import WalletService, _get_effective_commission_rate
-    commission_rate = _get_system_commission_rate()
-    # Calculer la commission effective (prend en compte premium tier)
-    provider_for_commission = res.assigned_provider
-    if provider_for_commission:
-        commission_rate = _get_effective_commission_rate(provider_for_commission)
-    commission = (res.montant * commission_rate).quantize(Decimal("1")) if res.montant else Decimal("0")
+    commission = res.montant * Decimal("0.18") if res.montant else Decimal("0")
     tp = Payment.TypePaiement.ESPECES
     if mid != "ESPECES":
         tp = Payment.TypePaiement.MOBILE_MONEY
@@ -4738,14 +4276,6 @@ def api_client_pay_post_prestation(request, reference):
                 valide_par_admin=False,
                 idempotency_key=idem_key,
             )
-            # Créditer le wallet prestataire (net après commission)
-            try:
-                from adminpanel.services.wallet_service import WalletService
-                WalletService.credit_provider(
-                    Payment.objects.get(reference=ref_pay)
-                )
-            except Exception as e:
-                logger.warning("Erreur crédit wallet post-prestation: %s", e)
     except Exception as e:
         return JsonResponse({"error": "transaction_failed", "detail": str(e)}, status=500)
     _schedule(
@@ -4878,25 +4408,6 @@ def api_prestataire_demarrer_intervention(request, reference):
     if res.assigned_provider_id != provider.id:
         return JsonResponse({"error": "not_authorized"}, status=403)
 
-    # Phase E — Garde-fou escrow : impossible de démarrer sans acompte.
-    # Mobile : 100 % du devis doit être bloqué en escrow.
-    # Cash   : la commission (18 %) doit déjà être encaissée.
-    if not res.acompte_valide:
-        from .services.escrow_service import EscrowService
-        quote = EscrowService.quote(res)
-        return JsonResponse(
-            {
-                "error": "acompte_required",
-                "message": (
-                    "L'acompte n'a pas encore été versé par le client. "
-                    "Vous ne pouvez pas démarrer l'intervention."
-                ),
-                "strategy": quote.strategy,
-                "amount_due_online": float(quote.amount_due),
-            },
-            status=409,
-        )
-
     # Validation transition de statut
     is_valid, allowed = validate_reservation_transition(
         res.statut, Reservation.Status.INTERVENTION_EN_COURS
@@ -4909,19 +4420,6 @@ def api_prestataire_demarrer_intervention(request, reference):
 
     res.statut = Reservation.Status.INTERVENTION_EN_COURS
     res.save(update_fields=["statut"])
-
-    # Phase C : event système dans le fil unique
-    try:
-        from .services.conversation_service import post_system_event
-        post_system_event(
-            res,
-            event_type="intervention.started",
-            body=f"Intervention démarrée par {provider.nom}.",
-            extra={"provider_name": provider.nom},
-        )
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning("post_system_event started failed: %s", exc)
 
     _schedule(
         [res.client_user_id] if res.client_user_id else [],
@@ -4985,22 +4483,6 @@ def api_prestataire_terminer_intervention(request, reference):
     res.statut = "Terminee"
     res.prestation_terminee_at = timezone.now()
     res.save(update_fields=["statut", "prestation_terminee_at"])
-
-    # Phase C : event système — fin d'intervention
-    try:
-        from .services.conversation_service import post_system_event
-        post_system_event(
-            res,
-            event_type="intervention.finished",
-            body=(
-                f"Travaux terminés par {provider.nom}. "
-                "Veuillez confirmer la prestation pour libérer le règlement."
-            ),
-            extra={"provider_name": provider.nom},
-        )
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning("post_system_event finished failed: %s", exc)
 
     _schedule(
         [res.client_user_id] if res.client_user_id else [],
@@ -5086,142 +4568,12 @@ def api_client_confirmer_travaux(request, reference):
     res.statut = target_status
     res.save(update_fields=["client_confirme_prestation_at", "statut"])
 
-    # Phase F — Escrow : libération des fonds.
-    # Mobile : crédite le wallet presta du net (82 %) + commission en PlatformRevenue.
-    # Cash   : commission déjà encaissée à l'acompte, le presta a perçu son net
-    #          en main à main, rien à faire côté wallet (juste l'horodatage).
-    escrow_result = {"ok": False, "reason": "not_attempted"}
-    try:
-        from .services.escrow_service import EscrowService
-        escrow_result = EscrowService.release_funds(res)
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).exception(
-            "release_funds failed for %s: %s", res.reference, exc
-        )
-        escrow_result = {"ok": False, "error": "release_failed"}
-
-    # B3 — Envoi du reçu PDF FINAL par e-mail au client (et copie presta)
-    # uniquement à la confirmation, pas à l'acompte. Best-effort.
-    try:
-        from .services.invoice_service import InvoiceService
-        from .views_extra import send_babifix_email_html
-        from django.template.loader import render_to_string
-
-        payment_final = (
-            Payment.objects.filter(reservation=res)
-            .order_by("-pk")
-            .first()
-        )
-        if payment_final:
-            pdf_bytes = InvoiceService.generate_pdf(payment_final)
-            if pdf_bytes:
-                invoice_number = InvoiceService.generate_invoice_number(
-                    payment_final
-                )
-                attachments = [
-                    (f"recu_{invoice_number}.pdf", pdf_bytes, "application/pdf"),
-                ]
-                client_email = (
-                    res.client_user.email if res.client_user else ""
-                )
-                client_name = (
-                    res.client_user.get_full_name() or res.client_user.username
-                    if res.client_user
-                    else "Client"
-                )
-                if client_email:
-                    html_content = render_to_string(
-                        "emails/receipt_email.html",
-                        {
-                            "invoice_number": invoice_number,
-                            "reference": res.reference,
-                            "service_title": getattr(res, "title", "") or res.reference,
-                            "montant": int(res.montant or 0),
-                            "operateur": "Mobile Money / BABIFIX",
-                            "client_name": client_name,
-                        },
-                    )
-                    send_babifix_email_html(
-                        to_email=client_email,
-                        subject=f"BABIFIX — Reçu final {invoice_number}",
-                        html_content=html_content,
-                        attachments=attachments,
-                    )
-                # Copie au prestataire
-                if res.assigned_provider and res.assigned_provider.user:
-                    presta_email = res.assigned_provider.user.email
-                    if presta_email:
-                        send_babifix_email_html(
-                            to_email=presta_email,
-                            subject=(
-                                f"BABIFIX — Récap intervention {res.reference}"
-                            ),
-                            html_content=(
-                                f"<p>L'intervention {res.reference} a été "
-                                f"confirmée par le client. PDF joint.</p>"
-                            ),
-                            attachments=attachments,
-                        )
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning(
-            "Receipt email at confirmation failed for %s: %s", res.reference, exc
-        )
-
-    # Phase C : event système dans le fil — confirmation + libération
-    try:
-        from .services.conversation_service import post_system_event
-        is_mobile = escrow_result.get("released_to_provider", 0)
-        body = (
-            f"Le client a confirmé la prestation {res.reference}. "
-            + (
-                f"Solde de {int(escrow_result.get('released_to_provider') or 0)} F CFA "
-                "crédité sur le wallet prestataire."
-                if is_mobile
-                else "Règlement cash acté."
-            )
-        )
-        post_system_event(
-            res,
-            event_type="client.confirmed",
-            body=body,
-            extra={
-                "released_to_provider": escrow_result.get("released_to_provider"),
-                "platform_revenue": escrow_result.get("platform_revenue"),
-                "strategy": escrow_result.get("strategy"),
-            },
-        )
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning("post_system_event confirmed failed: %s", exc)
-
-    # Notif prestataire : travaux confirmés (et fonds libérés si mobile)
-    if res.assigned_provider and res.assigned_provider.user_id:
-        _schedule(
-            [res.assigned_provider.user_id],
-            "Travaux confirmés par le client",
-            (
-                f"Le client a confirmé la prestation {res.reference}. "
-                + (
-                    "Le solde a été crédité sur votre wallet."
-                    if escrow_result.get("released_to_provider")
-                    else "Le règlement cash a été acté."
-                )
-            ),
-            {
-                "type": "intervention.confirmed",
-                "reference": res.reference,
-            },
-        )
-
     return JsonResponse(
         {
             "ok": True,
             "statut": res.statut,
             "montant": float(res.montant) if res.montant else 0,
             "payment_type": res.payment_type,
-            "escrow": escrow_result,
         }
     )
 
@@ -5231,7 +4583,7 @@ def api_client_confirmer_travaux(request, reference):
 @require_http_methods(["POST"])
 @require_api_auth(["client"])
 def api_client_annuler_demande(request, reference):
-    """C1 — Le client annule + remboursement automatique selon stage."""
+    """Le client annule sa demande (si pas encore accepted)."""
     _bootstrap_data()
     res = Reservation.objects.filter(reference=reference).first()
     if not res:
@@ -5241,341 +4593,24 @@ def api_client_annuler_demande(request, reference):
     if res.client_user_id != uid and request.api_role != "admin":
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    try:
-        body = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        body = {}
-    motif = str(body.get("motif", "")).strip()[:5000]
-
-    from .services.cancellation_service import CancellationService
-    result = CancellationService.cancel(
-        res, by="CLIENT" if request.api_role != "admin" else "ADMIN", motif=motif
-    )
-    if not result.ok:
-        return JsonResponse({"error": result.detail or "cancel_failed"}, status=400)
-
-    return JsonResponse({
-        "ok": True,
-        "statut": res.statut,
-        "stage": result.stage,
-        "penalty_pct": result.penalty_pct,
-        "refund_owed_fcfa": result.refund_owed_fcfa,
-        "platform_commission_refunded": result.platform_commission_refunded,
-    })
-
-
-# C1 — Prestataire annule la demande (refus tardif, indisponibilité…)
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["prestataire"])
-def api_prestataire_annuler_demande(request, reference):
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-    uid = int(request.api_user_id)
-    if not (
-        res.assigned_provider
-        and res.assigned_provider.user_id
-        and res.assigned_provider.user_id == uid
-    ):
-        return JsonResponse({"error": "forbidden"}, status=403)
-
-    try:
-        body = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        body = {}
-    motif = str(body.get("motif", "")).strip()[:5000]
-
-    from .services.cancellation_service import CancellationService
-    result = CancellationService.cancel(res, by="PRESTATAIRE", motif=motif)
-    if not result.ok:
-        return JsonResponse({"error": result.detail or "cancel_failed"}, status=400)
-    return JsonResponse({
-        "ok": True,
-        "statut": res.statut,
-        "stage": result.stage,
-        "refund_owed_fcfa": result.refund_owed_fcfa,
-    })
-
-
-# B6 — Le client ouvre un litige sur une réservation
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["client"])
-def api_client_open_dispute(request, reference):
-    """Le client ouvre un litige. Bloque la libération automatique des
-    fonds escrow tant que le litige n'est pas tranché par l'admin."""
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-    uid = int(request.api_user_id)
-    if res.client_user_id != uid:
-        return JsonResponse({"error": "forbidden"}, status=403)
-    if res.dispute_ouverte:
-        return JsonResponse(
-            {"ok": True, "already_open": True, "dispute_id": None}
-        )
-    try:
-        body = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        body = {}
-    motif = str(body.get("motif", "")).strip()[:500] or "Non précisé"
-
-    priorite_raw = str(body.get("priorite", "Moyenne")).strip()
-    priorite = priorite_raw if priorite_raw in [
-        Dispute.Priority.HIGH, Dispute.Priority.MEDIUM, Dispute.Priority.LOW
-    ] else Dispute.Priority.MEDIUM
-
-    # Catégorie : on prend telle quelle si elle correspond à une des choix.
-    cat_raw = str(body.get("categorie", "")).strip().lower()
-    valid_cats = {c.value for c in Dispute.Category}
-    categorie = cat_raw if cat_raw in valid_cats else Dispute.Category.AUTRE
-
-    # Photos preuves : max 5, doivent être des data URLs (data:image/...)
-    photos_raw = body.get("photos", []) or []
-    if not isinstance(photos_raw, list):
-        photos_raw = []
-    photos = [
-        str(p)[:600000]  # ~450 ko en base64
-        for p in photos_raw[:5]
-        if isinstance(p, str) and p.startswith("data:image/")
-    ]
-
-    # Référence unique
-    import uuid as _uuid
-    dispute_ref = f"DSP-{_uuid.uuid4().hex[:8].upper()}"
-
-    client_name = (
-        res.client_user.get_full_name() or res.client_user.username
-        if res.client_user else (res.client or "Client")
-    )
-    presta_name = res.assigned_provider.nom if res.assigned_provider else (
-        res.prestataire or "Prestataire"
-    )
-
-    dispute = Dispute.objects.create(
-        reference=dispute_ref,
-        motif=motif,
-        categorie=categorie,
-        client=client_name,
-        prestataire=presta_name,
-        priorite=priorite,
-        decision=Dispute.Decision.OPEN,
-        reservation=res,
-        photos_client=photos,
-    )
-    res.dispute_ouverte = True
-    res.save(update_fields=["dispute_ouverte"])
-
-    # Notif système dans le chat + push admin
-    try:
-        from .services.conversation_service import post_system_event
-        post_system_event(
-            res,
-            event_type="dispute.opened",
-            body=(
-                f"Litige ouvert par le client (réf {dispute_ref}). "
-                f"Motif : {motif}. Un admin va trancher."
-            ),
-            extra={"dispute_id": dispute.pk, "motif": motif, "priorite": priorite},
-        )
-    except Exception:
-        pass
-
-    try:
-        admin_ids = list(
-            User.objects.filter(is_staff=True, is_active=True)
-            .values_list("id", flat=True)
-        )
-        if admin_ids:
-            _schedule(
-                admin_ids,
-                "BABIFIX — Nouveau litige",
-                f"{client_name} a ouvert un litige sur {res.reference}",
-                {
-                    "type": "dispute.opened",
-                    "reference": res.reference,
-                    "dispute_ref": dispute_ref,
-                    "route": "/admin/disputes",
-                },
-            )
-        # Notif presta
-        if res.assigned_provider and res.assigned_provider.user_id:
-            _schedule(
-                [res.assigned_provider.user_id],
-                "Litige ouvert sur votre intervention",
-                f"Le client a ouvert un litige sur {res.reference}.",
-                {"type": "dispute.opened", "reference": res.reference},
-            )
-    except Exception:
-        pass
-
-    return JsonResponse({
-        "ok": True,
-        "dispute_id": dispute.pk,
-        "dispute_reference": dispute.reference,
-        "decision": dispute.decision,
-    })
-
-
-# B6 — Admin tranche un litige (refund / release / split)
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["admin"])
-def api_admin_resolve_dispute(request, dispute_ref):
-    d = Dispute.objects.filter(reference=dispute_ref).first()
-    if not d:
-        return JsonResponse({"error": "not_found"}, status=404)
-    if d.decision != Dispute.Decision.OPEN:
-        return JsonResponse(
-            {"error": "already_resolved", "decision": d.decision}, status=409
-        )
-    try:
-        body = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        body = {}
-    decision = str(body.get("decision", "")).strip()
-    if decision not in [
-        Dispute.Decision.REFUND,
-        Dispute.Decision.RELEASE,
-        Dispute.Decision.SPLIT,
+    if res.statut in [
+        Reservation.Status.INTERVENTION_EN_COURS,
+        Reservation.Status.DONE,
     ]:
-        return JsonResponse({"error": "invalid_decision"}, status=400)
+        return JsonResponse({"error": "cannot_cancel"}, status=400)
 
-    res = d.reservation
-    note = str(body.get("note", "")).strip()[:500]
+    res.statut = Reservation.Status.CANCELLED
+    res.save(update_fields=["statut"])
 
-    if res:
-        if decision == Dispute.Decision.REFUND:
-            # Remboursement total : annule l'escrow comme "by=ADMIN"
-            from .services.cancellation_service import CancellationService
-            CancellationService.cancel(
-                res, by="ADMIN",
-                motif=f"Litige {d.reference} — refund admin. {note}",
-            )
-        elif decision == Dispute.Decision.RELEASE:
-            # Libère vers le prestataire (équivalent confirmation)
-            if not res.client_confirme_prestation_at:
-                res.client_confirme_prestation_at = timezone.now()
-                res.save(update_fields=["client_confirme_prestation_at"])
-            try:
-                from .services.escrow_service import EscrowService
-                EscrowService.release_funds(res)
-            except Exception:
-                pass
-        elif decision == Dispute.Decision.SPLIT:
-            # Partage : 50/50 (paramétrable via body['client_pct'])
-            try:
-                client_pct = int(body.get("client_pct", 50))
-            except (TypeError, ValueError):
-                client_pct = 50
-            client_pct = max(0, min(100, client_pct))
-            from decimal import Decimal
-            from .models import PlatformRevenue, Provider, WalletTransaction
-            montant = Decimal(str(res.montant_verse or 0))
-            refund = (montant * Decimal(client_pct) / Decimal("100")).quantize(
-                Decimal("1")
-            )
-            keep = montant - refund
-            res.refund_owed_fcfa = refund
-            res.save(update_fields=["refund_owed_fcfa"])
-            # Le keep est partagé entre presta (net%) et plateforme (commission%)
-            from .services.escrow_service import _latest_devis
-            devis = _latest_devis(res)
-            if devis and keep > 0:
-                commission = Decimal(str(devis.commission_montant or 0))
-                net = Decimal(str(devis.net_prestataire or 0))
-                if (commission + net) > 0:
-                    presta_share = (keep * net / (commission + net)).quantize(
-                        Decimal("1")
-                    )
-                    platform_share = keep - presta_share
-                    if presta_share > 0 and res.assigned_provider:
-                        prov = Provider.objects.select_for_update().get(
-                            pk=res.assigned_provider.pk
-                        )
-                        prov.solde_fcfa = (
-                            prov.solde_fcfa or Decimal("0")
-                        ) + presta_share
-                        prov.save(update_fields=["solde_fcfa"])
-                        WalletTransaction.objects.create(
-                            provider=prov,
-                            tx_type="credit",
-                            amount_fcfa=presta_share,
-                            reference=res.reference,
-                            description=(
-                                f"Litige {d.reference} — partage admin"
-                            ),
-                            status="success",
-                        )
-                    if platform_share > 0:
-                        PlatformRevenue.objects.create(
-                            amount_fcfa=platform_share,
-                            source=PlatformRevenue.Source.COMMISSION,
-                            reference=res.reference,
-                            description=(
-                                f"Litige {d.reference} — partage plateforme"
-                            ),
-                        )
-            res.funds_released_at = timezone.now()
-            res.save(update_fields=["funds_released_at"])
+    if res.assigned_provider and res.assigned_provider.user_id:
+        _schedule(
+            [res.assigned_provider.user_id],
+            "Demande annulée",
+            f"Le client a annulé la demande {res.reference}",
+            {"type": "demande.cancelled", "reference": res.reference},
+        )
 
-        # Le litige est désormais fermé côté résa
-        res.dispute_ouverte = False
-        res.save(update_fields=["dispute_ouverte"])
-
-    d.decision = decision
-    d.decision_note = note
-    d.decided_at = timezone.now()
-    # Trace de l'admin qui a tranché.
-    try:
-        admin_user = User.objects.filter(pk=request.api_user_id).first()
-        if admin_user:
-            d.decided_by = admin_user
-    except Exception:
-        pass
-    d.save(update_fields=["decision", "decision_note", "decided_at", "decided_by"])
-
-    # Notif aux 2 parties
-    try:
-        from .services.conversation_service import post_system_event
-        if res:
-            post_system_event(
-                res,
-                event_type="dispute.resolved",
-                body=f"Litige {d.reference} résolu : {decision}. {note}",
-                extra={"decision": decision, "note": note},
-            )
-    except Exception:
-        pass
-
-    return JsonResponse({
-        "ok": True,
-        "dispute_reference": d.reference,
-        "decision": d.decision,
-        "refund_owed_fcfa": float(res.refund_owed_fcfa or 0) if res else 0,
-    })
-
-
-# C1 — Admin marque un remboursement comme effectivement viré.
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["admin"])
-def api_admin_mark_refund_paid(request, reference):
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-    if (res.refund_owed_fcfa or 0) <= 0:
-        return JsonResponse({"error": "no_refund_owed"}, status=400)
-    if res.refund_paid_at:
-        return JsonResponse({"ok": True, "already_paid": True})
-    res.refund_paid_at = timezone.now()
-    res.save(update_fields=["refund_paid_at"])
-    return JsonResponse({
-        "ok": True,
-        "refund_paid_at": res.refund_paid_at.isoformat(),
-        "amount_fcfa": float(res.refund_owed_fcfa or 0),
-    })
+    return JsonResponse({"ok": True, "statut": res.statut})
 
 
 # Client : lister ses demandes
@@ -5665,65 +4700,31 @@ def api_prestataire_create_devis(request, reference):
     if not isinstance(lignes_data, list):
         lignes_data = []
 
-    # Photos du diagnostic ajoutées par le prestataire (data URI base64), max 6.
-    raw_pphotos = payload.get("photos_prestataire") or []
-    photos_prestataire: list[str] = []
-    if isinstance(raw_pphotos, list):
-        for entry in raw_pphotos[:6]:
-            s = str(entry).strip()
-            if not s.startswith("data:image/"):
-                continue
-            if len(s) > 600_000:
-                s = s[:600_000]
-            photos_prestataire.append(s)
-
-    # Remise commerciale (bornée à [0, sous_total] par le modèle _recompute_totals).
-    remise_value = parse_money_amount(payload.get("remise", 0))
-
-    # Brouillon : enregistrer sans envoyer (statut BROUILLON, pas de notif,
-    # statut réservation inchangé). Diagnostic non obligatoire pour un brouillon.
-    is_draft = bool(payload.get("draft", False))
-
-    if not diagnostic and not is_draft:
+    if not diagnostic:
         return JsonResponse({"error": "diagnostic_required"}, status=400)
 
     existing_devis = Devis.objects.filter(
         reservation=res, statut__in=[Devis.Statut.ENVOYE, Devis.Statut.ACCEPTE]
     ).first()
-    if existing_devis and not is_draft:
+    if existing_devis:
         return JsonResponse({"error": "devis_already_exists"}, status=400)
-    # Un seul brouillon par (réservation, prestataire) : on remplace l'ancien.
-    if is_draft:
-        Devis.objects.filter(
-            reservation=res,
-            prestataire=provider,
-            statut=Devis.Statut.BROUILLON,
-        ).delete()
 
-    # Quota devis actifs simultanés selon le tier premium.
-    # Standard=3, Silver=15, Gold=illimité.
-    _ACTIVE_DEVIS_QUOTA = {
-        "standard": 3,
-        "silver": 15,
-        "gold": -1,  # illimité
-    }
-    tier_key = (provider.premium_tier or "standard").lower() if provider.is_premium else "standard"
-    quota = _ACTIVE_DEVIS_QUOTA.get(tier_key, 3)
-    if quota > 0 and not is_draft:
+    # Quota de devis actifs selon le palier (Standard 3, Silver 15, Gold illimité)
+    from .services.provider_subscription_service import ProviderSubscriptionService
+    quota = ProviderSubscriptionService.devis_quota(provider)
+    if quota is not None:
         active_count = Devis.objects.filter(
             prestataire=provider,
-            statut__in=[Devis.Statut.ENVOYE, Devis.Statut.BROUILLON],
+            statut__in=[Devis.Statut.BROUILLON, Devis.Statut.ENVOYE],
         ).count()
         if active_count >= quota:
             return JsonResponse({
-                "error": "active_devis_quota_reached",
+                "error": "devis_quota_reached",
                 "quota": quota,
                 "active": active_count,
-                "tier": tier_key,
                 "message": (
-                    f"Limite atteinte : {quota} devis actifs maximum pour "
-                    f"l'abonnement {tier_key}. Passez à un tier supérieur "
-                    f"pour augmenter cette limite."
+                    f"Vous avez atteint votre quota de {quota} devis actifs. "
+                    "Passez à un palier supérieur (Silver/Gold) pour en créer davantage."
                 ),
             }, status=403)
 
@@ -5753,25 +4754,20 @@ def api_prestataire_create_devis(request, reference):
 
     category = provider.category
     commission_rate = 18
-    if category and hasattr(category, "commission"):
-        commission_rate = category.commission.commission_rate
+    try:
+        if category and hasattr(category, "commission"):
+            commission_rate = int(category.commission.commission_rate)
+    except Exception:
+        commission_rate = 18
 
-    # Validation transition de statut (uniquement pour un envoi réel).
-    if not is_draft:
-        is_valid, allowed = validate_reservation_transition(
-            res.statut, "DEVIS_ENVOYE"
+    # Validation transition de statut
+    is_valid, allowed = validate_reservation_transition(res.statut, "DEVIS_ENVOYE")
+    if not is_valid:
+        return JsonResponse(
+            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+            status=400,
         )
-        if not is_valid:
-            return JsonResponse(
-                {
-                    "error": "invalid_transition",
-                    "current": res.statut,
-                    "allowed": allowed,
-                },
-                status=400,
-            )
 
-    valid_types = {c[0] for c in LigneDevis.TypeLigne.choices}
     try:
         devis = Devis.objects.create(
             reference="",
@@ -5783,12 +4779,11 @@ def api_prestataire_create_devis(request, reference):
             heure_fin=parsed_heure_fin,
             validite_jours=validite_jours,
             note_prestataire=note_prestataire,
-            photos_prestataire=photos_prestataire,
             commission_rate=commission_rate,
         )
 
+        valid_types = {c[0] for c in LigneDevis.TypeLigne.choices}
         sous_total = Decimal("0")
-        from .models import CatalogueItem
         for ligne_data in lignes_data:
             if not isinstance(ligne_data, dict):
                 continue
@@ -5796,35 +4791,15 @@ def api_prestataire_create_devis(request, reference):
             if type_ligne not in valid_types:
                 type_ligne = "AUTRE"
             description = str(ligne_data.get("description", "")).strip()[:255]
-            # Phase B : quantité décimale (ex 2.5 ml, 1.5 h)
             try:
-                quantite = Decimal(str(ligne_data.get("quantite", 1)))
-            except Exception:
-                quantite = Decimal("1")
+                quantite = int(ligne_data.get("quantite", 1))
+            except (TypeError, ValueError):
+                quantite = 1
             if quantite <= 0:
-                quantite = Decimal("1")
+                quantite = 1
             prix_unitaire = parse_money_amount(ligne_data.get("prix_unitaire", 0))
-            unite = str(ligne_data.get("unite", "")).strip()[:16]
-            marque = str(ligne_data.get("marque", "")).strip()[:80]
             if not description and prix_unitaire <= 0:
                 continue
-            catalogue_item = None
-            cat_id = ligne_data.get("catalogue_item_id")
-            if cat_id:
-                try:
-                    catalogue_item = CatalogueItem.objects.filter(
-                        pk=int(cat_id), category_id=provider.category_id
-                    ).first()
-                    if catalogue_item:
-                        # Hériter unité/marque si vides
-                        if not unite:
-                            unite = catalogue_item.unite
-                        if not marque:
-                            marque = catalogue_item.marque
-                        if not description:
-                            description = catalogue_item.nom
-                except Exception:
-                    catalogue_item = None
 
             ligne = LigneDevis.objects.create(
                 devis=devis,
@@ -5832,51 +4807,32 @@ def api_prestataire_create_devis(request, reference):
                 description=description or "Prestation",
                 quantite=quantite,
                 prix_unitaire=prix_unitaire,
-                unite=unite,
-                marque=marque,
-                catalogue_item=catalogue_item,
             )
             sous_total += ligne.total
 
-        # Règle BABIFIX : commission DÉDUITE du prestataire, JAMAIS ajoutée au client.
-        # total_ttc (ce que paye le client) = sous_total.
-        # commission_montant = sous_total * rate / 100 (notre part).
-        # net_prestataire = sous_total - commission_montant (sa part).
-        commission_montant = (
-            sous_total * Decimal(commission_rate) / Decimal("100")
-        ).quantize(Decimal("0.01"))
         devis.sous_total = sous_total
-        devis.remise = remise_value
-        devis.commission_montant = commission_montant
+        devis.commission_montant = sous_total * Decimal(commission_rate) / 100
+        # Façon B : le client paie le prix annoncé (sous_total) ; la commission est
+        # prélevée sur la part du prestataire au moment du versement.
         devis.total_ttc = sous_total
-        devis.net_prestataire = sous_total - commission_montant
-        devis.statut = (
-            Devis.Statut.BROUILLON if is_draft else Devis.Statut.ENVOYE
-        )
-        # _recompute_totals() (dans save) applique la remise et recalcule
-        # commission/total/net de façon cohérente avec l'escrow/paiement.
+        devis.statut = Devis.Statut.ENVOYE
         devis.save()
 
-        # Brouillon : on ne change rien à la réservation et on ne notifie pas.
-        if not is_draft:
-            res.statut = Reservation.Status.DEVIS_ENVOYE
-            res.save(update_fields=["statut"])
-    except Exception as exc:  # noqa: BLE001 — éviter toute 500 brute côté app
-        logger.exception(
-            "api_prestataire_create_devis: échec création devis %s", reference
-        )
+        res.statut = Reservation.Status.DEVIS_ENVOYE
+        res.save(update_fields=["statut"])
+    except Exception as exc:  # noqa: BLE001 — on évite toute 500 brute côté app
+        logger.exception("api_prestataire_create_devis: échec création devis %s", reference)
         return JsonResponse(
             {"error": "devis_creation_failed", "detail": str(exc)[:300]},
             status=400,
         )
 
-    if not is_draft:
-        _schedule(
-            [res.client_user_id],
-            "Nouveau devis reçu",
-            f"Prestataire {provider.nom} a envoyé un devis pour {res.reference}",
-            {"type": "devis.received", "reference": res.reference},
-        )
+    _schedule(
+        [res.client_user_id],
+        "Nouveau devis reçu",
+        f"Prestataire {provider.nom} a envoyé un devis pour {res.reference}",
+        {"type": "devis.received", "reference": res.reference},
+    )
 
     return JsonResponse(
         {
@@ -5892,80 +4848,21 @@ def api_prestataire_create_devis(request, reference):
                 "heure_fin": str(devis.heure_fin) if devis.heure_fin else None,
                 "sous_total": float(devis.sous_total),
                 "commission_montant": float(devis.commission_montant),
-                "commission_rate": devis.commission_rate,
                 "total_ttc": float(devis.total_ttc),
-                "net_prestataire": float(devis.net_prestataire),
-                "remise": float(devis.remise),
+                "net_prestataire": float(devis.sous_total - devis.commission_montant),
                 "statut": devis.statut,
-                "photos_prestataire": list(devis.photos_prestataire or []),
                 "lignes": [
                     {
                         "id": l.id,
                         "type_ligne": l.type_ligne,
                         "description": l.description,
-                        "quantite": float(l.quantite),
+                        "quantite": l.quantite,
                         "prix_unitaire": float(l.prix_unitaire),
-                        "unite": l.unite,
-                        "marque": l.marque,
-                        "catalogue_item_id": l.catalogue_item_id,
                         "total": float(l.total),
                     }
                     for l in devis.lignes.all()
                 ],
             },
-        }
-    )
-
-
-@csrf_exempt
-@require_http_methods(["GET"])
-@require_api_auth(["prestataire"])
-def api_prestataire_devis_draft(request, reference):
-    """Renvoie le brouillon de devis du prestataire pour cette réservation."""
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-    provider = Provider.objects.filter(user_id=request.api_user_id).first()
-    if not provider:
-        return JsonResponse({"error": "provider_not_found"}, status=403)
-    devis = (
-        Devis.objects.filter(
-            reservation=res,
-            prestataire=provider,
-            statut=Devis.Statut.BROUILLON,
-        )
-        .order_by("-updated_at")
-        .first()
-    )
-    if not devis:
-        return JsonResponse({"draft": None})
-    return JsonResponse(
-        {
-            "draft": {
-                "diagnostic": devis.diagnostic,
-                "date_proposee": str(devis.date_proposee)
-                if devis.date_proposee
-                else None,
-                "heure_debut": str(devis.heure_debut)
-                if devis.heure_debut
-                else None,
-                "heure_fin": str(devis.heure_fin) if devis.heure_fin else None,
-                "validite_jours": devis.validite_jours,
-                "note_prestataire": devis.note_prestataire,
-                "remise": float(devis.remise),
-                "photos_prestataire": list(devis.photos_prestataire or []),
-                "lignes": [
-                    {
-                        "type_ligne": l.type_ligne,
-                        "description": l.description,
-                        "quantite": float(l.quantite),
-                        "prix_unitaire": float(l.prix_unitaire),
-                        "unite": l.unite,
-                        "marque": l.marque,
-                    }
-                    for l in devis.lignes.all()
-                ],
-            }
         }
     )
 
@@ -6014,23 +4911,18 @@ def api_reservation_devis(request, reference):
                 "commission_rate": devis.commission_rate,
                 "commission_montant": float(devis.commission_montant),
                 "total_ttc": float(devis.total_ttc),
-                "net_prestataire": float(devis.net_prestataire),
+                "net_prestataire": float(devis.sous_total - devis.commission_montant),
                 "note_prestataire": devis.note_prestataire,
                 "validite_jours": devis.validite_jours,
-                "remise": float(devis.remise),
                 "statut": devis.statut,
-                "photos_prestataire": list(devis.photos_prestataire or []),
                 "created_at": str(devis.created_at),
                 "lignes": [
                     {
                         "id": l.id,
                         "type_ligne": l.type_ligne,
                         "description": l.description,
-                        "quantite": float(l.quantite),
+                        "quantite": l.quantite,
                         "prix_unitaire": float(l.prix_unitaire),
-                        "unite": l.unite,
-                        "marque": l.marque,
-                        "catalogue_item_id": l.catalogue_item_id,
                         "total": float(l.total),
                     }
                     for l in devis.lignes.all()
@@ -6072,14 +4964,6 @@ def api_client_accept_devis(request, reference):
     res.montant = devis.total_ttc
     res.save(update_fields=["statut", "montant"])
 
-    # Phase C : ancrer le devis dans la conversation unique de la réservation.
-    try:
-        from .services.conversation_service import post_devis_card
-        post_devis_card(res, devis)
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning("post_devis_card failed: %s", exc)
-
     _schedule(
         [res.assigned_provider.user_id] if res.assigned_provider else [],
         "Devis accepté",
@@ -6088,7 +4972,7 @@ def api_client_accept_devis(request, reference):
     )
 
     return JsonResponse(
-        {"ok": True, "statut": res.statut, "montant": float(res.montant), "reservation_id": res.pk, "reference": res.reference}
+        {"ok": True, "statut": res.statut, "montant": float(res.montant)}
     )
 
 
@@ -6125,365 +5009,14 @@ def api_client_refuse_devis(request, reference):
     res.statut = Reservation.Status.DEMANDE_ENVOYEE
     res.save(update_fields=["statut"])
 
-    # Injecte un événement système dans la conversation pour que le presta
-    # voie clairement la raison du refus et puisse re-proposer un devis.
-    try:
-        from .services.conversation_service import post_system_event
-        post_system_event(
-            res,
-            event_type="devis.refused",
-            body=(
-                f"Devis {devis.reference} refusé par le client."
-                + (f" Motif : {motif}" if motif else "")
-                + " Vous pouvez proposer un nouveau devis ajusté."
-            ),
-            extra={
-                "devis_id": devis.id,
-                "devis_reference": devis.reference,
-                "motif": motif,
-            },
-        )
-    except Exception:
-        pass
-
     _schedule(
         [res.assigned_provider.user_id] if res.assigned_provider else [],
         "Devis refusé",
-        f"Le client a refusé le devis {devis.reference}." + (f" Motif: {motif}" if motif else ""),
-        {"type": "devis.refused", "reference": res.reference, "motif": motif},
+        f"Le client a refusé le devis {devis.reference}. Motif: {motif}",
+        {"type": "devis.refused", "reference": res.reference},
     )
 
     return JsonResponse({"ok": True, "statut": res.statut})
-
-
-# Historique de TOUS les devis d'une réservation (accepté, refusé, expiré…)
-@csrf_exempt
-@require_http_methods(["GET"])
-@require_api_auth(["client", "prestataire", "admin"])
-def api_reservation_devis_history(request, reference):
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-
-    uid = int(request.api_user_id)
-    is_client = res.client_user_id == uid
-    is_presta = bool(
-        res.assigned_provider
-        and res.assigned_provider.user_id
-        and res.assigned_provider.user_id == uid
-    )
-    if request.api_role != "admin" and not (is_client or is_presta):
-        return JsonResponse({"error": "forbidden"}, status=403)
-
-    devis_list = Devis.objects.filter(reservation=res).order_by("-created_at")
-    return JsonResponse({
-        "reference": res.reference,
-        "count": devis_list.count(),
-        "devis": [
-            {
-                "id": d.id,
-                "reference": d.reference,
-                "diagnostic": d.diagnostic,
-                "sous_total": float(d.sous_total),
-                "commission_montant": float(d.commission_montant),
-                "total_ttc": float(d.total_ttc),
-                "net_prestataire": float(d.net_prestataire),
-                "statut": d.statut,
-                "note_prestataire": d.note_prestataire,
-                "created_at": d.created_at.isoformat() if d.created_at else None,
-                "lignes_count": d.lignes.count(),
-            }
-            for d in devis_list
-        ],
-    })
-
-
-# Journal client post-intervention : photos avant/après (facultatives)
-# et commentaire libre. Permet au client de documenter sa propre version
-# de ce qui a été fait. Disponible dès que la prestation est terminée
-# (statut Terminee) et reste éditable même après Confirmation.
-#
-# Accès :
-# - POST : client uniquement (édition).
-# - GET  : client (édition), prestataire concerné (lecture seule), admin.
-@csrf_exempt
-@require_http_methods(["GET", "POST"])
-@require_api_auth(["client", "prestataire", "admin"])
-def api_client_journal(request, reference):
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-
-    uid = int(request.api_user_id)
-    role = request.api_role
-    is_client = res.client_user_id == uid
-    is_presta_concerned = bool(
-        res.assigned_provider
-        and res.assigned_provider.user_id
-        and res.assigned_provider.user_id == uid
-    )
-
-    # GET : tous les participants peuvent lire
-    if request.method == "GET":
-        if role != "admin" and not (is_client or is_presta_concerned):
-            return JsonResponse({"error": "forbidden"}, status=403)
-    else:
-        # POST : seul le client édite
-        if role != "admin" and not is_client:
-            return JsonResponse({"error": "forbidden"}, status=403)
-
-    if request.method == "GET":
-        return JsonResponse({
-            "reference": res.reference,
-            "statut": res.statut,
-            "client_photos_avant": list(res.client_photos_avant or []),
-            "client_photos_apres": list(res.client_photos_apres or []),
-            "client_journal_note": res.client_journal_note or "",
-            "client_journal_updated_at": (
-                res.client_journal_updated_at.isoformat()
-                if res.client_journal_updated_at else None
-            ),
-            # Pour mémoire / affichage côté client : ce qu'a annoncé le presta
-            "prestataire_photos_avant": list(res.photos_avant or []),
-            "prestataire_photos_apres": list(res.photos_apres or []),
-        })
-
-    # POST — création/mise à jour
-    try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "invalid_json"}, status=400)
-
-    photos_avant = payload.get("photos_avant")
-    photos_apres = payload.get("photos_apres")
-    note = payload.get("note")
-    mode = str(payload.get("mode", "merge")).lower()  # "merge" | "replace"
-
-    update_fields = ["client_journal_updated_at"]
-    if photos_avant is not None and isinstance(photos_avant, list):
-        if mode == "replace":
-            res.client_photos_avant = [str(p) for p in photos_avant if p]
-        else:
-            current = list(res.client_photos_avant or [])
-            current.extend(str(p) for p in photos_avant if p)
-            res.client_photos_avant = current
-        update_fields.append("client_photos_avant")
-    if photos_apres is not None and isinstance(photos_apres, list):
-        if mode == "replace":
-            res.client_photos_apres = [str(p) for p in photos_apres if p]
-        else:
-            current = list(res.client_photos_apres or [])
-            current.extend(str(p) for p in photos_apres if p)
-            res.client_photos_apres = current
-        update_fields.append("client_photos_apres")
-    if note is not None:
-        res.client_journal_note = str(note)[:5000]
-        update_fields.append("client_journal_note")
-
-    res.client_journal_updated_at = timezone.now()
-    res.save(update_fields=update_fields)
-
-    # Notif douce au prestataire qu'un témoignage client a été ajouté
-    if res.assigned_provider and res.assigned_provider.user_id:
-        try:
-            _schedule(
-                [res.assigned_provider.user_id],
-                "Témoignage client ajouté",
-                f"Le client a mis à jour son journal pour {res.reference}.",
-                {"type": "client.journal_updated", "reference": res.reference},
-            )
-        except Exception:
-            pass
-
-    return JsonResponse({
-        "ok": True,
-        "client_photos_avant": list(res.client_photos_avant or []),
-        "client_photos_apres": list(res.client_photos_apres or []),
-        "client_journal_note": res.client_journal_note,
-        "client_journal_updated_at": res.client_journal_updated_at.isoformat(),
-    })
-
-
-# Géo — Le prestataire pousse sa position GPS courante.
-# Appelé automatiquement par l'app presta à chaque démarrage / passage
-# en foreground. Met à jour `latitude`, `longitude` et `ville` (si
-# fournie) sur le Provider. Garde aussi un horodatage de dernière
-# update pour les dashboards admin.
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["prestataire"])
-def api_prestataire_location_update(request):
-    try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "invalid_json"}, status=400)
-
-    uid = int(request.api_user_id)
-    prov = Provider.objects.filter(user_id=uid).first()
-    if not prov:
-        return JsonResponse({"error": "provider_not_found"}, status=404)
-
-    try:
-        lat = float(payload.get("latitude"))
-        lon = float(payload.get("longitude"))
-    except (TypeError, ValueError):
-        return JsonResponse({"error": "invalid_coordinates"}, status=400)
-
-    # Garde-fous : refuser les valeurs aberrantes
-    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
-        return JsonResponse({"error": "out_of_range"}, status=400)
-
-    update_fields = ["latitude", "longitude"]
-    prov.latitude = lat
-    prov.longitude = lon
-
-    # Ville facultative (reverse geocoding côté client)
-    ville = str(payload.get("ville") or "").strip()
-    if ville:
-        prov.ville = ville[:80]
-        update_fields.append("ville")
-
-    # Disponibilité optionnelle (le presta peut signaler qu'il devient
-    # disponible/indisponible en même temps)
-    if "disponible" in payload:
-        prov.disponible = bool(payload.get("disponible"))
-        update_fields.append("disponible")
-
-    prov.save(update_fields=update_fields)
-    return JsonResponse({
-        "ok": True,
-        "provider_id": prov.id,
-        "latitude": prov.latitude,
-        "longitude": prov.longitude,
-        "ville": prov.ville,
-        "disponible": prov.disponible,
-    })
-
-
-# Phase B — Catalogue de matériaux / prestations par catégorie.
-@csrf_exempt
-@require_http_methods(["GET"])
-@require_api_auth(["prestataire", "admin"])
-def api_category_catalogue(request, category_id):
-    """Retourne les items de catalogue actifs pour une catégorie.
-
-    Utilisé par l'app prestataire pour proposer un picker rapide lors de
-    la rédaction du devis. Le prestataire peut toujours ignorer le
-    catalogue et saisir des lignes libres.
-    """
-    from .models import CatalogueItem
-    try:
-        cat_id = int(category_id)
-    except (TypeError, ValueError):
-        return JsonResponse({"error": "invalid_category"}, status=400)
-
-    items = CatalogueItem.objects.filter(
-        category_id=cat_id, actif=True
-    ).order_by("type_ligne", "nom")
-    return JsonResponse({
-        "category_id": cat_id,
-        "count": items.count(),
-        "items": [
-            {
-                "id": it.id,
-                "type_ligne": it.type_ligne,
-                "nom": it.nom,
-                "description": it.description,
-                "unite": it.unite,
-                "marque": it.marque,
-                "prix_unitaire_indicatif": float(it.prix_unitaire_indicatif),
-            }
-            for it in items
-        ],
-    })
-
-
-# Phase F — Quote escrow : ce que le client doit payer maintenant pour
-# pouvoir démarrer l'intervention, selon la stratégie cash vs mobile.
-@csrf_exempt
-@require_http_methods(["GET"])
-@require_api_auth(["client", "prestataire", "admin"])
-def api_reservation_payment_quote(request, reference):
-    """Retourne le montant à payer en ligne et la stratégie escrow.
-
-    Stratégies:
-    - CASH_COMMISSION_ONLY : le client paye uniquement la commission 18 %
-      en Mobile Money. Le solde (82 %) sera payé en cash au prestataire à
-      la fin du chantier.
-    - MOBILE_FULL : le client paye 100 % en Mobile Money, l'argent reste en
-      escrow plateforme et est libéré au prestataire après confirmation.
-    """
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-
-    uid = int(request.api_user_id)
-    is_client = res.client_user_id == uid
-    is_prest = bool(
-        res.assigned_provider
-        and res.assigned_provider.user_id
-        and res.assigned_provider.user_id == uid
-    )
-    if request.api_role != "admin" and not is_client and not is_prest:
-        return JsonResponse({"error": "forbidden"}, status=403)
-
-    from .services.escrow_service import EscrowService
-    quote = EscrowService.quote(res)
-
-    return JsonResponse({
-        "reference": res.reference,
-        "reservation_id": res.id,  # nécessaire pour POST GeniusPay /initiate
-        "payment_type": res.payment_type,
-        "strategy": quote.strategy,
-        "devis_id": quote.devis_id,
-        "devis_reference": quote.devis_reference,
-        "total_devis": float(quote.total_devis),
-        "commission_montant": float(quote.commission_montant),
-        "net_prestataire": float(quote.net_prestataire),
-        "amount_due_online": float(quote.amount_due),
-        "cash_remainder_due_to_provider": float(quote.cash_remainder),
-        "cash_minimum_surplus": float(quote.cash_minimum_surplus),
-        "acompte_valide": res.acompte_valide,
-        "funds_released_at": (
-            res.funds_released_at.isoformat() if res.funds_released_at else None
-        ),
-    })
-
-
-@csrf_exempt
-@require_GET
-@require_api_auth(["client"])
-def api_client_receipt_pdf(request, reference):
-    """GET /api/client/reservations/<reference>/receipt/pdf/ — Télécharger le reçu PDF."""
-    user_id = request.api_user_id
-
-    try:
-        payment = (
-            Payment.objects.select_related("reservation__client_user")
-            .filter(
-                reservation__reference=reference,
-                reservation__client_user_id=user_id,
-                etat=Payment.State.COMPLETE,
-            )
-            .first()
-        )
-    except Exception:
-        payment = None
-
-    if not payment:
-        return JsonResponse({"error": "Reçu introuvable ou accès refusé"}, status=404)
-
-    try:
-        from adminpanel.services.invoice_service import InvoiceService
-
-        pdf_bytes = InvoiceService.generate_pdf(payment, doc_type="receipt")
-    except Exception as exc:
-        logger.error("Erreur génération PDF reçu ref=%s: %s", reference, exc)
-        return JsonResponse({"error": "Erreur génération PDF"}, status=500)
-
-    response = HttpResponse(pdf_bytes, content_type="application/pdf")
-    response["Content-Disposition"] = f'attachment; filename="recu_{reference}.pdf"'
-    return response
 
 
 def error_500(request):
@@ -6575,293 +5108,3 @@ def api_admin_reservation_status(request, id):
     res.save(update_fields=["statut"])
 
     return JsonResponse({"ok": True, "reference": res.reference, "statut": new_status})
-
-
-@login_required(login_url="/admin/login/")
-@require_http_methods(["POST"])
-def api_admin_notifications_mark_all_read(request):
-    Notification.objects.filter(user=request.user, lu=False).update(lu=True)
-    return JsonResponse({"ok": True})
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ZEGOCLOUD — Masquage téléphonique
-# ─────────────────────────────────────────────────────────────────────────────
-
-ZEGOCLOUD_APP_ID = os.getenv("ZEGOCLOUD_APP_ID", "")
-ZEGOCLOUD_SERVER_SECRET = os.getenv("ZEGOCLOUD_SERVER_SECRET", "")
-
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["client", "prestataire"])
-def api_phone_masking_initiate(request, reference):
-    """Initialise un appel masqué entre client et prestataire via ZEGOCLOUD."""
-    _bootstrap_data()
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-
-    uid = int(request.api_user_id)
-    if res.client_user_id != uid and res.prestataire_user_id != uid:
-        return JsonResponse({"error": "not_participant"}, status=403)
-
-    if res.statut not in [
-        Reservation.Status.DEVIS_ACCEPTE,
-        Reservation.Status.INTERVENTION_EN_COURS,
-        Reservation.Status.CONFIRMED,
-    ]:
-        return JsonResponse({"error": "invalid_state"}, status=400)
-
-    if not ZEGOCLOUD_APP_ID or not ZEGOCLOUD_SERVER_SECRET:
-        # Fallback: retourner les numéros masqués si configurés
-        if res.numero_masque:
-            return JsonResponse({
-                "ok": True,
-                "mode": "fallback",
-                "numero_masque": res.numero_masque,
-                "message": "ZEGOCLOUD non configuré — fallback actif",
-            })
-        return JsonResponse({
-            "error": "zegocloud_not_configured",
-            "message": "Les identifiants ZEGOCLOUD ne sont pas configurés.",
-        }, status=501)
-
-    import hashlib
-    import time as _time
-
-    # Générer un token ZEGOCLOUD
-    now = int(_time.time())
-    user_id = str(uid)
-    nonce = f"{uid}-{now}-{uuid.uuid4().hex[:8]}"
-    sign = hashlib.sha256(
-        f"{ZEGOCLOUD_APP_ID}{ZEGOCLOUD_SERVER_SECRET}{nonce}{now}".encode()
-    ).hexdigest()
-
-    # Déterminer l'autre partie
-    if uid == res.client_user_id:
-        other_uid = res.prestataire_user_id
-        other_role = "prestataire"
-    else:
-        other_uid = res.client_user_id
-        other_role = "client"
-
-    res.appel_masque = True
-    res.save(update_fields=["appel_masque"])
-
-    return JsonResponse({
-        "ok": True,
-        "mode": "zegocloud",
-        "app_id": ZEGOCLOUD_APP_ID,
-        "user_id": user_id,
-        "token": sign,
-        "nonce": nonce,
-        "timestamp": now,
-        "call_target_id": str(other_uid),
-        "call_target_role": other_role,
-        "reference": res.reference,
-    })
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# API REST Chat — Historique + envoi messages
-# ─────────────────────────────────────────────────────────────────────────────
-
-@require_http_methods(["GET"])
-@require_api_auth(["client", "prestataire", "admin"])
-def api_chat_history(request, reference):
-    """Récupère l'historique des messages d'une conversation liée à une réservation."""
-    _bootstrap_data()
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-
-    uid = int(request.api_user_id)
-    if res.client_user_id != uid and res.prestataire_user_id != uid and request.api_role != "admin":
-        return JsonResponse({"error": "not_authorized"}, status=403)
-
-    conv = Conversation.objects.filter(reservation=res).first()
-    if not conv:
-        return JsonResponse({"messages": []})
-
-    limit = min(int(request.GET.get("limit", 50)), 200)
-    offset = max(int(request.GET.get("offset", 0)), 0)
-
-    messages = list(
-        Message.objects.filter(conversation=conv)
-        .select_related("sender")
-        .order_by("-created_at")[offset:offset + limit]
-    )
-    messages.reverse()
-
-    result = []
-    for m in messages:
-        result.append({
-            "id": m.pk,
-            "sender_id": m.sender_id,
-            "sender_name": m.sender.username if m.sender else "Inconnu",
-            "body": m.body,
-            "created_at": m.created_at.isoformat() if m.created_at else None,
-            "reply_to_id": m.reply_to_id,
-        })
-
-    return JsonResponse({"messages": result, "conversation_id": conv.pk})
-
-
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["client", "prestataire", "admin"])
-def api_chat_send_message(request, reference):
-    """Envoie un message dans la conversation d'une réservation (REST)."""
-    _bootstrap_data()
-    res = Reservation.objects.filter(reference=reference).first()
-    if not res:
-        return JsonResponse({"error": "not_found"}, status=404)
-
-    uid = int(request.api_user_id)
-    if res.client_user_id != uid and res.prestataire_user_id != uid and request.api_role != "admin":
-        return JsonResponse({"error": "not_authorized"}, status=403)
-
-    conv = Conversation.objects.filter(reservation=res).first()
-    if not conv:
-        return JsonResponse({"error": "no_conversation"}, status=404)
-
-    try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "invalid_json"}, status=400)
-
-    body = (payload.get("body") or "").strip()[:5000]
-    if not body:
-        return JsonResponse({"error": "body_required"}, status=400)
-
-    reply_to_id = payload.get("reply_to_id")
-
-    msg = Message.objects.create(
-        conversation=conv,
-        sender_id=uid,
-        body=body,
-        reply_to_id=int(reply_to_id) if reply_to_id and str(reply_to_id).isdigit() else None,
-    )
-
-    # Notifier l'autre partie
-    if uid == res.client_user_id:
-        _schedule(
-            [res.prestataire_user_id] if res.prestataire_user_id else [],
-            "Nouveau message",
-            f"Client a envoyé un message pour {res.reference}",
-            {"type": "chat.message", "conversation_id": conv.pk, "reference": res.reference},
-        )
-    else:
-        _schedule(
-            [res.client_user_id] if res.client_user_id else [],
-            "Nouveau message",
-            f"Prestataire a envoyé un message pour {res.reference}",
-            {"type": "chat.message", "conversation_id": conv.pk, "reference": res.reference},
-        )
-
-    # Broadcast WebSocket
-    try:
-        from adminpanel import realtime
-        realtime.broadcast_client_event("chat.message", {
-            "conversation_id": conv.pk,
-            "sender_id": uid,
-            "body": body,
-            "reference": res.reference,
-        })
-    except Exception:
-        pass
-
-    return JsonResponse({
-        "ok": True,
-        "message": {
-            "id": msg.pk,
-            "sender_id": msg.sender_id,
-            "body": msg.body,
-            "created_at": msg.created_at.isoformat() if msg.created_at else None,
-        },
-    }, status=201)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# API Admin — Décision litige
-# ─────────────────────────────────────────────────────────────────────────────
-
-@csrf_exempt
-@require_http_methods(["POST"])
-@login_required(login_url="/admin/login/")
-def api_admin_decide_dispute(request):
-    """Admin prend une décision sur un litige (rembourser, libérer, partager)."""
-    _bootstrap_data()
-    if not (request.user.is_staff or request.user.is_superuser):
-        return JsonResponse({"error": "admin_required"}, status=403)
-
-    try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "invalid_json"}, status=400)
-
-    litige_id = payload.get("litige_id")
-    if not litige_id or not str(litige_id).isdigit():
-        return JsonResponse({"error": "litige_id_required"}, status=400)
-
-    decision = payload.get("decision", "")
-    if decision not in ["REFUND", "RELEASE", "SPLIT"]:
-        return JsonResponse({"error": "invalid_decision", "allowed": ["REFUND", "RELEASE", "SPLIT"]}, status=400)
-
-    partage_pct = None
-    if decision == "SPLIT":
-        partage_pct = int(payload.get("partage_pct", 50))
-        if not (0 <= partage_pct <= 100):
-            return JsonResponse({"error": "invalid_split_pct"}, status=400)
-
-    try:
-        dispute = Dispute.objects.get(pk=int(litige_id))
-    except Dispute.DoesNotExist:
-        return JsonResponse({"error": "not_found"}, status=404)
-
-    with transaction.atomic():
-        dispute.decision = decision
-        dispute.partage_pct = partage_pct
-        dispute.save(update_fields=["decision", "partage_pct"])
-
-        # Mettre à jour la réservation liée
-        if dispute.reservation:
-            res = dispute.reservation
-            res.dispute_ouverte = False
-            res.save(update_fields=["dispute_ouverte"])
-
-    # Notification au client et prestataire
-    decision_labels = {"REFUND": "remboursement", "RELEASE": "paiement libéré", "SPLIT": "partage"}
-    notif_title = f"Litige {dispute.reference} — Décision : {decision_labels.get(decision, decision)}"
-
-    user_ids = set()
-    if dispute.reservation and dispute.reservation.client_user_id:
-        user_ids.add(dispute.reservation.client_user_id)
-    if dispute.reservation and dispute.reservation.prestataire_user_id:
-        user_ids.add(dispute.reservation.prestataire_user_id)
-
-    _schedule(
-        list(user_ids),
-        "BABIFIX — Décision litige",
-        notif_title,
-        {"type": "dispute.decided", "reference": dispute.reference, "decision": decision},
-    )
-
-    return JsonResponse({
-        "ok": True,
-        "litige_reference": dispute.reference,
-        "decision": decision,
-        "partage_pct": partage_pct,
-    })
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# API Paiement — Endpoint unifié pour le client
-# ─────────────────────────────────────────────────────────────────────────────
-
-@csrf_exempt
-@require_http_methods(["POST"])
-@require_api_auth(["client", "admin"])
-def api_client_pay(request, reference):
-    """Enregistre le paiement d'une réservation (alias de api_client_pay_post_prestation)."""
-    return api_client_pay_post_prestation(request, reference)

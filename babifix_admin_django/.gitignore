@@ -4,5 +4,3 @@ __pycache__/
 *.sqlite3-journal
 secrets/
 *.log
-keys/
-*.pem

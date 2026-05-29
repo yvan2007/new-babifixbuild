@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  BABIFIX — Politique réseau Android.
+  - Production : HTTPS UNIQUEMENT (cleartextTrafficPermitted = false par défaut).
+  - Dev local  : HTTP autorisé seulement vers localhost / 10.0.2.2 (émulateur)
+                 et 192.168.0.0/16 (téléphone sur LAN). Aucun HTTP public.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Tunnels de développement uniquement. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- Émulateur Android : 10.0.2.2 = host machine. -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- LAN privé pour tests sur appareil physique. -->
+        <domain includeSubdomains="false">192.168.0.1</domain>
+    </domain-config>
+</network-security-config>

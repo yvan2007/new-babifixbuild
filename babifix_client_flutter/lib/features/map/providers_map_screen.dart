@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
+import '../../shared/geo_utils.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
@@ -97,10 +98,23 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
       }
       if (perm == LocationPermission.deniedForever) throw Exception('Permission bloquée définitivement');
 
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-      );
-      _myPosition = LatLng(pos.latitude, pos.longitude);
+      // Essai 1 : position cache (instantané, marche aussi sur émulateur).
+      Position? pos = await Geolocator.getLastKnownPosition();
+      if (pos == null) {
+        // Essai 2 : position fraîche avec timeout généreux.
+        pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => throw Exception('GPS timeout'),
+        );
+      }
+      // Garde-fou émulateur : si on est clairement hors de Côte d'Ivoire
+      // (typiquement Mountain View, lat≈37°), on retombe sur Abidjan
+      // pour ne pas casser les calculs de distance & l'expérience carto.
+      _myPosition = isInCotedIvoire(pos.latitude, pos.longitude)
+          ? LatLng(pos.latitude, pos.longitude)
+          : const LatLng(kAbidjanLat, kAbidjanLon);
       _mapCtrl.move(_myPosition!, 12);
       await _loadProviders();
     } catch (e) {
@@ -120,31 +134,52 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
   Future<void> _loadProviders() async {
     if (_myPosition == null) return;
     final token = await BabifixUserStore.getApiToken();
-    final uri = Uri.parse(
-      '${babifixApiBaseUrl()}/api/prestataires/'
-      '?lat=${_myPosition!.latitude}&lon=${_myPosition!.longitude}&radius_km=${_radiusKm.round()}',
-    );
+    // Si l'utilisateur est connecté → endpoint authentifié (plus complet).
+    // Sinon → endpoint public (la map reste utile aux visiteurs anonymes).
+    final useAuth = token != null;
+    final base = babifixApiBaseUrl();
+    final url = useAuth
+        ? '$base/api/prestataires/?lat=${_myPosition!.latitude}'
+            '&lon=${_myPosition!.longitude}&radius_km=${_radiusKm.round()}'
+        : '$base/api/public/providers/?lat=${_myPosition!.latitude}'
+            '&lon=${_myPosition!.longitude}&radius=${_radiusKm.round()}';
     try {
       final res = await http.get(
-        uri,
-        headers: {if (token != null) 'Authorization': 'Bearer $token'},
+        Uri.parse(url),
+        headers: {if (useAuth) 'Authorization': 'Bearer $token'},
       );
       if (res.statusCode != 200) {
         setState(() { _loading = false; });
         return;
       }
       final data = jsonDecode(res.body);
-      final list = data is List ? data : (data['results'] as List? ?? []);
+      // L'endpoint public renvoie `{providers:[...]}`, l'authentifié une liste
+      // ou `{results:[...]}`. On gère les deux formats.
+      List<dynamic> list;
+      if (data is List) {
+        list = data;
+      } else if (data is Map<String, dynamic>) {
+        list = (data['providers'] ?? data['results'] ?? <dynamic>[]) as List<dynamic>;
+      } else {
+        list = const [];
+      }
       final providers = <_Provider>[];
       for (final item in list) {
         final m = item as Map<String, dynamic>;
-        final lat = jsonDoubleNullable(m['service_latitude']);
-        final lon = jsonDoubleNullable(m['service_longitude']);
+        // Les endpoints utilisent des noms différents : `latitude`/`longitude`
+        // (api_public_providers), `service_latitude`/`service_longitude`
+        // (api_client_prestataires) ou simplement `lat`/`lon` parfois.
+        final lat = jsonDoubleNullable(
+          m['service_latitude'] ?? m['latitude'] ?? m['lat'],
+        );
+        final lon = jsonDoubleNullable(
+          m['service_longitude'] ?? m['longitude'] ?? m['lon'],
+        );
         if (lat == null || lon == null) continue;
         providers.add(_Provider(
           id: jsonInt(m['id'] ?? m['user']),
-          name: '${m['user_display'] ?? m['username'] ?? 'Prestataire'}',
-          city: '${m['service_city'] ?? ''}',
+          name: '${m['user_display'] ?? m['nom'] ?? m['username'] ?? 'Prestataire'}',
+          city: '${m['service_city'] ?? m['ville'] ?? ''}',
           lat: lat,
           lon: lon,
           distanceKm: jsonDouble(m['distance_km']),
@@ -188,21 +223,47 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                // CartoDB Voyager : libre, CDN multi-sous-domaines, beaucoup
+                // plus fiable que tile.openstreetmap.org direct (qui rate-limite).
+                urlTemplate:
+                    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'app.babifix.client',
               ),
-              // Cercle de rayon
+              // Cercle de rayon statique + radar pulsant (3 ondes décalées qui
+              // scannent visuellement les prestataires à proximité).
               if (_myPosition != null)
-                CircleLayer(circles: [
-                  CircleMarker(
-                    point: _myPosition!,
-                    radius: _radiusKm * 1000,
-                    useRadiusInMeter: true,
-                    color: BabifixDesign.cyan.withValues(alpha: 0.08),
-                    borderColor: BabifixDesign.cyan.withValues(alpha: 0.4),
-                    borderStrokeWidth: 2,
-                  ),
-                ]),
+                AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (_, __) {
+                    final maxR = _radiusKm * 1000.0;
+                    final base = _pulse.value;
+                    final waves = List.generate(3, (i) {
+                      final t = (base + i / 3) % 1.0;
+                      return CircleMarker(
+                        point: _myPosition!,
+                        radius: maxR * t,
+                        useRadiusInMeter: true,
+                        color: BabifixDesign.cyan.withValues(alpha: 0.06 * (1 - t)),
+                        borderColor:
+                            BabifixDesign.cyan.withValues(alpha: 0.55 * (1 - t)),
+                        borderStrokeWidth: 1.6,
+                      );
+                    });
+                    return CircleLayer(circles: [
+                      // Anneau statique du rayon
+                      CircleMarker(
+                        point: _myPosition!,
+                        radius: maxR,
+                        useRadiusInMeter: true,
+                        color: BabifixDesign.cyan.withValues(alpha: 0.05),
+                        borderColor: BabifixDesign.cyan.withValues(alpha: 0.30),
+                        borderStrokeWidth: 2,
+                      ),
+                      ...waves,
+                    ]);
+                  },
+                ),
               // Ma position — halo "radar" pulsant
               if (_myPosition != null)
                 MarkerLayer(markers: [

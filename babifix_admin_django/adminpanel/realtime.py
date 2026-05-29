@@ -17,6 +17,11 @@ def prestataire_user_group(user_id: int) -> str:
     return f'babifix_prestataire_{int(user_id)}'
 
 
+def client_user_group(user_id: int) -> str:
+    """Groupe WS dédié à UN client précis (pour ses réservations)."""
+    return f'babifix_client_{int(user_id)}'
+
+
 def broadcast_prestataire_user(
     user_id: int, event_type: str, payload: dict[str, Any] | None = None
 ) -> None:
@@ -38,13 +43,18 @@ def broadcast_prestataire_user(
 def broadcast_client_user(
     user_id: int, event_type: str, payload: dict[str, Any] | None = None
 ) -> None:
-    """Événement temps réel vers l'app client d'un utilisateur spécifique."""
+    """
+    Événement temps réel vers UN client précis — par exemple sa réservation
+    qui change de statut. Le client doit s'être connecté à
+    `/ws/client/events/` (ClientEventsConsumer s'abonne automatiquement
+    au groupe `babifix_client_<uid>` pour les events ciblés).
+    """
     layer = get_channel_layer()
     if layer is None:
         return
     payload = payload or {}
     async_to_sync(layer.group_send)(
-        f'babifix_client_{int(user_id)}',
+        client_user_group(user_id),
         {
             'type': 'client.notify',
             'event_type': event_type,
@@ -65,6 +75,25 @@ def broadcast_client_event(event_type: str, payload: dict[str, Any] | None = Non
             'type': 'client.notify',
             'event_type': event_type,
             'payload': payload,
+        },
+    )
+
+
+def broadcast_chat_message(conv_id: int, message_payload: dict[str, Any]) -> None:
+    """
+    Broadcast un message chat à tous les WS connectés sur la conversation
+    (client + prestataire). Appelé depuis le handler REST quand un message
+    arrive via POST /api/messages/send pour que les apps reçoivent l'event
+    temps réel et affichent une bannière toast + son.
+    """
+    layer = get_channel_layer()
+    if layer is None:
+        return
+    async_to_sync(layer.group_send)(
+        f"chat_{conv_id}",
+        {
+            "type": "chat_message",
+            "message": message_payload,
         },
     )
 

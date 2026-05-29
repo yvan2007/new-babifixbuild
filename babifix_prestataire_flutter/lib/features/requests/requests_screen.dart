@@ -598,6 +598,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
             hour: it.hour,
             amount: it.amount,
             address: it.address,
+            addressStreet: it.addressStreet,
+            addressQuartier: it.addressQuartier,
+            addressVille: it.addressVille,
+            addressPays: it.addressPays,
+            addressRepere: it.addressRepere,
+            addressLat: it.addressLat,
+            addressLon: it.addressLon,
             description: it.description,
             apiStatus: it.apiStatus,
             paymentType: it.paymentType,
@@ -1359,6 +1366,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
             amount: '${e['amount']}',
             address: '${e['address']}',
             addressIsApproximate: e['address_is_approximate'] == true,
+            // Adresse structurée pro (rue/quartier/ville/pays/repère + GPS).
+            addressStreet: '${e['address_street'] ?? ''}',
+            addressQuartier: '${e['address_quartier'] ?? ''}',
+            addressVille: '${e['address_ville'] ?? ''}',
+            addressPays: '${e['address_pays'] ?? ''}',
+            addressRepere: '${e['address_repere'] ?? ''}',
+            addressLat: (e['address_lat'] as num?)?.toDouble(),
+            addressLon: (e['address_lon'] as num?)?.toDouble(),
             description: '${e['description']}',
             rating: (e['rating'] as num?)?.toDouble() ?? 0,
             status: bucket,
@@ -1705,6 +1720,15 @@ class _RequestItem {
   final bool isUrgent;
   final double? prixPropose;
 
+  /// Adresse structurée pro (chacun affiché avec son icône colorée).
+  final String addressStreet;
+  final String addressQuartier;
+  final String addressVille;
+  final String addressPays;
+  final String addressRepere;
+  final double? addressLat;
+  final double? addressLon;
+
   _RequestItem({
     required this.reference,
     required this.client,
@@ -1727,6 +1751,13 @@ class _RequestItem {
     this.disponibilitesClient = '',
     this.isUrgent = false,
     this.prixPropose,
+    this.addressStreet = '',
+    this.addressQuartier = '',
+    this.addressVille = '',
+    this.addressPays = '',
+    this.addressRepere = '',
+    this.addressLat,
+    this.addressLon,
   });
 }
 

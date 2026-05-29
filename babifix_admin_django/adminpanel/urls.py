@@ -1,22 +1,22 @@
 from django.urls import path
 
 from .geniuspay import geniuspay_initiate, geniuspay_status, geniuspay_webhook
-from .views_health import api_admin_health_config
-from .views_media import api_media_upload
-from .views_otp import api_auth_otp_status, api_auth_verify_otp
-from .views_calls import (
-    api_call_answer,
-    api_call_detail,
-    api_call_end,
-    api_call_history,
-    api_call_initiate,
-    api_call_reject,
-    api_livekit_token,
+from . import views_calls as _calls_views
+from .views_b2b import (
+    api_pro_formules,
+    api_pro_account,
+    api_pro_sites,
+    api_pro_declare_intervention,
+    api_pro_invoice,
 )
 from .views_finance import (
     api_referral,
     api_premium_tiers,
     api_premium_subscribe,
+    api_premium_calculator,
+    api_admin_business_kpis,
+    kpi_dashboard_page,
+    api_client_fidelite,
     api_rating_voice_upload,
     api_admin_platform_revenue,
     api_admin_validate_withdrawal,
@@ -42,23 +42,18 @@ from .views_extra import (
     api_prestataire_contrat,
     api_prestataire_contrat_sign,
     api_prestataire_disputes,
-    api_prestataire_respond_dispute,
-    api_client_disputes,
     api_prestataire_invoice_pdf,
     api_prestataire_kyc_status,
     api_prestataire_kyc_submit,
     api_prestataire_ratings,
     api_prestataire_stats,
     api_prestataire_unavailability_crud,
-    api_prestataire_payments_history,
     api_prestataire_wallet,
     api_prestataire_wallet_withdraw,
     api_prestataire_wallet_update_info,
 )
 from .views_v2 import (
     api_admin_push_broadcast,
-    api_app_log_error,
-    api_app_version,
     api_auth_delete_account,
     api_auth_forgot_password,
     api_auth_refresh_token,
@@ -90,18 +85,8 @@ from .views import (
     api_client_annuler_demande,
     api_client_check_provider_availability,
     api_client_confirmer_travaux,
-    api_reservation_payment_quote,
-    api_category_catalogue,
-    api_client_journal,
-    api_prestataire_annuler_demande,
-    api_admin_mark_refund_paid,
-    api_client_open_dispute,
-    api_admin_resolve_dispute,
-    api_prestataire_location_update,
-    api_reservation_devis_history,
     api_client_conversations,
     api_client_create_reservation,
-    api_client_check_duplicate_reservation,
     api_client_declare_cash,
     api_client_demandes_list,
     api_client_home,
@@ -114,7 +99,6 @@ from .views import (
     api_client_prestataire_detail,
     api_client_rate_reservation,
     api_client_refuse_devis,
-    api_client_receipt_pdf,
     api_messages,
     api_messages_by_reservation,
     api_messages_send_by_reservation,
@@ -123,7 +107,6 @@ from .views import (
     api_prestataire_confirm_cash,
     api_prestataire_conversations,
     api_prestataire_create_devis,
-    api_prestataire_devis_draft,
     api_prestataire_decide_request,
     api_prestataire_demarrer_intervention,
     api_prestataire_earnings,
@@ -142,12 +125,6 @@ from .views import (
     api_reservation_devis,
     api_admin_reservation_move,
     api_admin_reservation_status,
-    api_admin_notifications_mark_all_read,
-    api_admin_decide_dispute,
-    api_phone_masking_initiate,
-    api_chat_history,
-    api_chat_send_message,
-    api_client_pay,
     dashboard,
 )
 
@@ -200,11 +177,6 @@ urlpatterns = [
         "api/client/reservations",
         api_client_create_reservation,
         name="api-client-reservations-create",
-    ),
-    path(
-        "api/client/reservations/check-duplicate",
-        api_client_check_duplicate_reservation,
-        name="api-client-reservations-check-duplicate",
     ),
     path(
         "api/client/reservations/<str:reference>/rating",
@@ -386,8 +358,6 @@ urlpatterns = [
         api_auth_forgot_password,
         name="api-auth-forgot-password",
     ),
-    path("api/app/version", api_app_version, name="api-app-version"),
-    path("api/app/log-error", api_app_log_error, name="api-app-log-error"),
     path(
         "api/auth/reset-password",
         api_auth_reset_password,
@@ -406,11 +376,6 @@ urlpatterns = [
         name="api-admin-reservation-status",
     ),
     path(
-        "api/admin/notifications/mark-all-read",
-        api_admin_notifications_mark_all_read,
-        name="api-admin-notifications-mark-all-read",
-    ),
-    path(
         "api/auth/delete-account",
         api_auth_delete_account,
         name="api-auth-delete-account",
@@ -424,16 +389,6 @@ urlpatterns = [
         "api/auth/verify-email/<str:token>",
         api_auth_verify_email,
         name="api-auth-verify-email",
-    ),
-    path(
-        "api/auth/verify-otp",
-        api_auth_verify_otp,
-        name="api-auth-verify-otp",
-    ),
-    path(
-        "api/auth/otp-status",
-        api_auth_otp_status,
-        name="api-auth-otp-status",
     ),
     # ── v2 — Profil + Portfolio prestataire ──────────────────────────────────
     path(
@@ -483,26 +438,11 @@ urlpatterns = [
         api_prestataire_disputes,
         name="api-prestataire-disputes",
     ),
-    path(
-        "api/client/disputes/",
-        api_client_disputes,
-        name="api-client-disputes",
-    ),
-    path(
-        "api/prestataire/disputes/<str:dispute_ref>/respond/",
-        api_prestataire_respond_dispute,
-        name="api-prestataire-respond-dispute",
-    ),
     # ── Devis ─────────────────────────────────────────────────────────────────
     path(
         "api/prestataire/requests/<str:reference>/devis",
         api_prestataire_create_devis,
         name="api-prestataire-create-devis",
-    ),
-    path(
-        "api/prestataire/requests/<str:reference>/devis/draft",
-        api_prestataire_devis_draft,
-        name="api-prestataire-devis-draft",
     ),
     path(
         "api/client/reservations/<str:reference>/devis",
@@ -519,84 +459,6 @@ urlpatterns = [
         api_client_refuse_devis,
         name="api-client-refuse-devis",
     ),
-    # Historique de tous les devis d'une réservation (acceptés, refusés…)
-    path(
-        "api/reservations/<str:reference>/devis-history",
-        api_reservation_devis_history,
-        name="api-reservation-devis-history",
-    ),
-    path(
-        "api/client/reservations/<str:reference>/receipt/pdf/",
-        api_client_receipt_pdf,
-        name="api-client-receipt-pdf",
-    ),
-    # Phase F — Escrow : quote initial du paiement (cash 18% ou mobile 100%)
-    path(
-        "api/reservations/<str:reference>/payment/quote",
-        api_reservation_payment_quote,
-        name="api-reservation-payment-quote",
-    ),
-    # Phase B — Catalogue de matériaux / prestations par catégorie
-    path(
-        "api/categories/<int:category_id>/catalogue",
-        api_category_catalogue,
-        name="api-category-catalogue",
-    ),
-    # Journal client post-intervention (photos client + commentaire)
-    path(
-        "api/client/reservations/<str:reference>/journal",
-        api_client_journal,
-        name="api-client-journal",
-    ),
-    # B7 — Upload images (remplace base64 inline)
-    path(
-        "api/media/upload",
-        api_media_upload,
-        name="api-media-upload",
-    ),
-    # Géo — Le prestataire pousse sa position GPS courante
-    path(
-        "api/prestataire/location/update",
-        api_prestataire_location_update,
-        name="api-prestataire-location-update",
-    ),
-    # C1 — Annulations supplémentaires
-    path(
-        "api/prestataire/requests/<str:reference>/annuler",
-        api_prestataire_annuler_demande,
-        name="api-prestataire-annuler-demande",
-    ),
-    path(
-        "api/admin/reservations/<str:reference>/refund/mark-paid",
-        api_admin_mark_refund_paid,
-        name="api-admin-mark-refund-paid",
-    ),
-    # Health / diagnostic config (admin only — protégé par require_api_auth)
-    path(
-        "api/admin/health/config",
-        api_admin_health_config,
-        name="api-admin-health-config",
-    ),
-    # B6 — Litiges
-    path(
-        "api/client/reservations/<str:reference>/dispute",
-        api_client_open_dispute,
-        name="api-client-open-dispute",
-    ),
-    path(
-        "api/admin/disputes/<str:dispute_ref>/resolve",
-        api_admin_resolve_dispute,
-        name="api-admin-resolve-dispute",
-    ),
-    # Phase D — Appels LiveKit (signalisation backend authoritative)
-    path("api/calls/initiate", api_call_initiate, name="api-call-initiate"),
-    # Génération de token LiveKit côté serveur uniquement (sécurité).
-    path("api/livekit/token", api_livekit_token, name="api-livekit-token"),
-    path("api/calls/history", api_call_history, name="api-call-history"),
-    path("api/calls/<int:call_id>", api_call_detail, name="api-call-detail"),
-    path("api/calls/<int:call_id>/answer", api_call_answer, name="api-call-answer"),
-    path("api/calls/<int:call_id>/reject", api_call_reject, name="api-call-reject"),
-    path("api/calls/<int:call_id>/end", api_call_end, name="api-call-end"),
     # ── Demandes et intervention ───────────────────────────────────────────────
     # Prestataire
     path(
@@ -653,7 +515,6 @@ urlpatterns = [
         name="api-admin-financial-summary",
     ),
     # ── Wallet prestataire ─────────────────────────────────────────────────────
-    path("api/prestataire/payments/history/", api_prestataire_payments_history, name="api-prestataire-payments-history"),
     path("api/prestataire/wallet/", api_prestataire_wallet, name="api-prestataire-wallet"),
     path("api/prestataire/wallet/withdraw/", api_prestataire_wallet_withdraw, name="api-prestataire-wallet-withdraw"),
     path("api/prestataire/wallet/info/", api_prestataire_wallet_update_info, name="api-prestataire-wallet-info"),
@@ -668,6 +529,16 @@ urlpatterns = [
     # ── Premium prestataire ───────────────────────────────────────────────────
     path("api/prestataire/premium/tiers/", api_premium_tiers, name="api-premium-tiers"),
     path("api/prestataire/premium/subscribe/", api_premium_subscribe, name="api-premium-subscribe"),
+    path("api/prestataire/premium/calculator/", api_premium_calculator, name="api-premium-calculator"),
+    path("api/client/fidelite/", api_client_fidelite, name="api-client-fidelite"),
+    path("api/admin/business-kpis/", api_admin_business_kpis, name="api-admin-business-kpis"),
+    path("dashboard/kpis/", kpi_dashboard_page, name="kpi-dashboard"),
+    # B2B — BABIFIX Pro
+    path("api/pro/formules/", api_pro_formules, name="api-pro-formules"),
+    path("api/pro/account/", api_pro_account, name="api-pro-account"),
+    path("api/pro/sites/", api_pro_sites, name="api-pro-sites"),
+    path("api/pro/interventions/", api_pro_declare_intervention, name="api-pro-interventions"),
+    path("api/pro/invoice/", api_pro_invoice, name="api-pro-invoice"),
 
     # ── KYC prestataire ───────────────────────────────────────────────────────
     path("api/prestataire/kyc/status/", api_prestataire_kyc_status, name="api-prestataire-kyc-status"),
@@ -698,43 +569,15 @@ urlpatterns = [
     # ── Urgence preview ───────────────────────────────────────────────────────
     path("api/client/reservations/urgence-preview/", api_urgence_preview, name="api-urgence-preview"),
 
-    # ── Masquage téléphonique (ZEGOCLOUD) ─────────────────────────────────────
-    path(
-        "api/reservations/<str:reference>/call/",
-        api_phone_masking_initiate,
-        name="api-phone-masking",
-    ),
-
-    # ── Chat REST API ─────────────────────────────────────────────────────────
-    path(
-        "api/reservations/<str:reference>/chat/",
-        api_chat_history,
-        name="api-chat-history",
-    ),
-    path(
-        "api/reservations/<str:reference>/chat/send/",
-        api_chat_send_message,
-        name="api-chat-send",
-    ),
-
-    # ── Paiement client (alias unifié) ────────────────────────────────────────
-    path(
-        "api/client/reservations/<str:reference>/pay/",
-        api_client_pay,
-        name="api-client-pay",
-    ),
-
-    # ── Admin — Décision litige ───────────────────────────────────────────────
-    path(
-        "api/admin/disputes/decide/",
-        api_admin_decide_dispute,
-        name="api-admin-decide-dispute",
-    ),
-
-    # ── Devis — Alias naming ──────────────────────────────────────────────────
-    path(
-        "api/prestataire/reservations/<str:reference>/devis/send/",
-        api_prestataire_create_devis,
-        name="api-prestataire-send-devis",
-    ),
+    # ── Appels audio/vidéo LiveKit ────────────────────────────────────────────
+    # Les routes /api/calls/* existaient en code (views_calls.py) mais
+    # n'étaient PAS câblées dans urls.py — fix critique pour activer les
+    # appels client ↔ prestataire dans l'app.
+    path("api/livekit/token", _calls_views.api_livekit_token, name="api-livekit-token"),
+    path("api/calls/initiate", _calls_views.api_call_initiate, name="api-call-initiate"),
+    path("api/calls/<int:call_id>/answer", _calls_views.api_call_answer, name="api-call-answer"),
+    path("api/calls/<int:call_id>/reject", _calls_views.api_call_reject, name="api-call-reject"),
+    path("api/calls/<int:call_id>/end", _calls_views.api_call_end, name="api-call-end"),
+    path("api/calls/<int:call_id>", _calls_views.api_call_detail, name="api-call-detail"),
+    path("api/calls/history", _calls_views.api_call_history, name="api-call-history"),
 ]

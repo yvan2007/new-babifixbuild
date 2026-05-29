@@ -1,4 +1,4 @@
-@startuml
+@startuml BABIFIX Pro - Séquence Prestataire : Inscription et Validation Admin
 !theme plain
 
 ' Parametres globaux

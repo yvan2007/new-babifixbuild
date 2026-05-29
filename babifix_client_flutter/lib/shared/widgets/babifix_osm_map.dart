@@ -106,8 +106,11 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
                   ),
                   children: [
                     TileLayer(
+                      // CartoDB Voyager : libre, sans clé, CDN multi-sous-domaines
+                      // (a/b/c/d) bien plus fiable que tile.openstreetmap.org direct.
                       urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                      subdomains: const ['a', 'b', 'c', 'd'],
                       userAgentPackageName: 'com.babifix.client',
                     ),
                     MarkerLayer(
@@ -259,7 +262,9 @@ class BabifixOsmStaticPreview extends StatelessWidget {
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate:
+                  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+              subdomains: const ['a', 'b', 'c', 'd'],
               userAgentPackageName: 'com.babifix.client',
             ),
             MarkerLayer(

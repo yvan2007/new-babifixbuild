@@ -44,17 +44,40 @@ def on_reservation_saved(sender, instance, created, **kwargs):
     if _skip_signal_kwargs(**kwargs):
         return
     event = 'reservation.created' if created else 'reservation.updated'
-    realtime.broadcast_admin_event(event, realtime.serialize_reservation(instance))
+    payload = realtime.serialize_reservation(instance)
+
+    # 1) Toujours informer le panel admin (vue d'ensemble).
+    realtime.broadcast_admin_event(event, payload)
+
+    # 2) Push FCM (déjà géré pour des cas spécifiques).
     push_dispatch.on_reservation_change(instance, created, _update_fields_frozen(**kwargs))
-    # Notify client and prestataire apps
-    if instance.client_user_id:
-        realtime.broadcast_client_user(
-            instance.client_user_id, event, realtime.serialize_reservation(instance),
+
+    # 3) Temps réel CLIENT : pousser sur le groupe `babifix_client_<uid>`.
+    #    Le client est connecté à `/ws/client/events/` qui s'abonne au groupe
+    #    `babifix_client_<son_uid>` automatiquement.
+    client_uid = getattr(instance, 'client_user_id', None) or getattr(instance, 'client_id', None)
+    if client_uid:
+        try:
+            realtime.broadcast_client_user(int(client_uid), event, payload)
+        except (TypeError, ValueError):
+            pass
+
+    # 4) Temps réel PRESTATAIRE : pousser sur `babifix_prestataire_<uid>`
+    #    pour le prestataire assigné (ou désigné directement). Le prestataire
+    #    est connecté à `/ws/prestataire/events/`.
+    prov_uid = (
+        getattr(instance, 'prestataire_user_id', None)
+        or (
+            getattr(instance.assigned_provider, 'user_id', None)
+            if getattr(instance, 'assigned_provider_id', None) and instance.assigned_provider
+            else None
         )
-    if instance.prestataire_user_id:
-        realtime.broadcast_prestataire_user(
-            instance.prestataire_user_id, event, realtime.serialize_reservation(instance),
-        )
+    )
+    if prov_uid:
+        try:
+            realtime.broadcast_prestataire_user(int(prov_uid), event, payload)
+        except (TypeError, ValueError):
+            pass
 
     # ── Emails : nouvelle réservation → prestataire ; mission terminée → client ──
     try:
@@ -116,21 +139,42 @@ def on_actualite_saved(sender, instance, created, **kwargs):
     realtime.broadcast_client_event('actualite.updated', {})
     push_dispatch.on_actualite_published(instance, created, _update_fields_frozen(**kwargs))
 
-    # Créer une notification admin quand l'actualité est publiée
-    if instance.publie:
-        from django.contrib.auth import get_user_model
-        from .models import Notification
-        User = get_user_model()
-        staff_users = User.objects.filter(is_staff=True)
-        for user in staff_users:
-            Notification.objects.create(
-                title=f"Actualité publiée : {instance.titre}",
-                body=instance.description[:200],
-                notif_type=Notification.NotifType.BROADCAST,
-                reference=f"actualite:{instance.pk}",
-                lu=False,
-                user=user,
+    # Création d'une Notification en DB pour chaque utilisateur ciblé
+    # → l'app les lit via /api/notifications et les affiche dans la cloche
+    # + déclenche une bannière toast avec son si l'app est ouverte (signaux WS).
+    try:
+        if instance.publie and created:
+            from .models import UserProfile
+            cible = (getattr(instance, 'cible', '') or '').lower()
+            roles = []
+            if cible in ('client', ''):
+                roles.append(UserProfile.Role.CLIENT)
+            if cible in ('prestataire', 'presta', ''):
+                roles.append(UserProfile.Role.PRESTATAIRE)
+            if cible == 'all' or not cible:
+                roles = [UserProfile.Role.CLIENT, UserProfile.Role.PRESTATAIRE]
+
+            user_ids = list(
+                UserProfile.objects.filter(role__in=roles, active=True)
+                .values_list('user_id', flat=True)
             )
+            titre_court = f"📢 {instance.titre[:80]}"
+            body_court = (instance.description or '')[:200]
+            notifs = [
+                Notification(
+                    user_id=uid,
+                    title=titre_court,
+                    body=body_court,
+                    notif_type='actualite',
+                    reference=f'ACT-{instance.pk}',
+                )
+                for uid in user_ids if uid
+            ]
+            if notifs:
+                Notification.objects.bulk_create(notifs, batch_size=200, ignore_conflicts=True)
+                _log.info('Actualité %s : %d notifications créées', instance.pk, len(notifs))
+    except Exception as exc:
+        _log.warning('Création notifications actualité: %s', exc)
 
 
 @receiver(post_delete, sender=Provider)
