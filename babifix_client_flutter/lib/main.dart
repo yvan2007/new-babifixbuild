@@ -1488,57 +1488,164 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ],
                 ),
               ),
-              if (showHelp || contactAdminEmail.isNotEmpty)
-                PopupMenuButton<String>(
-                  tooltip: 'Plus',
-                  offset: const Offset(0, 44),
-                  icon: Icon(
-                    Icons.more_horiz_rounded,
-                    size: 24,
-                    color: iconColor,
-                  ),
-                  onSelected: (value) {
-                    if (value == 'help') _showHelpSheet();
-                    if (value == 'support') _contactAdminMail();
-                  },
-                  itemBuilder: (context) => [
-                    if (showHelp)
-                      PopupMenuItem(
-                        value: 'help',
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.help_outline_rounded,
-                              size: 20,
-                              color: iconColor,
-                            ),
-                            const SizedBox(width: 12),
-                            const Text('Aide'),
-                          ],
-                        ),
-                      ),
-                    if (contactAdminEmail.isNotEmpty)
-                      PopupMenuItem(
-                        value: 'support',
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.support_agent_rounded,
-                              size: 20,
-                              color: iconColor,
-                            ),
-                            const SizedBox(width: 12),
-                            const Text('Contacter l\'admin'),
-                          ],
-                        ),
-                      ),
-                  ],
+              PopupMenuButton<String>(
+                tooltip: 'Plus',
+                offset: const Offset(0, 44),
+                icon: Icon(
+                  Icons.more_horiz_rounded,
+                  size: 24,
+                  color: iconColor,
                 ),
+                onSelected: (value) async {
+                  switch (value) {
+                    case 'help':
+                      _showHelpSheet();
+                      break;
+                    case 'support':
+                      _contactAdminMail();
+                      break;
+                    case 'settings':
+                      setState(() => navIndex = 4);
+                      break;
+                    case 'about':
+                      _showAboutDialog();
+                      break;
+                    case 'logout':
+                      await _confirmLogout();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'settings',
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings_rounded, size: 20, color: iconColor),
+                        const SizedBox(width: 12),
+                        const Text('Paramètres'),
+                      ],
+                    ),
+                  ),
+                  if (showHelp)
+                    PopupMenuItem(
+                      value: 'help',
+                      child: Row(
+                        children: [
+                          Icon(Icons.help_outline_rounded, size: 20, color: iconColor),
+                          const SizedBox(width: 12),
+                          const Text('Aide'),
+                        ],
+                      ),
+                    ),
+                  if (contactAdminEmail.isNotEmpty)
+                    PopupMenuItem(
+                      value: 'support',
+                      child: Row(
+                        children: [
+                          Icon(Icons.support_agent_rounded, size: 20, color: iconColor),
+                          const SizedBox(width: 12),
+                          const Text("Contacter l'admin"),
+                        ],
+                      ),
+                    ),
+                  PopupMenuItem(
+                    value: 'about',
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 20, color: iconColor),
+                        const SizedBox(width: 12),
+                        const Text('À propos de BABIFIX'),
+                      ],
+                    ),
+                  ),
+                  if (authToken != null) const PopupMenuDivider(),
+                  if (authToken != null)
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.logout_rounded,
+                              size: 20, color: Color(0xFFEF4444)),
+                          const SizedBox(width: 12),
+                          const Text('Se déconnecter',
+                              style: TextStyle(color: Color(0xFFEF4444))),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'BABIFIX',
+      applicationVersion: 'v1.0.0',
+      applicationIcon: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [BabifixDesign.darkNavy, BabifixDesign.cyan],
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.home_work_rounded, color: Colors.white, size: 32),
+      ),
+      applicationLegalese: '© 2026 BABIFIX SARL — Plateforme de services à '
+          "domicile en Côte d'Ivoire.\nTous droits réservés.",
+      children: const [
+        SizedBox(height: 16),
+        Text(
+          "BABIFIX met en relation les clients avec des artisans qualifiés "
+          "et vérifiés pour tout type de prestation à domicile : plomberie, "
+          "électricité, peinture, ménage et bien plus.\n\n"
+          "Paiement sécurisé en Mobile Money, géolocalisation des prestataires "
+          "et garantie BABIFIX sur chaque intervention.",
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+        SizedBox(height: 12),
+        Text('contact@babifix.ci  •  www.babifix.ci',
+            style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+      ],
+    );
+  }
+
+  Future<void> _confirmLogout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Icon(Icons.logout_rounded,
+            color: const Color(0xFFEF4444), size: 32),
+        title: const Text('Se déconnecter ?',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        content: const Text(
+          'Vous devrez vous reconnecter avec vos identifiants pour accéder à '
+          'votre profil et à vos réservations.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Se déconnecter'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _logout();
   }
 
   void _showHelpSheet() {

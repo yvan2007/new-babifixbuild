@@ -92,6 +92,7 @@ from .views import (
     api_client_home,
     api_client_actualites,
     api_client_actualite_detail,
+    api_public_actualites,
     api_client_confirm_prestation,
     api_client_message_delete,
     api_client_pay_post_prestation,
@@ -153,6 +154,9 @@ urlpatterns = [
     path("api/auth/apple/", api_auth_apple, name="api-auth-apple-slash"),
     path("api/client/home", api_client_home, name="api-client-home"),
     path("api/client/actualites", api_client_actualites, name="api-client-actualites"),
+    # Variante publique (sans auth) — voir les actus de cible 'tous' depuis
+    # l'écran d'accueil "À la une" même en mode visiteur.
+    path("api/public/actualites", api_public_actualites, name="api-public-actualites"),
     path(
         "api/client/actualites/<int:pk>",
         api_client_actualite_detail,

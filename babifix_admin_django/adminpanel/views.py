@@ -1645,6 +1645,23 @@ def api_client_actualites(request):
 
 
 @require_GET
+def api_public_actualites(request):
+    """
+    Variante publique (sans authentification) — retourne uniquement les
+    actualités à cible 'tous' qui n'ont pas vocation à être réservées
+    aux clients/prestataires inscrits. Permet aux visiteurs anonymes
+    de voir les annonces publiques de BABIFIX sur l'écran « À la une ».
+    """
+    _bootstrap_data()
+    qs = Actualite.objects.filter(publie=True, cible__in=["tous", ""])
+    rows = [
+        _actualite_to_json(request, a, summary=True)
+        for a in qs.order_by("-date_publication")[:30]
+    ]
+    return JsonResponse({"items": rows})
+
+
+@require_GET
 @require_api_auth(["client", "prestataire", "admin"])
 def api_client_actualite_detail(request, pk: int):
     _bootstrap_data()
