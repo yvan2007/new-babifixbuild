@@ -3517,6 +3517,16 @@ def api_prestataire_me(request):
                 "category_id": int(cat.id) if cat else None,
                 "category_icone_url": (cat.icone_url or "").strip() if cat else "",
                 "years_experience": int(prov.years_experience or 0),
+                # Champs lus par l'app prestataire au boot pour décider de la
+                # route (contrat obligatoire / dashboard / KYC / premium).
+                "contrat_signe": bool(prov.contrat_accepte_at),
+                "contrat_accepte_at": prov.contrat_accepte_at.isoformat()
+                    if prov.contrat_accepte_at else None,
+                "contrat_version": prov.contrat_version or "",
+                "kyc_status": prov.kyc_status or "not_submitted",
+                "premium_tier": prov.premium_tier or "standard",
+                "is_premium": bool(prov.is_premium),
+                "is_premium_annual": bool(getattr(prov, "is_premium_annual", False)),
             },
             "stats": {
                 "reservations_total": qs.count(),
