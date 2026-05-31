@@ -1,12 +1,40 @@
-"""Filtres templates BABIFIX — monnaie FCFA (XOF)."""
+"""Filtres templates BABIFIX — monnaie FCFA (XOF) + temps relatif."""
 from __future__ import annotations
 
 import re
 from decimal import Decimal
 
 from django import template
+from django.utils import timezone
+from django.utils.timesince import timesince
 
 register = template.Library()
+
+
+@register.filter(name='relative_time')
+def relative_time(value) -> str:
+    """Temps relatif RÉEL et dynamique à partir d'un datetime (created_at).
+
+    Remplace les anciennes chaînes statiques (« Il y a 5 min » figées). Se
+    recalcule à chaque chargement de page → plus de notifications « figées ».
+    """
+    if not value:
+        return "—"
+    try:
+        now = timezone.now()
+        delta = now - value
+        secs = delta.total_seconds()
+        if secs < 0:
+            return "À l'instant"
+        if secs < 60:
+            return "À l'instant"
+        # timesince donne « 5 minutes », « 2 heures, 3 minutes »… on garde le
+        # 1er terme pour rester concis, préfixé par « Il y a ».
+        ts = timesince(value, now)
+        ts = ts.split(",")[0].strip()
+        return f"Il y a {ts}"
+    except (TypeError, ValueError):
+        return "—"
 
 
 def _to_int(value) -> int | None:
