@@ -3374,10 +3374,16 @@ def api_prestataire_earnings(request):
 
     total = 0.0
     for pay in payments:
-        raw = pay.montant.replace("€", "").replace("FCFA", "").strip()
+        # Le champ Payment.montant a évolué : string libre → Decimal.
+        # On gère les 2 cas pour rester rétrocompatible.
+        m = pay.montant
         try:
-            total += float(raw)
-        except ValueError:
+            if isinstance(m, (int, float)) or hasattr(m, "__float__"):
+                total += float(m)
+            else:
+                raw = str(m).replace("€", "").replace("FCFA", "").replace("XOF", "").strip()
+                total += float(raw or 0)
+        except (ValueError, TypeError):
             pass
 
     transactions = []
