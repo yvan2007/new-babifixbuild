@@ -19,8 +19,8 @@ Future<void> babifixFcmBackgroundHandler(RemoteMessage message) async {
   final data = message.data;
   await BabifixNotificationSoundService.showNotification(
     id: DateTime.now().millisecondsSinceEpoch % 100000,
-    title: message.notification?.title ?? data['title'] ?? 'BABIFIX',
-    body: message.notification?.body ?? data['body'] ?? '',
+    title: data['title'] ?? 'BABIFIX',
+    body: data['body'] ?? '',
     payload: data['route'] ?? data['type'] ?? '',
   );
 }
@@ -29,12 +29,14 @@ Future<void> babifixFcmBackgroundHandler(RemoteMessage message) async {
 class BabifixFcm {
   BabifixFcm._();
 
-  static bool _initTried = false;
+  static bool _initOK = false;
+  static bool _initAttempted = false;
   static bool _refreshListening = false;
 
   static Future<void> ensureInitialized() async {
-    if (_initTried) return;
-    _initTried = true;
+    if (_initOK) return;
+    if (_initAttempted) return;
+    _initAttempted = true;
     if (kIsWeb) return;
     try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -54,12 +56,15 @@ class BabifixFcm {
       await BabifixNotificationSoundService.ensureInitialized();
 
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+      _initOK = true;
+      debugPrint('BABIFIX FCM: initialisé avec succès');
     } catch (e) {
-      debugPrint('BABIFIX FCM: init ignorée ($e) — exécutez `flutterfire configure` et ajoutez google-services.json.');
+      debugPrint('BABIFIX FCM: init ignorée ($e)');
     }
   }
 
   static Future<void> _onForegroundMessage(RemoteMessage message) async {
+    debugPrint('BABIFIX FCM: onMessage reçu');
     final data = message.data;
     final type = (data['type'] ?? '').toString();
     // Phase D — Ne PAS afficher de notification système pour un appel
@@ -67,8 +72,8 @@ class BabifixFcm {
     if (type != 'call.incoming') {
       await BabifixNotificationSoundService.showNotification(
         id: DateTime.now().millisecondsSinceEpoch % 100000,
-        title: message.notification?.title ?? data['title'] ?? 'BABIFIX',
-        body: message.notification?.body ?? data['body'] ?? '',
+        title: data['title'] ?? 'BABIFIX',
+        body: data['body'] ?? '',
         payload: data['route'] ?? data['type'] ?? '',
       );
     }

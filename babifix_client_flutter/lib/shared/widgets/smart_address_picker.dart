@@ -21,6 +21,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'babifix_ring_loader.dart';
 import 'babifix_snackbar.dart';
+import '../geo_utils.dart';
 
 class PickedAddress {
   final String label;
@@ -119,7 +120,9 @@ class _SmartAddressPickerState extends State<SmartAddressPicker> {
           timeLimit: Duration(seconds: 12),
         ),
       );
-      final ll = LatLng(pos.latitude, pos.longitude);
+      final ll = isInCotedIvoire(pos.latitude, pos.longitude)
+          ? LatLng(pos.latitude, pos.longitude)
+          : _abidjan;
       if (!mounted) return;
       setState(() => _target = ll);
       _mapCtrl.move(ll, 16.0);
@@ -309,7 +312,8 @@ class _SmartAddressPickerState extends State<SmartAddressPicker> {
               children: [
                 TileLayer(
                   urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                  subdomains: const ['a', 'b', 'c', 'd'],
                   userAgentPackageName: 'ci.babifix.client',
                   maxZoom: 19,
                 ),

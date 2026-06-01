@@ -518,6 +518,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
       case 'litige.resolved':
         setState(() => navIndex = 3);
         break;
+      case 'notification':
+      case 'broadcast':
       case 'actualite.published':
         setState(() => navIndex = 2);
         break;
@@ -1985,19 +1987,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                               compact: true,
                                             ),
                                           ],
-                                          if (p.tarif != null) ...[
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              formatFcfa(p.tarif!.round()),
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 13,
-                                                color: _isLight
-                                                    ? BabifixDesign.ciBlue
-                                                    : BabifixDesign.cyan,
-                                              ),
-                                            ),
-                                          ],
+                                          // Prix supprimé — chaque devis est sur mesure
                                         ],
                                       ),
                                     ),
@@ -3185,7 +3175,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildCatalogServiceCard(ClientService item, int index) {
-    final priceColor = _isLight ? BabifixDesign.ciBlue : BabifixDesign.cyan;
     final outlineStyle = OutlinedButton.styleFrom(
       foregroundColor: _textPrimary,
       side: BorderSide(
@@ -3363,16 +3352,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      Text(
-                        formatFcfa(item.price),
-                        style: TextStyle(
-                          color: priceColor,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
                       Icon(
                         Icons.star_rounded,
                         size: 18,
@@ -3412,6 +3391,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               : const Color(0xFF86EFAC),
                         ),
                       ),
+                    ),
+                  ],
+                  if (item.distanceKm != null) ...[
+                    const SizedBox(height: 8),
+                    BabifixDistanceChip(
+                      distanceKm: item.distanceKm!,
+                      compact: true,
                     ),
                   ],
                   const SizedBox(height: 14),
@@ -4347,11 +4333,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _openActualiteDetail(ClientActualiteItem a) async {
     final t = authToken;
-    if (t == null) return;
+    final isPublic = t == null;
     try {
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/${isPublic ? "public" : "client"}/actualites/${a.id}',
+      );
       final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/client/actualites/${a.id}'),
-        headers: {'Authorization': 'Bearer $t'},
+        uri,
+        headers: isPublic ? {} : {'Authorization': 'Bearer $t'},
       );
       if (res.statusCode != 200 || !mounted) return;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -5124,6 +5113,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _initSession() async {
     authToken = await BabifixUserStore.getApiToken();
+    if (authToken != null) {
+      await BabifixFcm.registerTokenWithBackend(authToken!);
+    }
     await _initLiveKitForClientIfNeeded(authToken, context);
     await _loadRemoteData();
     await _refreshUnreadChat();
@@ -5143,9 +5135,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
     if (authToken != null) {
       await _loadClientHomeData();
     } else {
+      await _loadPublicActualites();
       if (mounted) {
         setState(() => loadingRemote = false);
-        // Aucun service sans auth — declencher le delai pour l'etat vide
         Future.delayed(const Duration(milliseconds: 600), () {
           if (mounted) setState(() => _showEmptyAfterDelay = true);
         });
@@ -5184,17 +5176,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
         debugPrint('BABIFIX-GPS: STEP 3 gpsOK=$gpsOK');
         if (gpsOK) {
           debugPrint('BABIFIX-GPS: STEP 4a getLastKnownPosition...');
-          // Essai 1 : position cache (instantané — marche sur émulateur).
+          // Essai 1 : position cache (instantané), mais on rejette si trop vieille (>5 min).
           Position? pos = await Geolocator.getLastKnownPosition();
+          if (pos != null && pos.timestamp != null) {
+            final age = DateTime.now().difference(pos.timestamp!);
+            if (age.inMinutes > 5) pos = null;
+          }
           if (pos == null) {
-            // Essai 2 : position fraîche (10 s max, accuracy basse pour rapidité).
+            // Essai 2 : position fraîche (12 s max, accuracy haute).
             debugPrint('BABIFIX-GPS: STEP 4b getCurrentPosition...');
             pos = await Geolocator.getCurrentPosition(
               locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.low,
+                accuracy: LocationAccuracy.high,
               ),
             ).timeout(
-              const Duration(seconds: 10),
+              const Duration(seconds: 12),
               onTimeout: () => throw TimeoutException('GPS timeout'),
             );
           }
@@ -5230,13 +5226,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
         _radiusAdaptive = pdata['radius_adaptive'] == true;
 
         final rp = rows.map((x) {
-          double? tf;
-          final th = x['tarif_horaire'];
-          if (th is num) {
-            tf = th.toDouble();
-          } else if (th != null) {
-            tf = double.tryParse('$th');
-          }
           final dk = jsonDoubleNullable(x['distance_km']);
           return RecentProviderCard(
             id: jsonInt(x['id']),
@@ -5244,7 +5233,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             specialite: '${x['specialite'] ?? ''}',
             ville: '${x['ville'] ?? ''}',
             imageUrl: '${x['photo_portrait_url'] ?? x['image_url'] ?? ''}',
-            tarif: tf,
+            tarif: null,
             disponible: x['disponible'] != false,
             distanceKm: dk,
           );
@@ -5262,7 +5251,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             title: p.nom,
             category: catName.isNotEmpty ? catName : p.specialite,
             duration: 'Disponible',
-            price: p.tarif?.toInt() ?? 0,
+            price: 0,
             rating: 0.0,
             verified: true,
             color: const Color(0xFF0284c7),
@@ -5346,23 +5335,70 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
   }
 
+  Future<void> _loadPublicActualites() async {
+    try {
+      final base = babifixApiBaseUrl();
+      final url = '$base/api/public/actualites';
+      final res = await http.get(Uri.parse(url));
+      if (res.statusCode == 200 && mounted) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final items = (data['items'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+        setState(() {
+          actualites = items.map((m) => ClientActualiteItem(
+            id: jsonInt(m['id']),
+            titre: '${m['titre'] ?? ''}',
+            description: '${m['description'] ?? ''}',
+            imageUrl: '${m['image_url'] ?? ''}',
+            categorieTag: '${m['categorie_tag'] ?? ''}',
+            dateLabel: '${m['date_publication'] ?? ''}'.split('T').first,
+          )).toList();
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadClientHomeData() async {
     try {
       final base = babifixApiBaseUrl();
-      final uri = Uri.parse('$base/api/client/home');
-      http.Response res;
+      final params = <String, String>{};
       try {
-        res = await http.get(
-          uri,
-          headers: {'Authorization': 'Bearer $authToken'},
-        );
-      } catch (_) {
-        final cached = await BabifixOfflineCache.loadHomeData();
-        if (cached != null && mounted) {
-          setState(() => loadingRemote = false);
+        var gperm = await Geolocator.checkPermission();
+        if (gperm == LocationPermission.denied) {
+          gperm = await Geolocator.requestPermission();
         }
-        return;
+        if (gperm == LocationPermission.always || gperm == LocationPermission.whileInUse) {
+          Position? pos = await Geolocator.getLastKnownPosition();
+          if (pos != null && pos.timestamp != null) {
+            final age = DateTime.now().difference(pos.timestamp!);
+            if (age.inMinutes > 5) pos = null;
+          }
+          if (pos == null || !isInCotedIvoire(pos.latitude, pos.longitude)) {
+            pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.high,
+              ),
+            ).timeout(
+              const Duration(seconds: 12),
+              onTimeout: () => throw TimeoutException('GPS timeout'),
+            );
+          }
+          if (isInCotedIvoire(pos.latitude, pos.longitude)) {
+            params['lat'] = pos.latitude.toStringAsFixed(6);
+            params['lon'] = pos.longitude.toStringAsFixed(6);
+          } else {
+            params['lat'] = kAbidjanLat.toStringAsFixed(6);
+            params['lon'] = kAbidjanLon.toStringAsFixed(6);
+          }
+        } else {
+          params['lat'] = kAbidjanLat.toStringAsFixed(6);
+          params['lon'] = kAbidjanLon.toStringAsFixed(6);
+        }
+      } catch (_) {
+        params['lat'] = kAbidjanLat.toStringAsFixed(6);
+        params['lon'] = kAbidjanLon.toStringAsFixed(6);
       }
+      final uri = Uri.parse('$base/api/client/home').replace(queryParameters: params.isNotEmpty ? params : null);
+      final res = await BabifixUserStore.authGet(uri.toString());
       if (res.statusCode != 200) {
         setState(() => loadingRemote = false);
         return;
@@ -5407,7 +5443,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               category:
                   '${item['category_filter_key'] ?? babifixCategoryFilterKey('${item['category'] ?? ''}')}',
               duration: '${item['duration'] ?? ''}',
-              price: jsonInt(item['price']),
+              price: 0,
               rating: jsonDouble(item['rating']),
               verified: item['verified'] == true,
               color: _parseHexColor('${item['color'] ?? '#244B5A'}'),
@@ -5416,6 +5452,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   : 'assets/images/service-plomberie.jpg',
               providerId: jsonInt(item['provider_id']),
               disponible: item['disponible'] != false,
+              distanceKm: jsonDoubleNullable(item['distance_km']),
             ),
           )
           .toList();
@@ -5493,21 +5530,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
       }
       final rp = (data['recent_providers'] as List<dynamic>? ?? []).map((raw) {
         final x = raw as Map<String, dynamic>;
-        double? tf;
-        final th = x['tarif_horaire'];
-        if (th is num) {
-          tf = th.toDouble();
-        } else if (th != null) {
-          tf = double.tryParse('$th');
-        }
         return RecentProviderCard(
           id: jsonInt(x['id']),
           nom: '${x['nom'] ?? ''}',
           specialite: '${x['specialite'] ?? ''}',
           ville: '${x['ville'] ?? ''}',
           imageUrl: '${x['image_url'] ?? ''}',
-          tarif: tf,
+          tarif: null,
           disponible: x['disponible'] != false,
+          distanceKm: jsonDoubleNullable(x['distance_km']),
         );
       }).toList();
       final adminMail = '${data['contact_admin_email'] ?? ''}'.trim();

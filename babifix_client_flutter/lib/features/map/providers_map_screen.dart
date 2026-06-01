@@ -13,6 +13,7 @@ import '../../json_utils.dart';
 import '../../shared/geo_utils.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../providers/provider_profile_premium_screen.dart';
 
 class _Provider {
   _Provider({
@@ -448,7 +449,13 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                       ),
                       FilledButton(
                         style: FilledButton.styleFrom(backgroundColor: BabifixDesign.ciOrange),
-                        onPressed: () {/* Navigate to booking */},
+                        onPressed: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => ProviderProfilePremiumScreen(
+                              providerId: _selected!.id,
+                            ),
+                          ),
+                        ),
                         child: const Text('Réserver'),
                       ),
                     ],

@@ -84,6 +84,48 @@ class BabifixFcmRouter {
         color = BabifixDesign.error;
         break;
     }
+    if (type == 'notification' || type == 'broadcast') {
+      final nTitle = (data['title'] ?? '').toString();
+      final nBody = (data['body'] ?? '').toString();
+      try {
+        ScaffoldMessenger.of(ctx).clearSnackBars();
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+          backgroundColor: const Color(0xFF2C3E50),
+          padding: EdgeInsets.only(top: MediaQuery.of(ctx).padding.top + 8, left: 16, right: 16, bottom: 12),
+          margin: EdgeInsets.zero,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(bottom: Radius.circular(24))),
+          elevation: 8,
+          duration: const Duration(seconds: 4),
+          content: Row(
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+                child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (nTitle.isNotEmpty)
+                      Text(nTitle, style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (nBody.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(nBody, style: const TextStyle(color: Colors.white70, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ));
+      } catch (_) {}
+      return;
+    }
+
     if (msg != null) {
       ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         backgroundColor: color,

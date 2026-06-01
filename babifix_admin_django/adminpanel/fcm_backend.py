@@ -101,28 +101,32 @@ def send_push_to_user_ids(
         return {'ready': True, 'tokens': 0, 'sent': 0, 'failed': 0, 'reason': 'no_tokens'}
 
     data = data or {}
+    data['title'] = str(title)
+    data['body'] = str(body)
     data_str = {k: str(v) for k, v in data.items() if v is not None}
 
     # Canal Android partagé avec les apps Flutter (cf. babifix_fcm.dart).
+    # Uniquement data payload — pas de notification section, pour que
+    # `onMessage` / `onBackgroundMessage` soient toujours déclenchés.
     android_cfg = messaging.AndroidConfig(
         priority='high',
         notification=messaging.AndroidNotification(
-            title=title,
-            body=body,
-            channel_id='babifix_default',
+            channel_id='babifix_notifications',
             sound='notification_soft',
             default_sound=False,
         ),
     )
     apns_cfg = messaging.APNSConfig(
         payload=messaging.APNSPayload(
-            aps=messaging.Aps(sound='notification_soft.mp3'),
+            aps=messaging.Aps(
+                alert=messaging.ApsAlert(title=title, body=body),
+                sound='notification_soft.mp3',
+            ),
         ),
     )
 
     messages = [
         messaging.Message(
-            notification=messaging.Notification(title=title, body=body),
             android=android_cfg,
             apns=apns_cfg,
             data=data_str,

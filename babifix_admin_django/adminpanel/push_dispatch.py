@@ -287,6 +287,30 @@ def on_chat_message_created(instance: Message) -> None:
         pass
 
 
+def on_notification_created(instance) -> None:
+    """Push FCM vers l'utilisateur ciblé (ou tous si global)."""
+    ids: list[int | None] = []
+    if instance.user_id:
+        ids = [instance.user_id]
+    else:
+        # Notification globale (user=None) → tous les utilisateurs actifs
+        ids = list(
+            UserProfile.objects.filter(active=True).values_list('user_id', flat=True)
+        )
+    _schedule(
+        ids,
+        instance.title or 'BABIFIX — Notification',
+        instance.body or '',
+        {
+            'type': 'notification',
+            'notification_id': str(instance.pk),
+            'title': instance.title or '',
+            'body': instance.body or '',
+            'notif_type': instance.notif_type or '',
+        },
+    )
+
+
 def on_rating_change(instance, created: bool) -> None:
     if not created:
         return

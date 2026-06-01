@@ -47,7 +47,7 @@ JWT_PUBLIC_KEY = getattr(
 )
 JWT_ALGORITHM = "HS256"  # HS256 pour simple, RS256 pour production avec cle publique
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+REFRESH_TOKEN_EXPIRE_DAYS = 365
 TOKEN_ISSUER = "babifix-api"
 TOKEN_AUDIENCE = "babifix-client"
 

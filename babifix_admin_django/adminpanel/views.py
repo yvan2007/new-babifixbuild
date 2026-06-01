@@ -551,11 +551,69 @@ def _decode_and_save_media(b64_data: str, subfolder: str, prefix: str) -> str:
     return f"{settings.MEDIA_URL}providers/{subfolder}/{filename}"
 
 
-def _services_from_db(request=None):
+def _is_in_cote_ivoire(lat, lon):
+    """Pré-filtre bbox + ray-casting polygon pour vérifier si (lat, lon) est en CI."""
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (TypeError, ValueError):
+        return False
+    if not (4.0 <= lat <= 11.0 and -9.0 <= lon <= -2.0):
+        return False
+    polygon = [
+        (4.357, -7.540), (4.384, -7.683), (4.420, -7.917),
+        (4.477, -8.194), (4.556, -8.424), (4.622, -8.537),
+        (4.721, -8.584), (4.856, -8.600), (6.451, -8.660),
+        (7.550, -8.500), (8.500, -8.600), (9.362, -8.536),
+        (10.175, -7.985), (10.686, -6.832), (10.755, -5.928),
+        (10.745, -5.190), (10.385, -4.430), (9.718, -4.241),
+        (9.096, -3.805), (8.581, -3.000), (7.772, -2.590),
+        (6.949, -2.659), (6.214, -3.086), (5.527, -2.674),
+        (5.131, -2.586), (5.108, -3.147), (5.058, -3.550),
+        (4.921, -3.997), (4.886, -4.498), (4.799, -5.249),
+        (4.698, -5.755), (4.662, -6.754), (4.537, -7.192),
+    ]
+    inside = False
+    j = len(polygon) - 1
+    for i in range(len(polygon)):
+        lat_i, lon_i = polygon[i]
+        lat_j, lon_j = polygon[j]
+        if (lon_i > lon) != (lon_j > lon):
+            intersect_at = lat_j + (lat_i - lat_j) * (lon - lon_j) / (lon_i - lon_j)
+            if lat < intersect_at:
+                inside = not inside
+        j = i
+    return inside
+
+
+def _provider_distance_km(client_lat, client_lon, provider):
+    if client_lat is None or client_lon is None:
+        return None
+    if not _is_in_cote_ivoire(client_lat, client_lon):
+        return None
+    plat = getattr(provider, 'latitude', None)
+    plon = getattr(provider, 'longitude', None)
+    if plat is None or plon is None:
+        plat = getattr(provider, 'service_latitude', None)
+        plon = getattr(provider, 'service_longitude', None)
+    if plat is None or plon is None or not _is_in_cote_ivoire(plat, plon):
+        return None
+    try:
+        from math import asin, cos, radians, sin, sqrt
+        lat1, lon1, lat2, lon2 = radians(float(client_lat)), radians(float(client_lon)), radians(float(plat)), radians(float(plon))
+        dphi, dlmb = lat2 - lat1, lon2 - lon1
+        a = sin(dphi / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlmb / 2) ** 2
+        return round(6371 * 2 * asin(min(1.0, sqrt(a))), 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _services_from_db(request=None, client_lat=None, client_lon=None):
     """
     Prestataires validés uniquement — aucune donnée fictive.
     Prix = tarif_horaire (FCFA) saisi par le prestataire ; 0 si non défini.
     Note = moyenne réelle uniquement (sinon 0).
+    Si client_lat/client_lon fournis, calcule et inclut distance_km.
     """
     qs = Provider.objects.filter(
         statut=Provider.Status.VALID, is_approved=True
@@ -568,11 +626,6 @@ def _services_from_db(request=None):
         )
         spec = _normalize_category_key(cat_label)
         base_price = 0
-        if p.tarif_horaire is not None:
-            try:
-                base_price = int(round(float(p.tarif_horaire)))
-            except (TypeError, ValueError):
-                base_price = 0
         if p.rating_count and p.average_rating is not None:
             stars = round(float(p.average_rating), 1)
         else:
@@ -591,6 +644,7 @@ def _services_from_db(request=None):
                 "provider_id": int(p.id),
                 "image_url": _safe_photo_url(p.photo_portrait_url or "", request),
                 "disponible": p.disponible,
+                "distance_km": _provider_distance_km(client_lat, client_lon, p),
                 "category_nom": (p.category.nom if p.category_id else "") or "",
                 "category_icone_slug": (p.category.icone_slug or "").strip()
                 if p.category_id
@@ -794,23 +848,29 @@ def _dashboard_forms_context(request, section):
             ctx["category_form"] = CategoryForm()
     elif section == "notifications":
         eid = request.GET.get("edit_notification")
-        if eid and str(eid).isdigit():
-            try:
-                inst = Notification.objects.get(pk=int(eid))
-                ctx["notification_form"] = NotificationForm(instance=inst)
-                ctx["edit_notification_id"] = inst.pk
-            except Notification.DoesNotExist:
+        if eid:
+            ctx["edit_notification_id"] = eid
+            if str(eid).isdigit():
+                try:
+                    inst = Notification.objects.get(pk=int(eid))
+                    ctx["notification_form"] = NotificationForm(instance=inst)
+                except Notification.DoesNotExist:
+                    ctx["notification_form"] = NotificationForm()
+            else:
                 ctx["notification_form"] = NotificationForm()
         else:
             ctx["notification_form"] = NotificationForm()
     elif section == "actualites":
         eid = request.GET.get("edit_actualite")
-        if eid and str(eid).isdigit():
-            try:
-                inst = Actualite.objects.get(pk=int(eid))
-                ctx["actualite_form"] = ActualiteForm(instance=inst)
-                ctx["edit_actualite_id"] = inst.pk
-            except Actualite.DoesNotExist:
+        if eid:
+            ctx["edit_actualite_id"] = eid
+            if str(eid).isdigit():
+                try:
+                    inst = Actualite.objects.get(pk=int(eid))
+                    ctx["actualite_form"] = ActualiteForm(instance=inst)
+                except Actualite.DoesNotExist:
+                    ctx["actualite_form"] = ActualiteForm()
+            else:
                 ctx["actualite_form"] = ActualiteForm()
         else:
             ctx["actualite_form"] = ActualiteForm()
@@ -1504,6 +1564,7 @@ def dashboard(request):
         "paiements": paiements,
         "categories": categories,
         "notifications": notifications,
+        "unified_notifications": notifications,
         "actualites": actualites,
         "params": settings_obj,
         "audit_logs": audit_logs,
@@ -1542,7 +1603,9 @@ def api_public_vitrine(request):
 @require_api_auth(["client", "admin"])
 def api_client_home(request):
     _bootstrap_data()
-    services = _services_from_db(request)
+    clat = request.GET.get("lat")
+    clon = request.GET.get("lon")
+    services = _services_from_db(request, client_lat=clat, client_lon=clon)
     uid = request.api_user_id
     user = User.objects.filter(id=uid).first()
     client_name = (user.get_full_name() or user.username) if user else ""
@@ -1632,6 +1695,7 @@ def api_client_home(request):
                 if p.tarif_horaire is not None
                 else None,
                 "disponible": p.disponible,
+                "distance_km": _provider_distance_km(clat, clon, p),
             }
         )
     site = SiteContent.objects.filter(key="contact_admin_email").first()
@@ -1688,6 +1752,21 @@ def api_public_actualites(request):
 def api_client_actualite_detail(request, pk: int):
     _bootstrap_data()
     a = Actualite.objects.filter(pk=pk, publie=True).first()
+    if not a:
+        return JsonResponse({"error": "not_found"}, status=404)
+    return JsonResponse({"item": _actualite_to_json(request, a, summary=False)})
+
+
+@require_GET
+def api_public_actualite_detail(request, pk: int):
+    """
+    Variante publique (sans authentification) pour lire une actualité.
+    Accessible aux visiteurs anonymes.
+    """
+    _bootstrap_data()
+    a = Actualite.objects.filter(
+        pk=pk, publie=True, cible__in=["tous", ""]
+    ).first()
     if not a:
         return JsonResponse({"error": "not_found"}, status=404)
     return JsonResponse({"item": _actualite_to_json(request, a, summary=False)})

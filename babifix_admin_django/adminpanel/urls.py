@@ -93,6 +93,7 @@ from .views import (
     api_client_actualites,
     api_client_actualite_detail,
     api_public_actualites,
+    api_public_actualite_detail,
     api_client_confirm_prestation,
     api_client_message_delete,
     api_client_pay_post_prestation,
@@ -157,6 +158,11 @@ urlpatterns = [
     # Variante publique (sans auth) — voir les actus de cible 'tous' depuis
     # l'écran d'accueil "À la une" même en mode visiteur.
     path("api/public/actualites", api_public_actualites, name="api-public-actualites"),
+    path(
+        "api/public/actualites/<int:pk>",
+        api_public_actualite_detail,
+        name="api-public-actualite-detail",
+    ),
     path(
         "api/client/actualites/<int:pk>",
         api_client_actualite_detail,

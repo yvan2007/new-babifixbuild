@@ -133,7 +133,7 @@
         </form>
         <button type="button" class="icon-btn" id="notif-btn" aria-label="Notifications" title="Centre de notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"/></svg>
-          <span class="notif-dot"></span>
+          {% if unified_notifications %}<span class="notif-dot"></span>{% endif %}
         </button>
         <span class="region-badge" title="Devise et zone métier">🇨🇮 FCFA</span>
         <div id="htmx-stats-spinner" class="htmx-indicator htmx-spinner" title="Mise à jour KPI (HTMX)"></div>
@@ -2013,6 +2013,7 @@
           </span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
+          <a href="?section=notifications&edit_notification=new" class="btn-primary" style="padding:6px 14px;font-size:13px;">+ Nouvelle</a>
           <div class="view-toggle">
             <a href="?section=notifications&view=table" class="view-toggle-btn" title="Vue liste">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
@@ -2073,7 +2074,10 @@
       </div>
       {% else %}
       <article class="card card-elevate">
-        <h3>Liste</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;">Liste</h3>
+          <a href="?section=notifications&edit_notification=new" class="btn-primary" style="padding:6px 14px;font-size:13px;">+ Nouvelle</a>
+        </div>
         <div class="bulk-bar" id="bulk-bar-notification" style="display:none;">
           <span class="bulk-bar__count" id="bulk-count-notification"><b>0</b> sélectionné(s)</span>
           <button type="button" class="bulk-bar__btn" id="bulk-btn-notification" onclick="babifixBulkDelete('notification')" disabled>🗑 Supprimer la sélection</button>
@@ -2123,6 +2127,7 @@
           </span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
+          <a href="?section=actualites&edit_actualite=new" class="btn-primary" style="padding:6px 14px;font-size:13px;">+ Nouvelle</a>
           <div class="view-toggle">
             <a href="?section=actualites&view=table" class="view-toggle-btn" title="Vue liste">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M3 13h18M3 17h18"/></svg>
@@ -2192,7 +2197,10 @@
       </div>
       {% else %}
       <article class="card card-elevate">
-        <h3>Liste des actualités</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;">Liste des actualités</h3>
+          <a href="?section=actualites&edit_actualite=new" class="btn-primary" style="padding:6px 14px;font-size:13px;">+ Nouvelle</a>
+        </div>
         <div class="bulk-bar" id="bulk-bar-actualite" style="display:none;">
           <span class="bulk-bar__count" id="bulk-count-actualite"><b>0</b> sélectionné(s)</span>
           <button type="button" class="bulk-bar__btn" id="bulk-btn-actualite" onclick="babifixBulkDelete('actualite')" disabled>🗑 Supprimer la sélection</button>
