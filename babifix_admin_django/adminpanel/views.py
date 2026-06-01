@@ -686,10 +686,42 @@ def _actualite_to_json(request, a: Actualite, summary: bool = False) -> dict:
     return out
 
 
+def _build_kanban_reservations():
+    statuses = [
+        "DEMANDE_ENVOYEE",
+        "DEVIS_EN_COURS",
+        "DEVIS_ENVOYE",
+        "DEVIS_ACCEPTE",
+        "INTERVENTION_EN_COURS",
+        "En attente client",
+        "Terminee",
+    ]
+    kanban = {}
+    for s in statuses:
+        kanban[s] = list(
+            Reservation.objects.filter(statut=s)
+            .select_related("client_user", "assigned_provider")
+            .order_by("-id")[:20]
+        )
+    return kanban
+
+
+def _build_kanban_providers():
+    statuses_labels = {k: v for k, v in Provider.Status.choices}
+    kanban = {}
+    for code, label in statuses_labels.items():
+        kanban[label] = list(
+            Provider.objects.filter(statut=code)[:20]
+        )
+    return kanban
+
+
 def _dashboard_forms_context(request, section):
     """Formulaires CRUD intégrés au dashboard (pas django-admin)."""
     ctx = {}
     if section == "prestataires":
+        ctx["provider_view"] = request.GET.get("view", "table")
+        ctx["kanban_providers"] = _build_kanban_providers() if ctx["provider_view"] == "kanban" else {}
         eid = request.GET.get("edit_provider")
         if eid and str(eid).isdigit():
             try:
@@ -714,6 +746,7 @@ def _dashboard_forms_context(request, section):
     elif section == "reservations":
         eid = request.GET.get("edit_reservation")
         ctx["reservation_form"] = None
+        ctx["reservation_view"] = request.GET.get("view", "table")
         if eid and str(eid).isdigit():
             try:
                 inst = Reservation.objects.get(pk=int(eid))
@@ -721,25 +754,10 @@ def _dashboard_forms_context(request, section):
                 ctx["edit_reservation_id"] = inst.pk
             except Reservation.DoesNotExist:
                 pass
+        ctx["kanban_reservations"] = _build_kanban_reservations() if ctx["reservation_view"] == "kanban" else {}
     elif section == "kanban":
-        # Kanban view - get all reservations grouped by status
-        kanban_reservations = {}
-        statuses = [
-            "DEMANDE_ENVOYEE",
-            "DEVIS_EN_COURS",
-            "DEVIS_ENVOYE",
-            "DEVIS_ACCEPTE",
-            "INTERVENTION_EN_COURS",
-            "En attente client",
-            "Terminee",
-        ]
-        for s in statuses:
-            kanban_reservations[s] = list(
-                Reservation.objects.filter(statut=s)
-                .select_related("client_user", "assigned_provider")
-                .order_by("-created_at")[:20]
-            )
-        ctx["kanban_reservations"] = kanban_reservations
+        ctx["reservation_view"] = "kanban"
+        ctx["kanban_reservations"] = _build_kanban_reservations()
     elif section == "litiges":
         eid = request.GET.get("edit_litige")
         if eid and str(eid).isdigit():
@@ -1128,10 +1146,14 @@ def dashboard(request):
         "dashboard",
         "prestataires",
         "reservations",
+        "kanban",
         "litiges",
         "clients",
         "paiements",
         "categories",
+        "catalogue",
+        "finances",
+        "payouts",
         "notifications",
         "actualites",
         "parametres",
