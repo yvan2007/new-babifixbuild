@@ -351,6 +351,10 @@ class RequestDetailScreen extends StatelessWidget {
                           targetName: client,
                           isVideo: false,
                         ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white38),
+                        ),
                         icon: const Icon(Icons.call, size: 18),
                         label: const Text('Appeler le client'),
                       ),
@@ -362,6 +366,10 @@ class RequestDetailScreen extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (_) => const CallHistoryScreen(),
                           ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white38),
                         ),
                         icon: const Icon(Icons.history, size: 18),
                         label: const Text('Mes appels'),
