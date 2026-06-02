@@ -427,14 +427,7 @@ def geniuspay_webhook(request):
         except Exception as exc:
             logger.warning("Erreur envoi reçu PDF pour paiement %s: %s", payment.reference, exc)
 
-        # Créditer le wallet prestataire
-        try:
-            from .services.wallet_service import WalletService
-            WalletService.credit_provider(payment)
-        except Exception as exc:
-            logger.warning("Erreur crédit wallet pour paiement %s: %s", payment.reference, exc)
-
-        logger.info("GeniusPay webhook — paiement %s SUCCÈS", payment.reference)
+        logger.info("GeniusPay webhook — paiement %s SUCCÈS (wallet crédité dans release_funds)", payment.reference)
 
     elif event_type in ("payment.failed", "payment.cancelled", "payment.expired"):
         payment.etat = Payment.State.DISPUTE

@@ -143,6 +143,14 @@ def _res_to_dict(res: Reservation, uid: int) -> dict:
         "payment_type": res.payment_type,
         "mobile_money_operator": res.mobile_money_operator,
         "address_label": res.address_label,
+        "address_street": res.address_street or "",
+        "address_quartier": res.address_quartier or "",
+        "address_ville": res.address_ville or "",
+        "address_pays": res.address_pays or "",
+        "address_repere": res.address_repere or "",
+        "address_is_approximate": res.address_is_approximate,
+        "latitude": res.latitude,
+        "longitude": res.longitude,
         "client_message": res.client_message,
         "cash_flow_status": res.cash_flow_status,
         "dispute_ouverte": res.dispute_ouverte,
@@ -880,6 +888,96 @@ def _init_client_rating():
         ClientRating = CR
     except ImportError:
         pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 17. GET /api/reservations/<ref>/payment/quote — devis récap paiement
+# ─────────────────────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["client", "prestataire", "admin"])
+def api_payment_quote(request, reference):
+    from .models import Reservation
+    from .services.escrow_service import EscrowService
+
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+    quote = EscrowService.quote(res)
+    return JsonResponse({
+        "reference": res.reference,
+        "reservation_id": res.id,
+        "payment_type": res.payment_type,
+        "strategy": quote.strategy,
+        "devis_id": quote.devis_id,
+        "devis_reference": quote.devis_reference,
+        "total_devis": float(quote.total_devis),
+        "commission_montant": float(quote.commission_montant),
+        "net_prestataire": float(quote.net_prestataire),
+        "amount_due_online": float(quote.amount_due),
+        "cash_remainder_due_to_provider": float(quote.cash_remainder),
+        "acompte_valide": res.acompte_valide,
+        "funds_released_at": res.funds_released_at.isoformat() if res.funds_released_at else None,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 18. GET/POST /api/client/reservations/<ref>/journal — journal client
+# ─────────────────────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+@require_api_auth(["client"])
+def api_client_journal(request, reference):
+    from .models import Reservation
+
+    uid = int(request.api_user_id)
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+    if res.client_user_id != uid:
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    if request.method == "GET":
+        return JsonResponse({
+            "client_photos_avant": res.client_photos_avant or [],
+            "client_photos_apres": res.client_photos_apres or [],
+            "prestataire_photos_avant": res.photos_avant or [],
+            "prestataire_photos_apres": res.photos_apres or [],
+            "client_journal_note": res.client_journal_note or "",
+            "statut": res.statut,
+            "client_journal_updated_at": res.client_journal_updated_at.isoformat() if res.client_journal_updated_at else None,
+        })
+
+    # POST
+    from django.utils import timezone
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    mode = payload.get("mode", "replace")
+    if payload.get("photos_avant") is not None:
+        if mode == "replace":
+            res.client_photos_avant = payload["photos_avant"]
+        else:
+            current = list(res.client_photos_avant or [])
+            current.extend(payload["photos_avant"])
+            res.client_photos_avant = current
+    if payload.get("photos_apres") is not None:
+        if mode == "replace":
+            res.client_photos_apres = payload["photos_apres"]
+        else:
+            current = list(res.client_photos_apres or [])
+            current.extend(payload["photos_apres"])
+            res.client_photos_apres = current
+    if payload.get("note") is not None:
+        res.client_journal_note = str(payload["note"])[:5000]
+    res.client_journal_updated_at = timezone.now()
+    res.save(update_fields=[
+        "client_photos_avant", "client_photos_apres",
+        "client_journal_note", "client_journal_updated_at",
+    ])
+    return JsonResponse({"ok": True})
 
 
 _init_client_rating()

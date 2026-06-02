@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../babifix_design_system.dart';
 import '../../services/call_service.dart';
@@ -38,6 +39,7 @@ class RequestDetailScreen extends StatelessWidget {
     this.addressRepere = '',
     this.addressLat,
     this.addressLon,
+    this.addressIsApproximate = true,
   });
 
   final String reference;
@@ -66,6 +68,7 @@ class RequestDetailScreen extends StatelessWidget {
   final String addressRepere;
   final double? addressLat;
   final double? addressLon;
+  final bool addressIsApproximate;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +160,7 @@ class RequestDetailScreen extends StatelessWidget {
                   fallbackLabel: address,
                   lat: addressLat,
                   lon: addressLon,
+                  isApproximate: addressIsApproximate,
                 ),
                 const SizedBox(height: 16),
 
@@ -786,6 +790,7 @@ class _AddressCard extends StatelessWidget {
     required this.fallbackLabel,
     required this.lat,
     required this.lon,
+    required this.isApproximate,
   });
 
   final String street;
@@ -796,6 +801,7 @@ class _AddressCard extends StatelessWidget {
   final String fallbackLabel;
   final double? lat;
   final double? lon;
+  final bool isApproximate;
 
   bool get _hasStructured =>
       street.isNotEmpty ||
@@ -803,6 +809,23 @@ class _AddressCard extends StatelessWidget {
       ville.isNotEmpty ||
       pays.isNotEmpty ||
       repere.isNotEmpty;
+
+  String get _formattedAddress {
+    final parts = <String>[];
+    if (street.isNotEmpty) parts.add(street);
+    if (quartier.isNotEmpty) parts.add(quartier);
+    if (ville.isNotEmpty) parts.add(ville);
+    if (pays.isNotEmpty) parts.add(pays);
+    return parts.isNotEmpty ? parts.join(', ') : fallbackLabel;
+  }
+
+  Future<void> _openInMaps() async {
+    final query = Uri.encodeComponent(_formattedAddress);
+    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -817,26 +840,36 @@ class _AddressCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // En-tête en dégradé cyan (cohérent avec le design BABIFIX).
+          // En‑tête : cyan si précise, orange/verrouillée si approximative
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF06B6D4), Color(0xFF0891B2)],
+                colors: isApproximate
+                    ? const [Color(0xFFF59E0B), Color(0xFFD97706)]
+                    : const [Color(0xFF06B6D4), Color(0xFF0891B2)],
               ),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(
-              children: const [
-                Icon(Icons.location_on_rounded, color: Colors.white, size: 22),
-                SizedBox(width: 10),
-                Text(
-                  "Adresse d'intervention",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
+              children: [
+                Icon(
+                  isApproximate ? Icons.lock_outline_rounded : Icons.location_on_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    isApproximate
+                        ? "Adresse approximative"
+                        : "Adresse d'intervention",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
               ],
@@ -844,79 +877,19 @@ class _AddressCard extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: _hasStructured
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (street.isNotEmpty)
-                        _AddressLine(
-                          icon: Icons.add_road_rounded,
-                          color: const Color(0xFF0EA5E9),
-                          label: 'Rue',
-                          value: street,
-                        ),
-                      if (quartier.isNotEmpty)
-                        _AddressLine(
-                          icon: Icons.location_city_rounded,
-                          color: const Color(0xFF8B5CF6),
-                          label: 'Quartier',
-                          value: quartier,
-                        ),
-                      if (ville.isNotEmpty)
-                        _AddressLine(
-                          icon: Icons.apartment_rounded,
-                          color: const Color(0xFFF59E0B),
-                          label: 'Ville',
-                          value: ville,
-                        ),
-                      if (pays.isNotEmpty)
-                        _AddressLine(
-                          icon: Icons.flag_rounded,
-                          color: const Color(0xFFEF4444),
-                          label: 'Pays',
-                          value: pays,
-                        ),
-                      if (repere.isNotEmpty)
-                        _AddressLine(
-                          icon: Icons.pin_drop_rounded,
-                          color: const Color(0xFF22C55E),
-                          label: 'Point de repère',
-                          value: repere,
-                          isHighlighted: true,
-                        ),
-                    ],
-                  )
-                : Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Text(
-                      fallbackLabel.isNotEmpty
-                          ? fallbackLabel
-                          : 'Non précisée',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF334155),
-                      ),
-                    ),
-                  ),
+            child: isApproximate
+                ? _buildApproximateBody()
+                : _buildPreciseBody(),
           ),
-          // Action : ouvrir sur Google Maps via geo: URI.
-          if (lat != null && lon != null)
+          // Bouton Google Maps toujours visible si adresse structurée
+          if (_hasStructured && !isApproximate)
             InkWell(
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(16),
               ),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Coordonnées : ${lat!.toStringAsFixed(5)}, ${lon!.toStringAsFixed(5)}',
-                    ),
-                  ),
-                );
-              },
+              onTap: _openInMaps,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: const BoxDecoration(
                   color: Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.vertical(
@@ -925,8 +898,7 @@ class _AddressCard extends StatelessWidget {
                 ),
                 child: Row(
                   children: const [
-                    Icon(Icons.map_rounded,
-                        size: 18, color: Color(0xFF0891B2)),
+                    Icon(Icons.map_rounded, size: 18, color: Color(0xFF0891B2)),
                     SizedBox(width: 8),
                     Text(
                       'Voir sur Google Maps',
@@ -945,6 +917,173 @@ class _AddressCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildApproximateBody() {
+    // Quand c'est approximatif : juste la ville avec un message
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (ville.isNotEmpty)
+          _AddressLine(
+            icon: Icons.apartment_rounded,
+            color: const Color(0xFFF59E0B),
+            label: 'Ville',
+            value: ville,
+          ),
+        if (!ville.isNotEmpty && fallbackLabel.isNotEmpty)
+          Text(
+            fallbackLabel,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF334155)),
+          ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+            ),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.lock_outline_rounded, size: 14, color: Color(0xFFD97706)),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  "Adresse exacte visible après acceptation du devis",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: Color(0xFF92400E),
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPreciseBody() {
+    // Adresse précise — affichage premium/grand
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Quartier en grand — le plus important
+        if (quartier.isNotEmpty) ...[
+          Text(
+            quartier.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1E293B),
+              letterSpacing: 1,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+        // Rue
+        if (street.isNotEmpty) ...[
+          Row(
+            children: [
+              Icon(Icons.add_road_rounded, size: 16, color: const Color(0xFF0EA5E9)),
+              const SizedBox(width: 6),
+              Text(
+                street,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF334155),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+        ],
+        // Ville
+        if (ville.isNotEmpty) ...[
+          Row(
+            children: [
+              Icon(Icons.apartment_rounded, size: 16, color: const Color(0xFFF59E0B)),
+              const SizedBox(width: 6),
+              Text(
+                ville,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+        ],
+        // Point de repère
+        if (repere.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF22C55E).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFF22C55E).withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.pin_drop_rounded, size: 16, color: Color(0xFF22C55E)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'POINT DE REPÈRE',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF22C55E),
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        repere,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        // Pays si présent
+        if (pays.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(Icons.flag_rounded, size: 14, color: const Color(0xFFEF4444)),
+              const SizedBox(width: 6),
+              Text(
+                pays,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

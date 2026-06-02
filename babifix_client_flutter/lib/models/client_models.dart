@@ -113,7 +113,7 @@ class ClientService {
 }
 
 class ClientReservation {
-  const ClientReservation({
+  ClientReservation({
     required this.title,
     required this.whenLabel,
     required this.amount,
@@ -128,10 +128,20 @@ class ClientReservation {
     this.canPay = false,
     this.canViewDevis = false,
     this.canAcceptDevis = false,
+    this.canPayDeposit = false,
+    this.canPayRemainder = false,
+    this.needCashRemainder = false,
+    this.receiptAvailable = false,
     this.disputeOuverte = false,
     this.latitude,
     this.longitude,
     this.addressLabel = '',
+    this.addressStreet = '',
+    this.addressQuartier = '',
+    this.addressVille = '',
+    this.addressPays = '',
+    this.addressRepere = '',
+    this.addressIsApproximate = false,
     this.statusLabel = '',
   });
 
@@ -142,13 +152,17 @@ class ClientReservation {
   final String reference;
   final int id;
   final bool canRate;
-  final bool rated;
+  bool rated;
   final String paymentType;
   final String cashFlowStatus;
   final bool canConfirmService;
   final bool canPay;
   final bool canViewDevis;
   final bool canAcceptDevis;
+  final bool canPayDeposit;
+  final bool canPayRemainder;
+  final bool needCashRemainder;
+  final bool receiptAvailable;
   final bool disputeOuverte;
   final String statusLabel;
 
@@ -156,6 +170,12 @@ class ClientReservation {
   final double? latitude;
   final double? longitude;
   final String addressLabel;
+  final String addressStreet;
+  final String addressQuartier;
+  final String addressVille;
+  final String addressPays;
+  final String addressRepere;
+  final bool addressIsApproximate;
 }
 
 class ClientActualiteItem {

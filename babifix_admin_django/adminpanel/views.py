@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import builtins
 import json
 import logging
@@ -1637,7 +1637,7 @@ def api_client_home(request):
                 if item.client_confirme_prestation_at
                 else None,
                 "dispute_ouverte": bool(item.dispute_ouverte),
-                "can_confirm_service": item.statut == "En attente client"
+                "can_confirm_service": item.statut in ("En attente client", "Terminee")
                 and item.client_user_id == uid,
                 "can_pay": item.statut == "Terminee"
                 and bool(item.client_confirme_prestation_at)
@@ -1648,9 +1648,29 @@ def api_client_home(request):
                 and item.client_user_id == uid,
                 "can_accept_devis": item.statut == "DEVIS_ENVOYE"
                 and item.client_user_id == uid,
+                "can_pay_deposit": item.statut == "DEVIS_ACCEPTE"
+                and item.client_user_id == uid
+                and not item.acompte_valide,
+                "can_pay_remainder": item.statut == "Terminee"
+                and item.client_user_id == uid
+                and item.acompte_valide
+                and not item.solde_valide
+                and item.payment_type == "MOBILE_MONEY",
+                "need_cash_remainder": item.statut == "Terminee"
+                and item.client_user_id == uid
+                and item.acompte_valide
+                and not item.solde_valide
+                and item.payment_type == "ESPECES",
+                "receipt_available": item.solde_valide,
                 "latitude": item.latitude,
                 "longitude": item.longitude,
                 "address_label": (item.address_label or "")[:500],
+                "address_street": (item.address_street or "")[:200],
+                "address_quartier": (item.address_quartier or "")[:120],
+                "address_ville": (item.address_ville or "")[:120],
+                "address_pays": (item.address_pays or "")[:80],
+                "address_repere": (item.address_repere or "")[:300],
+                "address_is_approximate": item.address_is_approximate,
             }
         )
 
@@ -3220,6 +3240,7 @@ def api_prestataire_requests(request):
                 "address_repere": item.address_repere or "",
                 "address_lat": item.latitude,
                 "address_lon": item.longitude,
+                "address_is_approximate": item.address_is_approximate,
                 "description": (
                     client_text or f"Detail de la demande {item.reference}"
                 )[:500],
@@ -3462,53 +3483,120 @@ def api_client_check_provider_availability(request):
     )
 
 
+def _safe_decimal(value) -> Decimal:
+    """Convertit une valeur Payment.montant/commission en Decimal."""
+    if value is None:
+        return Decimal("0")
+    try:
+        if isinstance(value, (int, float)):
+            return Decimal(str(value))
+        if hasattr(value, "__float__"):
+            return Decimal(str(float(value)))
+        raw = str(value).replace("€", "").replace("FCFA", "").replace("XOF", "").strip()
+        return Decimal(raw or "0")
+    except (ValueError, TypeError):
+        return Decimal("0")
+
+
 @require_GET
 @require_api_auth(["prestataire", "admin"])
 def api_prestataire_earnings(request):
     _bootstrap_data()
-    period = request.GET.get("period", "month")
     prov = _prestataire_provider_for_user(request.api_user_id)
     name = prov.nom if prov else ""
-    payments = (
-        Payment.objects.filter(prestataire=name) if name else Payment.objects.none()
-    )
 
-    total = 0.0
-    for pay in payments:
-        # Le champ Payment.montant a évolué : string libre → Decimal.
-        # On gère les 2 cas pour rester rétrocompatible.
-        m = pay.montant
-        try:
-            if isinstance(m, (int, float)) or hasattr(m, "__float__"):
-                total += float(m)
-            else:
-                raw = str(m).replace("€", "").replace("FCFA", "").replace("XOF", "").strip()
-                total += float(raw or 0)
-        except (ValueError, TypeError):
-            pass
+    # Détection route /monthly/ — retourne le graphique 6 mois
+    if request.path.rstrip("/").endswith("/monthly"):
+        return _earnings_monthly_chart(name)
+
+    period = request.GET.get("period", "month")
+    qs = Payment.objects.filter(prestataire=name) if name else Payment.objects.none()
+
+    # Filtrage par période via created_at
+    from datetime import timedelta
+    now = timezone.now()
+    if period == "day":
+        since = now - timedelta(days=1)
+    elif period == "week":
+        since = now - timedelta(weeks=1)
+    elif period == "all":
+        since = None
+    else:  # month (default)
+        since = now - timedelta(days=30)
+    if since is not None:
+        qs = qs.filter(created_at__gte=since)
+
+    gross_total = Decimal("0")
+    commission_total = Decimal("0")
+    net_total = Decimal("0")
 
     transactions = []
-    for x in payments[:20]:
+    for x in qs.order_by("-pk")[:20]:
+        m = _safe_decimal(x.montant)
+        c = _safe_decimal(x.commission)
+        net = m - c
+        gross_total += m
+        commission_total += c
+        net_total += net
         transactions.append(
             {
                 "client": x.client,
                 "service": "Prestation",
-                "gross": x.montant,
-                "commission": x.commission,
-                "net": x.montant,
+                "gross": str(m.quantize(Decimal("1"))),
+                "commission": str(c.quantize(Decimal("1"))),
+                "net": str(net.quantize(Decimal("1"))),
                 "status": x.etat,
             }
         )
 
-    pc = payments.count()
-    month_total = int(total) if total else 0
-    summary = {
-        "day": {"total": month_total, "count": pc},
-        "week": {"total": month_total, "count": pc},
-        "month": {"total": month_total, "count": pc},
-    }
-    data = summary.get(period, summary["month"])
-    return JsonResponse({"summary": data, "transactions": transactions})
+    return JsonResponse({
+        "summary": {
+            "gross": int(gross_total),
+            "commission": int(commission_total),
+            "net": int(net_total),
+            "count": len(transactions),
+        },
+        "transactions": transactions,
+    })
+
+
+def _earnings_monthly_chart(prestataire_nom: str) -> JsonResponse:
+    """Retourne les 6 derniers mois de revenus pour le graphique du dashboard."""
+    from datetime import timedelta
+    now = timezone.now()
+    months = []
+    for i in range(5, -1, -1):
+        month_start = now.replace(day=1) - timedelta(days=30 * i)
+        month_start = month_start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if i > 0:
+            month_end = month_start + timedelta(days=32)
+            month_end = month_end.replace(day=1) - timedelta(seconds=1)
+        else:
+            month_end = now
+        label = _month_label(month_start)
+        total = Decimal("0")
+        if prestataire_nom:
+            qs = Payment.objects.filter(
+                prestataire=prestataire_nom,
+                created_at__gte=month_start,
+                created_at__lte=month_end,
+            )
+            for p in qs:
+                total += _safe_decimal(p.montant) - _safe_decimal(p.commission)
+        months.append({
+            "label": label,
+            "total_amount": int(total),
+        })
+    return JsonResponse({"months": months})
+
+
+def _month_label(dt) -> str:
+    """Retourne 'Janv.', 'Févr.', … selon la locale."""
+    mois = [
+        "", "Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin",
+        "Juill.", "Août", "Sept.", "Oct.", "Nov.", "Déc.",
+    ]
+    return mois[dt.month]
 
 
 @require_GET
@@ -3584,22 +3672,14 @@ def api_prestataire_me(request):
         | Q(assigned_provider_id=prov.id)
         | Q(prestataire=prov.nom)
     )
-    payments = Payment.objects.filter(prestataire=prov.nom)
-    pay_sum = 0.0
-    for pay in payments:
-        # Le champ Payment.montant a évolué : string libre → Decimal.
-        # On gère les 2 cas pour rester rétrocompatible.
-        m = pay.montant
-        try:
-            if isinstance(m, (int, float)):
-                pay_sum += float(m)
-            elif hasattr(m, "__float__"):  # Decimal
-                pay_sum += float(m)
-            else:
-                raw = str(m).replace("€", "").replace("FCFA", "").replace("XOF", "").strip()
-                pay_sum += float(raw or 0)
-        except (ValueError, TypeError):
-            pass
+    from datetime import timedelta
+    month_ago = timezone.now() - timedelta(days=30)
+    monthly_payments = Payment.objects.filter(
+        prestataire=prov.nom, created_at__gte=month_ago
+    )
+    pay_sum = Decimal("0")
+    for pay in monthly_payments:
+        pay_sum += _safe_decimal(pay.montant)
     cat = prov.category
     return JsonResponse(
         {
@@ -3650,7 +3730,7 @@ def api_prestataire_me(request):
                 ).count(),
                 "prestations_terminees": qs.filter(statut="Terminee").count(),
                 "chiffre_paiements": int(pay_sum),
-                "nb_paiements": payments.count(),
+                "nb_paiements": monthly_payments.count(),
             },
             "unread_chat_messages": _unread_messages_total_for_user(uid),
         }
@@ -4108,13 +4188,42 @@ def api_prestataire_confirm_cash(request, reference):
         return JsonResponse({"error": "client_not_declared"}, status=400)
     if res.cash_prestataire_confirmed_at:
         return JsonResponse({"error": "already_confirmed"}, status=400)
+    # Les deux parties (client + prestataire) ont confirmé le paiement espèces
+    # → auto-validation sans admin
     with transaction.atomic():
         res.cash_prestataire_confirmed_at = timezone.now()
-        res.cash_flow_status = Reservation.CashFlowStatus.PENDING_ADMIN
-        res.save(update_fields=["cash_prestataire_confirmed_at", "cash_flow_status"])
-        Notification.objects.create(
-            title=f"Paiement especes a valider (admin): {reference}"
+        res.cash_admin_validated_at = timezone.now()
+        res.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
+        res.solde_valide = True
+        ref_pay = f"PAY-CASH-{res.reference}"
+        payment, created = Payment.objects.get_or_create(
+            reference=ref_pay,
+            defaults={
+                "client": res.client,
+                "prestataire": res.prestataire,
+                "montant": res.montant,
+                "commission": res.commission or 0,
+                "etat": Payment.State.COMPLETE,
+                "reservation": res,
+                "type_paiement": Payment.TypePaiement.ESPECES,
+                "valide_par_admin": True,
+            },
         )
+        if not created:
+            payment.etat = Payment.State.COMPLETE
+            payment.valide_par_admin = True
+            payment.save(update_fields=["etat", "valide_par_admin"])
+        res.save(update_fields=[
+            "cash_prestataire_confirmed_at", "cash_admin_validated_at",
+            "cash_flow_status", "solde_valide", "commission",
+        ])
+        # Enregistrer la commission en PlatformRevenue et créditer
+        # le surplus éventuel dans le wallet du prestataire
+        try:
+            from .services.escrow_service import EscrowService
+            EscrowService.release_funds(res)
+        except Exception as exc:
+            logger.exception("release_funds auto-cash %s: %s", res.reference, exc)
     return JsonResponse({"ok": True, "cash_flow_status": res.cash_flow_status})
 
 
@@ -4184,35 +4293,43 @@ def api_admin_validate_cash(request, reference):
         return JsonResponse({"error": "invalid_json"}, status=400)
     action = str(payload.get("action", "validate")).strip().lower()
     if action == "validate":
-        res.cash_admin_validated_at = timezone.now()
-        res.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
-        res.save(update_fields=["cash_admin_validated_at", "cash_flow_status"])
-        ref_pay = f"PAY-CASH-{res.reference}"
-        payment, created = Payment.objects.get_or_create(
-            reference=ref_pay,
-            defaults={
-                "client": res.client,
-                "prestataire": res.prestataire,
-                "montant": res.montant,
-                "commission": res.commission or 0,
-                "etat": Payment.State.COMPLETE,
-                "reservation": res,
-                "type_paiement": Payment.TypePaiement.ESPECES,
-                "valide_par_admin": True,
-            },
-        )
-        if not created:
-            payment.etat = Payment.State.COMPLETE
-            payment.valide_par_admin = True
-            payment.save(update_fields=["etat", "valide_par_admin"])
-
-        # Créditer le wallet prestataire (net après commission)
-        try:
-            from adminpanel.services.wallet_service import WalletService
-            wallet_result = WalletService.credit_provider(payment)
-            logger.info("WalletService cash credit: %s", wallet_result)
-        except Exception as exc:
-            logger.warning("Erreur crédit wallet (cash) pour %s: %s", reference, exc)
+        with transaction.atomic():
+            res.cash_admin_validated_at = timezone.now()
+            res.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
+            res.solde_valide = True
+            res.save(update_fields=[
+                "cash_admin_validated_at", "cash_flow_status", "solde_valide",
+                "commission",
+            ])
+            ref_pay = f"PAY-CASH-{res.reference}"
+            payment, created = Payment.objects.get_or_create(
+                reference=ref_pay,
+                defaults={
+                    "client": res.client,
+                    "prestataire": res.prestataire,
+                    "montant": res.montant,
+                    "commission": res.commission or 0,
+                    "etat": Payment.State.COMPLETE,
+                    "reservation": res,
+                    "type_paiement": Payment.TypePaiement.ESPECES,
+                    "valide_par_admin": True,
+                },
+            )
+            if not created:
+                payment.etat = Payment.State.COMPLETE
+                payment.valide_par_admin = True
+                payment.save(update_fields=["etat", "valide_par_admin"])
+            # Enregistrer la commission dans PlatformRevenue (release_funds
+            # n'est pas appelé ici car client peut ne pas avoir confirmé)
+            from .models import PlatformRevenue
+            commission_due = res.commission or 0
+            PlatformRevenue.objects.create(
+                amount_fcfa=commission_due,
+                source=PlatformRevenue.Source.COMMISSION,
+                reference=res.reference,
+                description=f"Commission admin-validate-cash — {res.reference}",
+                payment=payment,
+            )
 
         # WhatsApp prestataire
         try:
@@ -4329,9 +4446,9 @@ def api_client_confirm_prestation(request, reference):
     uid = int(request.api_user_id)
     if res.client_user_id != uid and request.api_role != "admin":
         return JsonResponse({"error": "forbidden"}, status=403)
-    if res.statut != "En attente client":
+    if res.statut not in ("En attente client", "Terminee"):
         return JsonResponse(
-            {"error": "invalid_state", "detail": "Statut attendu: En attente client"},
+            {"error": "invalid_state", "detail": "Statut attendu: En attente client ou Terminee"},
             status=400,
         )
     if res.dispute_ouverte:
@@ -4385,27 +4502,30 @@ def api_client_pay_post_prestation(request, reference):
         )
     note = str(payload.get("message", "") or "")[:2000]
     ref_pay = f"PAY-{res.reference}-{int(timezone.now().timestamp())}"
-    commission = res.montant * Decimal("0.18") if res.montant else Decimal("0")
-    tp = Payment.TypePaiement.ESPECES
-    if mid != "ESPECES":
+    commission = res.commission or Decimal("0")
+    # Utiliser le payment_type déjà choisi par le client lors de la création
+    # (ne pas le redemander ici)
+    if res.payment_type == Reservation.PaymentType.ESPECES:
+        tp = Payment.TypePaiement.ESPECES
+    else:
         tp = Payment.TypePaiement.MOBILE_MONEY
     idem_key = payload.get("idempotency_key", "")
     try:
         with transaction.atomic():
             res.payment_client_note = note
-            if mid == "ESPECES":
-                res.payment_type = Reservation.PaymentType.ESPECES
-                res.mobile_money_operator = ""
-            else:
-                res.payment_type = Reservation.PaymentType.MOBILE_MONEY
+            # Ne pas ré-écrire payment_type — il a été choisi à la création
+            # Seulement mettre à jour l'opérateur si Mobile Money
+            if res.payment_type != Reservation.PaymentType.ESPECES:
                 op_map = {
                     "ORANGE_MONEY": Reservation.MobileMoneyOperator.ORANGE_MONEY,
                     "MTN_MOMO": Reservation.MobileMoneyOperator.MTN_MOMO,
                     "WAVE": Reservation.MobileMoneyOperator.WAVE,
                     "MOOV": Reservation.MobileMoneyOperator.MOOV,
                 }
-                res.mobile_money_operator = op_map.get(mid, "")
-            res.save(update_fields=["payment_type", "mobile_money_operator", "payment_client_note"])
+                op = op_map.get(str(payload.get("mobile_money_operator", "")).strip().upper())
+                if op:
+                    res.mobile_money_operator = op
+            res.save(update_fields=["payment_client_note", "mobile_money_operator"])
             Payment.objects.create(
                 reference=ref_pay,
                 client=res.client,
@@ -4427,6 +4547,173 @@ def api_client_pay_post_prestation(request, reference):
         {"type": "payment.recorded", "reference": res.reference},
     )
     return JsonResponse({"ok": True, "payment_reference": ref_pay})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_client_pay_deposit(request, reference):
+    """Le client paie l'acompte après acceptation du devis.
+
+    L'acompte est TOUJOURS payé par mobile money (c'est la commission BABIFIX).
+    Le pourcentage dépend du mode global choisi :
+      - MOBILE_MONEY global → 30% d'acompte, solde 70% aussi en mobile money
+      - ESPECES global      → 18% d'acompte, solde 82% en cash au prestataire
+    """
+    from decimal import Decimal
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid:
+        return JsonResponse({"error": "forbidden"}, status=403)
+    if res.statut != Reservation.Status.DEVIS_ACCEPTE:
+        return JsonResponse({"error": "invalide", "detail": "Le devis doit d'abord être accepté."}, status=400)
+    if res.acompte_valide:
+        return JsonResponse({"error": "deja_paye", "detail": "L'acompte a déjà été payé."}, status=409)
+
+    montant_total = res.montant or Decimal("0")
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+
+    # Opérateur mobile money pour le paiement de l'acompte (obligatoire)
+    operator = str(payload.get("mobile_money_operator", "") or "").strip().upper()
+    valid_operators = {"ORANGE_MONEY", "MTN_MOMO", "WAVE", "MOOV"}
+    if operator not in valid_operators:
+        return JsonResponse(
+            {"error": "operateur_invalide", "allowed": list(valid_operators)},
+            status=400,
+        )
+
+    # Mode global (espèces ou mobile money) — déduit de la réservation
+    overall = res.payment_type
+    if not overall:
+        overall = str(payload.get("overall_type", "")).strip().upper()
+    if overall not in ("ESPECES", "MOBILE_MONEY"):
+        return JsonResponse(
+            {"error": "type_global_invalide", "detail": "Précisez overall_type : ESPECES ou MOBILE_MONEY."},
+            status=400,
+        )
+
+    pct = Decimal("0.18") if overall == "ESPECES" else Decimal("0.30")
+    acompte = (montant_total * pct).quantize(Decimal("1"))
+    if acompte < Decimal("500"):
+        acompte = Decimal("500")
+    if acompte > montant_total:
+        acompte = montant_total
+    restant = montant_total - acompte
+
+    with transaction.atomic():
+        res.montant_verse = acompte
+        res.montant_restant = restant
+        res.acompte_valide = True
+        # N'écrase pas payment_type — il a été choisi à la création
+        res.mobile_money_operator = operator
+        res.save(update_fields=[
+            "montant_verse", "montant_restant", "acompte_valide",
+            "mobile_money_operator",
+        ])
+        Payment.objects.create(
+            reference=f"ACOMPTE-{res.reference}-{int(timezone.now().timestamp())}",
+            client=res.client,
+            prestataire=res.prestataire,
+            montant=acompte,
+            commission=Decimal("0"),
+            etat=Payment.State.COMPLETE,
+            reservation=res,
+            type_paiement=Payment.TypePaiement.MOBILE_MONEY,
+            valide_par_admin=False,
+        )
+
+    _schedule(
+        [res.prestataire_user_id],
+        "BABIFIX — Acompte reçu",
+        f"L'acompte de {acompte} FCFA a été payé pour {res.reference}. Vous pouvez démarrer.",
+        {"type": "deposit.paid", "reference": res.reference},
+    )
+    return JsonResponse({
+        "ok": True,
+        "acompte": str(acompte),
+        "restant": str(restant),
+        "overall_type": overall,
+        "pct": str(pct),
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_client_pay_remainder(request, reference):
+    """Le client paie le solde restant par mobile money (uniquement si mode global MOBILE_MONEY).
+
+    Si le mode global est ESPECES, le solde est payé en cash au prestataire (pas via cette API).
+    """
+    from decimal import Decimal
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+    uid = int(request.api_user_id)
+    if res.client_user_id != uid:
+        return JsonResponse({"error": "forbidden"}, status=403)
+    if res.statut not in ("Terminee", "En attente client"):
+        return JsonResponse({"error": "invalide", "detail": "Le prestataire doit d'abord terminer l'intervention."}, status=400)
+    if not res.acompte_valide:
+        return JsonResponse({"error": "acompte_requis", "detail": "L'acompte doit d'abord être payé."}, status=400)
+    if res.solde_valide:
+        return JsonResponse({"error": "deja_paye", "detail": "Le solde a déjà été payé."}, status=409)
+    if res.payment_type != "MOBILE_MONEY":
+        return JsonResponse(
+            {"error": "pas_en_ligne", "detail": "Paiement en espèces — réglez le solde directement au prestataire."},
+            status=400,
+        )
+
+    montant_restant = res.montant_restant or Decimal("0")
+    if montant_restant <= Decimal("0"):
+        return JsonResponse({"error": "rien_a_payer", "detail": "Aucun solde restant dû."}, status=400)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    operator = str(payload.get("mobile_money_operator", "") or "").strip().upper()
+    valid_operators = {"ORANGE_MONEY", "MTN_MOMO", "WAVE", "MOOV"}
+    if operator not in valid_operators:
+        return JsonResponse({"error": "operateur_invalide", "allowed": list(valid_operators)}, status=400)
+
+    with transaction.atomic():
+        res.montant_verse = (res.montant_verse or Decimal("0")) + montant_restant
+        res.montant_restant = Decimal("0")
+        res.solde_valide = True
+        res.mobile_money_operator = operator
+        res.save(update_fields=["montant_verse", "montant_restant", "solde_valide", "mobile_money_operator"])
+        Payment.objects.create(
+            reference=f"SOLDE-{res.reference}-{int(timezone.now().timestamp())}",
+            client=res.client,
+            prestataire=res.prestataire,
+            montant=montant_restant,
+            commission=Decimal("0"),
+            etat=Payment.State.COMPLETE,
+            reservation=res,
+            type_paiement=Payment.TypePaiement.MOBILE_MONEY,
+            valide_par_admin=False,
+        )
+
+    try:
+        from .services.escrow_service import EscrowService
+        EscrowService.release_funds(res)
+    except Exception as e:
+        logger.exception("release_funds %s: %s", res.reference, e)
+
+    _schedule(
+        [res.prestataire_user_id],
+        "BABIFIX — Paiement final reçu",
+        f"Le solde de {montant_restant} FCFA a été payé pour {res.reference}.",
+        {"type": "remainder.paid", "reference": res.reference},
+    )
+    return JsonResponse({"ok": True, "montant": str(montant_restant), "solde_valide": True})
 
 
 @csrf_exempt
@@ -4550,6 +4837,12 @@ def api_prestataire_demarrer_intervention(request, reference):
     if res.assigned_provider_id != provider.id:
         return JsonResponse({"error": "not_authorized"}, status=403)
 
+    if not res.acompte_valide:
+        return JsonResponse(
+            {"error": "acompte_requis", "detail": "Le client n'a pas encore payé l'acompte."},
+            status=400,
+        )
+
     # Validation transition de statut
     is_valid, allowed = validate_reservation_transition(
         res.statut, Reservation.Status.INTERVENTION_EN_COURS
@@ -4591,28 +4884,15 @@ def api_prestataire_terminer_intervention(request, reference):
     if res.assigned_provider_id != provider.id:
         return JsonResponse({"error": "not_authorized"}, status=403)
 
-    # STATUT STRICT: Interdire Terminée sans paiement confirméen
-    if _payment_complete_exists(res):
-        pass  # OK - paiement fait
-    else:
-        # Espèces déclarées mais pas encore validées - permettre avec avertissement
-        if (
-            res.payment_type == Reservation.PaymentType.ESPECES
-            and res.cash_flow_status
-            in {
-                Reservation.CashFlowStatus.NA,
-                Reservation.CashFlowStatus.PENDING_PRESTATAIRE,
-            }
-        ):
-            pass  # OK - espèces en cours de validation
-        else:
-            return JsonResponse(
-                {
-                    "error": "payment_required",
-                    "message": "Paiement non confirmé. Impossible de terminer sans paiement.",
-                },
-                status=400,
-            )
+    # Vérifier que l'acompte a été payé (indépendant du mode de paiement)
+    if not res.acompte_valide:
+        return JsonResponse(
+            {
+                "error": "acompte_required",
+                "message": "Le client doit d'abord payer l'acompte pour démarrer l'intervention.",
+            },
+            status=400,
+        )
 
     # Validation transition de statut
     is_valid, allowed = validate_reservation_transition(res.statut, "Terminee")
@@ -4710,6 +4990,15 @@ def api_client_confirmer_travaux(request, reference):
     res.statut = target_status
     res.save(update_fields=["client_confirme_prestation_at", "statut"])
 
+    # Libérer les fonds bloqués en escrow
+    try:
+        from .services.escrow_service import EscrowService
+
+        escrow_result = EscrowService.release_funds(res)
+        logger.info("release_funds %s: %s", res.reference, escrow_result)
+    except Exception as exc:
+        logger.exception("release_funds %s: %s", res.reference, exc)
+
     return JsonResponse(
         {
             "ok": True,
@@ -4788,6 +5077,14 @@ def api_client_demandes_list(request):
                 "statut": res.statut,
                 "description_probleme": res.description_probleme or "",
                 "address_label": res.address_label or "",
+                "address_street": res.address_street or "",
+                "address_quartier": res.address_quartier or "",
+                "address_ville": res.address_ville or "",
+                "address_pays": res.address_pays or "",
+                "address_repere": res.address_repere or "",
+                "address_is_approximate": res.address_is_approximate,
+                "latitude": res.latitude,
+                "longitude": res.longitude,
                 "disponibilites_client": res.disponibilites_client or "",
                 "is_urgent": res.is_urgent,
                 "created_at": str(res.location_captured_at)
@@ -4894,13 +5191,9 @@ def api_prestataire_create_devis(request, reference):
         except (ValueError, TypeError):
             pass
 
-    category = provider.category
-    commission_rate = 18
-    try:
-        if category and hasattr(category, "commission"):
-            commission_rate = int(category.commission.commission_rate)
-    except Exception:
-        commission_rate = 18
+    from .services.wallet_service import _get_effective_commission_rate
+    eff = _get_effective_commission_rate(provider)
+    commission_rate = int((eff * Decimal("100")).quantize(Decimal("1")))
 
     # Validation transition de statut
     is_valid, allowed = validate_reservation_transition(res.statut, "DEVIS_ENVOYE")
@@ -5105,7 +5398,7 @@ def api_client_accept_devis(request, reference):
 
     res.statut = Reservation.Status.DEVIS_ACCEPTE
     res.montant = devis.total_ttc
-    res.save(update_fields=["statut", "montant"])
+    res.save(update_fields=["statut", "montant", "commission"])
 
     _schedule(
         [res.assigned_provider.user_id] if res.assigned_provider else [],

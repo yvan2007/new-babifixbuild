@@ -44,7 +44,7 @@ services:
           type: redis
           property: connectionString
       - key: GENIUSPAY_PUBLIC_KEY
-        value: pk_live_RuhR13Fw4ETRmbjmONk2ZGBWeObzSet2
+        sync: false
       - key: GENIUSPAY_SECRET_KEY
         sync: false
       - key: GENIUSPAY_WEBHOOK_URL

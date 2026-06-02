@@ -51,6 +51,7 @@ import 'features/booking/devis_kanban_screen.dart';
 import 'features/booking/confirm_completion_screen.dart';
 import 'features/booking/client_journal_screen.dart';
 import 'features/reservations/receipt_pdf_screen.dart';
+import 'features/reservations/premium_receipt_screen.dart';
 import 'features/call/call_history_screen.dart';
 import 'shared/widgets/babifix_osm_map.dart';
 import 'shared/widgets/message_with_photos_field.dart';
@@ -3494,30 +3495,30 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildReservations() {
-    final pending = reservations.where((r) =>
-        r.status == 'DEMANDE_ENVOYEE' ||
-        r.status == 'DEVIS_EN_COURS' ||
-        r.status == 'DEVIS_ENVOYE' ||
-        r.status == 'En attente' ||
-        r.canViewDevis ||
-        r.canAcceptDevis).toList();
+    final cancelled = reservations.where((r) =>
+        r.status == 'Annulee' ||
+        r.status == 'CANCELLED').toList();
+
+    final completed = reservations.where((r) =>
+        !cancelled.contains(r) && (
+        r.status == 'Terminee' ||
+        r.status == 'DONE')).toList();
 
     final active = reservations.where((r) =>
+        !cancelled.contains(r) &&
+        !completed.contains(r) && (
         r.status == 'Confirmee' ||
         r.status == 'DEVIS_ACCEPTE' ||
         r.status == 'INTERVENTION_EN_COURS' ||
         r.status == 'En cours' ||
         r.canConfirmService ||
         r.canPay ||
-        _canDeclareCash(r)).toList();
+        _canDeclareCash(r))).toList();
 
-    final completed = reservations.where((r) =>
-        r.status == 'Terminee' ||
-        r.status == 'DONE').toList();
-
-    final cancelled = reservations.where((r) =>
-        r.status == 'Annulee' ||
-        r.status == 'CANCELLED').toList();
+    final pending = reservations.where((r) =>
+        !cancelled.contains(r) &&
+        !completed.contains(r) &&
+        !active.contains(r)).toList();
 
     return Column(
       children: [
@@ -3873,6 +3874,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
         r.canRate ||
         r.canViewDevis ||
         r.canAcceptDevis ||
+        r.canPayDeposit ||
+        r.canPayRemainder ||
+        r.needCashRemainder ||
         _canDeclareCash(r);
 
     return GestureDetector(
@@ -4137,16 +4141,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         );
                       },
                     ),
-                    // Reçu PDF — disponible après confirmation
-                    if (r.rated || !r.canConfirmService)
+                    // Reçu PDF — disponible après paiement complet
+                    if (r.receiptAvailable)
                       _QuickActionChip(
                         icon: Icons.receipt_long_outlined,
-                        label: 'Reçu PDF',
+                        label: 'Reçu',
                         color: const Color(0xFF6366F1),
                         onTap: () {
                           Navigator.of(context).push<void>(
                             MaterialPageRoute(
-                              builder: (_) => ReceiptPdfScreen(
+                              builder: (_) => PremiumReceiptScreen(
                                 reservationReference: r.reference,
                               ),
                             ),
@@ -4173,23 +4177,96 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           }
                         },
                       ),
-                    if (_canDeclareCash(r))
+                    if (r.canPayDeposit)
+                      _QuickActionChip(
+                        icon: Icons.download_rounded,
+                        label: 'Acompte',
+                        color: const Color(0xFFF59E0B),
+                        onTap: () => _payDeposit(r),
+                      ),
+                    if (r.canPayRemainder)
+                      _QuickActionChip(
+                        icon: Icons.done_all_rounded,
+                        label: 'Solde final',
+                        color: const Color(0xFF22C55E),
+                        onTap: () => _payRemainder(r),
+                      ),
+                    if (r.needCashRemainder)
                       _QuickActionChip(
                         icon: Icons.money_rounded,
-                        label: 'Espece',
+                        label: 'Régler en espèces',
                         color: const Color(0xFF22C55E),
-                        onTap: () => _declareCashPayment(r),
+                        onTap: () {
+                          showBabifixToast(
+                            context,
+                            type: BabifixToastType.info,
+                            message: 'Payez le solde directement au prestataire en espèces.',
+                          );
+                        },
                       ),
-                    if (r.canRate && !r.rated)
+                    if (r.canRate)
                       _QuickActionChip(
-                        icon: Icons.star_outline_rounded,
-                        label: 'Noter',
-                        color: const Color(0xFF8B5CF6),
-                        onTap: () => _rateReservation(r),
+                        icon: r.rated ? Icons.star_rounded : Icons.star_outline_rounded,
+                        label: r.rated ? 'Déjà noté' : 'Noter',
+                        color: r.rated ? const Color(0xFFCBD5E1) : const Color(0xFF8B5CF6),
+                        onTap: r.rated ? null : () => _rateReservation(r),
                       ),
                   ],
                 ),
               ),
+              if (_canDeclareCash(r)) ...[
+                const SizedBox(height: 2),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                  child: SizedBox(
+                    height: 46,
+                    child: Dismissible(
+                      key: ValueKey('cash_${r.reference}'),
+                      direction: DismissDirection.startToEnd,
+                      confirmDismiss: (_) async {
+                        await _declareCashPayment(r);
+                        return false;
+                      },
+                      background: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 6),
+                            Text('Lâcher pour confirmer',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.3)),
+                          color: const Color(0xFF22C55E).withValues(alpha: 0.05),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.swipe_rounded, color: Color(0xFF22C55E), size: 18),
+                            SizedBox(width: 6),
+                            Text('Glissez → pour déclarer le paiement espèces',
+                              style: TextStyle(color: Color(0xFF22C55E), fontWeight: FontWeight.w700, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ],
         ),
@@ -5474,11 +5551,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
               canPay: jsonBool(item['can_pay']),
               canViewDevis: jsonBool(item['can_view_devis']),
               canAcceptDevis: jsonBool(item['can_accept_devis']),
+              canPayDeposit: jsonBool(item['can_pay_deposit']),
+              canPayRemainder: jsonBool(item['can_pay_remainder']),
+              needCashRemainder: jsonBool(item['need_cash_remainder']),
+              receiptAvailable: jsonBool(item['receipt_available']),
               disputeOuverte: jsonBool(item['dispute_ouverte']),
               statusLabel: '${item['status_label'] ?? ''}'.trim(),
               latitude: jsonDoubleNullable(item['latitude']),
               longitude: jsonDoubleNullable(item['longitude']),
-              addressLabel: '${item['address_label'] ?? ''}'.trim(),
+                            addressLabel: '${item['address_label'] ?? ''}'.trim(),
+              addressStreet: '${item['address_street'] ?? ''}'.trim(),
+              addressQuartier: '${item['address_quartier'] ?? ''}'.trim(),
+              addressVille: '${item['address_ville'] ?? ''}'.trim(),
+              addressPays: '${item['address_pays'] ?? ''}'.trim(),
+              addressRepere: '${item['address_repere'] ?? ''}'.trim(),
+              addressIsApproximate: item['address_is_approximate'] == true,
             ),
           )
           .toList();
@@ -5950,6 +6037,212 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
   }
 
+  void _showSwipeConfirmCash(ClientReservation r) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.paddingOf(ctx).bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(
+                color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2),
+              )),
+              const SizedBox(height: 16),
+              const Icon(Icons.money_rounded, size: 48, color: Color(0xFF22C55E)),
+              const SizedBox(height: 12),
+              const Text('Confirmer le paiement en espèces',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text('Glissez le bouton pour confirmer que vous avez payé ${r.amount} en espèces au prestataire.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 52,
+                child: Dismissible(
+                  key: ValueKey('cash_confirm_${r.reference}'),
+                  direction: DismissDirection.startToEnd,
+                  confirmDismiss: (_) async {
+                    Navigator.pop(ctx);
+                    await _declareCashPayment(r);
+                    return false;
+                  },
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
+                        SizedBox(width: 8),
+                        Text('Lâcher pour confirmer',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.4)),
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.06),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.swipe_rounded, color: Color(0xFF22C55E), size: 22),
+                        SizedBox(width: 8),
+                        Text('Glissez → pour confirmer',
+                          style: TextStyle(color: Color(0xFF22C55E), fontWeight: FontWeight.w800, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _payDeposit(ClientReservation r) async {
+    if (authToken == null || r.reference.isEmpty) return;
+    // Le type de paiement global (ESPECES/MOBILE_MONEY) a déjà été choisi
+    // à la création de la réservation — on ne demande que l'opérateur mobile
+    // pour l'acompte (toujours payé par mobile money).
+    final operator = await _pickMobileMoneyOperator();
+    if (operator == null) return;
+    await _sendPaymentAction(
+      r: r,
+      endpoint: 'pay-deposit',
+      successMsg: 'Acompte enregistré. Le prestataire peut démarrer.',
+      body: {'mobile_money_operator': operator},
+    );
+  }
+
+  Future<void> _payRemainder(ClientReservation r) async {
+    if (authToken == null || r.reference.isEmpty) return;
+    final operator = await _pickMobileMoneyOperator();
+    if (operator == null) return;
+    await _sendPaymentAction(
+      r: r,
+      endpoint: 'pay-remainder',
+      successMsg: 'Solde payé. La prestation est finalisée.',
+      body: {'mobile_money_operator': operator},
+    );
+  }
+
+  Future<void> _sendPaymentAction({
+    required ClientReservation r,
+    required String endpoint,
+    required String successMsg,
+    required Map<String, String> body,
+  }) async {
+    if (authToken == null || r.reference.isEmpty) return;
+    try {
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(r.reference)}/$endpoint',
+      );
+      final res = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        showBabifixToast(context, type: BabifixToastType.success, message: successMsg);
+        await _loadRemoteData();
+      } else {
+        final detail = _extractDetail(res.body);
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: detail ?? _friendlyHttpError(res.statusCode),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Erreur réseau. Veuillez réessayer.',
+        );
+      }
+    }
+  }
+
+  Future<String?> _pickMobileMoneyOperator() async {
+    final op = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Opérateur mobile money'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'ORANGE_MONEY'),
+            child: const ListTile(
+              leading: Icon(Icons.phone_android),
+              title: Text('Orange Money'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'MTN_MOMO'),
+            child: const ListTile(
+              leading: Icon(Icons.phone_android),
+              title: Text('MTN Mobile Money'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'WAVE'),
+            child: const ListTile(
+              leading: Icon(Icons.phone_android),
+              title: Text('Wave'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'MOOV'),
+            child: const ListTile(
+              leading: Icon(Icons.phone_android),
+              title: Text('Moov'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+    );
+    return op;
+  }
+
+  String? _extractDetail(String body) {
+    try {
+      final d = jsonDecode(body);
+      if (d is Map && d['detail'] != null && '${d['detail']}'.isNotEmpty) {
+        return '${d['detail']}';
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // ── Statut → style visuel (couleur, icône, libellé, étape timeline) ──
   ({Color color, IconData icon, String label, int step}) _resaStatusMeta(
       ClientReservation r) {
@@ -6280,6 +6573,43 @@ class _ClientHomePageState extends State<ClientHomePage> {
         },
       ));
     }
+    if (r.canPayDeposit) {
+      actions.add(_resaActionBtn(
+        icon: Icons.download_rounded,
+        label: "Payer l'acompte (30%)",
+        primary: true,
+        onTap: () {
+          Navigator.pop(ctx);
+          _payDeposit(r);
+        },
+      ));
+    }
+    if (r.canPayRemainder) {
+      actions.add(_resaActionBtn(
+        icon: Icons.done_all_rounded,
+        label: "Payer le solde final",
+        primary: true,
+        onTap: () {
+          Navigator.pop(ctx);
+          _payRemainder(r);
+        },
+      ));
+    }
+    if (r.needCashRemainder) {
+      actions.add(_resaActionBtn(
+        icon: Icons.money_rounded,
+        label: "Solde à régler en espèces",
+        accent: const Color(0xFF22C55E),
+        onTap: () {
+          Navigator.pop(ctx);
+          showBabifixToast(
+            context,
+            type: BabifixToastType.info,
+            message: 'Payez le solde de ${r.amount} directement au prestataire en espèces.',
+          );
+        },
+      ));
+    }
     if (showPayOnline) {
       actions.add(_resaActionBtn(
         icon: Icons.payment_rounded,
@@ -6304,31 +6634,43 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
     if (_canDeclareCash(r)) {
       actions.add(_resaActionBtn(
-        icon: Icons.money_rounded,
-        label: 'J\'ai payé en espèces',
+        icon: Icons.swipe_rounded,
+        label: 'Glisser pour confirmer espèces',
+        accent: const Color(0xFF22C55E),
         onTap: () {
           Navigator.pop(ctx);
-          _declareCashPayment(r);
+          _showSwipeConfirmCash(r);
         },
       ));
     }
-    if (r.canRate && !r.rated) {
+    if (r.canRate) {
       actions.add(_resaActionBtn(
-        icon: Icons.star_outline_rounded,
-        label: 'Noter le prestataire',
-        accent: const Color(0xFFF59E0B),
-        onTap: () {
-          Navigator.pop(ctx);
-          _rateReservation(r);
-        },
+        icon: r.rated ? Icons.star_rounded : Icons.star_outline_rounded,
+        label: r.rated ? 'Déjà noté' : 'Noter le prestataire',
+        accent: r.rated ? const Color(0xFFCBD5E1) : const Color(0xFFF59E0B),
+        onTap: r.rated
+            ? null
+            : () {
+                Navigator.pop(ctx);
+                _rateReservation(r);
+              },
       ));
     }
     if (isCompleted) {
-      // Reçu PDF
+      // Reçu
       actions.add(_resaActionBtn(
-        icon: Icons.download_rounded,
-        label: 'Télécharger le reçu',
-        onTap: () => _downloadReceipt(r),
+        icon: Icons.receipt_long_rounded,
+        label: 'Voir le reçu',
+        onTap: () {
+          Navigator.pop(ctx);
+          Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => PremiumReceiptScreen(
+                reservationReference: r.reference,
+              ),
+            ),
+          );
+        },
       ));
     }
     // Signaler un problème : possible tant que pas déjà en litige et résa avancée
@@ -6396,7 +6738,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   Widget _resaActionBtn({
     required IconData icon,
     required String label,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
     bool primary = false,
     Color? accent,
   }) {
@@ -6845,6 +7187,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
       );
       if (!mounted) return;
       if (res.statusCode == 200) {
+        r.rated = true;
         showBabifixToast(
         context,
         type: BabifixToastType.info,
@@ -6878,6 +7221,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   ImageProvider _imageProvider(String path) {
+    if (path.isEmpty) {
+      return const AssetImage('assets/images/babifix-logo.png');
+    }
     if (path.startsWith('http://') || path.startsWith('https://')) {
       return NetworkImage(path);
     }
@@ -7108,13 +7454,13 @@ class _QuickActionChip extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.color,
-    required this.onTap,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

@@ -66,36 +66,43 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
         return;
       }
       babifixRegisterFcm(tok);
-      final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/me'),
-        headers: {'Authorization': 'Bearer $tok'},
-      );
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final prov = data['provider'] as Map<String, dynamic>? ?? {};
-        final st = data['stats'] as Map<String, dynamic>? ?? {};
-        final nom = '${prov['nom'] ?? 'Prestataire'}';
-        final rc = (st['reservations_total'] as num?)?.toInt() ?? 0;
-        final ch = (st['chiffre_paiements'] as num?)?.toInt() ?? 0;
-        final avg = prov['average_rating'];
-        final cnt = (prov['rating_count'] as num?)?.toInt() ?? 0;
-        final rr = '${prov['refusal_reason'] ?? ''}'.trim();
-        final dispo = prov['disponible'];
-        final photo = '${prov['photo_portrait_url'] ?? ''}'.trim();
+      for (int attempt = 0; attempt < 3; attempt++) {
         if (!mounted) return;
-        setState(() {
-          _greetingName = nom;
-          _gainsMonth = '$ch';
-          _prestations = '$rc';
-          _noteAvg = (cnt > 0 && avg != null) ? (avg as num).toStringAsFixed(1) : '\u2014';
-          _provStatut = '${prov['statut'] ?? ''}';
-          _refusalReason = rr.isEmpty ? null : rr;
-          _isAvailable = dispo == true || dispo == 1;
-          _photoUrl = photo.isEmpty ? null : photo;
-          providerVille = '${prov['ville'] ?? ''}'.trim();
-          _loadingMe = false;
-        });
-        return;
+        try {
+          final res = await http.get(
+            Uri.parse('${babifixApiBaseUrl()}/api/prestataire/me'),
+            headers: {'Authorization': 'Bearer $tok'},
+          );
+          if (res.statusCode == 200) {
+            final data = jsonDecode(res.body) as Map<String, dynamic>;
+            final prov = data['provider'] as Map<String, dynamic>? ?? {};
+            final st = data['stats'] as Map<String, dynamic>? ?? {};
+            final nom = '${prov['nom'] ?? 'Prestataire'}';
+            final rc = (st['reservations_total'] as num?)?.toInt() ?? 0;
+            final ch = (st['chiffre_paiements'] as num?)?.toInt() ?? 0;
+            final avg = prov['average_rating'];
+            final cnt = (prov['rating_count'] as num?)?.toInt() ?? 0;
+            final rr = '${prov['refusal_reason'] ?? ''}'.trim();
+            final dispo = prov['disponible'];
+            final photo = '${prov['photo_portrait_url'] ?? ''}'.trim();
+            if (!mounted) return;
+            setState(() {
+              _greetingName = nom;
+              _gainsMonth = '$ch';
+              _prestations = '$rc';
+              _noteAvg = (cnt > 0 && avg != null) ? (avg as num).toStringAsFixed(1) : '\u2014';
+              _provStatut = '${prov['statut'] ?? ''}';
+              _refusalReason = rr.isEmpty ? null : rr;
+              _isAvailable = dispo == true || dispo == 1;
+              _photoUrl = photo.isEmpty ? null : photo;
+              providerVille = '${prov['ville'] ?? ''}'.trim();
+              _loadingMe = false;
+            });
+            return;
+          }
+        } catch (_) {
+          if (attempt < 2) await Future.delayed(const Duration(milliseconds: 800));
+        }
       }
     } catch (_) {}
     if (mounted) setState(() => _loadingMe = false);
@@ -336,11 +343,13 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
                     child: SizedBox(
-                      height: 180,
-                      child: BarChart(
-                        BarChartData(
-                          alignment: BarChartAlignment.spaceAround,
-                          maxY: (_revenueByMonth.reduce((a, b) => a > b ? a : b) * 1.3).clamp(1000, double.infinity),
+                        height: 180,
+                        child: _revenueByMonth.isEmpty
+                          ? const Center(child: Text('Aucune donn\u00e9e de revenus'))
+                          : BarChart(
+                              BarChartData(
+                            alignment: BarChartAlignment.spaceAround,
+                            maxY: (_revenueByMonth.reduce((a, b) => a > b ? a : b) * 1.3).clamp(1000, double.infinity),
                           barGroups: List.generate(_revenueByMonth.length, (i) =>
                             BarChartGroupData(
                               x: i,

@@ -321,7 +321,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
   bool _categoriesChanged(List<Map<String, dynamic>> newCategories) {
     if (_lastCategories.isEmpty) {
       _lastCategories = newCategories;
-      return false;
+      return newCategories.isNotEmpty;
     }
     if (newCategories.length != _lastCategories.length) return true;
     for (int i = 0; i < newCategories.length; i++) {

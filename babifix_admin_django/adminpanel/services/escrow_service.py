@@ -106,7 +106,10 @@ class EscrowService:
 
         total = Decimal(str(devis.total_ttc or 0))
         commission = Decimal(str(devis.commission_montant or 0))
-        net = Decimal(str(devis.net_prestataire or 0))
+        net_prestataire_val = devis.net_prestataire
+        if net_prestataire_val is None or net_prestataire_val == 0:
+            net_prestataire_val = total - commission
+        net = Decimal(str(net_prestataire_val))
 
         cash_minimum_surplus = Decimal("0")
         if reservation.payment_type == Reservation.PaymentType.ESPECES:
@@ -183,38 +186,28 @@ class EscrowService:
         ]
 
         if reservation.payment_type == Reservation.PaymentType.ESPECES:
-            # B12 — Le client paye au moins MIN_ONLINE_PAYMENT_XOF. La
-            # portion `commission_montant` du devis est notre revenu ; le
-            # surplus éventuel (devis très petit) est mis de côté pour
-            # être reversé au presta à la confirmation.
+            # La commission reste bloquée en escrow jusqu'à la confirmation
+            # client + cash handover complet. On ne crée PAS PlatformRevenue
+            # ici — ce sera fait dans release_funds.
             devis = _latest_devis(reservation)
             commission_due = (
                 Decimal(str(devis.commission_montant or 0)) if devis else gross
             )
             if commission_due > gross:
-                commission_due = gross  # garde-fou
-            PlatformRevenue.objects.create(
-                amount_fcfa=commission_due,
-                source=PlatformRevenue.Source.COMMISSION,
-                reference=reservation.reference,
-                description=(
-                    f"Commission 18 % prélevée à l'acompte cash — {reservation.reference}"
-                ),
-                payment=payment,
-            )
-            reservation.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
-            reservation.cash_admin_validated_at = timezone.now()
-            update_fields += ["cash_flow_status", "cash_admin_validated_at"]
+                commission_due = gross
+            # On conserve le montant de la commission pour release_funds
+            reservation.cash_flow_status = Reservation.CashFlowStatus.PENDING_ADMIN
+            update_fields.append("cash_flow_status")
             surplus = gross - commission_due
             if surplus > 0:
                 logger.info(
-                    "EscrowService: surplus cash %s FCFA mis en escrow pour %s "
-                    "(reversement presta à la confirmation)",
+                    "EscrowService: surplus cash %s FCFA mis en escrow pour %s",
                     surplus,
                     reservation.reference,
                 )
             logger.info(
-                "EscrowService: commission cash %s FCFA encaissée pour %s",
+                "EscrowService: commission cash %s FCFA bloquée en escrow pour %s "
+                "(libérée à la confirmation client)",
                 commission_due,
                 reservation.reference,
             )
@@ -321,14 +314,21 @@ class EscrowService:
         }
 
         if reservation.payment_type == Reservation.PaymentType.ESPECES:
-            # Cash : commission déjà en PlatformRevenue lors de l'acompte.
-            # Le presta a perçu son net en main à main.
-            #
-            # B12 — Si on a prélevé un minimum supérieur à la commission
-            # (devis très petit), le surplus doit être reversé au presta
-            # maintenant (wallet) pour qu'aucune partie ne soit lésée.
+            # La commission était bloquée en escrow depuis l'acompte.
+            # On la reconnaît maintenant comme revenu plateforme.
             montant_verse = Decimal(str(reservation.montant_verse or 0))
-            surplus = montant_verse - commission
+            commission_due = commission if montant_verse >= commission else montant_verse
+            PlatformRevenue.objects.create(
+                amount_fcfa=commission_due,
+                source=PlatformRevenue.Source.COMMISSION,
+                reference=reservation.reference,
+                description=(
+                    f"Commission libérée à la confirmation — {reservation.reference}"
+                ),
+            )
+            result["platform_revenue"] = float(commission_due)
+            # B12 — Surplus éventuel (devis très petit) reversé au presta
+            surplus = montant_verse - commission_due
             if surplus > 0:
                 provider = reservation.assigned_provider
                 if not provider and reservation.prestataire_user_id:
@@ -365,9 +365,10 @@ class EscrowService:
                     )
             else:
                 logger.info(
-                    "EscrowService.release_funds: cash %s — rien à reverser via wallet "
-                    "(commission déjà acquise, net en main à main).",
+                    "EscrowService.release_funds: cash %s — commission %s "
+                    "reconnue, net déjà en main à main.",
                     reservation.reference,
+                    commission_due,
                 )
         else:
             # Mobile : la plateforme libère le net vers le wallet presta et

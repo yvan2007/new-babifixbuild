@@ -374,6 +374,10 @@ class Reservation(models.Model):
     # Repère textuel saisi librement par le client (« à côté de la pharmacie
     # XYZ », « en face de l'école Sainte-Marie », etc.) — pas géocodable.
     address_repere = models.CharField(max_length=300, blank=True, default="")
+    # L'adresse affichee au prestataire est-elle encore approximative ?
+    # True tant que le prestataire n'a pas accepte la demande : on masque
+    # les details fins (rue, repere) pour proteger la vie privee du client.
+    address_is_approximate = models.BooleanField(default=False)
     location_captured_at = models.DateTimeField(null=True, blank=True)
     payment_type = models.CharField(
         max_length=24,
@@ -531,6 +535,14 @@ class Reservation(models.Model):
         default="",
         help_text="Message optionnel du client au moment du paiement",
     )
+    # Journal client (témoignage, photos avant/apres)
+    client_journal_note = models.TextField(
+        blank=True, default="",
+        help_text="Commentaire libre du client à la fin de l'intervention",
+    )
+    client_journal_updated_at = models.DateTimeField(blank=True, null=True)
+    client_photos_avant = models.JSONField(blank=True, default=list)
+    client_photos_apres = models.JSONField(blank=True, default=list)
 
     def __str__(self):
         return self.reference
@@ -558,7 +570,14 @@ class Reservation(models.Model):
             )
             if montant_decimal > 0:
                 self.montant = montant_decimal
-                self.commission = montant_decimal * Decimal("0.18")
+                # Utiliser la commission réelle du devis accepté si disponible
+                devis = self.devis_set.filter(
+                    statut__in=("ACCEPTE", "ENVOYE"),
+                ).order_by("-created_at").first()
+                if devis and devis.commission_montant:
+                    self.commission = Decimal(str(devis.commission_montant))
+                else:
+                    self.commission = montant_decimal * Decimal("0.18")
         # Calcul des montants restants pour la sécurisation
         self.montant_restant = (self.montant or 0) - (self.montant_verse or 0)
         super().save(*args, **kwargs)
@@ -699,6 +718,11 @@ class Payment(models.Model):
         null=True,
         blank=True,
         help_text="Date d'utilisation de la clé",
+    )
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+        help_text="Date de création du paiement",
     )
 
     def __str__(self):
@@ -1266,6 +1290,7 @@ class Devis(models.Model):
         default=18, help_text="Commission plateforme (15-20% recommandé)"
     )
     commission_montant = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_prestataire = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_ttc = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     note_prestataire = models.TextField(blank=True, default="")
@@ -1311,6 +1336,7 @@ class Devis(models.Model):
             # Façon B : le client paie le prix annoncé ; la commission est déduite
             # de la part du prestataire (jamais ajoutée au client).
             self.total_ttc = self.sous_total
+            self.net_prestataire = self.total_ttc - self.commission_montant
 
         super().save(*args, **kwargs)
 
@@ -1322,8 +1348,9 @@ class Devis(models.Model):
             # Façon B : le client paie le prix annoncé ; la commission est déduite
             # de la part du prestataire (jamais ajoutée au client).
             self.total_ttc = self.sous_total
+            self.net_prestataire = self.total_ttc - self.commission_montant
             super().save(
-                update_fields=["sous_total", "commission_montant", "total_ttc"]
+                update_fields=["sous_total", "commission_montant", "total_ttc", "net_prestataire"]
             )
 
     def __str__(self):

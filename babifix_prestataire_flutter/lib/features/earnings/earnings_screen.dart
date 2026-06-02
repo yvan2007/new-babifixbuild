@@ -81,7 +81,7 @@ class _EarningsScreenState extends State<EarningsScreen>
         if (res.statusCode == 200) {
           final data = jsonDecode(res.body) as Map<String, dynamic>;
           final summary = data['summary'] as Map<String, dynamic>? ?? {};
-          final total = (summary['total'] as num?)?.toInt() ?? 0;
+          final total = (summary['net'] as num?)?.toInt() ?? 0;
           final count = (summary['count'] as num?)?.toInt() ?? 0;
           final txns = _parseTransactions(data['transactions']);
           final chart = _parseChart(data['chart'] as List? ?? []);

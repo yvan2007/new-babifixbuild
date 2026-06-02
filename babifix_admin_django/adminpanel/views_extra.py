@@ -1150,7 +1150,7 @@ def api_health_check(request):
 @require_api_auth(["client", "admin"])
 @require_GET
 def api_client_invoice_pdf(request, reference):
-    """GET /api/client/invoices/<reference>/pdf/ — Télécharger le reçu PDF."""
+    """GET /api/client/invoices/<reference>/pdf/ — Télécharger le reçu PDF (disponible seulement après paiement complet)."""
     user_id = request.api_user_id
 
     try:
@@ -1168,6 +1168,20 @@ def api_client_invoice_pdf(request, reference):
 
     if not payment:
         return JsonResponse({"error": "Reçu introuvable ou accès refusé"}, status=404)
+
+    res = payment.reservation
+    # Le reçu n'est disponible qu'après paiement intégral
+    if res.payment_type == "MOBILE_MONEY" and not res.solde_valide:
+        return JsonResponse(
+            {"error": "Le solde restant doit d'abord être payé avant d'obtenir le reçu."},
+            status=400,
+        )
+    if res.payment_type == "ESPECES" and not res.solde_valide:
+        # Pour espèces, le reçu est disponible après confirmation du cash (solde_valide = True)
+        return JsonResponse(
+            {"error": "Le paiement en espèces doit être confirmé par le prestataire avant d'obtenir le reçu."},
+            status=400,
+        )
 
     try:
         from adminpanel.services.invoice_service import InvoiceService

@@ -7,10 +7,10 @@ from django.views.decorators.csrf import csrf_exempt
 
 
 TOKEN_SALT = "babifix-api-token"
-ACCESS_TOKEN_MAX_AGE_SECONDS = 15 * 60  # 15 minutes - access token expire after 15 min
+ACCESS_TOKEN_MAX_AGE_SECONDS = 7 * 24 * 3600  # 7 jours (session dev)
 REFRESH_TOKEN_MAX_AGE_SECONDS = (
-    7 * 24 * 3600
-)  # 7 days - refresh token expires after 7 days
+    30 * 24 * 3600
+)  # 30 jours - refresh token
 
 # Flag pour utiliser le nouveau systeme JWT (plus securise)
 USE_JWT = True  # ✅ Migration vers PyJWT activee

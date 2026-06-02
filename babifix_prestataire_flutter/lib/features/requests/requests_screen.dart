@@ -355,7 +355,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                           if (pending.isNotEmpty) ...[
                             _buildKanbanSectionHeader(
                               title: 'Nouvelles demandes',
-                              subtitle: 'Glissez → accepter  •  ← refuser',
+                              subtitle: 'Accepter ou refuser la demande',
                               count: pending.length,
                               color: const Color(0xFF38BDF8),
                               icon: Icons.notifications_active_rounded,
@@ -605,6 +605,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             addressRepere: it.addressRepere,
             addressLat: it.addressLat,
             addressLon: it.addressLon,
+            addressIsApproximate: it.addressIsApproximate,
             description: it.description,
             apiStatus: it.apiStatus,
             paymentType: it.paymentType,
@@ -623,71 +624,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   Widget _buildCard(_RequestItem it) {
-    final card = _buildCardInner(it);
-    if (it.status != 'pending') return card;
-    return Dismissible(
-      key: ValueKey(it.reference),
-      direction: DismissDirection.horizontal,
-      confirmDismiss: (direction) async {
-        final decision = direction == DismissDirection.startToEnd
-            ? 'accept'
-            : 'refuse';
-        await _decide(it, decision);
-        return false; // list updates via setState in _decide
-      },
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF22C55E),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        alignment: Alignment.centerLeft,
-        child: const Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              color: Colors.white,
-              size: 28,
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Accepter',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              ),
-            ),
-          ],
-        ),
-      ),
-      secondaryBackground: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEF4444),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        alignment: Alignment.centerRight,
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text(
-              'Refuser',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              ),
-            ),
-            SizedBox(width: 8),
-            Icon(Icons.cancel_outlined, color: Colors.white, size: 28),
-          ],
-        ),
-      ),
-      child: card,
-    );
+    return _buildCardInner(it);
   }
 
   Widget _buildCardInner(_RequestItem it) {
@@ -799,29 +736,20 @@ class _RequestsScreenState extends State<RequestsScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                it.addressIsApproximate
-                    ? Icons.lock_outline_rounded
-                    : Icons.location_on_outlined,
-                size: 14,
-                color: const Color(0xFF64748B),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      it.address,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF94A3B8),
+          if (it.addressIsApproximate)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.lock_outline_rounded, size: 14, color: Color(0xFF64748B)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        it.address,
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                       ),
-                    ),
-                    if (it.addressIsApproximate)
                       const Padding(
                         padding: EdgeInsets.only(top: 2),
                         child: Text(
@@ -833,11 +761,90 @@ class _RequestsScreenState extends State<RequestsScreen> {
                           ),
                         ),
                       ),
-                  ],
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else if (it.addressQuartier.isNotEmpty ||
+              it.addressStreet.isNotEmpty ||
+              it.addressVille.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF06B6D4).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF06B6D4).withValues(alpha: 0.2),
                 ),
               ),
-            ],
-          ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF06B6D4)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Adresse d\'intervention',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF06B6D4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (it.addressQuartier.isNotEmpty)
+                    Text(
+                      it.addressQuartier,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.3,
+                      ),
+                    ),
+                  if (it.addressStreet.isNotEmpty) ...[
+                    if (it.addressQuartier.isNotEmpty) const SizedBox(height: 2),
+                    Text(
+                      it.addressStreet,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFFCBD5E1),
+                      ),
+                    ),
+                  ],
+                  if (it.addressVille.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      it.addressVille,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF64748B)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    it.address.isNotEmpty ? it.address : 'Non précisée',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  ),
+                ),
+              ],
+            ),
 
           // ── Exigences du client ───────────────────────────────────────
           if (it.isUrgent || it.disponibilitesClient.isNotEmpty || it.prixPropose != null) ...[
@@ -1249,18 +1256,49 @@ class _RequestsScreenState extends State<RequestsScreen> {
           if (it.status == 'completed' && _canConfirmCash(it)) ...[
             const SizedBox(height: 10),
             SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton(
-                onPressed: () => _confirmCashPayment(it),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: BabifixDesign.success.withValues(alpha: 0.3)),
-                  foregroundColor: BabifixDesign.success,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              height: 52,
+              child: Dismissible(
+                key: ValueKey('cash_${it.reference}'),
+                direction: DismissDirection.startToEnd,
+                confirmDismiss: (_) async {
+                  await _confirmCashPayment(it);
+                  return false;
+                },
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
+                      SizedBox(width: 8),
+                      Text('Lâcher pour confirmer',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                    ],
+                  ),
                 ),
-                child: const Text(
-                  'Confirmer réception des espèces',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.4)),
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.06),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.swipe_rounded, color: Color(0xFF22C55E), size: 20),
+                      SizedBox(width: 8),
+                      Text('Glissez → pour confirmer les espèces',
+                        style: TextStyle(color: Color(0xFF22C55E), fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1389,10 +1427,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
             prixPropose: (e['prix_propose'] as num?)?.toDouble(),
           );
         }).toList();
-        // Les demandes urgentes remontent en tête (ordre stable sinon).
-        final urgent = remote.where((e) => e.isUrgent).toList();
-        final normal = remote.where((e) => !e.isUrgent).toList();
-        setState(() => items = [...urgent, ...normal]);
+        // Les demandes urgentes remontent en tête, sinon tri par date décroissante.
+        DateTime? _parseDate(_RequestItem it) {
+          return DateTime.tryParse(it.date);
+        }
+        remote.sort((a, b) {
+          if (a.isUrgent != b.isUrgent) return a.isUrgent ? -1 : 1;
+          final da = _parseDate(a);
+          final db = _parseDate(b);
+          if (da != null && db != null) return db.compareTo(da);
+          return 0;
+        });
+        setState(() => items = remote);
         debugPrint('✅ LOADED ${remote.length} requests');
       } else {
         debugPrint('❌ LOAD FAILED — status: ${res.statusCode}');
@@ -1618,8 +1664,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
         setState(() => item.cashFlowStatus = cfs);
         showBabifixToast(
         context,
-        type: BabifixToastType.info,
-        message: 'Esp\u00e8ces confirm\u00e9es \u2014 en attente validation admin',
+        type: BabifixToastType.success,
+        message: 'Espèces confirmées — paiement validé',
       );
       } else if (mounted) {
         showBabifixToast(

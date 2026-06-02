@@ -60,9 +60,11 @@ from .views_v2 import (
     api_auth_reset_password,
     api_auth_verify_email,
     api_client_cancel_reservation,
+    api_client_journal,
     api_client_open_dispute,
     api_client_reservation_detail,
     api_client_reservations_list,
+    api_payment_quote,
     api_prestataire_portfolio,
     api_prestataire_portfolio_delete,
     api_prestataire_profile_update,
@@ -86,6 +88,8 @@ from .views import (
     api_client_check_provider_availability,
     api_client_confirmer_travaux,
     api_client_conversations,
+    api_client_pay_deposit,
+    api_client_pay_remainder,
     api_client_create_reservation,
     api_client_declare_cash,
     api_client_demandes_list,
@@ -207,6 +211,16 @@ urlpatterns = [
         "api/client/reservations/<str:reference>/pay-post-prestation",
         api_client_pay_post_prestation,
         name="api-client-pay-post-prestation",
+    ),
+    path(
+        "api/client/reservations/<str:reference>/pay-deposit",
+        api_client_pay_deposit,
+        name="api-client-pay-deposit",
+    ),
+    path(
+        "api/client/reservations/<str:reference>/pay-remainder",
+        api_client_pay_remainder,
+        name="api-client-pay-remainder",
     ),
     path("api/messages", api_messages, name="api-messages"),
     path(
@@ -353,6 +367,11 @@ urlpatterns = [
         name="api-client-reservation-detail",
     ),
     path(
+        "api/client/reservations/<str:reference>/journal",
+        api_client_journal,
+        name="api-client-reservation-journal",
+    ),
+    path(
         "api/client/reservations/<str:reference>/cancel",
         api_client_cancel_reservation,
         name="api-client-reservation-cancel",
@@ -361,6 +380,12 @@ urlpatterns = [
         "api/client/reservations/<str:reference>/dispute",
         api_client_open_dispute,
         name="api-client-reservation-dispute",
+    ),
+    # ── Payment quote (accessible client + prestataire) ─────────────────────
+    path(
+        "api/reservations/<str:reference>/payment/quote",
+        api_payment_quote,
+        name="api-payment-quote",
     ),
     # ── v2 — Auth : reset mot de passe + refresh token + vérif email ─────────
     path(
@@ -394,6 +419,7 @@ urlpatterns = [
     # ── Reçus / Factures PDF ─────────────────────────────────────────────────
     path("api/client/invoices/", api_client_invoices_list, name="api-client-invoices-list"),
     path("api/client/invoices/<str:reference>/pdf/", api_client_invoice_pdf, name="api-client-invoice-pdf"),
+    path("api/client/reservations/<str:reference>/receipt/pdf/", api_client_invoice_pdf, name="api-client-receipt-pdf-alias"),
     path("api/prestataire/invoices/<str:reference>/pdf/", api_prestataire_invoice_pdf, name="api-prestataire-invoice-pdf"),
     path(
         "api/auth/verify-email/<str:token>",

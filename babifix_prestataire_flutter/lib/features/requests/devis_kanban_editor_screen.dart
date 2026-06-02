@@ -1,10 +1,3 @@
-/// Éditeur de devis Kanban — Phase B (P1) + picker catalogue (P6) + aperçu (P7).
-///
-/// 4 onglets : Fourniture · Main d'œuvre · Déplacement · Autre.
-/// Pour chaque ligne : description / quantité (décimale) / unité / prix unitaire / marque.
-/// Bouton "Catalogue" pour insérer une ligne préremplie depuis CatalogueItem.
-/// Total live en bas : sous-total → commission 18% → "Vous toucherez X".
-/// Bouton "Aperçu" → modal client-like ; "Envoyer" → POST API.
 import 'dart:convert';
 import 'dart:io';
 
@@ -20,7 +13,7 @@ import '../../shared/widgets/babifix_snackbar.dart';
 
 class DevisKanbanEditorScreen extends StatefulWidget {
   final String reservationReference;
-  final int? categoryId; // optionnel : si null, le bouton "Catalogue" est désactivé
+  final int? categoryId;
   final String reservationTitle;
   final String clientName;
   final String clientProblem;
@@ -52,12 +45,20 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
   final List<LigneDevis> _lignes = [];
   List<CatalogueItem> _catalogue = [];
   bool _sending = false;
-
-  // Photos du diagnostic ajoutées par le prestataire (data URI base64).
   final List<String> _diagPhotos = [];
   final ImagePicker _picker = ImagePicker();
-  // Passe à true après une tentative d'envoi → surligne les lignes incomplètes.
   bool _attemptedSend = false;
+  double _remise = 0;
+
+  double get _sousTotal => _lignes.fold<double>(0, (s, l) => s + l.total);
+  double get _baseTotal {
+    final b = _sousTotal - _remise;
+    return b < 0 ? 0 : b;
+  }
+
+  int get _commissionRate => 18;
+  double get _commission => _baseTotal * _commissionRate / 100;
+  double get _net => _baseTotal - _commission;
 
   Future<void> _addDiagPhoto() async {
     if (_diagPhotos.length >= 6) {
@@ -195,20 +196,6 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
       if (mounted) setState(() {});
     } catch (_) {}
   }
-
-  // ---------------------------------------------------------------------------
-  // Calculs
-  // ---------------------------------------------------------------------------
-  double _remise = 0;
-  double get _sousTotal => _lignes.fold<double>(0, (s, l) => s + l.total);
-  double get _baseTotal {
-    final b = _sousTotal - _remise;
-    return b < 0 ? 0 : b;
-  }
-
-  int get _commissionRate => 18;
-  double get _commission => _baseTotal * _commissionRate / 100;
-  double get _net => _baseTotal - _commission;
 
   void _addEmptyLine(DevisLineType t) {
     setState(() {
@@ -434,7 +421,6 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
       _snack('Ajoutez au moins une ligne de devis.');
       return;
     }
-    // Validation visuelle : surligne les lignes incomplètes.
     if (_lignes.any(_ligneIncomplete)) {
       setState(() => _attemptedSend = true);
       _snack('Complétez les lignes en rouge (désignation et prix).');
@@ -492,21 +478,47 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
   // ---------------------------------------------------------------------------
   // UI
   // ---------------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text('Rédiger un devis'),
+        title: Row(
+          children: [
+            Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.request_quote_rounded, color: BabifixDesign.navy, size: 18),
+            ),
+            const SizedBox(width: 10),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Nouveau devis',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                Text('Établir un devis professionnel',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
+              ],
+            ),
+          ],
+        ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0.5,
+        foregroundColor: BabifixDesign.navy,
+        elevation: 0,
+        surfaceTintColor: Colors.white,
         actions: [
           TextButton.icon(
             onPressed: _sending ? null : _saveDraft,
             icon: const Icon(Icons.save_outlined, size: 18),
             label: const Text('Brouillon'),
-            style: TextButton.styleFrom(foregroundColor: BabifixDesign.ciBlue),
+            style: TextButton.styleFrom(
+              foregroundColor: BabifixDesign.cyan,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
           ),
         ],
       ),
@@ -514,206 +526,108 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               children: [
                 _clientRequestCard(),
-                _topInfos(),
-                _diagPhotosSection(),
-                _lignesSection(),
-                _acompteNote(),
+                const SizedBox(height: 14),
+                _topInfosCard(),
+                const SizedBox(height: 14),
+                _diagPhotosCard(),
+                const SizedBox(height: 14),
+                _lignesCard(),
+                const SizedBox(height: 14),
+                _escrowNote(),
+                const SizedBox(height: 100),
               ],
             ),
           ),
-          _bottomTotals(),
-        ],
-      ),
-      bottomNavigationBar: _actions(),
-    );
-  }
-
-  Widget _diagPhotosSection() {
-    return Container(
-      color: Colors.white,
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.add_a_photo_outlined,
-                  size: 18, color: BabifixDesign.iconOnLight),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text('Photos du diagnostic (optionnel)',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-              ),
-              Text('${_diagPhotos.length}/6',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Justifiez votre devis avec des photos de votre constat (rassure le client).',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 76,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                ..._diagPhotos.asMap().entries.map((e) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Stack(
-                        children: [
-                          GestureDetector(
-                            onTap: () => _openPhoto(e.value),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: _ClientPhoto(src: e.value, size: 76),
-                            ),
-                          ),
-                          Positioned(
-                            top: 2,
-                            right: 2,
-                            child: GestureDetector(
-                              onTap: () =>
-                                  setState(() => _diagPhotos.removeAt(e.key)),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                    color: Colors.black54,
-                                    shape: BoxShape.circle),
-                                padding: const EdgeInsets.all(2),
-                                child: const Icon(Icons.close,
-                                    size: 14, color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )),
-                if (_diagPhotos.length < 6)
-                  GestureDetector(
-                    onTap: _addDiagPhoto,
-                    child: Container(
-                      width: 76,
-                      height: 76,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: const Icon(Icons.add,
-                          color: BabifixDesign.iconOnLight, size: 28),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          _bottomBar(),
         ],
       ),
     );
   }
 
-  Widget _acompteNote() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: BabifixDesign.ciBlue.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: BabifixDesign.ciBlue.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.shield_outlined,
-              size: 18, color: BabifixDesign.iconOnLight),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Paiement sécurisé : après acceptation, le client verse un acompte '
-              'bloqué en séquestre (escrow). Tu es payé automatiquement à la fin '
-              'de la mission — pas de risque d’impayé.',
-              style: TextStyle(
-                  fontSize: 12, height: 1.4, color: Colors.grey.shade700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _addTypeChip(DevisLineType type, String label, IconData icon) {
-    return ActionChip(
-      avatar: Icon(icon, size: 16, color: BabifixDesign.ciBlue),
-      label: Text(label),
-      onPressed: () => _addEmptyLine(type),
-      side: BorderSide(color: BabifixDesign.ciBlue.withValues(alpha: 0.4)),
-      backgroundColor: BabifixDesign.ciBlue.withValues(alpha: 0.06),
-      labelStyle: const TextStyle(
-          fontWeight: FontWeight.w600, color: BabifixDesign.ciBlue),
-      visualDensity: VisualDensity.compact,
-    );
-  }
+  // ─── Client Request Card ─────────────────────────────────────────────────
 
   Widget _clientRequestCard() {
     final hasProblem = widget.clientProblem.trim().isNotEmpty;
     final hasPhotos = widget.clientPhotos.isNotEmpty;
     final hasName = widget.clientName.trim().isNotEmpty;
     if (!hasProblem && !hasPhotos && !hasName) return const SizedBox.shrink();
+
     return Container(
-      color: Colors.white,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(left: BorderSide(color: BabifixDesign.cyan, width: 3)),
+        boxShadow: [
+          BoxShadow(color: const Color(0x080F172A), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: BabifixDesign.ciBlue.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(9),
+                  color: BabifixDesign.cyan.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.assignment_outlined,
-                    size: 18, color: BabifixDesign.iconOnLight),
+                child: const Icon(Icons.person_outline_rounded, size: 20, color: BabifixDesign.cyan),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Demande du client',
-                        style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w800)),
+                    Text('Demande du client',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: BabifixDesign.navy)),
                     if (hasName)
                       Text(widget.clientName,
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade600)),
+                          style: TextStyle(fontSize: 12, color: BabifixDesign.iconOnLight)),
                   ],
                 ),
               ),
+              if (widget.reservationTitle.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.navy,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(widget.reservationTitle,
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
+                ),
             ],
           ),
           if (hasProblem) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: Text(widget.clientProblem,
-                  style: const TextStyle(fontSize: 13, height: 1.4)),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.chat_bubble_outline_rounded, size: 16, color: BabifixDesign.iconOnLight),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(widget.clientProblem,
+                        style: const TextStyle(fontSize: 13, height: 1.5, color: BabifixDesign.navy)),
+                  ),
+                ],
+              ),
             ),
           ],
           if (hasPhotos) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             SizedBox(
               height: 76,
               child: ListView.separated(
@@ -762,30 +676,60 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     );
   }
 
-  Widget _topInfos() {
+  // ─── Diagnostic & Scheduling Card ────────────────────────────────────────
+
+  Widget _topInfosCard() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(left: BorderSide(color: BabifixDesign.navy, width: 3)),
+        boxShadow: [
+          BoxShadow(color: const Color(0x080F172A), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.navy.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.biotech_rounded, size: 18, color: BabifixDesign.navy),
+              ),
+              const SizedBox(width: 10),
+              const Text('Diagnostic & planification',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: BabifixDesign.navy)),
+            ],
+          ),
+          const SizedBox(height: 14),
           TextField(
             controller: _diagnosticCtl,
-            maxLines: 2,
+            maxLines: 3,
             decoration: InputDecoration(
               labelText: 'Diagnostic *',
-              hintText: 'Analyse du problème observé',
+              hintText: 'Analyse du problème observé sur place',
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              isDense: true,
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: _pickerTile(
-                  icon: Icons.event,
+                  icon: Icons.event_rounded,
                   label: _dateProposee == null
                       ? 'Date proposée'
                       : '${_dateProposee!.day}/${_dateProposee!.month}/${_dateProposee!.year}',
@@ -793,82 +737,89 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                     final d = await showDatePicker(
                       context: context,
                       firstDate: DateTime.now(),
-                      lastDate:
-                          DateTime.now().add(const Duration(days: 365)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
                       initialDate: DateTime.now(),
                     );
                     if (d != null) setState(() => _dateProposee = d);
                   },
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Expanded(
                 child: _pickerTile(
-                  icon: Icons.schedule,
-                  label: _heureDebut == null
-                      ? 'Début'
-                      : _heureDebut!.format(context),
+                  icon: Icons.schedule_rounded,
+                  label: _heureDebut == null ? 'Début' : _heureDebut!.format(context),
                   onTap: () async {
-                    final t = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now());
+                    final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
                     if (t != null) setState(() => _heureDebut = t);
                   },
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Expanded(
                 child: _pickerTile(
                   icon: Icons.schedule_outlined,
-                  label: _heureFin == null
-                      ? 'Fin'
-                      : _heureFin!.format(context),
+                  label: _heureFin == null ? 'Fin' : _heureFin!.format(context),
                   onTap: () async {
-                    final t = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now());
+                    final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
                     if (t != null) setState(() => _heureFin = t);
                   },
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          // Validité du devis + note pour le client
+          const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.verified_outlined,
-                  size: 16, color: Colors.grey.shade700),
-              const SizedBox(width: 6),
-              const Text('Valable',
-                  style: TextStyle(fontSize: 12.5, color: Colors.black87)),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.warning.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.verified_outlined, size: 16, color: BabifixDesign.warning),
+              ),
+              const SizedBox(width: 10),
+              const Text('Valable', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: BabifixDesign.navy)),
               const SizedBox(width: 8),
-              DropdownButton<int>(
-                value: int.tryParse(_validiteCtl.text.trim()) ?? 7,
-                isDense: true,
-                underline: const SizedBox.shrink(),
-                items: const [3, 7, 14, 30]
-                    .map((d) => DropdownMenuItem(
-                          value: d,
-                          child: Text('$d jours',
-                              style: const TextStyle(fontSize: 12.5)),
-                        ))
-                    .toList(),
-                onChanged: (v) =>
-                    setState(() => _validiteCtl.text = '${v ?? 7}'),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: DropdownButton<int>(
+                  value: int.tryParse(_validiteCtl.text.trim()) ?? 7,
+                  isDense: true,
+                  underline: const SizedBox.shrink(),
+                  style: const TextStyle(fontSize: 12.5, color: BabifixDesign.navy, fontWeight: FontWeight.w600),
+                  items: const [3, 7, 14, 30]
+                      .map((d) => DropdownMenuItem(
+                            value: d,
+                            child: Text('$d jours', style: const TextStyle(fontSize: 12.5)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _validiteCtl.text = '${v ?? 7}'),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           TextField(
             controller: _noteCtl,
             maxLines: 2,
             decoration: InputDecoration(
               labelText: 'Note pour le client (optionnel)',
               hintText: 'Conditions, garantie, précisions…',
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              isDense: true,
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
             ),
           ),
         ],
@@ -883,20 +834,21 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(10),
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 16, color: Colors.grey.shade700),
+            Icon(icon, size: 16, color: BabifixDesign.iconOnLight),
             const SizedBox(width: 6),
             Expanded(
               child: Text(label,
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(fontSize: 12, color: BabifixDesign.navy, fontWeight: FontWeight.w500),
                   overflow: TextOverflow.ellipsis),
             ),
           ],
@@ -905,46 +857,172 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     );
   }
 
-  Widget _lignesSection() {
+  // ─── Diagnostic Photos Card ──────────────────────────────────────────────
+
+  Widget _diagPhotosCard() {
     return Container(
-      color: Colors.white,
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(left: BorderSide(color: BabifixDesign.warning, width: 3)),
+        boxShadow: [
+          BoxShadow(color: const Color(0x080F172A), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Détail du devis',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.warning.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.add_a_photo_outlined, size: 18, color: BabifixDesign.warning),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Photos du diagnostic',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: BabifixDesign.navy)),
+                    Text('${_diagPhotos.length}/6 · Justifiez votre devis avec des photos',
+                        style: TextStyle(fontSize: 11, color: BabifixDesign.iconOnLight)),
+                  ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 76,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                ..._diagPhotos.asMap().entries.map((e) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Stack(
+                        children: [
+                          GestureDetector(
+                            onTap: () => _openPhoto(e.value),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: _ClientPhoto(src: e.value, size: 76),
+                            ),
+                          ),
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _diagPhotos.removeAt(e.key)),
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle),
+                                padding: const EdgeInsets.all(2),
+                                child: const Icon(Icons.close,
+                                    size: 14, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                if (_diagPhotos.length < 6)
+                  GestureDetector(
+                    onTap: _addDiagPhoto,
+                    child: Container(
+                      width: 76,
+                      height: 76,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: const Icon(Icons.add_rounded,
+                          color: BabifixDesign.iconOnLight, size: 28),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Line Items Card ─────────────────────────────────────────────────────
+
+  Widget _lignesCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(left: BorderSide(color: BabifixDesign.cyan, width: 3)),
+        boxShadow: [
+          BoxShadow(color: const Color(0x080F172A), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.cyan.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.receipt_long_rounded, size: 18, color: BabifixDesign.cyan),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Détail du devis',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: BabifixDesign.navy)),
+              ),
               if (_catalogue.isNotEmpty)
-                TextButton.icon(
-                  onPressed: () => _openCatalogue(),
-                  icon: const Icon(Icons.library_books, size: 18),
-                  label: const Text('Catalogue'),
-                  style:
-                      TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.3)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: TextButton.icon(
+                    onPressed: () => _openCatalogue(),
+                    icon: const Icon(Icons.library_books, size: 16),
+                    label: const Text('Catalogue', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: BabifixDesign.cyan,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    ),
+                  ),
                 ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 14),
           if (_lignes.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 26),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
               child: Column(
                 children: [
-                  Icon(Icons.receipt_long_outlined,
-                      size: 44, color: Colors.grey.shade400),
+                  Icon(Icons.receipt_long_outlined, size: 48, color: const Color(0xFFCBD5E1)),
                   const SizedBox(height: 8),
-                  Text(
-                    'Ajoutez les lignes de votre devis\n(fournitures, main d\'œuvre, déplacement…).',
-                    style: TextStyle(color: Colors.grey.shade600),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text('Ajoutez les lignes de votre devis',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BabifixDesign.iconOnLight)),
+                  const SizedBox(height: 4),
+                  Text('Fournitures, main-d\'œuvre, déplacement…',
+                      style: TextStyle(fontSize: 12, color: BabifixDesign.iconOnLight.withValues(alpha: 0.7))),
                 ],
               ),
             )
@@ -966,149 +1044,218 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                 ),
               );
             }),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           Text('Ajouter une ligne',
-              style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600)),
-          const SizedBox(height: 8),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: BabifixDesign.iconOnLight)),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              _addTypeChip(DevisLineType.fourniture, 'Fourniture',
-                  Icons.inventory_2_outlined),
-              _addTypeChip(DevisLineType.mainOeuvre, 'Main-d\'œuvre',
-                  Icons.engineering_outlined),
-              _addTypeChip(
-                  DevisLineType.autre, 'Autre', Icons.add_circle_outline),
+              _addTypeChip(DevisLineType.fourniture, 'Fourniture', Icons.inventory_2_rounded),
+              _addTypeChip(DevisLineType.mainOeuvre, 'Main-d\'œuvre', Icons.engineering_rounded),
+              _addTypeChip(DevisLineType.deplacement, 'Déplacement', Icons.directions_car_rounded),
+              _addTypeChip(DevisLineType.autre, 'Autre', Icons.add_circle_outline_rounded),
             ],
           ),
-          const Divider(height: 24),
-          Row(
-            children: [
-              const Icon(Icons.local_offer_outlined,
-                  size: 18, color: BabifixDesign.iconOnLight),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text('Remise (optionnel)',
-                    style:
-                        TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-              ),
-              SizedBox(
-                width: 130,
-                child: TextField(
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  textAlign: TextAlign.end,
-                  decoration: const InputDecoration(
-                    hintText: '0',
-                    suffixText: 'FCFA',
-                    isDense: true,
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.success.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  onChanged: (v) => setState(() =>
-                      _remise = double.tryParse(v.replaceAll(',', '.')) ?? 0),
+                  child: const Icon(Icons.local_offer_rounded, size: 16, color: BabifixDesign.success),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text('Remise',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: BabifixDesign.navy)),
+                ),
+                SizedBox(
+                  width: 140,
+                  child: TextField(
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.end,
+                    decoration: InputDecoration(
+                      hintText: '0',
+                      suffixText: 'FCFA',
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                    ),
+                    onChanged: (v) => setState(() =>
+                        _remise = double.tryParse(v.replaceAll(',', '.')) ?? 0),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _bottomTotals() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      color: Colors.white,
-      // AnimatedSize → grow/shrink fluide quand on ajoute/retire des
-      // lignes, AnimatedSwitcher → fade entre les valeurs.
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          transitionBuilder: (child, anim) => FadeTransition(
-            opacity: anim, child: child,
+  Widget _addTypeChip(DevisLineType type, String label, IconData icon) {
+    return Material(
+      color: BabifixDesign.cyan.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _addEmptyLine(type),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.25)),
           ),
-          child: KeyedSubtree(
-            // une clé qui change quand le sous-total/remise change → trigger fade
-            key: ValueKey(
-                '${_sousTotal.toStringAsFixed(0)}_${_remise.toStringAsFixed(0)}_$_commissionRate'),
-            child: MoneyBreakdownWidget(
-              sousTotal: _sousTotal,
-              remise: _remise,
-              commissionRate: _commissionRate,
-              commissionMontant: _commission,
-              totalTtc: _baseTotal,
-              netPrestataire: _net,
-              compact: true,
-              showProviderNet: true,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: BabifixDesign.cyan),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: BabifixDesign.cyan)),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _actions() {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _sending ? null : _openPreview,
-                icon: const Icon(Icons.visibility, size: 18),
-                label: const Text('Aperçu'),
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 13),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton.icon(
-                onPressed: _sending ? null : _send,
-                icon: _sending
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: BabifixRingLoader.cyan(size: 28))
-                    : const Icon(Icons.send, size: 18),
-                label: const Text('Envoyer au client'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: BabifixDesign.ciBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ],
-        ),
+  // ─── Escrow Security Note ────────────────────────────────────────────────
+
+  Widget _escrowNote() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: BabifixDesign.success.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: BabifixDesign.success.withValues(alpha: 0.15)),
       ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: BabifixDesign.success.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.shield_rounded, size: 16, color: BabifixDesign.success),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Paiement sécurisé',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: BabifixDesign.navy)),
+                const SizedBox(height: 4),
+                Text(
+                  'Après acceptation, le client verse un acompte bloqué en séquestre. '
+                  'Tu es payé automatiquement à la fin de la mission — pas de risque d\'impayé.',
+                  style: TextStyle(fontSize: 12, height: 1.4, color: BabifixDesign.iconOnLight),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Bottom Bar ──────────────────────────────────────────────────────────
+
+  Widget _bottomBar() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          color: Colors.white,
+          child: MoneyBreakdownWidget(
+            sousTotal: _sousTotal,
+            remise: _remise,
+            commissionRate: _commissionRate,
+            commissionMontant: _commission,
+            totalTtc: _baseTotal,
+            netPrestataire: _net,
+            compact: true,
+            showProviderNet: true,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0x0A0F172A),
+                blurRadius: 12,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _sending ? null : _openPreview,
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('Aperçu'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: BabifixDesign.navy,
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: _sending ? null : _send,
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: BabifixRingLoader.cyan(size: 28))
+                      : const Icon(Icons.send_rounded, size: 18),
+                  label: const Text('Envoyer au client'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: BabifixDesign.navy,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: BabifixDesign.navy.withValues(alpha: 0.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Composant : éditeur d'une ligne
-// ---------------------------------------------------------------------------
+// ─── Line Editor ────────────────────────────────────────────────────────────
+
 class _DevisLineEditor extends StatefulWidget {
   final LigneDevis ligne;
   final ValueChanged<LigneDevis> onChange;
@@ -1133,17 +1280,16 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
   late DevisLineType _type;
 
   static const Map<DevisLineType, IconData> _typeIcons = {
-    DevisLineType.fourniture: Icons.inventory_2_outlined,
-    DevisLineType.mainOeuvre: Icons.engineering_outlined,
-    DevisLineType.deplacement: Icons.directions_car_outlined,
-    DevisLineType.autre: Icons.more_horiz,
+    DevisLineType.fourniture: Icons.inventory_2_rounded,
+    DevisLineType.mainOeuvre: Icons.engineering_rounded,
+    DevisLineType.deplacement: Icons.directions_car_rounded,
+    DevisLineType.autre: Icons.more_horiz_rounded,
   };
 
-  // Le déplacement n'est plus un type à part : il est inclus dans la
-  // main-d'œuvre (le prestataire l'intègre à sa prestation).
   static const List<DevisLineType> _selectableTypes = [
     DevisLineType.fourniture,
     DevisLineType.mainOeuvre,
+    DevisLineType.deplacement,
     DevisLineType.autre,
   ];
 
@@ -1153,19 +1299,6 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
         return 'Fourniture';
       case DevisLineType.mainOeuvre:
         return 'Main-d\'œuvre & déplacement';
-      case DevisLineType.deplacement:
-        return 'Déplacement';
-      case DevisLineType.autre:
-        return 'Autre';
-    }
-  }
-
-  String _typeShort(DevisLineType t) {
-    switch (t) {
-      case DevisLineType.fourniture:
-        return 'Fourniture';
-      case DevisLineType.mainOeuvre:
-        return 'Main-d\'œuvre';
       case DevisLineType.deplacement:
         return 'Déplacement';
       case DevisLineType.autre:
@@ -1210,7 +1343,6 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
     final total = widget.ligne.total;
     final isLabour = _type == DevisLineType.mainOeuvre;
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: widget.highlightError
             ? BabifixDesign.error.withValues(alpha: 0.04)
@@ -1219,154 +1351,182 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
         border: Border.all(
           color: widget.highlightError
               ? BabifixDesign.error
-              : Colors.grey.shade300,
+              : const Color(0xFFE2E8F0),
           width: widget.highlightError ? 1.5 : 1,
         ),
-      ),
-      child: Column(
-        children: [
-          // Ligne 1 : pastille de TYPE (visible, modifiable) + supprimer
-          Row(
-            children: [
-              PopupMenuButton<DevisLineType>(
-                tooltip: 'Changer le type',
-                onSelected: (t) {
-                  setState(() => _type = t);
-                  _emit();
-                },
-                itemBuilder: (_) => [
-                  for (final t in _selectableTypes)
-                    PopupMenuItem<DevisLineType>(
-                      value: t,
-                      child: Row(
-                        children: [
-                          Icon(_typeIcons[t],
-                              size: 18, color: BabifixDesign.iconOnLight),
-                          const SizedBox(width: 10),
-                          Text(_typeLabel(t)),
-                        ],
-                      ),
-                    ),
-                ],
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: BabifixDesign.ciBlue.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: BabifixDesign.ciBlue.withValues(alpha: 0.25)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_typeIcons[_type] ?? Icons.more_horiz,
-                          color: BabifixDesign.ciBlue, size: 16),
-                      const SizedBox(width: 6),
-                      Text(_typeShort(_type),
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: BabifixDesign.ciBlue)),
-                      const Icon(Icons.arrow_drop_down,
-                          color: BabifixDesign.ciBlue, size: 18),
-                    ],
-                  ),
-                ),
-              ),
-              const Spacer(),
-              InkWell(
-                onTap: widget.onRemove,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child:
-                      Icon(Icons.delete_outline, color: BabifixDesign.error),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Ligne 2 : désignation
-          TextField(
-            controller: _desc,
-            onChanged: (_) => _emit(),
-            decoration: InputDecoration(
-              hintText: _type == DevisLineType.mainOeuvre
-                  ? 'Prestation (ex : Pose, réparation…)'
-                  : _type == DevisLineType.fourniture
-                      ? 'Fourniture (ex : Robinet, câble…)'
-                      : 'Désignation',
-              isDense: true,
-              filled: true,
-              fillColor: Colors.grey.shade50,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Ligne 2 : Qté × Prix unitaire
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 70,
-                child: TextField(
-                  controller: _qty,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => _emit(),
-                  decoration: InputDecoration(
-                    labelText: isLabour ? 'Heures' : 'Qté',
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Text('×',
-                    style: TextStyle(color: Colors.grey, fontSize: 16)),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _prix,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => _emit(),
-                  decoration: InputDecoration(
-                    labelText:
-                        isLabour ? 'Taux horaire (FCFA)' : 'Prix unitaire (FCFA)',
-                    isDense: true,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '= ${fmtMoney(total)}',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: BabifixDesign.ciBlue,
-              ),
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x040F172A),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Type badge + delete
+            Row(
+              children: [
+                PopupMenuButton<DevisLineType>(
+                  tooltip: 'Changer le type',
+                  onSelected: (t) {
+                    setState(() => _type = t);
+                    _emit();
+                  },
+                  itemBuilder: (_) => [
+                    for (final t in _selectableTypes)
+                      PopupMenuItem<DevisLineType>(
+                        value: t,
+                        child: Row(
+                          children: [
+                            Icon(_typeIcons[t], size: 18, color: BabifixDesign.iconOnLight),
+                            const SizedBox(width: 10),
+                            Text(_typeLabel(t)),
+                          ],
+                        ),
+                      ),
+                  ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: BabifixDesign.cyan.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(_typeIcons[_type] ?? Icons.more_horiz, color: BabifixDesign.cyan, size: 16),
+                        const SizedBox(width: 6),
+                        Text(_typeLabel(_type),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: BabifixDesign.cyan)),
+                        const Icon(Icons.arrow_drop_down, color: BabifixDesign.cyan, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.error.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    color: BabifixDesign.error,
+                    onPressed: widget.onRemove,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Description
+            TextField(
+              controller: _desc,
+              onChanged: (_) => _emit(),
+              decoration: InputDecoration(
+                hintText: _type == DevisLineType.mainOeuvre
+                    ? 'Prestation (ex : Pose, réparation…)'
+                    : _type == DevisLineType.fourniture
+                        ? 'Fourniture (ex : Robinet, câble…)'
+                        : _type == DevisLineType.deplacement
+                            ? 'Déplacement (ex : Transport, livraison…)'
+                            : 'Désignation',
+                isDense: true,
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Qté × Price
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 80,
+                  child: TextField(
+                    controller: _qty,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => _emit(),
+                    decoration: InputDecoration(
+                      labelText: isLabour ? 'Heures' : 'Qté',
+                      labelStyle: const TextStyle(fontSize: 12),
+                      isDense: true,
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('×', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 18, fontWeight: FontWeight.w300)),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _prix,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => _emit(),
+                    decoration: InputDecoration(
+                      labelText: isLabour ? 'Taux horaire' : 'Prix unitaire',
+                      labelStyle: const TextStyle(fontSize: 12),
+                      suffixText: 'FCFA',
+                      suffixStyle: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                      isDense: true,
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Subtotal
+            Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.cyan.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text('= ${fmtMoney(total)}',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: BabifixDesign.cyan)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Image robuste : data URI base64, URL réseau, ou fichier local.
+// ─── Photo widget ───────────────────────────────────────────────────────────
+
 class _ClientPhoto extends StatelessWidget {
   const _ClientPhoto({required this.src, this.size, this.fit = BoxFit.cover});
   final String src;

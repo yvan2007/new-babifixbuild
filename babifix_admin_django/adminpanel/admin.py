@@ -18,6 +18,7 @@ from .models import (
     Message,
     Notification,
     Payment,
+    PlatformRevenue,
     ProAccount,
     ProInvoice,
     ProSite,
@@ -27,6 +28,7 @@ from .models import (
     SiteContent,
     SystemSetting,
     UserProfile,
+    WalletTransaction,
 )
 
 
@@ -111,12 +113,15 @@ class ReservationAdmin(admin.ModelAdmin):
         "payment_type",
         "mobile_money_operator",
         "cash_flow_status",
+        "solde_valide",
+        "funds_released_at",
     )
     list_filter = (
         "statut",
         "payment_type",
         "mobile_money_operator",
         "cash_flow_status",
+        "solde_valide",
     )
     search_fields = ("reference", "client", "prestataire", "title", "address_label")
     raw_id_fields = ("client_user", "prestataire_user", "assigned_provider")
@@ -309,6 +314,25 @@ class ProInvoiceAdmin(admin.ModelAdmin):
     )
     list_filter = ("statut", "periode")
     search_fields = ("reference", "pro_account__raison_sociale")
+
+
+@admin.register(PlatformRevenue)
+class PlatformRevenueAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "source", "amount_fcfa", "reference", "payment", "created_at",
+    )
+    list_filter = ("source", "created_at")
+    search_fields = ("reference", "description")
+
+
+@admin.register(WalletTransaction)
+class WalletTransactionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "provider", "tx_type", "amount_fcfa", "status", "reference", "created_at",
+    )
+    list_filter = ("tx_type", "status", "created_at")
+    search_fields = ("reference", "provider__nom", "description")
+    raw_id_fields = ("provider",)
 
 
 admin.site.site_header = "BABIFIX — Administration"
