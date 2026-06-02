@@ -16,6 +16,7 @@ import '../../user_store.dart';
 import '../../services/call_service.dart';
 import '../../services/livekit_call_service.dart';
 import '../../services/livekit_call_screen.dart';
+import '../../shared/error_utils.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../auth/biometric_login_screen.dart';
 import '../booking/devis_kanban_screen.dart';
@@ -606,7 +607,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: userFriendlyError(e),
       );
       }
     }

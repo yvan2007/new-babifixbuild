@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
+import '../../shared/error_utils.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -62,13 +63,13 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
       } else {
         setState(() {
           _loading = false;
-          _error = 'Erreur: ${resp.statusCode}';
+          _error = apiErrorMessage(resp.body) ?? userFriendlyError(null, resp.statusCode);
         });
       }
     } catch (e) {
       setState(() {
         _loading = false;
-        _error = e.toString();
+        _error = userFriendlyError(e);
       });
     }
   }
@@ -103,7 +104,7 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
           showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: ${resp.statusCode}',
+        message: apiErrorMessage(resp.body) ?? userFriendlyError(null, resp.statusCode),
       );
         }
       }
@@ -112,7 +113,7 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: userFriendlyError(e),
       );
       }
     }

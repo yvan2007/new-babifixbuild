@@ -15,6 +15,7 @@ import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../services/livekit_call_service.dart';
 import '../../services/livekit_call_screen.dart';
+import '../../shared/error_utils.dart';
 import '../../shared/services/haptics_service.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -520,7 +521,7 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: userFriendlyError(e),
       );
       }
     }

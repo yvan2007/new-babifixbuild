@@ -5089,13 +5089,14 @@ def api_client_accept_devis(request, reference):
 
     devis = Devis.objects.filter(reservation=res, statut=Devis.Statut.ENVOYE).first()
     if not devis:
-        return JsonResponse({"error": "devis_not_found"}, status=404)
+        return JsonResponse({"error": "devis_introuvable", "detail": "Aucun devis en attente d'acceptation."}, status=404)
+    if res.statut == Reservation.Status.DEVIS_ACCEPTE:
+        return JsonResponse({"error": "deja_accepte", "detail": "Ce devis a déjà été accepté."}, status=409)
 
-    # Validation transition de statut
     is_valid, allowed = validate_reservation_transition(res.statut, "DEVIS_ACCEPTE")
     if not is_valid:
         return JsonResponse(
-            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+            {"error": "transition_invalide", "detail": f"Impossible d'accepter le devis (statut actuel : {res.statut})."},
             status=400,
         )
 

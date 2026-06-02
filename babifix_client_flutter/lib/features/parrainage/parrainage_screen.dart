@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../user_store.dart';
+import '../../shared/error_utils.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -93,7 +94,7 @@ class _ClientParrainageScreenState extends State<ClientParrainageScreen> {
       showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: userFriendlyError(e),
       );
     } finally {
       setState(() { _applying = false; });

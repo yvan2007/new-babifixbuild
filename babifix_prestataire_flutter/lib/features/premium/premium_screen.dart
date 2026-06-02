@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
+import '../../shared/error_utils.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/services/babifix_user_store.dart';
 import '../../shared/widgets/babifix_page_route.dart';
@@ -117,7 +118,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: userFriendlyError(e),
       );
     } finally {
       if (mounted) setState(() { _subscribing = false; });
@@ -276,7 +277,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: userFriendlyError(e),
       );
       }
     }

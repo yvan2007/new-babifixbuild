@@ -10,6 +10,7 @@ import 'dart:convert';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
+import '../error_utils.dart';
 import 'babifix_ring_loader.dart';
 
 class PhoneOtpScreen extends StatefulWidget {
@@ -124,7 +125,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _fbError = 'Erreur: $e';
+        _fbError = userFriendlyError(e);
       });
     }
   }

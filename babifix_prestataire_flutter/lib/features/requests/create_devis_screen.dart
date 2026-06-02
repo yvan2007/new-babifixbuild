@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/error_utils.dart';
 
 class CreateDevisScreen extends StatefulWidget {
   final String reservationReference;
@@ -127,14 +128,14 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Erreur: ${resp.statusCode}')));
+          ).showSnackBar(SnackBar(content: Text(apiErrorMessage(resp.body) ?? userFriendlyError(null, resp.statusCode))));
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+        ).showSnackBar(SnackBar(content: Text(userFriendlyError(e))));
       }
     }
 

@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
+import '../../shared/error_utils.dart';
 import '../../shared/services/websocket_push_service.dart';
 import '../../shared/services/confetti_toast_service.dart';
 import '../../shared/services/haptic_service.dart';
@@ -69,17 +70,27 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           _loading = false;
         });
       } else {
+        final body = _tryParseErrorBody(resp.body);
         setState(() {
           _loading = false;
-          _error = 'Erreur: ${resp.statusCode}';
+          _error = body ?? userFriendlyError(null, resp.statusCode);
         });
       }
     } catch (e) {
       setState(() {
         _loading = false;
-        _error = e.toString();
+        _error = userFriendlyError(e);
       });
     }
+  }
+
+  String? _tryParseErrorBody(String body) {
+    try {
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final detail = data['detail'] as String?;
+      if (detail != null && detail.isNotEmpty) return detail;
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _acceptDevis() async {
@@ -133,10 +144,11 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         }
       } else {
         if (mounted) {
+          final body = _tryParseErrorBody(resp.body);
           showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: ${resp.statusCode}',
+        message: body ?? userFriendlyError(null, resp.statusCode),
       );
         }
       }
@@ -145,7 +157,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: userFriendlyError(e),
       );
       }
     }
@@ -235,7 +247,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur: $e',
+        message: userFriendlyError(e),
       );
       }
     }
