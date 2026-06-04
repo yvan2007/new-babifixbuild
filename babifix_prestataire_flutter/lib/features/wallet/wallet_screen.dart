@@ -10,6 +10,10 @@ import '../../shared/auth_utils.dart';
 import 'wallet_escrow_panel.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/animated_check_circle.dart';
+import '../../shared/widgets/animated_money.dart';
+import '../../shared/services/confetti_toast_service.dart';
+import '../../shared/services/haptics_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data helpers
@@ -173,11 +177,90 @@ class _WalletScreenState extends State<WalletScreen>
         currentBalance: _solde,
         currentPhone: _walletPhone,
         currentOperator: _walletOperator,
-        onSuccess: () {
+        onSuccess: (amount) {
           Navigator.of(context).pop();
           _load();
+          _showWithdrawSuccess(amount);
         },
       ),
+    );
+  }
+
+  /// Animation de célébration après une demande de retrait réussie :
+  /// confettis + coche dorée animée + montant qui défile. Auto-fermeture.
+  void _showWithdrawSuccess(double amount) {
+    HapticsService.medium();
+    ConfettiService.show(context);
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (ctx) {
+        Future.delayed(const Duration(milliseconds: 2800), () {
+          if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        });
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 36),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF1A1F3A), Color(0xFF0A0E27)],
+              ),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: _premiumGold.withValues(alpha: 0.30)),
+              boxShadow: [
+                BoxShadow(
+                  color: _premiumGold.withValues(alpha: 0.18),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const AnimatedCheckCircle(size: 88, color: _premiumGold),
+                const SizedBox(height: 20),
+                AnimatedMoney(
+                  value: amount,
+                  suffix: ' FCFA',
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Retrait demandé !',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: _premiumGold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Vous recevrez le montant sur votre compte Mobile Money '
+                  'après validation. Vous pouvez suivre l\'opération dans '
+                  'votre historique.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: Colors.white.withValues(alpha: 0.72),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -787,7 +870,7 @@ class _WithdrawSheet extends StatefulWidget {
   final double currentBalance;
   final String currentPhone;
   final String currentOperator;
-  final VoidCallback onSuccess;
+  final ValueChanged<double> onSuccess;
 
   @override
   State<_WithdrawSheet> createState() => _WithdrawSheetState();
@@ -853,7 +936,7 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
       );
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (resp.statusCode == 200) {
-        widget.onSuccess();
+        widget.onSuccess(amount);
       } else {
         setState(() => _err = data['detail'] as String? ?? 'Erreur retrait');
       }

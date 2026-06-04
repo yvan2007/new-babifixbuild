@@ -41,7 +41,7 @@ img {
   position: relative;
   overflow: hidden;
   background: linear-gradient(135deg, #ffffff, #f0f9ff);
-  color: #fff;
+  color: #0f172a;
   padding-bottom: 70px;
 }
 .hero::before, .hero::after {

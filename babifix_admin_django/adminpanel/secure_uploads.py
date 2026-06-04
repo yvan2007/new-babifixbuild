@@ -37,6 +37,16 @@ ALLOWED_IMAGE_EXTS = frozenset({
     ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif",
 })
 
+# Notes vocales du chat (enregistrées par les apps : AAC/M4A par défaut).
+ALLOWED_AUDIO_MIMES = frozenset({
+    "audio/aac", "audio/mp4", "audio/m4a", "audio/x-m4a",
+    "audio/mpeg", "audio/mp3", "audio/ogg", "audio/opus",
+    "audio/wav", "audio/x-wav", "audio/webm", "application/octet-stream",
+})
+ALLOWED_AUDIO_EXTS = frozenset({
+    ".aac", ".m4a", ".mp4", ".mp3", ".ogg", ".opus", ".wav", ".webm",
+})
+
 # Magic bytes : suffisant pour vérifier qu'un .jpg n'est pas un .exe déguisé.
 _MAGIC_SIGNATURES: tuple[tuple[bytes, str], ...] = (
     (b"\xFF\xD8\xFF", "image/jpeg"),
@@ -141,4 +151,24 @@ def validate_image_upload(
         allowed_mimes=ALLOWED_IMAGE_MIMES,
         allowed_exts=ALLOWED_IMAGE_EXTS,
         require_magic_match=True,
+    )
+
+
+def validate_audio_upload(
+    upload: UploadedFile | None,
+    *,
+    max_mb: int = 12,
+) -> UploadedFile:
+    """Valide une **note vocale** (AAC/M4A/MP3/OGG/WAV).
+
+    Les conteneurs audio ont des magic numbers variés (ftyp, ID3, OggS, RIFF…) ;
+    on s'appuie sur extension + MIME + taille (le fichier provient de notre propre
+    enregistreur), sans exiger le magic match pour éviter les faux rejets.
+    """
+    return validate_upload(
+        upload,
+        max_mb=max_mb,
+        allowed_mimes=ALLOWED_AUDIO_MIMES,
+        allowed_exts=ALLOWED_AUDIO_EXTS,
+        require_magic_match=False,
     )

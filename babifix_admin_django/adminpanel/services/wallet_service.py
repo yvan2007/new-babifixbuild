@@ -530,16 +530,34 @@ class WalletService:
 
 
 def _get_effective_commission_rate(provider) -> Decimal:
-    """Commission effective = taux categorie - reduction premium."""
-    base = _get_system_commission_rate()
-    if provider.category_id:
-        try:
-            from adminpanel.models import CategoryCommission
-            cc = CategoryCommission.objects.get(category_id=provider.category_id, actif=True)
-            base = Decimal(str(cc.commission_rate)) / Decimal("100")
-        except Exception:
-            pass
+    """Commission effective réellement prélevée (fraction, ex. 0.12).
 
-    reduction = {"bronze": 0, "silver": 5, "gold": 10}.get(provider.premium_tier or "", 0)
-    effective = base - Decimal(str(reduction)) / Decimal("100")
-    return max(Decimal("0.05"), effective)
+    SOURCE UNIQUE DE VÉRITÉ : délègue à ProviderSubscriptionService pour que la
+    commission prélevée soit EXACTEMENT celle affichée dans le calculateur de
+    rentabilité de l'app. Logique : taux catégorie (ou système) − remise
+    dégressive par volume (missions/mois) − réduction premium. Plancher 5 %.
+    """
+    try:
+        from adminpanel.services.provider_subscription_service import (
+            ProviderSubscriptionService,
+        )
+
+        pct = ProviderSubscriptionService.calculate_effective_commission(provider)
+        return (Decimal(str(pct)) / Decimal("100")).quantize(Decimal("0.0001"))
+    except Exception:
+        # Repli défensif : taux catégorie/système − réduction premium simple.
+        base = _get_system_commission_rate()
+        if provider.category_id:
+            try:
+                from adminpanel.models import CategoryCommission
+                cc = CategoryCommission.objects.get(
+                    category_id=provider.category_id, actif=True
+                )
+                base = Decimal(str(cc.commission_rate)) / Decimal("100")
+            except Exception:
+                pass
+        reduction = {"bronze": 0, "silver": 5, "gold": 10}.get(
+            provider.premium_tier or "", 0
+        )
+        effective = base - Decimal(str(reduction)) / Decimal("100")
+        return max(Decimal("0.05"), effective)

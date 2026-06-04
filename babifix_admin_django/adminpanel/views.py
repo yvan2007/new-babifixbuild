@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 import builtins
 import json
 import logging
@@ -677,15 +677,28 @@ def _msg_dict(request, m):
             img = request.build_absolute_uri(m.image.url)
         except Exception:
             img = str(m.image)
+    audio_url = ""
+    audio_file = getattr(m, "audio", None)
+    if audio_file:
+        try:
+            audio_url = request.build_absolute_uri(audio_file.url)
+        except Exception:
+            audio_url = str(audio_file)
     return {
         "id": int(m.id),
         "body": m.body or "",
         "image_url": img,
+        "audio_url": audio_url,
+        "audio_duration": int(getattr(m, "audio_duration", 0) or 0),
         "sender_id": int(m.sender_id),
         "created_at": m.created_at.isoformat(),
         "reply_to_id": int(m.reply_to_id) if m.reply_to_id else None,
         "lu": bool(getattr(m, "lu", False)),
         "deleted": bool(getattr(m, "deleted", False)),
+        # Phase C — type de message + données structurées (carte devis,
+        # événement système). Permet au chat d'afficher la carte devis figée.
+        "kind": getattr(m, "kind", "USER") or "USER",
+        "payload_json": getattr(m, "payload_json", None),
     }
 
 
@@ -2592,6 +2605,8 @@ def _api_messages_send(request):
     body = ""
     reply_to_id = None
     image = None
+    audio = None
+    audio_duration = 0
 
     ct = request.content_type or ""
     if "multipart/form-data" in ct:
@@ -2613,6 +2628,17 @@ def _api_messages_send(request):
                 image = validate_image_upload(image, max_mb=8)
             except SafeUploadError as exc:
                 return JsonResponse({"error": str(exc)}, status=400)
+        audio = request.FILES.get("audio")
+        if audio is not None:
+            from .secure_uploads import SafeUploadError, validate_audio_upload
+            try:
+                audio = validate_audio_upload(audio, max_mb=12)
+            except SafeUploadError as exc:
+                return JsonResponse({"error": str(exc)}, status=400)
+        try:
+            audio_duration = int(request.POST.get("audio_duration") or 0)
+        except (TypeError, ValueError):
+            audio_duration = 0
     else:
         try:
             payload = json.loads(request.body.decode("utf-8") or "{}")
@@ -2643,6 +2669,23 @@ def _api_messages_send(request):
     ):
         return JsonResponse({"error": "forbidden"}, status=403)
 
+    # Règle métier : pas de message avant accord. Les messages SYSTEM/DEVIS_CARD
+    # (générés par le serveur, sender = système) ne sont pas concernés ; ici on
+    # bloque les messages utilisateurs tant que le prestataire n'a pas accepté.
+    if request.api_role != "admin" and conv.reservation_id:
+        res_link = conv.reservation
+        if res_link and not res_link.contact_allowed():
+            return JsonResponse(
+                {
+                    "error": "contact_not_allowed",
+                    "detail": (
+                        "Vous pourrez échanger des messages une fois que le "
+                        "prestataire aura accepté la demande."
+                    ),
+                },
+                status=403,
+            )
+
     msg = Message(
         conversation=conv,
         sender_id=uid,
@@ -2651,6 +2694,9 @@ def _api_messages_send(request):
     )
     if image:
         msg.image = image
+    if audio:
+        msg.audio = audio
+        msg.audio_duration = max(0, min(audio_duration, 600))  # plafonné à 10 min
     msg.save()
     conv.save(update_fields=[])  # bump updated_at
     Conversation.objects.filter(pk=conv.pk).update(updated_at=timezone.now())
@@ -2899,6 +2945,9 @@ def api_client_create_reservation(request):
         urgence_surcharge_pct=urgence_surcharge_pct,
         idempotency_key=idem_key,
         appel_masque=True,  # Activer masquage par défaut
+        # Privacy : adresse fine masquée tant qu'aucun prestataire n'a accepté.
+        # Bascule à False dans api_prestataire_decide_request (action ACCEPT).
+        address_is_approximate=True,
     )
     if res_obj.client_user_id and res_obj.prestataire_user_id:
         Conversation.objects.get_or_create(
@@ -3218,6 +3267,30 @@ def api_prestataire_requests(request):
             for p in (item.preuve_photos or item.photos_probleme or [])
             if str(p).strip()
         ]
+        # Privacy : tant que le prestataire n'a pas accepté la demande, on
+        # cache la rue, le repère et on dégrade lat/lon à ~1 km (2 décimales).
+        # Le quartier/ville/pays restent visibles pour qu'il puisse décider.
+        approx = bool(item.address_is_approximate)
+        if approx:
+            street_out = ""
+            repere_out = ""
+            label_out = (
+                ", ".join(
+                    p for p in [item.address_quartier, item.address_ville] if p
+                )
+                or item.address_quartier
+                or item.address_ville
+                or "Zone approximative"
+            )
+            lat_out = round(item.latitude, 2) if item.latitude is not None else None
+            lon_out = round(item.longitude, 2) if item.longitude is not None else None
+        else:
+            street_out = item.address_street or ""
+            repere_out = item.address_repere or ""
+            label_out = item.address_label or "—"
+            lat_out = item.latitude
+            lon_out = item.longitude
+
         data.append(
             {
                 "id": item.id,
@@ -3230,17 +3303,17 @@ def api_prestataire_requests(request):
                 "hour": item.location_captured_at.strftime("%H:%M")
                 if item.location_captured_at
                 else "—",
-                "address": item.address_label or "—",
+                "address": label_out,
                 # Adresse structurée — affichage pro côté prestataire avec une
                 # icône par champ (rue / quartier / ville / pays / repère).
-                "address_street": item.address_street or "",
+                "address_street": street_out,
                 "address_quartier": item.address_quartier or "",
                 "address_ville": item.address_ville or "",
                 "address_pays": item.address_pays or "",
-                "address_repere": item.address_repere or "",
-                "address_lat": item.latitude,
-                "address_lon": item.longitude,
-                "address_is_approximate": item.address_is_approximate,
+                "address_repere": repere_out,
+                "address_lat": lat_out,
+                "address_lon": lon_out,
+                "address_is_approximate": approx,
                 "description": (
                     client_text or f"Detail de la demande {item.reference}"
                 )[:500],
@@ -3310,7 +3383,13 @@ def api_prestataire_decide_request(request, reference):
         )
 
     reservation.statut = normalize_reservation_status(new_status)
-    reservation.save(update_fields=["statut", "motif_refus_demande"])
+    update_fields = ["statut", "motif_refus_demande"]
+    # Privacy : à l'acceptation, l'adresse fine est révélée au prestataire
+    # qui prend la demande (rue + repère + lat/lon précise).
+    if decision == "accept" and reservation.address_is_approximate:
+        reservation.address_is_approximate = False
+        update_fields.append("address_is_approximate")
+    reservation.save(update_fields=update_fields)
     return JsonResponse({"ok": True, "status": reservation.statut})
 
 
@@ -5262,6 +5341,14 @@ def api_prestataire_create_devis(request, reference):
             status=400,
         )
 
+    # Carte devis figée dans le fil de chat : le client la consulte comme un
+    # aperçu professionnel et peut l'ouvrir/accepter directement.
+    try:
+        from .services.conversation_service import post_devis_card
+        post_devis_card(res, devis)
+    except Exception:
+        logger.warning("post_devis_card échoué pour %s", res.reference, exc_info=True)
+
     _schedule(
         [res.client_user_id],
         "Nouveau devis reçu",
@@ -5399,6 +5486,18 @@ def api_client_accept_devis(request, reference):
     res.statut = Reservation.Status.DEVIS_ACCEPTE
     res.montant = devis.total_ttc
     res.save(update_fields=["statut", "montant", "commission"])
+
+    # Met à jour la carte devis du fil + ajoute un événement système clair.
+    try:
+        from .services.conversation_service import post_devis_card, post_system_event
+        post_devis_card(res, devis)  # idempotent : garde/raffraîchit la carte
+        post_system_event(
+            res,
+            "devis.accepted",
+            f"✅ Devis {devis.reference} accepté — {int(devis.total_ttc)} F CFA.",
+        )
+    except Exception:
+        logger.warning("chat devis accept échoué pour %s", res.reference, exc_info=True)
 
     _schedule(
         [res.assigned_provider.user_id] if res.assigned_provider else [],

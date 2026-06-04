@@ -21,6 +21,7 @@ import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../auth/biometric_login_screen.dart';
 import '../booking/devis_kanban_screen.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/babifix_voice_note.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,8 @@ class ClientChatMsg {
     this.isRead = false,
     this.kind = 'USER',
     this.payloadJson,
+    this.audioUrl,
+    this.audioDuration = 0,
   });
 
   final int id;
@@ -53,11 +56,17 @@ class ClientChatMsg {
   // Phase C : kind = USER | DEVIS_CARD | SYSTEM
   final String kind;
   final Map<String, dynamic>? payloadJson;
+  // Note vocale (URL du fichier audio + durée en secondes).
+  final String? audioUrl;
+  final int audioDuration;
+
+  bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
 
   bool get hasContent =>
       (text != null && text!.trim().isNotEmpty) ||
       (imageBytes != null && imageBytes!.isNotEmpty) ||
-      (imageUrl != null && imageUrl!.isNotEmpty);
+      (imageUrl != null && imageUrl!.isNotEmpty) ||
+      hasAudio;
 
   String get snippet {
     if (text != null && text!.trim().isNotEmpty) {
@@ -359,6 +368,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
               : null,
           kind: kind,
           payloadJson: payload,
+          audioUrl: (m['audio_url'] as String?)?.isNotEmpty == true
+              ? m['audio_url'] as String
+              : null,
+          audioDuration: jsonInt(m['audio_duration']),
         ),
       );
     }
@@ -482,6 +495,35 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
     } catch (_) {}
   }
 
+  Future<void> _sendAudioApi(String path, int durationSeconds) async {
+    final base = widget.apiBase!;
+    final token = await _resolveToken();
+    if (token == null || token.isEmpty) return;
+    final cid = _conversationId;
+    if (cid == null) return;
+    try {
+      final req = http.MultipartRequest(
+        'POST',
+        Uri.parse('$base/api/messages'),
+      );
+      req.headers['Authorization'] = 'Bearer $token';
+      req.fields['conversation_id'] = '$cid';
+      req.fields['audio_duration'] = '$durationSeconds';
+      final rt = _replyingTo?.serverMessageId;
+      if (rt != null) req.fields['reply_to_id'] = '$rt';
+      req.files.add(await http.MultipartFile.fromPath('audio', path));
+      final streamed = await req.send();
+      if (streamed.statusCode == 201 && mounted) {
+        setState(() => _replyingTo = null);
+        await _reloadMessages();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Échec de l\'envoi de la note vocale.')),
+        );
+      }
+    } catch (_) {}
+  }
+
   void _showAttachmentMenu() {
     showModalBottomSheet<void>(
       context: context,
@@ -598,7 +640,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur envoi: HTTP ${res.statusCode}',
+        message: apiErrorMessage(res.body) ??
+            userFriendlyError(null, res.statusCode),
       );
       }
     } catch (e) {
@@ -1015,6 +1058,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                     onSubmitted: (_) => _sendText(),
                   ),
                 ),
+                BabifixVoiceRecorderButton(
+                  color: BabifixDesign.cyan,
+                  onRecorded: (path, dur) => _sendAudioApi(path, dur),
+                ),
                 IconButton(
                   onPressed: _sendText,
                   tooltip: 'Envoyer',
@@ -1190,6 +1237,15 @@ class ChatBubble extends StatelessWidget {
                 message.imageBytes!,
                 width: math.min(220, w - 20),
                 fit: BoxFit.cover,
+              ),
+            ),
+          if (message.hasAudio)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: BabifixVoiceNotePlayer(
+                url: message.audioUrl!,
+                durationSeconds: message.audioDuration,
+                isMe: message.me,
               ),
             ),
           if (message.text != null && message.text!.trim().isNotEmpty) ...[

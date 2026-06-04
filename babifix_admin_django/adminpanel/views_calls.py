@@ -138,6 +138,19 @@ def api_livekit_token(request):
             status=400,
         )
 
+    # Règle métier : pas d'appel avant accord (prestataire a accepté la demande).
+    if res is not None and not res.contact_allowed():
+        return JsonResponse(
+            {
+                "error": "contact_not_allowed",
+                "detail": (
+                    "L'appel sera disponible une fois que le prestataire aura "
+                    "accepté la demande."
+                ),
+            },
+            status=403,
+        )
+
     token = generate_access_token(
         identity=_identity_for(uid, role),
         name=_user_display(user),
@@ -188,6 +201,20 @@ def api_call_initiate(request):
     )
     if not (is_client or is_prest):
         return JsonResponse({"error": "forbidden"}, status=403)
+
+    # Règle métier : pas de contact avant accord. Tant que le prestataire n'a
+    # pas accepté la demande, ni le client ni le prestataire ne peuvent appeler.
+    if not res.contact_allowed():
+        return JsonResponse(
+            {
+                "error": "contact_not_allowed",
+                "detail": (
+                    "L'appel sera disponible une fois que le prestataire aura "
+                    "accepté la demande."
+                ),
+            },
+            status=403,
+        )
 
     callee_id = (
         res.assigned_provider.user_id

@@ -19,6 +19,7 @@ import '../../shared/error_utils.dart';
 import '../../shared/services/haptics_service.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/babifix_voice_note.dart';
 
 class PrestChatRoomPage extends StatefulWidget {
   const PrestChatRoomPage({
@@ -58,6 +59,8 @@ class PrestApiChatMsg {
     this.replyToServerId,
     this.kind = 'USER',
     this.payloadJson,
+    this.audioUrl,
+    this.audioDuration = 0,
   });
 
   final int id;
@@ -71,6 +74,10 @@ class PrestApiChatMsg {
   final int? replyToServerId;
   final String kind;
   final Map<String, dynamic>? payloadJson;
+  final String? audioUrl;
+  final int audioDuration;
+
+  bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
 
   String get snippet {
     if (text != null && text!.trim().isNotEmpty) {
@@ -217,6 +224,8 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
           replyToWasMe: rtid != null && _myUserId != null ? senderById[rtid] == _myUserId : null,
           kind: kind,
           payloadJson: payload,
+          audioUrl: (m['audio_url'] as String?)?.isNotEmpty == true ? m['audio_url'] as String : null,
+          audioDuration: jsonInt(m['audio_duration']),
         ),
       );
     }
@@ -413,6 +422,33 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     }
   }
 
+  Future<void> _sendAudioApi(String path, int durationSeconds) async {
+    final base = widget.apiBase;
+    final token = widget.authToken!;
+    final cid = _conversationId;
+    if (cid == null) return;
+    try {
+      final req = http.MultipartRequest('POST', Uri.parse('$base/api/messages'));
+      req.headers['Authorization'] = 'Bearer $token';
+      req.fields['conversation_id'] = '$cid';
+      req.fields['audio_duration'] = '$durationSeconds';
+      final rt = _replyingTo?.serverMessageId;
+      if (rt != null) req.fields['reply_to_id'] = '$rt';
+      req.files.add(await http.MultipartFile.fromPath('audio', path));
+      final streamed = await req.send();
+      if (streamed.statusCode == 201 && mounted) {
+        setState(() => _replyingTo = null);
+        await _reloadMessages();
+      } else if (mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Échec de l\'envoi de la note vocale.',
+        );
+      }
+    } catch (_) {}
+  }
+
   void _showAttachmentMenu() {
     showModalBottomSheet<void>(
       context: context,
@@ -512,7 +548,8 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur envoi: HTTP ${res.statusCode}',
+        message: apiErrorMessage(res.body) ??
+            userFriendlyError(null, res.statusCode),
       );
       }
     } catch (e) {
@@ -869,6 +906,10 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                     onSubmitted: (_) => _sendText(),
                   ),
                 ),
+                BabifixVoiceRecorderButton(
+                  color: BabifixDesign.cyan,
+                  onRecorded: (path, dur) => _sendAudioApi(path, dur),
+                ),
                 IconButton(
                   onPressed: _sendText,
                   icon: const Icon(Icons.send),
@@ -1005,6 +1046,15 @@ class _PrestApiChatBubble extends StatelessWidget {
                 message.imageBytes!,
                 width: math.min(220, w - 20),
                 fit: BoxFit.cover,
+              ),
+            ),
+          if (message.hasAudio)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: BabifixVoiceNotePlayer(
+                url: message.audioUrl!,
+                durationSeconds: message.audioDuration,
+                isMe: message.me,
               ),
             ),
           if (((message.imageUrl != null && message.imageUrl!.isNotEmpty) || (message.imageBytes != null)) &&

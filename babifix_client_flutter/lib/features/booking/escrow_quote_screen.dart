@@ -17,6 +17,7 @@ import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/error_utils.dart';
 
 class EscrowQuoteScreen extends StatefulWidget {
   final String reservationReference;
@@ -93,7 +94,7 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen> {
         }),
       );
       if (r.statusCode >= 400) {
-        _snack('Erreur paiement : ${r.statusCode}');
+        _snack(apiErrorMessage(r.body) ?? userFriendlyError(null, r.statusCode));
         return;
       }
       final j = jsonDecode(r.body);

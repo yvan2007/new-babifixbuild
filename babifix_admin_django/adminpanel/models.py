@@ -454,6 +454,42 @@ class Reservation(models.Model):
         default=False,
         help_text="Le solde a été payé, le prestataire peut être rémunéré",
     )
+    # Séquestre : horodatage de libération des fonds vers le prestataire.
+    # Null = fonds encore bloqués. Set par EscrowService.release_funds après
+    # confirmation client. Sert aussi de garde d'idempotence.
+    funds_released_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Horodatage de libération escrow. Null = fonds encore bloqués. "
+            "Set après client_confirme_prestation_at via EscrowService.release_funds."
+        ),
+    )
+    # Remboursement dû au client (annulation / litige tranché en sa faveur),
+    # en attente de virement manuel par l'admin.
+    refund_owed_fcfa = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Montant que la plateforme doit rembourser au client (en attente admin)",
+    )
+    refund_paid_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Set par l'admin une fois le remboursement effectivement viré",
+    )
+    refund_status = models.CharField(
+        max_length=12,
+        blank=True,
+        default="",
+        help_text="'' | processing | paid | failed | manual — état du remboursement client.",
+    )
+    refund_reference = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Référence externe du versement de remboursement (GeniusPay).",
+    )
     cash_client_declared_at = models.DateTimeField(null=True, blank=True)
     cash_prestataire_confirmed_at = models.DateTimeField(null=True, blank=True)
     cash_admin_validated_at = models.DateTimeField(null=True, blank=True)
@@ -547,6 +583,22 @@ class Reservation(models.Model):
     def __str__(self):
         return self.reference
 
+    def contact_allowed(self) -> bool:
+        """Appel / message autorisés UNIQUEMENT après accord entre les deux
+        acteurs : le prestataire a accepté la demande (statut au-delà de
+        DEMANDE_ENVOYEE), et la réservation n'est ni en attente ni annulée.
+
+        Tant que c'est False : ni le client ni le prestataire ne peuvent
+        s'appeler ou s'envoyer un message — protège le prestataire du démarchage
+        avant qu'il se soit engagé.
+        """
+        blocked = {
+            Reservation.Status.DEMANDE_ENVOYEE,
+            Reservation.Status.PENDING,
+            Reservation.Status.CANCELLED,
+        }
+        return self.statut not in blocked
+
     def save(self, *args, **kwargs):
         if isinstance(self.montant, str):
             cleaned = (
@@ -570,10 +622,17 @@ class Reservation(models.Model):
             )
             if montant_decimal > 0:
                 self.montant = montant_decimal
-                # Utiliser la commission réelle du devis accepté si disponible
-                devis = self.devis_set.filter(
-                    statut__in=("ACCEPTE", "ENVOYE"),
-                ).order_by("-created_at").first()
+                # Priorité au devis ACCEPTÉ (un seul possible) ; sinon dernier
+                # ENVOYÉ ; sinon fallback historique 18 %. Empêche qu'un nouveau
+                # ENVOYÉ posté après acceptation écrase la commission négociée.
+                devis = (
+                    self.devis_set.filter(statut="ACCEPTE")
+                    .order_by("-created_at")
+                    .first()
+                    or self.devis_set.filter(statut="ENVOYE")
+                    .order_by("-created_at")
+                    .first()
+                )
                 if devis and devis.commission_montant:
                     self.commission = Decimal(str(devis.commission_montant))
                 else:
@@ -652,6 +711,38 @@ class Dispute(models.Model):
         blank=True,
         related_name="disputes",
     )
+    # Catégorie du litige (sélection client à l'ouverture).
+    categorie = models.CharField(
+        max_length=32,
+        db_index=True,
+        default="autre",
+        choices=[
+            ("travail_non_fait", "Travail non réalisé"),
+            ("travail_bacle", "Travail bâclé / mal fait"),
+            ("presta_absent", "Prestataire absent / pas venu"),
+            ("retard", "Retard important"),
+            ("prix_non_conforme", "Prix non conforme au devis"),
+            ("degats", "Dégâts causés"),
+            ("comportement", "Comportement inapproprié"),
+            ("autre", "Autre"),
+        ],
+    )
+    # Preuves jointes par chaque partie (URLs d'images).
+    photos_client = models.JSONField(blank=True, default=list)
+    photos_prestataire = models.JSONField(blank=True, default=list)
+    # Version du prestataire (droit de réponse au litige).
+    prestataire_response = models.TextField(blank=True, default="")
+    prestataire_response_at = models.DateTimeField(blank=True, null=True)
+    # Décision admin (traçabilité).
+    decided_at = models.DateTimeField(blank=True, null=True)
+    decided_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="disputes_decided",
+    )
+    decision_note = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):
@@ -1013,6 +1104,11 @@ class Call(models.Model):
 
 
 class Message(models.Model):
+    class Kind(models.TextChoices):
+        USER = "USER", "Message utilisateur"
+        DEVIS_CARD = "DEVIS_CARD", "Carte devis ancrée"
+        SYSTEM = "SYSTEM", "Événement système"
+
     conversation = models.ForeignKey(
         Conversation,
         on_delete=models.CASCADE,
@@ -1027,7 +1123,35 @@ class Message(models.Model):
         validators=[MaxLengthValidator(5000)],
         help_text="Maximum 5000 caractères",
     )
+    # Type de message : USER = libre ; DEVIS_CARD = devis figé ancré au fil ;
+    # SYSTEM = événement (démarrage/fin/paiement). Permet d'injecter cartes
+    # devis et événements dans le fil de chat unique de chaque réservation.
+    kind = models.CharField(
+        max_length=16,
+        choices=Kind.choices,
+        default=Kind.USER,
+        db_index=True,
+        help_text=(
+            "USER = message libre. DEVIS_CARD = devis figé ancré au fil. "
+            "SYSTEM = événement (démarrage/fin/paiement)."
+        ),
+    )
+    # Données structurées pour les messages DEVIS_CARD / SYSTEM
+    # (montants, références, statuts…).
+    payload_json = models.JSONField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Données structurées pour les messages DEVIS_CARD/SYSTEM "
+            "(montants, références, statuts…)."
+        ),
+    )
     image = models.ImageField(upload_to="babifix_chat/", blank=True)
+    # Note vocale (enregistrement audio envoyé dans le fil, façon WhatsApp).
+    audio = models.FileField(upload_to="babifix_chat_audio/", blank=True)
+    audio_duration = models.PositiveIntegerField(
+        default=0, help_text="Durée de la note vocale en secondes (affichage UI)."
+    )
     reply_to = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -1291,7 +1415,15 @@ class Devis(models.Model):
     )
     commission_montant = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_prestataire = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    remise = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Remise commerciale accordée au client (déduite du sous-total).",
+    )
     total_ttc = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    # Photos jointes par le prestataire au devis (diagnostic visuel).
+    photos_prestataire = models.JSONField(blank=True, default=list)
 
     note_prestataire = models.TextField(blank=True, default="")
     validite_jours = models.IntegerField(default=7)
@@ -1371,6 +1503,18 @@ class LigneDevis(models.Model):
     description = models.CharField(max_length=255)
     quantite = models.IntegerField(default=1)
     prix_unitaire = models.DecimalField(max_digits=10, decimal_places=2)
+    unite = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+        help_text="Unité (u, m, m², m³, ml, kg, h, jour, forfait…) — affichage UI",
+    )
+    marque = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Marque/référence matériau (optionnel, vue Kanban)",
+    )
 
     @property
     def total(self):

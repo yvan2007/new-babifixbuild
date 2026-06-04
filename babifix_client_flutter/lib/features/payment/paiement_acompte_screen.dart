@@ -12,6 +12,8 @@ import '../../user_store.dart';
 import '../../shared/services/geniuspay_service.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_payment_error_banner.dart';
+import '../../shared/services/pending_payment_store.dart';
 
 const _kOperators = [
   _OpDef('ORANGE_MONEY', 'Orange Money', Color(0xFFFF6600)),
@@ -74,6 +76,7 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
       begin: 0.85,
       end: 1.0,
     ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    _resumePendingPayment();
   }
 
   @override
@@ -82,6 +85,21 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
     _pulseCtrl.dispose();
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+  // Reprise auto d'un acompte interrompu par une fermeture de l'app.
+  Future<void> _resumePendingPayment() async {
+    final pending = await PendingPaymentStore.readForReservation(
+      widget.reservationReference,
+    );
+    if (pending == null || !mounted) return;
+    setState(() {
+      _operator = pending.operator.isNotEmpty ? pending.operator : _operator;
+      _polling = true;
+      _pollCount = 0;
+      _error = null;
+    });
+    _startPolling(pending.reference);
   }
 
   _OpDef get _currentOp => _kOperators.firstWhere(
@@ -164,6 +182,14 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
 
   void _startPolling(String reference) {
     _pollTimer?.cancel();
+    PendingPaymentStore.save(PendingPayment(
+      reference: reference,
+      reservationRef: widget.reservationReference,
+      amount: _acompte,
+      operator: _operator,
+      kind: 'acompte',
+      startedAtMs: DateTime.now().millisecondsSinceEpoch,
+    ));
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (t) async {
       if (!mounted) { t.cancel(); return; }
       if (_pollCount >= 24) {
@@ -180,9 +206,11 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
         if (!mounted) { t.cancel(); return; }
         if (status != null && status.isCompleted) {
           t.cancel();
+          await PendingPaymentStore.clear();
           setState(() { _polling = false; _done = true; });
         } else if (status != null && status.isFailed) {
           t.cancel();
+          await PendingPaymentStore.clear();
           setState(() {
             _polling = false;
             _error = 'Paiement échoué. Réessayez.';
@@ -456,27 +484,9 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
   }
 
   Widget _buildErrorBanner() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFCA5A5)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(_error!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 13, height: 1.4)),
-          ),
-          GestureDetector(
-            onTap: () => setState(() => _error = null),
-            child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFFDC2626)),
-          ),
-        ],
-      ),
+    return BabifixPaymentErrorBanner(
+      message: _error!,
+      onDismiss: () => setState(() => _error = null),
     );
   }
 

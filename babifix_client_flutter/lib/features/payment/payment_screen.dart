@@ -16,6 +16,8 @@ import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/services/geniuspay_service.dart';
 import '../auth/biometric_login_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_payment_error_banner.dart';
+import '../../shared/services/pending_payment_store.dart';
 
 // ---------------------------------------------------------------------------
 // Opérateurs Mobile Money disponibles via GeniusPay (Côte d'Ivoire)
@@ -145,6 +147,9 @@ class _PaymentScreenState extends State<PaymentScreen>
             _phoneCtrl.text = phone;
           }
         });
+        // Reprise auto si un paiement de cette réservation était en cours
+        // quand l'app a été fermée/coupée.
+        await _resumePendingPayment();
         return;
       }
     } catch (_) {}
@@ -236,9 +241,36 @@ class _PaymentScreenState extends State<PaymentScreen>
     }
   }
 
+  // ── Reprise d'un paiement interrompu ─────────────────────────────────────
+  Future<void> _resumePendingPayment() async {
+    final ref = _reservationRef;
+    if (ref == null || ref.isEmpty) return;
+    final pending = await PendingPaymentStore.readForReservation(ref);
+    if (pending == null || !mounted) return;
+    // On relance directement le suivi : si le paiement a été confirmé
+    // entre-temps, le premier appel statut le détectera ; sinon on continue.
+    setState(() {
+      _operator = pending.operator.isNotEmpty ? pending.operator : _operator;
+      _polling = true;
+      _pollCount = 0;
+      _error = null;
+    });
+    _startPolling(pending.reference);
+  }
+
   // ── Polling statut GeniusPay (toutes les 5 s, max 2 min) ─────────────────
   void _startPolling(String reference) {
     _pollTimer?.cancel();
+    // Persiste le paiement en cours pour pouvoir le reprendre après une
+    // fermeture forcée de l'application.
+    PendingPaymentStore.save(PendingPayment(
+      reference: reference,
+      reservationRef: _reservationRef ?? '',
+      amount: _amount.toDouble(),
+      operator: _operator,
+      kind: 'post',
+      startedAtMs: DateTime.now().millisecondsSinceEpoch,
+    ));
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (t) async {
       if (!mounted) { t.cancel(); return; }
       if (_pollCount >= 24) {
@@ -260,6 +292,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           await _registerPaymentAfterGeniusPay();
         } else if (status != null && status.isFailed) {
           t.cancel();
+          await PendingPaymentStore.clear();
           setState(() {
             _polling = false;
             _error = 'Paiement échoué ou annulé. Vous pouvez réessayer.';
@@ -353,6 +386,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         _paymentRef = data['payment_reference'] as String?;
+        await PendingPaymentStore.clear();
         if (mounted) setState(() { _polling = false; _done = true; });
       } else {
         if (mounted) {
@@ -863,42 +897,9 @@ class _PaymentScreenState extends State<PaymentScreen>
 
   // ── Bannière erreur ──────────────────────────────────────────────────────
   Widget _buildErrorBanner() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFCA5A5)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: Color(0xFFDC2626),
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _error!,
-              style: const TextStyle(
-                color: Color(0xFFDC2626),
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: () => setState(() => _error = null),
-            child: const Icon(
-              Icons.close_rounded,
-              size: 18,
-              color: Color(0xFFDC2626),
-            ),
-          ),
-        ],
-      ),
+    return BabifixPaymentErrorBanner(
+      message: _error!,
+      onDismiss: () => setState(() => _error = null),
     );
   }
 

@@ -177,23 +177,12 @@ def on_actualite_saved(sender, instance, created, **kwargs):
         _log.warning('Création notifications actualité: %s', exc)
 
 
-@receiver(post_save, sender=Notification)
-def on_notification_created(sender, instance, created, raw=False, **kwargs):
-    if raw or not created or not instance.user_id:
-        return
-    push_dispatch._schedule(
-        [instance.user_id],
-        instance.title,
-        instance.body or '',
-        {
-            'type': 'notification',
-            'notification_type': instance.notif_type or '',
-            'notification_id': str(instance.pk),
-            'reference': instance.reference or '',
-            'title': instance.title or '',
-            'body': instance.body or '',
-        },
-    )
+## NOTE : l'envoi FCM des Notifications est centralisé plus bas dans
+## `on_notification_saved` — un seul handler, filtré sur `created`, qui
+## délègue à `push_dispatch.on_notification_created` (gère user ciblé ET
+## broadcast global). Ce stub est volontairement conservé sans receiver
+## pour garder un point d'entrée si on veut un jour ré-introduire un
+## traitement spécialisé.
 
 
 @receiver(post_delete, sender=Provider)
@@ -270,7 +259,10 @@ def on_notification_saved(sender, instance, created, **kwargs):
         return
     event = 'notification.created' if created else 'notification.updated'
     realtime.broadcast_admin_event(event, realtime.serialize_notification(instance))
-    push_dispatch.on_notification_created(instance)
+    # Push FCM seulement à la création — évite de re-blaster tous les users
+    # à chaque update (mark-as-read, archivage, etc.).
+    if created:
+        push_dispatch.on_notification_created(instance)
 
 
 @receiver(post_delete, sender=Notification)

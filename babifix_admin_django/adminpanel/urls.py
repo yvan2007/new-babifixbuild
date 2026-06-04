@@ -31,6 +31,7 @@ from .views_extra import (
     api_admin_audit_log,
     api_admin_bulk_provider_action,
     api_admin_export_csv,
+    api_client_disputes,
     api_client_favorites,
     api_client_fidelite,
     api_client_invoice_pdf,
@@ -45,7 +46,9 @@ from .views_extra import (
     api_prestataire_invoice_pdf,
     api_prestataire_kyc_status,
     api_prestataire_kyc_submit,
+    api_prestataire_payments_history,
     api_prestataire_ratings,
+    api_prestataire_respond_dispute,
     api_prestataire_stats,
     api_prestataire_unavailability_crud,
     api_prestataire_wallet,
@@ -54,6 +57,8 @@ from .views_extra import (
 )
 from .views_v2 import (
     api_admin_push_broadcast,
+    api_app_log_error,
+    api_app_version,
     api_auth_delete_account,
     api_auth_forgot_password,
     api_auth_refresh_token,
@@ -474,6 +479,26 @@ urlpatterns = [
         api_prestataire_disputes,
         name="api-prestataire-disputes",
     ),
+    path(
+        "api/prestataire/disputes/<str:dispute_ref>/respond/",
+        api_prestataire_respond_dispute,
+        name="api-prestataire-respond-dispute",
+    ),
+    path(
+        "api/client/disputes/",
+        api_client_disputes,
+        name="api-client-disputes",
+    ),
+    path(
+        "api/prestataire/payments/history/",
+        api_prestataire_payments_history,
+        name="api-prestataire-payments-history",
+    ),
+    # ── App mobile : version gate + remontée d'erreurs ─────────────────────────
+    path("api/app/version", api_app_version, name="api-app-version"),
+    path("api/app/version/", api_app_version, name="api-app-version-slash"),
+    path("api/app/log-error", api_app_log_error, name="api-app-log-error"),
+    path("api/app/log-error/", api_app_log_error, name="api-app-log-error-slash"),
     # ── Devis ─────────────────────────────────────────────────────────────────
     path(
         "api/prestataire/requests/<str:reference>/devis",

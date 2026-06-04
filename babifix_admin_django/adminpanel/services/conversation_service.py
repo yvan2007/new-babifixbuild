@@ -147,9 +147,7 @@ def post_devis_card(reservation, devis) -> Optional[object]:
         "lignes": lignes,
     }
     sender = _system_sender(reservation)
-    body = (
-        f"Devis {devis.reference} accepté — total {int(devis.total_ttc)} F CFA."
-    )
+    body = f"Devis {devis.reference} — total {int(devis.total_ttc)} F CFA."
     return Message.objects.create(
         conversation=conv,
         sender=sender,
