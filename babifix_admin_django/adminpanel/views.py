@@ -2515,6 +2515,7 @@ def api_messages_send_by_reservation(request):
 @require_http_methods(["GET"])
 @require_api_auth(["client", "prestataire"])
 def api_messages(request):
+    uid = int(request.api_user_id)
     prestataire_id = request.GET.get("prestataire_id")
     client_id = request.GET.get("client_id")
     reservation_id = request.GET.get("reservation_id")
@@ -3333,6 +3334,125 @@ def api_prestataire_requests(request):
             }
         )
     return JsonResponse({"items": data})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire", "admin"])
+def api_prestataire_location_update(request):
+    """Met à jour la position GPS ACTUELLE du prestataire connecté.
+
+    Appelé par l'app (LocationReporter) au démarrage et à chaque retour en
+    foreground → la position "suit" le prestataire quand il se déplace, au lieu
+    de rester figée sur un point d'inscription. Diffuse aussi le changement aux
+    clients (temps réel) pour que la carte reflète la nouvelle position.
+    """
+    prov = _prestataire_provider_for_user(request.api_user_id)
+    if not prov:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+    try:
+        lat = float(payload.get("latitude"))
+        lon = float(payload.get("longitude"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "invalid_coordinates"}, status=400)
+    # Bornes plausibles (évite d'enregistrer des coordonnées aberrantes).
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return JsonResponse({"error": "coordinates_out_of_range"}, status=400)
+
+    fields = ["latitude", "longitude"]
+    prov.latitude = lat
+    prov.longitude = lon
+    ville = str(payload.get("ville", "") or "").strip()[:80]
+    if ville:
+        prov.ville = ville
+        fields.append("ville")
+    prov.save(update_fields=fields)
+
+    # Temps réel : informer les clients que la position a changé (best-effort).
+    try:
+        from . import realtime
+        realtime.broadcast_client_event(
+            "provider.location_changed",
+            {"provider_id": prov.id, "latitude": lat, "longitude": lon},
+        )
+    except Exception:
+        pass
+
+    return JsonResponse({"ok": True, "latitude": lat, "longitude": lon})
+
+
+def _saved_address_json(a):
+    return {
+        "id": a.id,
+        "label": a.label,
+        "latitude": a.latitude,
+        "longitude": a.longitude,
+        "address_label": a.address_label,
+        "address_repere": a.address_repere,
+        "is_default": a.is_default,
+    }
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST", "DELETE"])
+@require_api_auth(["client", "admin"])
+def api_client_saved_addresses(request, addr_id=None):
+    """Carnet d'adresses du client.
+
+    GET    /api/client/addresses              → liste
+    POST   /api/client/addresses              → créer {label, latitude, longitude, ...}
+    DELETE /api/client/addresses/<id>         → supprimer
+    """
+    from .models import ClientSavedAddress
+
+    uid = int(request.api_user_id)
+
+    if request.method == "GET":
+        items = ClientSavedAddress.objects.filter(user_id=uid)
+        return JsonResponse({"addresses": [_saved_address_json(a) for a in items]})
+
+    if request.method == "DELETE":
+        if not addr_id:
+            return JsonResponse({"error": "id_required"}, status=400)
+        ClientSavedAddress.objects.filter(id=addr_id, user_id=uid).delete()
+        return JsonResponse({"ok": True})
+
+    # POST — créer / mettre à jour
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+    label = str(payload.get("label", "") or "").strip()[:60]
+    if not label:
+        return JsonResponse({"error": "label_required"}, status=400)
+    try:
+        lat = float(payload.get("latitude"))
+        lon = float(payload.get("longitude"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "invalid_coordinates"}, status=400)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return JsonResponse({"error": "coordinates_out_of_range"}, status=400)
+
+    is_default = bool(payload.get("is_default", False))
+    if is_default:
+        # Une seule adresse par défaut à la fois.
+        ClientSavedAddress.objects.filter(user_id=uid, is_default=True).update(
+            is_default=False
+        )
+    addr = ClientSavedAddress.objects.create(
+        user_id=uid,
+        label=label,
+        latitude=lat,
+        longitude=lon,
+        address_label=str(payload.get("address_label", "") or "")[:255],
+        address_repere=str(payload.get("address_repere", "") or "")[:300],
+        is_default=is_default,
+    )
+    return JsonResponse({"ok": True, "address": _saved_address_json(addr)}, status=201)
 
 
 @csrf_exempt
@@ -4232,7 +4352,7 @@ def api_client_declare_cash(request, reference):
         return JsonResponse({"error": "forbidden"}, status=403)
     if res.payment_type != Reservation.PaymentType.ESPECES:
         return JsonResponse({"error": "not_cash_reservation"}, status=400)
-    if res.statut != "Terminee":
+    if res.statut not in ("Terminee", "Confirmee"):
         return JsonResponse({"error": "reservation_not_completed"}, status=400)
     if res.cash_client_declared_at:
         return JsonResponse({"error": "already_declared"}, status=400)
@@ -5256,19 +5376,23 @@ def api_prestataire_create_devis(request, reference):
         except (ValueError, TypeError):
             pass
 
-    parsed_heure_debut = None
-    if heure_debut:
+    def _parse_time(val):
+        if not val:
+            return None
         try:
-            parsed_heure_debut = time.fromisoformat(heure_debut)
+            return time.fromisoformat(val)
         except (ValueError, TypeError):
             pass
+        # Support HH:mm (sans secondes) pour Python <3.11
+        if isinstance(val, str) and val.count(":") == 1:
+            try:
+                return time.fromisoformat(f"{val}:00")
+            except (ValueError, TypeError):
+                pass
+        return None
 
-    parsed_heure_fin = None
-    if heure_fin:
-        try:
-            parsed_heure_fin = time.fromisoformat(heure_fin)
-        except (ValueError, TypeError):
-            pass
+    parsed_heure_debut = _parse_time(heure_debut)
+    parsed_heure_fin = _parse_time(heure_fin)
 
     from .services.wallet_service import _get_effective_commission_rate
     eff = _get_effective_commission_rate(provider)
