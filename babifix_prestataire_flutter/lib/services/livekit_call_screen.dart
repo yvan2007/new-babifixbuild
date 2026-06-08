@@ -194,20 +194,6 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
     Navigator.of(context).pop();
   }
 
-  bool get _hasRemoteVideo {
-    if (_remoteParticipant == null) return false;
-    if (_remoteParticipant!.videoTrackPublications.isEmpty) return false;
-    final camTrack = _remoteParticipant!.getTrackPublicationBySource(TrackSource.camera);
-    return camTrack?.subscribed == true;
-  }
-
-  bool get _hasLocalVideo {
-    if (_room?.localParticipant == null) return false;
-    if (!_isCameraEnabled) return false;
-    if (_room!.localParticipant!.videoTrackPublications.isEmpty) return false;
-    return true;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -218,7 +204,6 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
             _buildRemoteVideo(),
             _buildLocalVideo(),
             _buildTopBar(),
-            _buildDebugInfo(),
             _buildBottomBar(),
           ],
         ),
@@ -272,71 +257,79 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
     );
   }
 
-  Widget _buildDebugInfo() {
-    return Positioned(
-      top: 100,
-      left: 20,
-      right: 20,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          'Room: ${widget.roomName}\n'
-          'Connected: $_isConnected\n'
-          'Remote: ${_remoteParticipant?.identity ?? "none"}\n'
-          'Remote video: $_hasRemoteVideo\n'
-          'Local video: $_hasLocalVideo\n'
-          'Mic: $_isMicEnabled | Cam: $_isCameraEnabled',
-          style: const TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'monospace'),
-        ),
-      ),
-    );
+  /// Piste vidéo caméra du correspondant distant (null si pas de vidéo).
+  VideoTrack? get _remoteVideoTrack {
+    final p = _remoteParticipant;
+    if (p == null) return null;
+    final pub = p.getTrackPublicationBySource(TrackSource.camera);
+    if (pub?.subscribed != true) return null;
+    return pub?.track as VideoTrack?;
+  }
+
+  /// Piste vidéo caméra locale (null si caméra coupée).
+  VideoTrack? get _localVideoTrack {
+    final lp = _room?.localParticipant;
+    if (lp == null || !_isCameraEnabled) return null;
+    final pub = lp.getTrackPublicationBySource(TrackSource.camera);
+    return pub?.track as VideoTrack?;
   }
 
   Widget _buildRemoteVideo() {
-    if (!_hasRemoteVideo) {
-      return Center(
+    final track = _remoteVideoTrack;
+    if (track != null) {
+      // Flux vidéo distant en plein écran.
+      return Positioned.fill(
+        child: VideoTrackRenderer(
+          track,
+          fit: VideoViewFit.cover,
+        ),
+      );
+    }
+    // Pas de vidéo distante : avatar + statut (appel audio, ou vidéo coupée).
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [BabifixDesign.navy, Color(0xFF0A1020)],
+        ),
+      ),
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 150),
+            const SizedBox(height: 120),
             CircleAvatar(
               radius: 60,
               backgroundColor: BabifixDesign.ciOrange,
               child: Text(
-                widget.targetUserName.isNotEmpty ? widget.targetUserName[0].toUpperCase() : '?',
+                widget.targetUserName.isNotEmpty
+                    ? widget.targetUserName[0].toUpperCase()
+                    : '?',
                 style: const TextStyle(fontSize: 48, color: Colors.white),
               ),
             ),
             const SizedBox(height: 20),
             Text(
-              _remoteParticipant != null
-                  ? '${widget.targetUserName} est connecté'
-                  : 'En attente de ${widget.targetUserName}...',
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              widget.targetUserName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               _isConnected
-                  ? (_hasRemoteVideo ? 'Vidéo active' : 'Vidéo désactivée')
-                  : 'Connexion en cours...',
-              style: const TextStyle(color: Colors.white54, fontSize: 14),
+                  ? (_remoteParticipant != null
+                      ? (widget.isVideoCall
+                          ? 'Caméra désactivée'
+                          : 'Appel en cours')
+                      : 'En attente de réponse…')
+                  : 'Connexion…',
+              style: const TextStyle(color: Colors.white60, fontSize: 15),
             ),
           ],
-        ),
-      );
-    }
-
-    return Container(
-      color: Colors.black,
-      child: const Center(
-        child: Text(
-          'Flux vidéo distant\n(VideoTrackRenderer API à implémenter)',
-          style: TextStyle(color: Colors.white, fontSize: 16),
-          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -345,55 +338,26 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
   Widget _buildLocalVideo() {
     if (!widget.isVideoCall) return const SizedBox.shrink();
 
-    if (!_hasLocalVideo) {
-      return Positioned(
-        top: 280,
-        right: 16,
+    final track = _localVideoTrack;
+    return Positioned(
+      top: 90,
+      right: 16,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 100,
           height: 150,
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white24, width: 1),
           ),
-          child: const Center(
-            child: Icon(
-              Icons.videocam_off,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Positioned(
-      top: 280,
-      right: 16,
-      child: Container(
-        width: 100,
-        height: 150,
-        decoration: BoxDecoration(
-          color: BabifixDesign.navy,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white, width: 2),
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.videocam,
-                color: Colors.white,
-                size: 28,
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Caméra',
-                style: TextStyle(color: Colors.white70, fontSize: 10),
-              ),
-            ],
-          ),
+          child: track != null
+              ? VideoTrackRenderer(track, fit: VideoViewFit.cover)
+              : const Center(
+                  child: Icon(Icons.videocam_off,
+                      color: Colors.white, size: 32),
+                ),
         ),
       ),
     );

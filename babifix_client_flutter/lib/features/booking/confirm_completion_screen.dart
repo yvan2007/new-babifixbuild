@@ -264,6 +264,7 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                 ),
               ),
               const SizedBox(height: 14),
+              if (q != null) _paymentRecap(q),
               if (widget.photosAvant.isNotEmpty)
                 _photoSection('Photos avant intervention', widget.photosAvant),
               if (widget.photosApres.isNotEmpty)
@@ -333,6 +334,101 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Récapitulatif clair du règlement : montre ce qui a DÉJÀ été réglé et ce
+  /// qu'il reste — pour éviter de croire que le total est reprélevé à la fin.
+  Widget _paymentRecap(EscrowQuote q) {
+    final acompteDejaRegle = (q.totalDevis - q.cashRemainderDueToProvider);
+    final lines = <Widget>[
+      _recapLine('Total du devis', fmtMoney(q.totalDevis), bold: true),
+    ];
+    if (q.isCash) {
+      lines.addAll([
+        _recapLine(
+          'Acompte déjà réglé en ligne (commission)',
+          '${fmtMoney(acompteDejaRegle)}  ✓',
+          color: BabifixDesign.ciGreen,
+        ),
+        _recapLine(
+          'Reste à régler en espèces au prestataire',
+          fmtMoney(q.cashRemainderDueToProvider),
+          color: BabifixDesign.ciBlue,
+          bold: true,
+        ),
+      ]);
+    } else {
+      lines.addAll([
+        _recapLine('Commission plateforme (déjà retenue)',
+            fmtMoney(q.commissionMontant)),
+        _recapLine('Versé au prestataire maintenant',
+            fmtMoney(q.netPrestataire),
+            color: BabifixDesign.ciGreen, bold: true),
+      ]);
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Récapitulatif du règlement',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade800)),
+          const SizedBox(height: 10),
+          ...lines,
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.verified_user_outlined,
+                  size: 16, color: BabifixDesign.ciGreen),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  q.isCash
+                      ? "Aucun nouveau montant ne sera prélevé en ligne. Le total reste ${fmtMoney(q.totalDevis)}."
+                      : "Le total payé en ligne reste ${fmtMoney(q.totalDevis)} — rien n'est facturé deux fois.",
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.35,
+                      color: Colors.grey.shade600),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recapLine(String label, String value,
+      {Color? color, bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(label,
+                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700)),
+          ),
+          const SizedBox(width: 10),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                  color: color ?? Colors.black87)),
+        ],
+      ),
     );
   }
 

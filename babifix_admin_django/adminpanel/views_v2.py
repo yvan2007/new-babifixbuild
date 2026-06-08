@@ -202,7 +202,86 @@ def api_client_reservation_detail(request, reference):
     res = _get_res_for_client(reference, uid)
     if not res:
         return JsonResponse({"error": "not_found"}, status=404)
-    return JsonResponse(_res_to_dict(res, uid))
+    data = _res_to_dict(res, uid)
+    data.update(_res_receipt_extras(res))
+    return JsonResponse(data)
+
+
+def _res_receipt_extras(res: Reservation) -> dict:
+    """Champs complémentaires pour le reçu (parties, lignes, dates, montants).
+
+    Séparé de `_res_to_dict` pour ne pas alourdir la liste : ces requêtes
+    (devis, lignes, user) ne sont faites que sur l'écran de détail / reçu.
+    """
+    # Devis le plus pertinent : ACCEPTE > ENVOYE > dernier en date.
+    devis = (
+        res.devis_set.filter(statut="ACCEPTE").order_by("-created_at").first()
+        or res.devis_set.filter(statut="ENVOYE").order_by("-created_at").first()
+        or res.devis_set.order_by("-created_at").first()
+    )
+    lignes = []
+    if devis:
+        for li in devis.lignes.all():
+            lignes.append(
+                {
+                    "designation": li.description,
+                    "quantite": li.quantite,
+                    "prix_unitaire": str(li.prix_unitaire),
+                    "total": str(li.total),
+                }
+            )
+
+    # Date du reçu : prestation terminée > confirmation client > devis > maintenant.
+    dt = (
+        res.prestation_terminee_at
+        or res.client_confirme_prestation_at
+        or (devis.created_at if devis else None)
+        or timezone.now()
+    )
+
+    # Identité du client (nom lisible + e-mail).
+    cu = res.client_user
+    client_nom = ""
+    client_email = ""
+    if cu:
+        client_nom = (cu.get_full_name() or cu.username or "").strip()
+        client_email = cu.email or ""
+    if not client_nom:
+        client_nom = res.client or "Client"
+    if not client_email and "@" in (res.client or ""):
+        client_email = res.client
+
+    # Identité du prestataire (depuis le profil Provider).
+    prov = res.assigned_provider
+    presta_nom = (prov.nom if prov else "") or res.prestataire or "Prestataire"
+    presta_email = ""
+    presta_spec = ""
+    if prov:
+        presta_spec = prov.specialite or ""
+        if prov.user:
+            presta_email = prov.user.email or ""
+
+    return {
+        "created_at": dt.isoformat(),
+        "commission": str(res.commission or 0),
+        "montant_verse": str(res.montant_verse or 0),
+        "montant_restant": str(res.montant_restant or 0),
+        "acompte_valide": res.acompte_valide,
+        "solde_valide": res.solde_valide,
+        "client_data": {
+            "nom": client_nom,
+            "email": client_email,
+            "phone": "",
+        },
+        "prestataire_data": {
+            "nom": presta_nom,
+            "email": presta_email,
+            "specialite": presta_spec,
+            "phone": "",
+        },
+        "devis": lignes,
+        "diagnostic": (devis.diagnostic if devis else "") or res.client_message or "",
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -724,7 +803,15 @@ def api_prestataire_rate_client(request, reference):
         prov = Provider.objects.filter(user_id=uid).first()
         if not prov or res.assigned_provider_id != prov.pk:
             return JsonResponse({"error": "forbidden"}, status=403)
-    if res.statut != "Terminee":
+    # Le prestataire peut noter le client dès que l'intervention est terminée
+    # de son côté (statut Terminée/En attente client OU horodatage de fin posé),
+    # sans attendre une confirmation supplémentaire. Robuste aux variations d'état.
+    _done = (
+        res.statut in ("Terminee", "En attente client")
+        or bool(getattr(res, "prestation_terminee_at", None))
+        or bool(getattr(res, "client_confirme_prestation_at", None))
+    )
+    if not _done:
         return JsonResponse({"error": "reservation_not_completed"}, status=400)
     if request.method == "GET":
         existing = ClientRating.objects.filter(reservation=res).first()
@@ -917,6 +1004,9 @@ def api_payment_quote(request, reference):
         "amount_due_online": float(quote.amount_due),
         "cash_remainder_due_to_provider": float(quote.cash_remainder),
         "acompte_valide": res.acompte_valide,
+        # Opérateur Mobile Money choisi à la réservation → pré-rempli à l'écran
+        # de paiement (plus de double sélection).
+        "mobile_money_operator": res.mobile_money_operator or "",
         "funds_released_at": res.funds_released_at.isoformat() if res.funds_released_at else None,
     })
 

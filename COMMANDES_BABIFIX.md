@@ -276,3 +276,64 @@ python -m daphne -b 0.0.0.0 -p 8002 config.asgi:application 2>&1 | Tee-Object -F
 | **iOS Simulator** | `http://localhost:8002` |
 | **Vrai téléphone (Wi-Fi)** | `http://<IP-DU-PC>:8002` |
 | **Production** | (à configurer dans `.env`) |
+
+---
+
+## 🔑 8. CLÉS / VARIABLES D'ENVIRONNEMENT (.env)
+
+Toutes les clés se mettent dans le fichier **`babifix_admin_django/.env`** (un par ligne,
+format `CLE=valeur`, sans guillemets). Ce fichier n'est **pas** versionné (jamais sur GitHub).
+En production (Render), on met les mêmes clés dans **Environment → Environment Variables**.
+
+### 🆔 KYC — Vérification CNI ivoirienne (Smile Identity)
+
+> **Sans ces clés** : seuls les niveaux 1 (qualité image + format du numéro) et 2 (détection
+> de visage) tournent, puis **validation humaine** par l'admin.
+> **Avec ces clés** : authentification réelle de la carte + lecture du numéro sur l'image +
+> correspondance biométrique → vérification niveau gouvernemental.
+
+```bash
+# Obtenir les clés sur https://portal.usesmileid.com  (Partner ID + API Key)
+SMILE_IDENTITY_PARTNER_ID=votre_partner_id
+SMILE_IDENTITY_API_KEY=votre_api_key
+SMILE_IDENTITY_SERVER=0     # 0 = sandbox (test), 1 = production (réel)
+```
+
+**Pour vérifier que c'est bien activé :**
+```bash
+cd babifix_admin_django
+python manage.py shell -c "from django.conf import settings; print('Partner:', bool(settings.SMILE_IDENTITY_PARTNER_ID), '| Key:', bool(settings.SMILE_IDENTITY_API_KEY), '| Server:', settings.SMILE_IDENTITY_SERVER)"
+```
+→ `Partner: True | Key: True` = niveau 3 actif. `False` = il tourne sans (niveaux 1-2 + humain).
+
+### 💳 Paiement Mobile Money (GeniusPay)
+```bash
+GENIUSPAY_PUBLIC_KEY=...
+GENIUSPAY_SECRET_KEY=...
+GENIUSPAY_WEBHOOK_URL=https://api.babifix.ci/api/paiements/geniuspay/webhook/
+GENIUSPAY_SUCCESS_URL=https://app.babifix.ci/payment-success
+GENIUSPAY_ERROR_URL=https://app.babifix.ci/payment-error
+```
+
+### 📞 Appels audio (LiveKit)
+```bash
+LIVEKIT_URL=wss://babifix-h1giwqew.livekit.cloud
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+```
+
+### 🔔 Notifications push (Firebase)
+```bash
+# Chemin vers le JSON de compte de service téléchargé depuis Firebase Console
+FIREBASE_CREDENTIALS_JSON_PATH=babifix_admin_django/babifix-firebase-adminsdk.json
+```
+
+### 🔐 Maintenance KYC (à planifier — purge pièces + re-vérification CNI expirée)
+```bash
+python manage.py kyc_maintenance              # purge 30j + re-vérification
+python manage.py kyc_maintenance --dry-run    # simulation (ne modifie rien)
+python manage.py kyc_maintenance --purge-days 7   # purge plus agressive
+```
+
+> ⚠️ **Ne jamais mettre les vraies clés dans le code ni sur GitHub.** Uniquement dans `.env`
+> (local) ou les variables d'environnement de l'hébergeur (production).

@@ -149,6 +149,17 @@ def geniuspay_initiate(request):
     except (Reservation.DoesNotExist, ValueError, TypeError):
         return JsonResponse({"error": "reservation_not_found"}, status=404)
 
+    # Persiste l'opérateur choisi AU PAIEMENT sur la réservation (l'opérateur
+    # n'est plus demandé à la réservation — seulement le mode). Sert aussi de
+    # cible pour un éventuel remboursement Mobile Money.
+    if operator_raw in {"ORANGE_MONEY", "MTN_MOMO", "WAVE", "MOOV"}:
+        if reservation.mobile_money_operator != operator_raw:
+            reservation.mobile_money_operator = operator_raw
+            try:
+                reservation.save(update_fields=["mobile_money_operator"])
+            except Exception:
+                pass
+
     # Idempotence : paiement PENDING déjà existant ?
     existing = Payment.objects.filter(
         reservation=reservation,

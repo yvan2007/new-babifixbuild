@@ -87,6 +87,20 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     return Icons.help_outline_rounded;
   }
 
+  /// Extrait « YYYY-MM-DD » d'une chaîne ISO de façon sûre (jamais de RangeError).
+  String _safeDate(dynamic raw) {
+    final s = '${raw ?? ''}'.trim();
+    if (s.length >= 10) return s.substring(0, 10);
+    return DateTime.now().toIso8601String().substring(0, 10);
+  }
+
+  /// Extrait « HH:MM:SS » d'une chaîne ISO si présent, sinon vide.
+  String _safeTime(dynamic raw) {
+    final s = '${raw ?? ''}'.trim();
+    if (s.length >= 19) return s.substring(11, 19);
+    return '';
+  }
+
   String _paymentLabel(String id) {
     switch (id) {
       case 'ESPECES': return 'Espèces';
@@ -177,8 +191,8 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     final montant = (res['montant'] ?? 0).runtimeType == double
         ? (res['montant'] as double)
         : double.tryParse('${res['montant'] ?? 0}') ?? 0;
-    final dateStr = '${res['created_at'] ?? DateTime.now().toIso8601String()}'.substring(0, 10);
-    final timeStr = '${res['created_at'] ?? ''}'.length > 11 ? '${res['created_at']}'.substring(11, 19) : '';
+    final dateStr = _safeDate(res['created_at']);
+    final timeStr = _safeTime(res['created_at']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -312,7 +326,7 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
   Widget _buildReservationInfo(Map<String, dynamic> res, String payType) {
     final items = [
       ('Référence', '${res['reference'] ?? '—'}', Icons.tag_rounded),
-      ('Date', (res['created_at'] ?? '').toString().substring(0, 10), Icons.calendar_today_rounded),
+      ('Date', _safeDate(res['created_at']), Icons.calendar_today_rounded),
       ('Paiement', _paymentLabel(payType), Icons.payment_rounded),
       ('Statut', _statusLabel('${res['statut'] ?? ''}'), Icons.info_outline_rounded),
     ];

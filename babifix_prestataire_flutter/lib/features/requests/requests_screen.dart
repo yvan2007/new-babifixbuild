@@ -1215,7 +1215,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
           // Confirmées / en cours: Démarrer / Terminer
           if (it.status == 'active') ...[
             const SizedBox(height: 10),
-            if (it.apiStatus == 'DEVIS_ACCEPTE')
+            // Après paiement de l'acompte, le backend passe DEVIS_ACCEPTE → Confirmee.
+            // Le bouton "Démarrer" doit rester disponible dans les deux statuts.
+            if (it.apiStatus == 'DEVIS_ACCEPTE' || it.apiStatus == 'Confirmee')
               SizedBox(
                 width: double.infinity,
                 height: 48,

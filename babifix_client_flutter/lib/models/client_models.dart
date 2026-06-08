@@ -132,6 +132,7 @@ class ClientReservation {
     this.canPayRemainder = false,
     this.needCashRemainder = false,
     this.receiptAvailable = false,
+    this.clientConfirmed = false,
     this.disputeOuverte = false,
     this.latitude,
     this.longitude,
@@ -163,6 +164,11 @@ class ClientReservation {
   final bool canPayRemainder;
   final bool needCashRemainder;
   final bool receiptAvailable;
+
+  /// Le client a confirmé la réception des travaux (séquestre/cash réglé).
+  /// Sert à classer la réservation comme « Terminée » même en mode espèces,
+  /// où le statut backend reste « Confirmee ».
+  final bool clientConfirmed;
   final bool disputeOuverte;
   final String statusLabel;
 

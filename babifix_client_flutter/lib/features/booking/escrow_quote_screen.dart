@@ -95,6 +95,12 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
     });
     try {
       _quote = await EscrowApi.quote(widget.reservationReference);
+      // Opérateur choisi à la réservation → pré-sélectionné ici (pas de
+      // double demande). Repli sur Orange Money si non renseigné.
+      final op = _quote?.mobileMoneyOperator ?? '';
+      if (op.isNotEmpty && _kOperators.any((o) => o.id == op)) {
+        _operator = op;
+      }
     } on BabifixApiException catch (e) {
       _error = e.message;
     } catch (e) {
@@ -260,9 +266,11 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Paiement de l\'acompte',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        title: Text(
+          (_quote != null && _quote!.isMobile && _quote!.acompteValide)
+              ? 'Paiement du solde'
+              : 'Paiement de l\'acompte',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
       body: _loading
@@ -299,6 +307,14 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
 
   Widget _content(EscrowQuote q) {
     final color = q.isCash ? Colors.orange.shade700 : BabifixDesign.ciBlue;
+    // Phase de paiement :
+    //  - cash : payé dès que l'acompte (commission) est versé.
+    //  - mobile : acompte 30 % puis solde 70 % ; "fini" quand plus rien n'est dû.
+    final alreadyPaid = q.isCash
+        ? q.acompteValide
+        : (q.acompteValide && q.amountDueOnline <= 0);
+    final canPayNow = !alreadyPaid && q.amountDueOnline > 0;
+    final isSoldePhase = q.isMobile && q.acompteValide && q.amountDueOnline > 0;
     return Column(
       children: [
         Expanded(
@@ -347,9 +363,13 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                                 "de la plateforme (${q.commissionMontant.toInt()} F CFA). "
                                 "Le reste (${q.cashRemainderDueToProvider.toInt()} F CFA) "
                                 "sera payé en cash directement au prestataire à la fin du chantier."
-                            : "Vous versez l'acompte maintenant. "
-                                "L'argent reste sécurisé chez BABIFIX. "
-                                "Le prestataire reçoit sa part après votre confirmation des travaux.",
+                            : isSoldePhase
+                                ? "Vous payez maintenant le solde restant. L'argent "
+                                    "reste sécurisé chez BABIFIX ; le prestataire est "
+                                    "payé après votre confirmation des travaux."
+                                : "Vous payez l'acompte (30 %) maintenant. Le solde "
+                                    "(70 %) sera payé en ligne à la fin, avant votre "
+                                    "confirmation. L'argent reste sécurisé chez BABIFIX.",
                         style: const TextStyle(fontSize: 13, height: 1.4, color: Colors.white70),
                       ),
                     ],
@@ -427,7 +447,7 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                   ),
                 ],
                 const SizedBox(height: 14),
-                if (q.acompteValide)
+                if (alreadyPaid)
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -443,7 +463,9 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Acompte déjà versé.',
+                            q.isMobile
+                                ? 'Paiement complet effectué (acompte + solde).'
+                                : 'Acompte déjà versé.',
                             style: TextStyle(
                                 color: BabifixDesign.ciGreen,
                                 fontWeight: FontWeight.w600),
@@ -452,16 +474,47 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                       ],
                     ),
                   ),
-                if (!q.acompteValide) ...[
+                if (isSoldePhase)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: BabifixDesign.ciGreen.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: BabifixDesign.ciGreen.withValues(alpha: 0.25)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle_outline,
+                              color: BabifixDesign.ciGreen, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Acompte (30 %) déjà versé. Il reste le solde à régler.',
+                              style: TextStyle(
+                                  color: BabifixDesign.ciGreen,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (canPayNow) ...[
                   const SizedBox(height: 14),
                   Text(
-                    'Opérateur Mobile Money',
+                    'Choisissez votre opérateur Mobile Money',
                     style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
                         color: Colors.white),
                   ),
                   const SizedBox(height: 10),
+                  // Choix de l'opérateur au moment du paiement (le montant exact
+                  // est désormais connu grâce au devis).
                   SizedBox(
                     height: 68,
                     child: ListView(
@@ -576,7 +629,7 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                       color: Colors.white.withValues(alpha: 0.45)),
                   textAlign: TextAlign.center,
                 ),
-                if (_error != null && !q.acompteValide) ...[
+                if (_error != null && canPayNow) ...[
                   const SizedBox(height: 14),
                   BabifixPaymentErrorBanner(
                     message: _error!,
@@ -595,7 +648,7 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed:
-                    q.acompteValide || _paying ? null : _pay,
+                    (!canPayNow || _paying) ? null : _pay,
                 icon: _paying
                     ? const SizedBox(
                         width: 16,
@@ -603,7 +656,7 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                         child: BabifixRingLoader.cyan(size: 28))
                     : const Icon(Icons.mobile_friendly_rounded, size: 22),
                 label: Text(
-                  q.acompteValide
+                  alreadyPaid
                       ? 'Déjà payé'
                       : _paying
                           ? 'Paiement en cours…'
@@ -742,7 +795,9 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
               ),
               const SizedBox(height: 28),
               Text(
-                'Acompte payé !',
+                (_quote != null && _quote!.isMobile && _quote!.acompteValide)
+                    ? 'Solde payé !'
+                    : 'Acompte payé !',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 28,
@@ -751,11 +806,43 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
               ),
               const SizedBox(height: 12),
               Text(
-                'Le paiement a bien été reçu.\n'
-                'Le prestataire peut maintenant démarrer les travaux.',
+                (_quote != null && _quote!.isMobile && _quote!.acompteValide)
+                    ? 'Le paiement a bien été reçu.\n'
+                        'Confirmez les travaux pour libérer le paiement au prestataire.'
+                    : 'Le paiement a bien été reçu.\n'
+                        'Le prestataire peut maintenant démarrer les travaux.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: sub, height: 1.55, fontSize: 15),
               ),
+              if (widget.reservationReference.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.cyan.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: BabifixDesign.cyan.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.receipt_long_rounded,
+                          size: 16, color: BabifixDesign.cyan),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Réservation N° ${widget.reservationReference}',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                            color: BabifixDesign.cyan),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.symmetric(

@@ -88,31 +88,33 @@ class _CheckPainter extends CustomPainter {
       ring,
     );
 
-    // Check qui se trace (deux segments)
+    // Check qui se trace — proportions d'une vraie coche « ✓ » :
+    // petite descente à gauche, puis longue remontée vers la droite.
     if (checkP > 0) {
-      final p1 = Offset(size.width * 0.32, size.height * 0.53);
-      final p2 = Offset(size.width * 0.45, size.height * 0.66);
-      final p3 = Offset(size.width * 0.70, size.height * 0.40);
+      final p1 = Offset(size.width * 0.30, size.height * 0.52);
+      final p2 = Offset(size.width * 0.44, size.height * 0.66);
+      final p3 = Offset(size.width * 0.72, size.height * 0.36);
 
-      final segment1Length = checkP <= 0.4 ? checkP / 0.4 : 1.0;
-      final segment2Length =
-          checkP <= 0.4 ? 0.0 : ((checkP - 0.4) / 0.6).clamp(0.0, 1.0);
+      // Descente courte = 30 % du tracé, remontée longue = 70 %.
+      final seg1 = (checkP / 0.30).clamp(0.0, 1.0);
+      final seg2 = checkP <= 0.30 ? 0.0 : ((checkP - 0.30) / 0.70).clamp(0.0, 1.0);
 
       final pen = Paint()
         ..color = color
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4
+        ..strokeWidth = size.width * 0.075
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
 
-      // Segment 1 (court, vers le bas)
-      final mid1 = Offset.lerp(p1, p2, segment1Length)!;
-      canvas.drawLine(p1, mid1, pen);
-
-      if (segment2Length > 0) {
-        final mid2 = Offset.lerp(p2, p3, segment2Length)!;
-        canvas.drawLine(p2, mid2, pen);
+      // Un seul Path continu (jointure nette au vertex).
+      final path = Path()..moveTo(p1.dx, p1.dy);
+      final mid1 = Offset.lerp(p1, p2, seg1)!;
+      path.lineTo(mid1.dx, mid1.dy);
+      if (seg2 > 0) {
+        final mid2 = Offset.lerp(p2, p3, seg2)!;
+        path.lineTo(mid2.dx, mid2.dy);
       }
+      canvas.drawPath(path, pen);
     }
   }
 

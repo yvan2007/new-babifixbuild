@@ -27,3 +27,5 @@ python-jose>=3.3.0
 reportlab>=4.0.0
 # Hash de mot de passe Argon2 (résistant brute-force/GPU)
 argon2-cffi>=23.1.0
+# GeniusPay — bypass Cloudflare pour API de paiement Mobile Money CI
+cloudscraper>=1.2.71

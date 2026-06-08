@@ -210,6 +210,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                        conversationId: convId > 0 ? convId : null,
                                        authToken: authToken,
                                        apiBase: babifixApiBaseUrl(),
+                                       reservationReference:
+                                           '${_filtered[i]['reservation_reference'] ?? ''}'
+                                                   .isNotEmpty
+                                               ? '${_filtered[i]['reservation_reference']}'
+                                               : null,
                                      ),
                                    ));
                                    _load();

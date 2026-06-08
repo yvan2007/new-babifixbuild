@@ -43,34 +43,79 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-# ─── Format CNI ivoirienne ────────────────────────────────────────────────────
-# Plusieurs formats coexistent selon la génération :
-#   - Ancienne : lettres + chiffres, 8-15 car.  ex: C 0123456 B
-#   - Biométrique récente : CI + 9 chiffres     ex: CI023456789
-#   - CEDEAO : format variable selon émission
-_CNI_PATTERNS = [
-    re.compile(r'^CI\s*\d{7,12}$', re.I),        # CI + 7–12 chiffres
-    re.compile(r'^[A-Z]\s*\d{6,9}\s*[A-Z]$', re.I),  # Lettre + chiffres + lettre
-    re.compile(r'^C\s*\d{6,9}$', re.I),           # Ancien format C + chiffres
-    re.compile(r'^\d{9,15}$'),                     # Purement numérique
-    re.compile(r'^[A-Z0-9]{8,16}$', re.I),        # Alphanumérique générique
+# ─── Format CNI / NNI ivoirien ────────────────────────────────────────────────
+# Référentiel : ONECI / RNPP (Office National de l'État Civil et de
+# l'Identification). Plusieurs identifiants coexistent :
+#   - NNI (Numéro National d'Identification) : 11 chiffres → identifiant FORT
+#   - Nouvelle CNI biométrique ONECI : CI + chiffres
+#   - Ancienne CNI : lettre + chiffres + lettre (ex. C 0123456 B)
+#   - CEDEAO : format variable
+#
+# Chaque motif porte un niveau de confiance : on privilégie le NNI (11 chiffres),
+# puis les formats CNI reconnus, puis un repli alphanumérique générique.
+_CNI_PATTERNS_STRONG = [
+    (re.compile(r'^\d{11}$'), 'NNI (11 chiffres)'),            # NNI officiel
+    (re.compile(r'^CI\s*\d{7,12}$', re.I), 'CNI biométrique ONECI'),
 ]
+_CNI_PATTERNS_OK = [
+    (re.compile(r'^[A-Z]\s*\d{6,9}\s*[A-Z]$', re.I), 'Ancienne CNI'),
+    (re.compile(r'^C\s*\d{6,9}$', re.I), 'CNI ancien format'),
+    (re.compile(r'^\d{9,15}$'), 'Numérique'),
+]
+# Compat : liste plate utilisée ailleurs si besoin.
+_CNI_PATTERNS = [p for p, _ in (_CNI_PATTERNS_STRONG + _CNI_PATTERNS_OK)]
 
 
 def _validate_cni_format(cni_number: str) -> tuple[bool, str]:
-    """Valide le format d'un numéro de CNI ivoirienne. Retourne (ok, motif)."""
+    """Valide le format d'un identifiant CNI/NNI ivoirien.
+
+    Retourne (ok, motif). Reconnaît en priorité le NNI (11 chiffres) et la CNI
+    biométrique ONECI ; tolère les anciens formats ; rejette les évidences
+    invalides (vide, répétition d'un seul chiffre, séquence triviale).
+    """
     cleaned = cni_number.strip().upper().replace(' ', '').replace('-', '').replace('.', '')
     if len(cleaned) < 5:
         return False, 'Numéro trop court (minimum 5 caractères).'
     if len(cleaned) > 20:
         return False, 'Numéro trop long (maximum 20 caractères).'
-    for pattern in _CNI_PATTERNS:
-        if pattern.match(cleaned):
-            return True, ''
-    # Accepté avec avertissement si alphanumérique ≥ 6 chars
+    # Anti-saisie bidon : un seul caractère répété (00000…), ou suite triviale.
+    digits = ''.join(c for c in cleaned if c.isdigit())
+    if digits and len(set(digits)) == 1:
+        return False, 'Numéro invalide (chiffre unique répété).'
+    if digits in ('0123456789', '1234567890', '123456789'):
+        return False, 'Numéro invalide (séquence triviale).'
+
+    label = _cni_format_label(cleaned)
+    if label:
+        return True, ''
+    # Repli : alphanumérique ≥ 6 caractères, accepté mais à vérifier à l'œil.
     if re.match(r'^[A-Z0-9]{6,}$', cleaned):
         return True, ''
     return False, f"Format non reconnu : '{cni_number}'. Vérifiez et re-saisissez."
+
+
+def _cni_format_label(cleaned: str) -> str:
+    """Renvoie le libellé du format reconnu ('' si aucun fort/ok)."""
+    for pattern, lbl in _CNI_PATTERNS_STRONG:
+        if pattern.match(cleaned):
+            return lbl
+    for pattern, lbl in _CNI_PATTERNS_OK:
+        if pattern.match(cleaned):
+            return lbl
+    return ''
+
+
+def cni_confidence(cni_number: str) -> str:
+    """Niveau de confiance du SEUL format (avant biométrie) : 'strong' (NNI /
+    CNI ONECI), 'ok' (ancien format reconnu) ou 'weak' (repli générique)."""
+    cleaned = (cni_number or '').strip().upper().replace(' ', '').replace('-', '').replace('.', '')
+    for pattern, _ in _CNI_PATTERNS_STRONG:
+        if pattern.match(cleaned):
+            return 'strong'
+    for pattern, _ in _CNI_PATTERNS_OK:
+        if pattern.match(cleaned):
+            return 'ok'
+    return 'weak'
 
 
 # ─── Résultats ────────────────────────────────────────────────────────────────
@@ -386,6 +431,25 @@ def _opencv_face_compare(raw_selfie: bytes, raw_cni: bytes) -> tuple[CheckResult
 
 # ─── Niveau 3 : Smile Identity ───────────────────────────────────────────────
 
+def _smile_signature(api_key: str, partner_id: str) -> tuple[str, str]:
+    """Calcule la signature HMAC-SHA256 attendue par Smile Identity.
+
+    Retourne (signature_base64, timestamp_iso8601). Le timestamp DOIT être le
+    même que celui envoyé dans le payload, sinon la signature est rejetée.
+    """
+    import hashlib
+    import hmac
+    from datetime import datetime, timezone as _tz
+
+    timestamp = datetime.now(_tz.utc).isoformat()
+    mac = hmac.new(api_key.encode('utf-8'), digestmod=hashlib.sha256)
+    mac.update(timestamp.encode('utf-8'))
+    mac.update(str(partner_id).encode('utf-8'))
+    mac.update(b'sid_request')
+    signature = base64.b64encode(mac.digest()).decode('utf-8')
+    return signature, timestamp
+
+
 def _smile_identity_verify(
     cni_number: str,
     selfie_b64: str,
@@ -416,6 +480,12 @@ def _smile_identity_verify(
             else 'https://api.smileidentity.com/v1/id_verification'
         )
 
+        # Signature HMAC-SHA256 conforme Smile Identity (obligatoire en prod) :
+        #   signature = base64( HMAC-SHA256(key=api_key,
+        #                                   msg = timestamp + partner_id + "sid_request") )
+        # avec timestamp en ISO 8601. Voir docs.usesmileid.com (Authentication).
+        signature, timestamp = _smile_signature(api_key, partner_id)
+
         # Préparer les données
         # Extraire juste le base64 brut (sans le préfixe data:...)
         selfie_raw_b64 = selfie_b64.split(',', 1)[-1].strip()
@@ -437,8 +507,8 @@ def _smile_identity_verify(
                 {'image_type_id': 0, 'image': selfie_raw_b64},    # selfie
                 {'image_type_id': 1, 'image': cni_recto_b64.split(',', 1)[-1].strip()},  # CNI recto
             ],
-            'signature': api_key,
-            'timestamp': str(int(time.time())),
+            'signature': signature,
+            'timestamp': timestamp,
             'callback_url': '',
             'use_enrolled_image': False,
         }

@@ -86,7 +86,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     return 'Éloigné';
   }
 
-  Future<void> _locate() async {
+  Future<void> _locate({bool forceFresh = false}) async {
     setState(() { _loading = true; _error = null; });
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -99,14 +99,20 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
       }
       if (perm == LocationPermission.deniedForever) throw Exception('Permission bloquée définitivement');
 
-      // Essai 1 : position cache (instantané, marche aussi sur émulateur).
-      Position? pos = await Geolocator.getLastKnownPosition();
+      // forceFresh = appui sur « recentrer » : on IGNORE le cache pour capter
+      // la position ACTUELLE (sinon, après un déplacement, la carte resterait
+      // bloquée sur l'ancien point en cache — ex. Cocody alors qu'on est à Bassam).
+      Position? pos;
+      if (!forceFresh) {
+        // Démarrage : position cache (instantané) pour un affichage immédiat.
+        pos = await Geolocator.getLastKnownPosition();
+      }
       if (pos == null) {
-        // Essai 2 : position fraîche avec timeout généreux.
+        // Position fraîche (GPS réel) avec timeout généreux.
         pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
         ).timeout(
-          const Duration(seconds: 10),
+          const Duration(seconds: 12),
           onTimeout: () => throw Exception('GPS timeout'),
         );
       }
@@ -140,7 +146,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     final useAuth = token != null;
     final base = babifixApiBaseUrl();
     final url = useAuth
-        ? '$base/api/prestataires/?lat=${_myPosition!.latitude}'
+        ? '$base/api/client/prestataires?lat=${_myPosition!.latitude}'
             '&lon=${_myPosition!.longitude}&radius_km=${_radiusKm.round()}'
         : '$base/api/public/providers/?lat=${_myPosition!.latitude}'
             '&lon=${_myPosition!.longitude}&radius=${_radiusKm.round()}';
@@ -160,7 +166,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
       if (data is List) {
         list = data;
       } else if (data is Map<String, dynamic>) {
-        list = (data['providers'] ?? data['results'] ?? <dynamic>[]) as List<dynamic>;
+        list = (data['items'] ?? data['providers'] ?? data['results'] ?? <dynamic>[]) as List<dynamic>;
       } else {
         list = const [];
       }
@@ -201,14 +207,18 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Prestataires près de moi'),
+        title: const Text(
+          'Prestataires près de moi',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: BabifixDesign.darkNavy,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.my_location_rounded),
-            onPressed: _locate,
-            tooltip: 'Recentrer',
+            onPressed: () => _locate(forceFresh: true),
+            tooltip: 'Recentrer sur ma position actuelle',
           ),
         ],
       ),
@@ -265,7 +275,31 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                     ]);
                   },
                 ),
-              // Ma position — halo "radar" pulsant
+              // Prestataires (sous le marqueur de position)
+              MarkerLayer(
+                markers: _providers.map((p) => Marker(
+                  point: LatLng(p.lat, p.lon),
+                  width: 44,
+                  height: 44,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selected = p),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        color: _selected?.id == p.id
+                            ? BabifixDesign.ciOrange
+                            : _distanceColor(p.distanceKm),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [const BoxShadow(blurRadius: 8, color: Colors.black26)],
+                      ),
+                      child: const Icon(Icons.handyman_rounded, color: Colors.white, size: 22),
+                    ),
+                  ),
+                )).toList(),
+              ),
+              // Ma position — halo "radar" pulsant, TOUJOURS au-dessus des pins
+              // pour rester visible même quand des prestataires sont au même endroit.
               if (_myPosition != null)
                 MarkerLayer(markers: [
                   Marker(
@@ -289,8 +323,8 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                               ),
                             ),
                             Container(
-                              width: 26,
-                              height: 26,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
                                 color: BabifixDesign.cyan,
                                 shape: BoxShape.circle,
@@ -303,8 +337,8 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                                       blurRadius: 12)
                                 ],
                               ),
-                              child: const Icon(Icons.person,
-                                  color: Colors.white, size: 16),
+                              child: const Icon(Icons.person_pin_circle,
+                                  color: Colors.white, size: 18),
                             ),
                           ],
                         );
@@ -312,29 +346,6 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                     ),
                   ),
                 ]),
-              // Prestataires
-              MarkerLayer(
-                markers: _providers.map((p) => Marker(
-                  point: LatLng(p.lat, p.lon),
-                  width: 44,
-                  height: 44,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selected = p),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      decoration: BoxDecoration(
-                        color: _selected?.id == p.id
-                            ? BabifixDesign.ciOrange
-                            : _distanceColor(p.distanceKm),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [const BoxShadow(blurRadius: 8, color: Colors.black26)],
-                      ),
-                      child: const Icon(Icons.handyman_rounded, color: Colors.white, size: 22),
-                    ),
-                  ),
-                )).toList(),
-              ),
             ],
           ),
 
@@ -366,7 +377,10 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                       ),
                     ),
                     Text('${_providers.length} prestataire(s)',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: BabifixDesign.navy)),
                   ],
                 ),
               ),
@@ -480,7 +494,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                       const SizedBox(height: 12),
                       Text(_error!, textAlign: TextAlign.center),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _locate, child: const Text('Réessayer')),
+                      FilledButton(onPressed: () => _locate(forceFresh: true), child: const Text('Réessayer')),
                     ],
                   ),
                 ),

@@ -6,7 +6,6 @@ import '../features/auth/forgot_password_screen.dart';
 // vers `DevisKanbanScreen` (Phase A + C1/C2) qui inclut le rendu Kanban,
 // la timeline 8 étapes et le bouton "Accepter & payer" qui ouvre l'écran
 // escrow C5. L'ancien écran reste accessible pour rétrocompat si besoin.
-import '../features/booking/devis_kanban_screen.dart';
 import '../features/home/actualite_detail_screen.dart';
 import '../features/map/providers_map_screen.dart';
 import '../features/reservations/rate_provider_screen.dart';

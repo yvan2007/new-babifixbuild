@@ -118,7 +118,9 @@ from .views import (
     api_prestataire_confirm_cash,
     api_prestataire_conversations,
     api_prestataire_create_devis,
+    api_client_saved_addresses,
     api_prestataire_decide_request,
+    api_prestataire_location_update,
     api_prestataire_demarrer_intervention,
     api_prestataire_earnings,
     api_prestataire_me,
@@ -257,6 +259,21 @@ urlpatterns = [
         "api/prestataire/requests",
         api_prestataire_requests,
         name="api-prestataire-requests",
+    ),
+    path(
+        "api/prestataire/location/update",
+        api_prestataire_location_update,
+        name="api-prestataire-location-update",
+    ),
+    path(
+        "api/client/addresses",
+        api_client_saved_addresses,
+        name="api-client-addresses",
+    ),
+    path(
+        "api/client/addresses/<int:addr_id>",
+        api_client_saved_addresses,
+        name="api-client-address-detail",
     ),
     path(
         "api/prestataire/requests/<str:reference>/decision",

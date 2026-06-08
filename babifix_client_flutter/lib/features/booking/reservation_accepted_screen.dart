@@ -72,7 +72,7 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
     }
     try {
       final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/client/reservations/'),
+        Uri.parse('${babifixApiBaseUrl()}/api/client/reservations/list'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 200) {
@@ -95,7 +95,9 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
         }
       } else {
         setState(() {
-          _error = 'Erreur ${res.statusCode}';
+          _error = res.statusCode == 401
+              ? 'Session expirée. Reconnectez-vous.'
+              : 'Impossible de charger la réservation. Réessayez.';
           _loading = false;
         });
       }

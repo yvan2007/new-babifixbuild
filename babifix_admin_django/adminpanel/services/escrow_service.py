@@ -47,6 +47,10 @@ logger = logging.getLogger(__name__)
 # à la confirmation pour qu'aucune partie ne soit lésée.
 MIN_ONLINE_PAYMENT_XOF = Decimal("500")
 
+# Mobile Money : part payée en acompte à la réservation (le reste = solde
+# payé en ligne à la fin, avant la confirmation des travaux).
+MOBILE_DEPOSIT_RATE = Decimal("0.30")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -126,11 +130,23 @@ class EscrowService:
             if cash_remainder < 0:
                 cash_remainder = Decimal("0")
         else:
-            strategy = "MOBILE_FULL"
-            amount_due = total
-            # B12 — Mobile : même garde-fou si jamais un devis fait < 200 XOF.
+            # Mobile Money en deux temps : 30 % d'acompte à la réservation,
+            # puis 70 % de solde à la fin (avant confirmation). Tout reste en
+            # escrow jusqu'à la confirmation client (release_funds).
+            montant_verse = Decimal(str(reservation.montant_verse or 0))
+            if not reservation.acompte_valide:
+                strategy = "MOBILE_DEPOSIT"  # phase 1 : acompte
+                amount_due = (total * MOBILE_DEPOSIT_RATE).quantize(Decimal("1"))
+            else:
+                strategy = "MOBILE_REMAINDER"  # phase 2 : solde restant
+                amount_due = total - montant_verse
+            if amount_due < 0:
+                amount_due = Decimal("0")
+            # B12 — garde-fou montant minimum GeniusPay (sans dépasser le total).
             if amount_due > 0 and amount_due < MIN_ONLINE_PAYMENT_XOF:
                 amount_due = MIN_ONLINE_PAYMENT_XOF
+                if amount_due > total:
+                    amount_due = total
             cash_remainder = Decimal("0")
 
         return EscrowQuote(
@@ -178,6 +194,11 @@ class EscrowService:
         reservation.acompte_valide = True
         if not reservation.cash_client_declared_at:
             reservation.cash_client_declared_at = timezone.now()
+        # Met à jour le reste dû (utile au flux Mobile 30 %/70 % : après
+        # l'acompte il reste 70 % à payer en ligne avant la confirmation).
+        _devis_total = _latest_devis(reservation)
+        _total_due = Decimal(str(_devis_total.total_ttc or 0)) if _devis_total else reservation.montant_verse
+        reservation.montant_restant = max(Decimal("0"), _total_due - reservation.montant_verse)
         update_fields = [
             "montant_verse",
             "acompte_valide",
@@ -373,6 +394,16 @@ class EscrowService:
         else:
             # Mobile : la plateforme libère le net vers le wallet presta et
             # acte la commission en PlatformRevenue.
+            # Sécurité argent : ne rien libérer tant que le TOTAL (acompte 30 %
+            # + solde 70 %) n'a pas été encaissé en escrow.
+            total_due = Decimal(str(devis.total_ttc or 0))
+            montant_verse = Decimal(str(reservation.montant_verse or 0))
+            if montant_verse + Decimal("1") < total_due:  # tolérance arrondi 1 XOF
+                logger.info(
+                    "release_funds: solde non payé pour %s (versé %s / %s) — gelé",
+                    reservation.reference, montant_verse, total_due,
+                )
+                return {"error": "remainder_not_paid", "held": True}
             provider = reservation.assigned_provider
             if not provider and reservation.prestataire_user_id:
                 provider = Provider.objects.filter(

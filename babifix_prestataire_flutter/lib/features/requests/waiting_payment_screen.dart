@@ -74,7 +74,7 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
     }
     try {
       final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests/'),
+        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 200) {
@@ -115,7 +115,7 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
     if (token == null) return;
     try {
       final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests/'),
+        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 200) {

@@ -183,7 +183,12 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
       );
     }
     final s = widget.statut;
-    final canStart = s == 'DEVIS_ACCEPTE' && (_quote?.acompteValide ?? false);
+    // Après versement de l'acompte par le client, le backend fait passer la
+    // réservation de DEVIS_ACCEPTE → Confirmee. Le prestataire doit pouvoir
+    // démarrer l'intervention dans les DEUX cas (le backend autorise la
+    // transition Confirmee → INTERVENTION_EN_COURS tant que l'acompte est validé).
+    final canStart = (s == 'DEVIS_ACCEPTE' || s == 'Confirmee') &&
+        (_quote?.acompteValide ?? false);
     final canFinish = s == 'INTERVENTION_EN_COURS';
     final acompteEnAttente = s == 'DEVIS_ACCEPTE' &&
         !(_quote?.acompteValide ?? false);

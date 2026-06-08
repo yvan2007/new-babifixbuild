@@ -131,6 +131,29 @@ class BabifixUserStore {
     return res;
   }
 
+  static Future<http.Response> authPatch(
+    String url, {
+    Object? body,
+  }) async {
+    final token = await getApiToken();
+    final fullUrl = url.startsWith('http') ? url : '${babifixApiBaseUrl()}$url';
+    final headers = {
+      if (token != null) 'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
+    return http.patch(Uri.parse(fullUrl), headers: headers, body: body);
+  }
+
+  static Future<http.Response> authDelete(String url) async {
+    final token = await getApiToken();
+    final fullUrl = url.startsWith('http') ? url : '${babifixApiBaseUrl()}$url';
+    final headers = {
+      if (token != null) 'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
+    return http.delete(Uri.parse(fullUrl), headers: headers);
+  }
+
   static Future<bool> isLoggedIn() async {
     final p = await SharedPreferences.getInstance();
     return p.getBool(_kSession) ?? false;

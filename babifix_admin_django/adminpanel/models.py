@@ -248,9 +248,68 @@ class Provider(models.Model):
         related_name="kyc_reviews",
         help_text="Admin qui a examiné le dossier",
     )
+    # Privacy-by-design : horodatage de purge des images d'identité (selfie +
+    # CNI recto/verso). Une fois le dossier traité, on ne garde plus les images
+    # brutes — seulement le résultat, le numéro masqué et la date d'expiration.
+    kyc_documents_purged_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date de suppression des images d'identité (minimisation des données).",
+    )
 
     def __str__(self):
         return self.nom
+
+    # ── KYC : rétention & re-vérification ────────────────────────────────
+    def purge_kyc_documents(self) -> bool:
+        """Supprime les images d'identité brutes (selfie + CNI) tout en gardant
+        la trace de vérification. Idempotent. Retourne True si une purge a eu lieu.
+
+        Minimisation des données : une CNI/selfie n'a aucune raison d'être
+        conservée indéfiniment une fois le dossier approuvé ou rejeté.
+        """
+        had_data = any([
+            self.kyc_cni_recto_url,
+            self.kyc_cni_verso_url,
+            self.kyc_selfie_url,
+            self.cni_url,
+            self.cni_recto_url,
+            self.cni_verso_url,
+            self.selfie_url,
+        ])
+        if not had_data:
+            return False
+        self.kyc_cni_recto_url = ""
+        self.kyc_cni_verso_url = ""
+        self.kyc_selfie_url = ""
+        self.cni_url = ""
+        self.cni_recto_url = ""
+        self.cni_verso_url = ""
+        self.selfie_url = ""
+        self.kyc_documents_purged_at = timezone.now()
+        self.save(update_fields=[
+            "kyc_cni_recto_url", "kyc_cni_verso_url", "kyc_selfie_url",
+            "cni_url", "cni_recto_url", "cni_verso_url", "selfie_url",
+            "kyc_documents_purged_at",
+        ])
+        return True
+
+    def kyc_masked_cni(self) -> str:
+        """Numéro de CNI masqué pour l'affichage admin (ex. 'CI•••••789')."""
+        n = (self.kyc_cni_number or "").strip()
+        if len(n) <= 4:
+            return "•" * len(n)
+        return n[:2] + "•" * (len(n) - 5) + n[-3:]
+
+    def kyc_needs_reverification(self) -> bool:
+        """True si le dossier est approuvé mais la CNI a expiré : il faut
+        redemander une pièce valide au prestataire."""
+        from datetime import date
+        if self.kyc_status != "approved":
+            return False
+        if not self.kyc_cni_expiry:
+            return False
+        return self.kyc_cni_expiry < date.today()
 
 
 class WalletTransaction(models.Model):
@@ -908,6 +967,40 @@ class Notification(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class ClientSavedAddress(models.Model):
+    """Carnet d'adresses du client (Maison, Bureau, Chez maman…).
+
+    Permet de NE PAS confondre « où je suis maintenant » et « où doit avoir lieu
+    l'intervention ». Le client peut enregistrer plusieurs lieux et les réutiliser
+    au moment de réserver, plutôt que d'envoyer systématiquement sa position GPS.
+    """
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="babifix_saved_addresses"
+    )
+    label = models.CharField(
+        max_length=60, help_text="Nom du lieu : Maison, Bureau, Chez maman…"
+    )
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    address_label = models.CharField(max_length=255, blank=True, default="")
+    address_repere = models.CharField(
+        max_length=300, blank=True, default="",
+        help_text="Repère textuel : « à côté de la pharmacie X »",
+    )
+    is_default = models.BooleanField(
+        default=False, help_text="Adresse proposée en premier (domicile principal)."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-is_default", "-updated_at"]
+        indexes = [models.Index(fields=["user", "is_default"])]
+
+    def __str__(self):
+        return f"{self.label} ({self.user_id})"
 
 
 class DeviceToken(models.Model):

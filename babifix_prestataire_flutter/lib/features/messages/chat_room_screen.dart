@@ -14,7 +14,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../services/livekit_call_service.dart';
-import '../../services/livekit_call_screen.dart';
+import '../../services/call_service.dart';
 import '../../shared/error_utils.dart';
 import '../../shared/services/haptics_service.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
@@ -29,6 +29,7 @@ class PrestChatRoomPage extends StatefulWidget {
     this.conversationId,
     this.authToken,
     required this.apiBase,
+    this.reservationReference,
     this.seed = const [],
   });
 
@@ -37,6 +38,10 @@ class PrestChatRoomPage extends StatefulWidget {
   final int? conversationId;
   final String? authToken;
   final String apiBase;
+
+  /// Référence de réservation : permet l'appel avec sonnerie FCM
+  /// (/api/calls/initiate) au lieu du flux WebSocket seul.
+  final String? reservationReference;
   final List<(String, bool)> seed;
 
   bool get apiMode =>
@@ -586,6 +591,19 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
         context,
         type: BabifixToastType.info,
         message: 'Conversation non initialisée',
+      );
+      return;
+    }
+
+    // Si on connaît la réservation, on passe par le backend pour faire
+    // sonner le client via FCM (et obtenir une room cohérente). Sinon, legacy.
+    final ref = widget.reservationReference;
+    if (ref != null && ref.isNotEmpty) {
+      await CallService.startOutgoing(
+        context: context,
+        reservationReference: ref,
+        targetName: widget.name,
+        isVideo: isVideo,
       );
       return;
     }

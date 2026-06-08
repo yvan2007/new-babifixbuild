@@ -438,6 +438,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                      conversationId: convId > 0 ? convId : null,
                                      authToken: fresh,
                                      apiBase: widget.apiBase,
+                                     // Permet l'appel avec sonnerie FCM (/api/calls/initiate)
+                                     reservationReference:
+                                         '${r['reservation_reference'] ?? ''}'
+                                                 .isNotEmpty
+                                             ? '${r['reservation_reference']}'
+                                             : null,
                                    ),
                                  ),
                                );

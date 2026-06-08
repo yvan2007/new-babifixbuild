@@ -16,6 +16,7 @@ import '../../shared/widgets/gps_location_card.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/geo_utils.dart';
 
 /// Flow de réservation en 4 étapes :
 /// 0 → Date & heure  1 → Adresse  2 → Récapitulatif  3 → Confirmation
@@ -81,6 +82,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   static const _steps = ['Problème', 'Adresse', 'Disponibilité', 'Envoyé'];
 
   @override
+  // Carnet d'adresses du client (Maison, Bureau…).
+  List<Map<String, dynamic>> _savedAddresses = [];
+
   void initState() {
     super.initState();
     // GPS automatique — non bloquant.
@@ -88,6 +92,94 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     // reverse-geocoding et on pré-remplit le champ adresse. Il pourra
     // toujours saisir une autre adresse à la main (non obligatoire).
     WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoLocate());
+    _loadSavedAddresses();
+  }
+
+  Future<void> _loadSavedAddresses() async {
+    try {
+      final r = await BabifixUserStore.authGet('/api/client/addresses');
+      if (r.statusCode == 200 && mounted) {
+        final d = jsonDecode(r.body) as Map<String, dynamic>;
+        setState(() {
+          _savedAddresses =
+              List<Map<String, dynamic>>.from(d['addresses'] ?? []);
+        });
+      }
+    } catch (_) {}
+  }
+
+  /// Le client choisit une adresse enregistrée → on place le pin dessus.
+  void _applySavedAddress(Map<String, dynamic> a) {
+    final lat = (a['latitude'] as num?)?.toDouble();
+    final lon = (a['longitude'] as num?)?.toDouble();
+    if (lat == null || lon == null) return;
+    setState(() {
+      _mapPin = LatLng(lat, lon);
+      _mapPinFromUser = true;
+      _addressCtrl.text = '${a['address_label'] ?? a['label'] ?? ''}'.trim();
+      _repereCtrl.text = '${a['address_repere'] ?? ''}'.trim();
+    });
+    _mapCtrlMoveSafe(_mapPin);
+    showBabifixToast(context,
+        type: BabifixToastType.success,
+        message: 'Adresse « ${a['label']} » sélectionnée.');
+  }
+
+  void _mapCtrlMoveSafe(LatLng p) {
+    // La carte se recadrera via mapPin (passé en paramètre au widget enfant).
+  }
+
+  /// Enregistre le lieu actuellement choisi (pin) dans le carnet.
+  Future<void> _saveCurrentLocation() async {
+    final labelCtrl = TextEditingController();
+    final label = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        title: const Text('Enregistrer ce lieu',
+            style: TextStyle(color: Colors.white, fontSize: 17)),
+        content: TextField(
+          controller: labelCtrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Maison, Bureau, Chez maman…',
+            hintStyle: TextStyle(color: Colors.white38),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, labelCtrl.text.trim()),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    if (label == null || label.isEmpty) return;
+    try {
+      final r = await BabifixUserStore.authPost(
+        '/api/client/addresses',
+        body: jsonEncode({
+          'label': label,
+          'latitude': _mapPin.latitude,
+          'longitude': _mapPin.longitude,
+          'address_label': _addressCtrl.text.trim(),
+          'address_repere': _repereCtrl.text.trim(),
+          'is_default': _savedAddresses.isEmpty,
+        }),
+      );
+      if (r.statusCode == 201) {
+        await _loadSavedAddresses();
+        if (mounted) {
+          showBabifixToast(context,
+              type: BabifixToastType.success,
+              message: 'Lieu « $label » enregistré.');
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _tryAutoLocate({bool forceRefresh = false}) async {
@@ -123,15 +215,20 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       ).timeout(const Duration(seconds: 10));
 
       if (!mounted) return;
+      // Garde-fou : si le GPS (émulateur) est hors CI, on retombe sur Abidjan
+      // pour éviter de stocker des coordonnées (37, -122) dans la réservation.
+      final LatLng safePin = isInCotedIvoire(pos.latitude, pos.longitude)
+          ? LatLng(pos.latitude, pos.longitude)
+          : const LatLng(kAbidjanLat, kAbidjanLon);
       setState(() {
-        _mapPin = LatLng(pos.latitude, pos.longitude);
+        _mapPin = safePin;
         _mapPinFromUser = true; // → on enverra lat/lng au backend
         _gpsState = GpsLocationState.detected;
       });
       // Reverse-geocoding → libellé lisible « Quartier, Ville » (jamais de
       // coordonnées brutes). Ne remplit que si l'utilisateur n'a rien saisi.
       await _reverseGeocodeShort(
-        LatLng(pos.latitude, pos.longitude),
+        safePin,
         overwrite: _addressCtrl.text.trim().isEmpty,
       );
     } catch (_) {
@@ -392,8 +489,8 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       'disponibilites_client': _disponibilites,
       'is_urgent': _isUrgent,
       'payment_type': _paymentType,
-      if (_paymentType == 'MOBILE_MONEY')
-        'mobile_money_operator': _mmOperator,
+      // NB : on n'envoie PAS l'opérateur Mobile Money ici. Le client le
+      // choisira au moment du paiement, une fois le devis reçu (montant connu).
       if (widget.providerId != null) 'provider_id': widget.providerId,
       if (widget.providerName != null) 'prestataire_name': widget.providerName,
     };
@@ -534,6 +631,10 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           mapPin: _mapPin,
           gpsState: _gpsState,
           onGpsRefresh: () => _tryAutoLocate(forceRefresh: true),
+          savedAddresses: _savedAddresses,
+          onPickSaved: _applySavedAddress,
+          onUseCurrent: () => _tryAutoLocate(forceRefresh: true),
+          onSaveCurrent: _saveCurrentLocation,
           onMapPinChanged: (p) => setState(() {
             _mapPin = p;
             _mapPinFromUser = true;
@@ -1171,7 +1272,17 @@ class _StepAddress extends StatefulWidget {
     required this.onBack,
     required this.gpsState,
     required this.onGpsRefresh,
+    required this.savedAddresses,
+    required this.onPickSaved,
+    required this.onUseCurrent,
+    required this.onSaveCurrent,
   });
+
+  // Carnet d'adresses du client (Maison, Bureau…) + actions.
+  final List<Map<String, dynamic>> savedAddresses;
+  final ValueChanged<Map<String, dynamic>> onPickSaved;
+  final VoidCallback onUseCurrent;
+  final VoidCallback onSaveCurrent;
 
   final Color textColor;
   final Color subColor;
@@ -1203,6 +1314,119 @@ class _StepAddressState extends State<_StepAddress> {
   static const _kBlue = Color(0xFF4CC9F0);
   static const _kBlueDark = Color(0xFF1D4ED8);
   static const _kCyan = Color(0xFF4CC9F0);
+
+  IconData _iconForLabel(String label) {
+    final l = label.toLowerCase();
+    if (l.contains('maison') || l.contains('domicile') || l.contains('chez')) {
+      return Icons.home_rounded;
+    }
+    if (l.contains('bureau') || l.contains('travail')) {
+      return Icons.work_rounded;
+    }
+    return Icons.place_rounded;
+  }
+
+  /// Sélecteur intelligent : « Je suis sur place » (GPS actuel), ou une adresse
+  /// enregistrée (Maison, Bureau…), ou enregistrer le lieu choisi.
+  Widget _buildAddressSourceSelector() {
+    final chips = <Widget>[
+      // Position actuelle
+      _sourceChip(
+        icon: Icons.my_location_rounded,
+        label: 'Je suis sur place',
+        onTap: widget.onUseCurrent,
+        highlight: true,
+      ),
+      // Adresses enregistrées
+      ...widget.savedAddresses.map((a) => _sourceChip(
+            icon: _iconForLabel('${a['label'] ?? ''}'),
+            label: '${a['label'] ?? 'Adresse'}',
+            onTap: () => widget.onPickSaved(a),
+          )),
+      // Enregistrer le lieu actuel
+      _sourceChip(
+        icon: Icons.bookmark_add_rounded,
+        label: 'Enregistrer ce lieu',
+        onTap: widget.onSaveCurrent,
+        dashed: true,
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.tips_and_updates_rounded, size: 15, color: _kCyan),
+            const SizedBox(width: 6),
+            Text(
+              'Où aura lieu la prestation ?',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Choisissez votre position actuelle ou une adresse enregistrée.',
+          style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.45)),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 38,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: chips.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) => chips[i],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sourceChip({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool highlight = false,
+    bool dashed = false,
+  }) {
+    final bg = highlight
+        ? _kBlue.withValues(alpha: 0.18)
+        : Colors.white.withValues(alpha: 0.06);
+    final border = dashed
+        ? _kCyan.withValues(alpha: 0.45)
+        : (highlight ? _kBlue : Colors.white.withValues(alpha: 0.14));
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: border, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 15, color: highlight ? _kCyan : Colors.white70),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: highlight ? Colors.white : Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1284,7 +1508,11 @@ class _StepAddressState extends State<_StepAddress> {
                   ),
                 ],
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
+
+              // ── Sélecteur intelligent : où aura lieu la prestation ? ──
+              _buildAddressSourceSelector(),
+              const SizedBox(height: 16),
 
               // ── Carte adresse ─────────────────────────────────────────
               Container(
@@ -1862,42 +2090,20 @@ class _StepDisponibilite extends StatelessWidget {
               ],
             ),
             if (paymentType == 'MOBILE_MONEY') ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 children: [
+                  Icon(Icons.info_outline_rounded,
+                      size: 15, color: _kBlue.withValues(alpha: 0.85)),
+                  const SizedBox(width: 6),
                   Expanded(
-                    child: _MmOperatorChip(
-                      label: 'Orange',
-                      color: const Color(0xFFFF6600),
-                      selected: mmOperator == 'ORANGE_MONEY',
-                      onTap: () => onMmOperatorChanged('ORANGE_MONEY'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MmOperatorChip(
-                      label: 'MTN',
-                      color: const Color(0xFFFFCC00),
-                      selected: mmOperator == 'MTN_MOMO',
-                      onTap: () => onMmOperatorChanged('MTN_MOMO'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MmOperatorChip(
-                      label: 'Wave',
-                      color: const Color(0xFF1A9BFC),
-                      selected: mmOperator == 'WAVE',
-                      onTap: () => onMmOperatorChanged('WAVE'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MmOperatorChip(
-                      label: 'Moov',
-                      color: const Color(0xFF007AC1),
-                      selected: mmOperator == 'MOOV',
-                      onTap: () => onMmOperatorChanged('MOOV'),
+                    child: Text(
+                      "Vous choisirez l'opérateur (Orange, MTN, Wave, Moov) au "
+                      "moment du paiement, une fois le devis reçu.",
+                      style: TextStyle(
+                          fontSize: 12,
+                          height: 1.3,
+                          color: Colors.white.withValues(alpha: 0.6)),
                     ),
                   ),
                 ],
@@ -2548,45 +2754,6 @@ class _PaymentOption extends StatelessWidget {
   }
 }
 
-class _MmOperatorChip extends StatelessWidget {
-  const _MmOperatorChip({
-    required this.label,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: selected ? color : Colors.white.withValues(alpha: 0.1), width: selected ? 2 : 1),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: selected ? color : Colors.white70,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// Dialogue premium réutilisable pour l'anti-doublon de réservation
 /// (blocage « même prestataire » ou avertissement « même catégorie »).

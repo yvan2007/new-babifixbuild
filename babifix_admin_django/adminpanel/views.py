@@ -167,6 +167,7 @@ from .models import (
     SiteContent,
     SystemSetting,
     UserProfile,
+    WalletTransaction,
     recalc_provider_rating_stats,
 )
 
@@ -887,6 +888,18 @@ def _dashboard_forms_context(request, section):
                 ctx["actualite_form"] = ActualiteForm()
         else:
             ctx["actualite_form"] = ActualiteForm()
+    elif section == "payouts":
+        # Retraits prestataires à traiter (en attente d'abord, puis récents).
+        from django.db.models import Case, When, Value, IntegerField
+        ctx["payout_withdrawals"] = list(
+            WalletTransaction.objects.filter(tx_type="debit")
+            .select_related("provider")
+            .order_by(
+                Case(When(status="pending", then=Value(0)), default=Value(1),
+                     output_field=IntegerField()),
+                "-created_at",
+            )[:100]
+        )
     return ctx
 
 
@@ -1476,6 +1489,65 @@ def dashboard(request):
                 request.POST.get("mode_paiement") or ""
             ).strip()[:120]
             settings_obj.save()
+        elif action == "withdrawal_relance":
+            # Admin marque un retrait comme versé (après virement Mobile Money).
+            try:
+                tx_id = int(request.POST.get("tx_id") or "0")
+            except ValueError:
+                tx_id = 0
+            tx = WalletTransaction.objects.filter(
+                pk=tx_id, tx_type="debit", status="pending"
+            ).select_related("provider").first()
+            if tx:
+                tx.status = "success"
+                tx.save(update_fields=["status"])
+                try:
+                    from .push_dispatch import _schedule
+                    if tx.provider and tx.provider.user_id:
+                        _schedule(
+                            [tx.provider.user_id],
+                            "BABIFIX — Retrait effectué",
+                            f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA via "
+                            f"{(tx.operator or '').upper()} a été traité.",
+                            {"type": "wallet.withdrawal_done", "tx_id": str(tx.pk)},
+                        )
+                except Exception:
+                    pass
+                messages.success(request, f"Retrait de {tx.amount_fcfa:,.0f} FCFA marqué comme versé.")
+            else:
+                messages.error(request, "Retrait introuvable ou déjà traité.")
+            section = "payouts"
+        elif action == "withdrawal_reject":
+            # Admin rejette un retrait → on recrédite le solde du prestataire.
+            try:
+                tx_id = int(request.POST.get("tx_id") or "0")
+            except ValueError:
+                tx_id = 0
+            with transaction.atomic():
+                tx = WalletTransaction.objects.select_for_update().filter(
+                    pk=tx_id, tx_type="debit", status="pending"
+                ).select_related("provider").first()
+                if tx:
+                    prov = Provider.objects.select_for_update().get(pk=tx.provider_id)
+                    from decimal import Decimal as _D
+                    prov.solde_fcfa = (prov.solde_fcfa or _D("0")) + tx.amount_fcfa
+                    prov.save(update_fields=["solde_fcfa"])
+                    tx.status = "failed"
+                    tx.save(update_fields=["status"])
+                    try:
+                        from .push_dispatch import _schedule
+                        if prov.user_id:
+                            _schedule(
+                                [prov.user_id],
+                                "BABIFIX — Retrait refusé",
+                                f"Votre demande de retrait de {tx.amount_fcfa:,.0f} FCFA "
+                                "a été refusée. Le montant a été recrédité sur votre solde.",
+                                {"type": "wallet.withdrawal_rejected", "tx_id": str(tx.pk)},
+                            )
+                    except Exception:
+                        pass
+            messages.success(request, "Retrait rejeté et solde recrédité.")
+            section = "payouts"
         return redirect(f"/?section={section}")
 
     search_q = request.GET.get("q", "").strip()
@@ -1651,7 +1723,15 @@ def api_client_home(request):
                 else None,
                 "dispute_ouverte": bool(item.dispute_ouverte),
                 "can_confirm_service": item.statut in ("En attente client", "Terminee")
-                and item.client_user_id == uid,
+                and item.client_user_id == uid
+                # Mobile Money : on ne peut confirmer (et libérer) qu'une fois le
+                # solde (70 %) payé. Tant qu'il reste un solde, on n'affiche que
+                # « Payer le solde ».
+                and not (
+                    item.payment_type == "MOBILE_MONEY"
+                    and item.acompte_valide
+                    and (item.montant_restant or 0) > 0
+                ),
                 "can_pay": item.statut == "Terminee"
                 and bool(item.client_confirme_prestation_at)
                 and not Payment.objects.filter(
@@ -1668,6 +1748,7 @@ def api_client_home(request):
                 and item.client_user_id == uid
                 and item.acompte_valide
                 and not item.solde_valide
+                and (item.montant_restant or 0) > 0
                 and item.payment_type == "MOBILE_MONEY",
                 "need_cash_remainder": item.statut == "Terminee"
                 and item.client_user_id == uid
@@ -1687,9 +1768,15 @@ def api_client_home(request):
             }
         )
 
-    for item in Reservation.objects.filter(
-        Q(client_user_id=uid) | Q(client=client_name)
-    ).distinct()[:8]:
+    # Scope strict au client authentifié (client_user_id) pour éviter toute
+    # fuite de réservations d'autres comptes partageant le même libellé "client".
+    # On garde le repli sur le nom UNIQUEMENT pour les réservations sans
+    # client_user_id (créées côté admin) afin de ne rien casser.
+    _res_qs = Reservation.objects.filter(
+        Q(client_user_id=uid)
+        | (Q(client_user_id__isnull=True) & Q(client=client_name))
+    ).distinct().order_by("-id")[:50]
+    for item in _res_qs:
         _push_reservation_row(item)
     news = [
         {"title": item.title, "subtitle": item.time}
@@ -2249,11 +2336,15 @@ def api_client_conversations(request):
     data = []
     for c in convs:
         last = c.messages.order_by("-created_at").first()
-        preview = ""
-        if last:
-            preview = (last.body[:120] if last.body else "") or (
-                "[Photo]" if last.image else ""
-            )
+        # On masque les conversations VIDES (créées automatiquement avec la
+        # réservation mais sans aucun échange) — elles polluaient la liste avec
+        # de fausses « Nouvelle conversation ». Dès qu'un message/devis/événement
+        # existe, la conversation réapparaît.
+        if last is None:
+            continue
+        preview = (last.body[:120] if last.body else "") or (
+            "[Photo]" if last.image else ""
+        )
         res = c.reservation
         data.append(
             {
@@ -3398,13 +3489,14 @@ def _saved_address_json(a):
 
 
 @csrf_exempt
-@require_http_methods(["GET", "POST", "DELETE"])
+@require_http_methods(["GET", "POST", "PATCH", "DELETE"])
 @require_api_auth(["client", "admin"])
 def api_client_saved_addresses(request, addr_id=None):
     """Carnet d'adresses du client.
 
     GET    /api/client/addresses              → liste
     POST   /api/client/addresses              → créer {label, latitude, longitude, ...}
+    PATCH  /api/client/addresses/<id>         → définir par défaut / renommer
     DELETE /api/client/addresses/<id>         → supprimer
     """
     from .models import ClientSavedAddress
@@ -3420,6 +3512,32 @@ def api_client_saved_addresses(request, addr_id=None):
             return JsonResponse({"error": "id_required"}, status=400)
         ClientSavedAddress.objects.filter(id=addr_id, user_id=uid).delete()
         return JsonResponse({"ok": True})
+
+    if request.method == "PATCH":
+        if not addr_id:
+            return JsonResponse({"error": "id_required"}, status=400)
+        addr = ClientSavedAddress.objects.filter(id=addr_id, user_id=uid).first()
+        if not addr:
+            return JsonResponse({"error": "not_found"}, status=404)
+        try:
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "invalid_json"}, status=400)
+        fields = []
+        if "label" in payload:
+            new_label = str(payload.get("label") or "").strip()[:60]
+            if new_label:
+                addr.label = new_label
+                fields.append("label")
+        if payload.get("is_default") is True:
+            ClientSavedAddress.objects.filter(user_id=uid, is_default=True).update(
+                is_default=False
+            )
+            addr.is_default = True
+            fields.append("is_default")
+        if fields:
+            addr.save(update_fields=fields)
+        return JsonResponse({"ok": True, "address": _saved_address_json(addr)})
 
     # POST — créer / mettre à jour
     try:
@@ -4247,11 +4365,12 @@ def api_prestataire_conversations(request):
     data = []
     for c in convs:
         last = c.messages.order_by("-created_at").first()
-        preview = ""
-        if last:
-            preview = (last.body[:120] if last.body else "") or (
-                "[Photo]" if last.image else ""
-            )
+        # Masquer les conversations vides (sans aucun échange).
+        if last is None:
+            continue
+        preview = (last.body[:120] if last.body else "") or (
+            "[Photo]" if last.image else ""
+        )
         res = c.reservation
         data.append(
             {
@@ -4292,7 +4411,12 @@ def api_client_rate_reservation(request, reference):
     uid = request.api_user_id
     if res.client_user_id != uid and request.api_role != "admin":
         return JsonResponse({"error": "forbidden"}, status=403)
-    if res.statut != "Terminee":
+    _done = (
+        res.statut in ("Terminee", "En attente client")
+        or bool(getattr(res, "prestation_terminee_at", None))
+        or bool(getattr(res, "client_confirme_prestation_at", None))
+    )
+    if not _done:
         return JsonResponse({"error": "reservation_not_completed"}, status=400)
     if Rating.objects.filter(reservation=res).exists():
         return JsonResponse({"error": "already_rated"}, status=400)

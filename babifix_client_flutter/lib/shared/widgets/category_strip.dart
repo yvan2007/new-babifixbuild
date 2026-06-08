@@ -17,8 +17,8 @@ class CategoryStrip extends StatelessWidget {
   final int active;
   final ValueChanged<int> onTap;
 
-  static const double _chipW = 80;
-  static const double _stripH = 82;
+  static const double _chipW = 70;
+  static const double _stripH = 78;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +50,7 @@ class CategoryStrip extends StatelessWidget {
                 duration: const Duration(milliseconds: 180),
                 curve: Curves.easeOutCubic,
                 width: _chipW,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: selected
                       ? LinearGradient(
@@ -94,8 +94,8 @@ class CategoryStrip extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      height: 36,
-                      width: 36,
+                      height: 30,
+                      width: 30,
                       decoration: BoxDecoration(
                         color:
                             tab.color?.withValues(alpha: 0.15) ??
@@ -104,7 +104,7 @@ class CategoryStrip extends StatelessWidget {
                                 : (isLight
                                       ? const Color(0xFFE2E8F0)
                                       : const Color(0xFF334155))),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(9),
                       ),
                       child: Center(
                         child: tab.iconNetworkUrl != null &&
@@ -112,17 +112,17 @@ class CategoryStrip extends StatelessWidget {
                             ? SvgPicture.network(
                                 tab.iconNetworkUrl!,
                                 fit: BoxFit.contain,
-                                width: 22,
-                                height: 22,
+                                width: 18,
+                                height: 18,
                                 placeholderBuilder: (_) => SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: BabifixRingLoader.cyan(size: 28),
+                                  width: 16,
+                                  height: 16,
+                                  child: BabifixRingLoader.cyan(size: 24),
                                 ),
                               )
                             : Icon(
                                 tab.icon ?? Icons.grid_view_rounded,
-                                size: 20,
+                                size: 18,
                                 color: selected
                                     ? BabifixDesign.navy
                                     : (isLight
@@ -131,15 +131,15 @@ class CategoryStrip extends StatelessWidget {
                               ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Text(
                       tab.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 11,
-                        height: 1.1,
+                        fontSize: 10.5,
+                        height: 1.05,
                         color: selected
                             ? BabifixDesign.navy
                             : (isLight

@@ -32,7 +32,6 @@ import 'shared/offline_cache.dart';
 import 'services/notification_sound_service.dart';
 import 'services/zego_call_service.dart';
 import 'shared/widgets/auth_required_dialog.dart';
-import 'shared/widgets/status_pill.dart';
 import 'shared/widgets/category_strip.dart';
 import 'shared/services/real_time_sync.dart';
 import 'features/auth/onboarding_screen.dart';
@@ -41,23 +40,22 @@ import 'features/auth/forgot_password_screen.dart';
 import 'features/disputes/my_disputes_screen.dart';
 import 'features/disputes/dispute_open_screen.dart';
 import 'features/profile/edit_profile_screen.dart';
+import 'features/profile/my_addresses_screen.dart';
 import 'features/map/providers_map_screen.dart';
 import 'features/chat/messages_screen.dart';
 import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
 import 'features/services/service_detail_screen.dart';
 import 'features/booking/booking_flow_screen.dart';
-import 'features/booking/devis_detail_screen.dart';
 import 'features/booking/devis_kanban_screen.dart';
+import 'features/booking/escrow_quote_screen.dart';
 import 'features/booking/confirm_completion_screen.dart';
 import 'features/booking/client_journal_screen.dart';
-import 'features/reservations/receipt_pdf_screen.dart';
 import 'features/reservations/premium_receipt_screen.dart';
 import 'features/call/call_history_screen.dart';
 import 'shared/widgets/babifix_osm_map.dart';
 import 'shared/widgets/message_with_photos_field.dart';
 import 'shared/widgets/payment_method_logo.dart';
 import 'package:latlong2/latlong.dart';
-import 'features/providers/provider_profile_screen.dart';
 import 'features/providers/provider_profile_premium_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/payment/payment_screen.dart';
@@ -75,6 +73,12 @@ import 'shared/widgets/error_reporter.dart';
 // BabifixFcmRouter qui ouvre IncomingCallScreen sur FCM call.incoming.
 final GlobalKey<NavigatorState> zegoNavigatorKey =
     BabifixFcmRouter.navigatorKey;
+
+/// Retourne null si la coordonnée est invalide (null, 0, ou hors CI).
+double? _validCoord(double? v) {
+  if (v == null || v == 0.0) return null;
+  return v;
+}
 
 /// Aligne sur [adminpanel.views._normalize_category_key] : espaces → underscores, max 24.
 String babifixCategoryFilterKey(String nom) {
@@ -342,7 +346,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
   // Filtres avances
   double _filterMinRating = 0;
   int _filterMaxPrice = 0; // 0 = pas de limite
-  String _filterSort = 'default'; // default | rating | price_asc | price_desc
+  double _filterMaxDistance = 0; // 0 = toutes distances (km)
+  bool _filterDispoOnly = false; // disponibles uniquement
+  bool _filterVerifiedOnly = false; // vérifiés uniquement
+  String _filterSort = 'default'; // default | distance | rating | price_asc | price_desc
 
   String profileName = '';
   String profileEmail = '';
@@ -2598,9 +2605,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
         return false;
       if (_filterMinRating > 0 && s.rating < _filterMinRating) return false;
       if (_filterMaxPrice > 0 && s.price > _filterMaxPrice) return false;
+      if (_filterMaxDistance > 0 &&
+          s.distanceKm != null &&
+          s.distanceKm! > _filterMaxDistance) return false;
+      if (_filterDispoOnly && !s.disponible) return false;
+      if (_filterVerifiedOnly && !s.verified) return false;
       return true;
     }).toList();
-    if (_filterSort == 'rating') {
+    if (_filterSort == 'distance') {
+      filtered.sort((a, b) =>
+          (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9));
+    } else if (_filterSort == 'rating') {
       filtered.sort((a, b) => b.rating.compareTo(a.rating));
     } else if (_filterSort == 'price_asc') {
       filtered.sort((a, b) => a.price.compareTo(b.price));
@@ -2748,11 +2763,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   bool get _hasActiveFilters =>
-      _filterMinRating > 0 || _filterMaxPrice > 0 || _filterSort != 'default';
+      _filterMinRating > 0 ||
+      _filterMaxPrice > 0 ||
+      _filterMaxDistance > 0 ||
+      _filterDispoOnly ||
+      _filterVerifiedOnly ||
+      _filterSort != 'default';
 
   Widget _buildFilterChipsRow(int count) {
     final sortLabels = {
       'default': 'Par defaut',
+      'distance': 'Plus proche',
       'rating': 'Mieux notes',
       'price_asc': 'Prix croissant',
       'price_desc': 'Prix decroissant',
@@ -2820,12 +2841,30 @@ class _ClientHomePageState extends State<ClientHomePage> {
               label: '≤ ${_filterMaxPrice.toStringAsFixed(0)} FCFA',
               onRemove: () => setState(() => _filterMaxPrice = 0),
             ),
+          if (_filterMaxDistance > 0)
+            _filterChip(
+              label: '≤ ${_filterMaxDistance.toStringAsFixed(0)} km',
+              onRemove: () => setState(() => _filterMaxDistance = 0),
+            ),
+          if (_filterDispoOnly)
+            _filterChip(
+              label: 'Disponibles',
+              onRemove: () => setState(() => _filterDispoOnly = false),
+            ),
+          if (_filterVerifiedOnly)
+            _filterChip(
+              label: 'Vérifiés',
+              onRemove: () => setState(() => _filterVerifiedOnly = false),
+            ),
           if (_hasActiveFilters) ...[
             const SizedBox(width: 4),
             GestureDetector(
               onTap: () => setState(() {
                 _filterMinRating = 0;
                 _filterMaxPrice = 0;
+                _filterMaxDistance = 0;
+                _filterDispoOnly = false;
+                _filterVerifiedOnly = false;
                 _filterSort = 'default';
               }),
               child: Text(
@@ -2880,6 +2919,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
   void _openFilterSheet() {
     double tempMinRating = _filterMinRating;
     int tempMaxPrice = _filterMaxPrice;
+    double tempMaxDistance = _filterMaxDistance;
+    bool tempDispoOnly = _filterDispoOnly;
+    bool tempVerifiedOnly = _filterVerifiedOnly;
     String tempSort = _filterSort;
 
     showModalBottomSheet<void>(
@@ -2912,6 +2954,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       setSheetState(() {
                         tempMinRating = 0;
                         tempMaxPrice = 0;
+                        tempMaxDistance = 0;
+                        tempDispoOnly = false;
+                        tempVerifiedOnly = false;
                         tempSort = 'default';
                       });
                     },
@@ -2931,6 +2976,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 children: [
                   for (final entry in {
                     'default': 'Par defaut',
+                    'distance': '📍 Plus proche',
                     'rating': 'Mieux notes',
                     'price_asc': 'Prix ↑',
                     'price_desc': 'Prix ↓',
@@ -2993,6 +3039,67 @@ class _ClientHomePageState extends State<ClientHomePage> {
                  activeColor: BabifixDesign.ciOrange,
                  onChanged: (v) => setSheetState(() => tempMaxPrice = v.round()),
               ),
+              const SizedBox(height: 8),
+              // ── Distance maximale ────────────────────────────────────
+              Row(
+                children: [
+                  const Icon(Icons.place_rounded, size: 16, color: BabifixDesign.ciOrange),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'Distance max : ',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  Text(
+                    tempMaxDistance == 0
+                        ? 'Toutes'
+                        : '${tempMaxDistance.toStringAsFixed(0)} km',
+                  ),
+                ],
+              ),
+              Slider(
+                value: tempMaxDistance,
+                min: 0,
+                max: 50,
+                divisions: 10,
+                label: tempMaxDistance == 0
+                    ? 'Toutes'
+                    : '${tempMaxDistance.toStringAsFixed(0)} km',
+                activeColor: BabifixDesign.ciOrange,
+                onChanged: (v) => setSheetState(() => tempMaxDistance = v),
+              ),
+              // Raccourcis proximité
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final km in [0, 5, 15, 30, 50])
+                    ChoiceChip(
+                      label: Text(km == 0 ? 'Tous' : '≤ $km km'),
+                      selected: tempMaxDistance == km.toDouble(),
+                      onSelected: (_) =>
+                          setSheetState(() => tempMaxDistance = km.toDouble()),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // ── Disponibilité + vérifiés ─────────────────────────────
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                activeThumbColor: BabifixDesign.ciOrange,
+                title: const Text('Disponibles uniquement',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                value: tempDispoOnly,
+                onChanged: (v) => setSheetState(() => tempDispoOnly = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                activeThumbColor: BabifixDesign.ciOrange,
+                title: const Text('Prestataires vérifiés uniquement',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                value: tempVerifiedOnly,
+                onChanged: (v) => setSheetState(() => tempVerifiedOnly = v),
+              ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -3004,6 +3111,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     setState(() {
                       _filterMinRating = tempMinRating;
                       _filterMaxPrice = tempMaxPrice;
+                      _filterMaxDistance = tempMaxDistance;
+                      _filterDispoOnly = tempDispoOnly;
+                      _filterVerifiedOnly = tempVerifiedOnly;
                       _filterSort = tempSort;
                     });
                     Navigator.of(ctx).pop();
@@ -3502,7 +3612,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final completed = reservations.where((r) =>
         !cancelled.contains(r) && (
         r.status == 'Terminee' ||
-        r.status == 'DONE')).toList();
+        r.status == 'DONE' ||
+        // Espèces : le statut backend reste « Confirmee » après la fin du
+        // chantier — on s'appuie sur la confirmation client / le reçu.
+        r.clientConfirmed ||
+        r.receiptAvailable)).toList();
 
     final active = reservations.where((r) =>
         !cancelled.contains(r) &&
@@ -4868,6 +4982,24 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 ),
                 const SizedBox(height: 8),
                 _PremiumActionTile(
+                  icon: Icons.location_on_outlined,
+                  title: 'Mes adresses',
+                  subtitle: 'Maison, bureau… pour réserver au bon endroit',
+                  onTap: () async {
+                    if (!await _ensureAuthOrPrompt('gérer vos adresses')) {
+                      return;
+                    }
+                    if (!mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MyAddressesScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                _PremiumActionTile(
                   icon: Icons.chat_bubble_outline_rounded,
                   title: 'Messages',
                   subtitle: 'Échanger avec vos prestataires',
@@ -5555,10 +5687,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
               canPayRemainder: jsonBool(item['can_pay_remainder']),
               needCashRemainder: jsonBool(item['need_cash_remainder']),
               receiptAvailable: jsonBool(item['receipt_available']),
+              clientConfirmed:
+                  '${item['client_confirme_prestation_at'] ?? ''}'.isNotEmpty,
               disputeOuverte: jsonBool(item['dispute_ouverte']),
               statusLabel: '${item['status_label'] ?? ''}'.trim(),
-              latitude: jsonDoubleNullable(item['latitude']),
-              longitude: jsonDoubleNullable(item['longitude']),
+              latitude: _validCoord(jsonDoubleNullable(item['latitude'])),
+              longitude: _validCoord(jsonDoubleNullable(item['longitude'])),
                             addressLabel: '${item['address_label'] ?? ''}'.trim(),
               addressStreet: '${item['address_street'] ?? ''}'.trim(),
               addressQuartier: '${item['address_quartier'] ?? ''}'.trim(),
@@ -5817,12 +5951,27 @@ class _ClientHomePageState extends State<ClientHomePage> {
     String message = '';
     String? mobileMoneyOperator;
     final photoAttachments = <String>[];
+    bool isUrgent = false;
+    String descriptionProbleme = '';
+    String disponibilites = '';
+    String addressRepere = '';
 
     if (flowData != null) {
       whenLabel = reservationWhenLabelFromFlowData(flowData);
       paymentType = '${flowData['payment_type'] ?? 'ESPECES'}';
-      message = '${flowData['message'] ?? ''}'.trim();
-      addressLabel = '${flowData['address'] ?? ''}'.trim();
+      // Le formulaire envoie « client_message » / « address_label » (pas
+      // « message » / « address ») : on lit les bonnes clés, avec repli.
+      message =
+          '${flowData['client_message'] ?? flowData['message'] ?? ''}'.trim();
+      addressLabel =
+          '${flowData['address_label'] ?? flowData['address'] ?? ''}'.trim();
+      addressRepere = '${flowData['address_repere'] ?? ''}'.trim();
+      descriptionProbleme = '${flowData['description_probleme'] ?? ''}'.trim();
+      disponibilites = '${flowData['disponibilites_client'] ?? ''}'.trim();
+      isUrgent = flowData['is_urgent'] == true;
+      // L'opérateur Mobile Money n'est plus choisi à la réservation : il sera
+      // sélectionné au paiement (après le devis). On le transmet seulement
+      // s'il est explicitement présent (compat. anciens flux).
       if (paymentType == 'MOBILE_MONEY') {
         final op = flowData['mobile_money_operator'];
         if (op != null && '$op'.trim().isNotEmpty) {
@@ -5890,6 +6039,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
         if (mobileMoneyOperator != null && mobileMoneyOperator.isNotEmpty)
           'mobile_money_operator': mobileMoneyOperator,
         if (message.isNotEmpty) 'message': message,
+        if (message.isNotEmpty) 'client_message': message,
+        if (descriptionProbleme.isNotEmpty)
+          'description_probleme': descriptionProbleme,
+        if (disponibilites.isNotEmpty) 'disponibilites_client': disponibilites,
+        if (addressRepere.isNotEmpty) 'address_repere': addressRepere,
+        if (isUrgent) 'is_urgent': true,
         if (whenLabel.isNotEmpty) 'when_label': whenLabel,
         if (service.providerId > 0) 'provider_id': service.providerId,
         if (lat != null) 'latitude': lat,
@@ -6122,29 +6277,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _payDeposit(ClientReservation r) async {
     if (authToken == null || r.reference.isEmpty) return;
-    // Le type de paiement global (ESPECES/MOBILE_MONEY) a déjà été choisi
-    // à la création de la réservation — on ne demande que l'opérateur mobile
-    // pour l'acompte (toujours payé par mobile money).
-    final operator = await _pickMobileMoneyOperator();
-    if (operator == null) return;
-    await _sendPaymentAction(
-      r: r,
-      endpoint: 'pay-deposit',
-      successMsg: 'Acompte enregistré. Le prestataire peut démarrer.',
-      body: {'mobile_money_operator': operator},
+    // Acompte payé via l'écran escrow (GeniusPay) — opérateur déjà choisi à la
+    // réservation, montant calculé côté serveur (30 % en mobile money).
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EscrowQuoteScreen(reservationReference: r.reference),
+      ),
     );
+    await _loadRemoteData();
   }
 
   Future<void> _payRemainder(ClientReservation r) async {
     if (authToken == null || r.reference.isEmpty) return;
-    final operator = await _pickMobileMoneyOperator();
-    if (operator == null) return;
-    await _sendPaymentAction(
-      r: r,
-      endpoint: 'pay-remainder',
-      successMsg: 'Solde payé. La prestation est finalisée.',
-      body: {'mobile_money_operator': operator},
+    // Solde (70 %) payé via le même écran escrow/GeniusPay : il détecte la
+    // phase "solde" et facture uniquement le reste dû.
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EscrowQuoteScreen(reservationReference: r.reference),
+      ),
     );
+    await _loadRemoteData();
   }
 
   Future<void> _sendPaymentAction({
@@ -6464,6 +6616,20 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ],
                 ),
               ),
+
+              // ── Carte du lieu d'intervention ──
+              if (r.latitude != null && r.longitude != null &&
+                  isInCotedIvoire(r.latitude!, r.longitude!))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: BabifixOsmStaticPreview(
+                      center: LatLng(r.latitude!, r.longitude!),
+                      height: 140,
+                    ),
+                  ),
+                ),
 
               // ── Litige ouvert (si applicable) ──
               if (r.disputeOuverte)
@@ -7096,7 +7262,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         ),
                       ),
                     ),
-                    if (r.latitude != null && r.longitude != null) ...[
+                    if (r.latitude != null && r.longitude != null &&
+                        isInCotedIvoire(r.latitude!, r.longitude!)) ...[
                       const SizedBox(height: 20),
                       Text(
                         'Lieu de l\'intervention',

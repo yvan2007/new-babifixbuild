@@ -88,12 +88,15 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
         '${babifixApiBaseUrl()}/api/prestataire/requests/${widget.reservationReference}/devis',
       );
 
+      String fmtTime(TimeOfDay t) =>
+          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
       final payload = {
         'diagnostic': _diagnosticCtrl.text.trim(),
         if (_dateProposee != null)
           'date_proposee': _dateProposee!.toIso8601String().split('T')[0],
-        if (_heureDebut != null) 'heure_debut': _heureDebut!.format(context),
-        if (_heureFin != null) 'heure_fin': _heureFin!.format(context),
+        if (_heureDebut != null) 'heure_debut': fmtTime(_heureDebut!),
+        if (_heureFin != null) 'heure_fin': fmtTime(_heureFin!),
         'validite_jours': _validiteJours,
         'note_prestataire': _noteCtrl.text.trim(),
         'lignes': _lignes

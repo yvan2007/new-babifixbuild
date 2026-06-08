@@ -359,6 +359,17 @@ if _env == "production" and (not GENIUSPAY_PUBLIC_KEY or not GENIUSPAY_SECRET_KE
     )
 
 # =============================================================================
+# SMILE IDENTITY (KYC — vérification CNI ivoirienne, niveau 3)
+# Sans ces clés : seuls les niveaux 1 (qualité image + format) et 2 (visage)
+# tournent, puis validation humaine. Avec ces clés : authentification de la
+# carte + lecture du numéro + correspondance biométrique via l'autorité.
+# Obtenir les clés sur https://portal.usesmileid.com (Partner ID + API Key).
+# =============================================================================
+SMILE_IDENTITY_PARTNER_ID = os.getenv("SMILE_IDENTITY_PARTNER_ID", "")
+SMILE_IDENTITY_API_KEY    = os.getenv("SMILE_IDENTITY_API_KEY", "")
+SMILE_IDENTITY_SERVER     = os.getenv("SMILE_IDENTITY_SERVER", "0")  # "0"=sandbox, "1"=production
+
+# =============================================================================
 # SENTRY (monitoring erreurs en production)
 # =============================================================================
 _sentry_dsn = os.getenv("SENTRY_DSN", "").strip()

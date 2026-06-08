@@ -2,9 +2,6 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:record/record.dart';
 
 import '../../babifix_design_system.dart';
 
@@ -182,106 +179,22 @@ class BabifixVoiceRecorderButton extends StatefulWidget {
 
 class _BabifixVoiceRecorderButtonState
     extends State<BabifixVoiceRecorderButton> {
-  final AudioRecorder _recorder = AudioRecorder();
-  bool _recording = false;
-  int _elapsed = 0;
-  Timer? _timer;
-  bool _cancelled = false;
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _recorder.dispose();
-    super.dispose();
-  }
-
-  Future<void> _start() async {
-    // Permission micro
-    final mic = await Permission.microphone.request();
-    if (!mic.isGranted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Autorisez le micro pour enregistrer une note vocale.')),
-        );
-      }
-      return;
-    }
-    try {
-      final dir = await getTemporaryDirectory();
-      final path =
-          '${dir.path}/vn_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 96000),
-        path: path,
-      );
-      _cancelled = false;
-      setState(() {
-        _recording = true;
-        _elapsed = 0;
-      });
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() => _elapsed++);
-        if (_elapsed >= 600) _stop(); // plafond 10 min
-      });
-    } catch (_) {
-      if (mounted) setState(() => _recording = false);
-    }
-  }
-
-  Future<void> _stop() async {
-    _timer?.cancel();
-    final duration = _elapsed;
-    String? path;
-    try {
-      path = await _recorder.stop();
-    } catch (_) {
-      path = null;
-    }
-    if (mounted) setState(() => _recording = false);
-    if (_cancelled || path == null || duration < 1) return;
-    widget.onRecorded(path, duration);
-  }
-
-  Future<void> _cancel() async {
-    _cancelled = true;
-    _timer?.cancel();
-    try {
-      await _recorder.stop();
-    } catch (_) {}
-    if (mounted) setState(() => _recording = false);
-  }
-
+  // Enregistrement vocal désactivé tant que le package `record` est
+  // incompatible avec le SDK courant. La LECTURE des notes vocales marche.
   @override
   Widget build(BuildContext context) {
     final c = widget.color ?? BabifixDesign.cyan;
-    if (_recording) {
-      // En cours : afficher chrono + bouton annuler + relâcher pour envoyer.
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            onPressed: _cancel,
-            icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-            tooltip: 'Annuler',
-          ),
-          const Icon(Icons.fiber_manual_record, color: Colors.red, size: 12),
-          const SizedBox(width: 4),
-          Text(
-            formatVoiceDuration(_elapsed),
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          IconButton(
-            onPressed: _stop,
-            icon: Icon(Icons.send_rounded, color: c),
-            tooltip: 'Envoyer',
-          ),
-        ],
-      );
-    }
     return IconButton(
-      onPressed: _start,
-      icon: Icon(Icons.mic_rounded, color: c),
-      tooltip: 'Note vocale',
+      onPressed: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Note vocale bientôt disponible.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      icon: Icon(Icons.mic_none_rounded, color: c.withValues(alpha: 0.6)),
+      tooltip: 'Note vocale (bientôt)',
     );
   }
 }

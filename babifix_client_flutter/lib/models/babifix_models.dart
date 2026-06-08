@@ -278,6 +278,7 @@ class EscrowQuote {
   final double amountDueOnline;
   final double cashRemainderDueToProvider;
   final bool acompteValide;
+  final String mobileMoneyOperator;
   final DateTime? fundsReleasedAt;
 
   const EscrowQuote({
@@ -293,6 +294,7 @@ class EscrowQuote {
     required this.amountDueOnline,
     required this.cashRemainderDueToProvider,
     required this.acompteValide,
+    this.mobileMoneyOperator = '',
     this.fundsReleasedAt,
   });
 
@@ -311,6 +313,7 @@ class EscrowQuote {
         cashRemainderDueToProvider:
             _asDouble(j['cash_remainder_due_to_provider']),
         acompteValide: j['acompte_valide'] == true,
+        mobileMoneyOperator: _asStr(j['mobile_money_operator']),
         fundsReleasedAt: _asDate(j['funds_released_at']),
       );
 
