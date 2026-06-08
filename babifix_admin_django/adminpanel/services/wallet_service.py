@@ -193,6 +193,49 @@ class WalletService:
         except Provider.DoesNotExist:
             return {"error": "provider_not_found"}
 
+        # Numéro ivoirien : 10 chiffres (indicatif +225 retiré si présent).
+        _digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+        if _digits.startswith("225") and len(_digits) == 13:
+            _digits = _digits[3:]
+        phone = _digits
+        operator = (operator or "").strip().lower()
+
+        if len(phone) != 10:
+            return {
+                "error": "invalid_phone",
+                "detail": "Le numéro doit comporter 10 chiffres.",
+            }
+
+        # Numéros de retrait enregistrés (principal + secours). Le solde est
+        # unique : on n'autorise le retrait que vers un numéro enregistré, et
+        # via son opérateur natif OU Wave (Wave fonctionne sur presque tous les
+        # numéros CI). Si aucun numéro n'est encore enregistré (1er retrait),
+        # on accepte le numéro fourni et on le fixe comme principal plus bas.
+        registered = {}
+        if (prov.wallet_phone or "").strip():
+            registered[prov.wallet_phone.strip()] = (prov.wallet_operator or "").lower()
+        if (prov.wallet_phone_2 or "").strip():
+            registered[prov.wallet_phone_2.strip()] = (prov.wallet_operator_2 or "").lower()
+
+        if registered:
+            if phone not in registered:
+                return {
+                    "error": "phone_not_registered",
+                    "detail": "Ce numéro n'est pas enregistré. Ajoutez-le dans vos numéros de retrait.",
+                }
+            native_op = registered[phone]
+            allowed_channels = {"wave"}
+            if native_op:
+                allowed_channels.add(native_op)
+            if operator not in allowed_channels:
+                return {
+                    "error": "channel_not_allowed",
+                    "detail": (
+                        "Canal indisponible pour ce numéro. Choisissez : "
+                        + ", ".join(sorted(allowed_channels))
+                    ),
+                }
+
         # Anti-fraude 1 : identité validée requise (KYC approuvé OU compte validé
         # par l'admin) avant tout retrait.
         kyc_ok = (getattr(prov, "kyc_status", "") == "approved") or (
@@ -233,9 +276,17 @@ class WalletService:
             }
 
         prov.solde_fcfa = (prov.solde_fcfa or Decimal("0")) - amount_fcfa
-        prov.wallet_phone = phone
-        prov.wallet_operator = operator
-        prov.save(update_fields=["solde_fcfa", "wallet_phone", "wallet_operator"])
+        # On mémorise le dernier canal utilisé (pour le défaut intelligent)
+        # mais on N'ÉCRASE PAS les numéros enregistrés.
+        prov.wallet_last_phone = phone
+        prov.wallet_last_operator = operator
+        save_fields = ["solde_fcfa", "wallet_last_phone", "wallet_last_operator"]
+        # 1er retrait sans numéro enregistré : on fixe le principal.
+        if not (prov.wallet_phone or "").strip():
+            prov.wallet_phone = phone
+            prov.wallet_operator = operator
+            save_fields += ["wallet_phone", "wallet_operator"]
+        prov.save(update_fields=save_fields)
 
         tx = WalletTransaction.objects.create(
             provider=prov,
@@ -482,6 +533,10 @@ class WalletService:
             "solde_fcfa": float(prov.solde_fcfa or 0),
             "wallet_phone": prov.wallet_phone,
             "wallet_operator": prov.wallet_operator,
+            "wallet_phone_2": prov.wallet_phone_2,
+            "wallet_operator_2": prov.wallet_operator_2,
+            "wallet_last_phone": prov.wallet_last_phone,
+            "wallet_last_operator": prov.wallet_last_operator,
             "transactions": [
                 {
                     "id": t.pk,

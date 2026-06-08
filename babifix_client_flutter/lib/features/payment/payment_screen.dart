@@ -183,10 +183,10 @@ class _PaymentScreenState extends State<PaymentScreen>
   // ── PAIEMENT MOBILE MONEY (GeniusPay) ────────────────────────────────────
   Future<void> _payGeniusPay() async {
     final phone = _phoneCtrl.text.trim();
-    if (phone.length < 8) {
+    if (phone.length != 10) {
       setState(
         () => _error =
-            'Veuillez entrer votre numéro de téléphone Mobile Money (min. 8 chiffres).',
+            'Entrez un numéro Mobile Money à 10 chiffres (ex. 0700000000).',
       );
       return;
     }
@@ -799,9 +799,10 @@ class _PaymentScreenState extends State<PaymentScreen>
         TextFormField(
           controller: _phoneCtrl,
           focusNode: _phoneFocus,
-          keyboardType: TextInputType.phone,
+          keyboardType: TextInputType.number,
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s]')),
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(10),
           ],
           style: TextStyle(
             fontWeight: FontWeight.w700,
@@ -809,7 +810,8 @@ class _PaymentScreenState extends State<PaymentScreen>
             color: text,
           ),
           decoration: InputDecoration(
-            hintText: 'Ex. : +225 07 00 00 00 00',
+            counterText: '',
+            hintText: 'Ex. : 0700000000 (10 chiffres)',
             hintStyle: TextStyle(
               fontWeight: FontWeight.w400,
               fontSize: 14,

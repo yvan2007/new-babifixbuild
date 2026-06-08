@@ -174,6 +174,32 @@ class Provider(models.Model):
         ],
         help_text="Opérateur Mobile Money préféré",
     )
+    # Numéro de retrait secondaire (secours). Le solde reste unique ; le
+    # prestataire peut retirer vers l'un ou l'autre numéro. Comme Wave
+    # fonctionne sur presque tous les numéros CI, chaque numéro peut recevoir
+    # via son opérateur natif OU via Wave (canal choisi au moment du retrait).
+    wallet_phone_2 = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="2e numéro Mobile Money pour les retraits (secours)",
+    )
+    wallet_operator_2 = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        choices=[
+            ("mtn", "MTN Mobile Money"),
+            ("orange", "Orange Money"),
+            ("wave", "Wave"),
+            ("moov", "Moov Money"),
+        ],
+        help_text="Opérateur natif du 2e numéro",
+    )
+    # Dernier canal de retrait utilisé (numéro + opérateur) pour proposer un
+    # défaut intelligent. N'écrase jamais les numéros enregistrés ci-dessus.
+    wallet_last_phone = models.CharField(max_length=20, blank=True, default="")
+    wallet_last_operator = models.CharField(max_length=20, blank=True, default="")
     # Signature numérique du contrat BABIFIX (serveur)
     contrat_accepte_at = models.DateTimeField(
         null=True,

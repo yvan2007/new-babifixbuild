@@ -109,8 +109,8 @@ class _PaiementSoldeScreenState extends State<PaiementSoldeScreen>
 
   Future<void> _pay() async {
     final phone = _phoneCtrl.text.trim();
-    if (phone.length < 8) {
-      setState(() => _error = 'Entrez un numéro valide (min. 8 chiffres).');
+    if (phone.length != 10) {
+      setState(() => _error = 'Entrez un numéro à 10 chiffres (ex. 0700000000).');
       return;
     }
 
@@ -312,11 +312,15 @@ class _PaiementSoldeScreenState extends State<PaiementSoldeScreen>
             const SizedBox(height: 8),
             TextFormField(
               controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s]'))],
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: text),
               decoration: InputDecoration(
-                hintText: 'Ex. : +225 07 00 00 00 00',
+                counterText: '',
+                hintText: 'Ex. : 0700000000 (10 chiffres)',
                 hintStyle: TextStyle(color: sub.withValues(alpha: 0.6), fontSize: 14),
                 filled: true,
                 fillColor: const Color(0xFF0D1B2E),

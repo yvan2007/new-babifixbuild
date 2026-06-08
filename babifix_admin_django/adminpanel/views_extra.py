@@ -1338,20 +1338,53 @@ def api_prestataire_wallet_update_info(request):
     except (json.JSONDecodeError, TypeError):
         return JsonResponse({"error": "JSON invalide"}, status=400)
 
-    phone = (body.get("phone") or "").strip()
+    def _norm_ci_phone(raw: str) -> str:
+        """Numéro ivoirien : 10 chiffres (07/05/01…), indicatif +225 retiré."""
+        digits = "".join(ch for ch in (raw or "") if ch.isdigit())
+        if digits.startswith("225") and len(digits) == 13:
+            digits = digits[3:]
+        return digits
+
+    phone = _norm_ci_phone(body.get("phone") or "")
     operator = (body.get("operator") or "").strip().lower()
+    phone_2 = _norm_ci_phone(body.get("phone_2") or "")
+    operator_2 = (body.get("operator_2") or "").strip().lower()
 
     valid_operators = {"mtn", "orange", "wave", "moov", ""}
-    if operator not in valid_operators:
-        return JsonResponse({"error": f"Opérateur invalide : {operator}"}, status=400)
+    if operator not in valid_operators or operator_2 not in valid_operators:
+        return JsonResponse({"error": "Opérateur invalide"}, status=400)
 
+    # Numéros ivoiriens : exactement 10 chiffres.
+    if phone and len(phone) != 10:
+        return JsonResponse(
+            {"error": "Le numéro principal doit comporter 10 chiffres."}, status=400
+        )
+    if phone_2 and len(phone_2) != 10:
+        return JsonResponse(
+            {"error": "Le numéro secondaire doit comporter 10 chiffres."}, status=400
+        )
+
+    # Les deux numéros ne peuvent pas être identiques (sinon retrait ambigu).
+    if phone and phone_2 and phone == phone_2:
+        return JsonResponse(
+            {"error": "Les deux numéros doivent être différents."}, status=400
+        )
+
+    # Champs envoyés explicitement => on les met à jour (y compris vidage du
+    # 2e numéro si l'utilisateur l'efface). On ne touche qu'aux clés présentes.
     update_fields = []
-    if phone:
+    if "phone" in body:
         provider.wallet_phone = phone
         update_fields.append("wallet_phone")
-    if operator:
+    if "operator" in body:
         provider.wallet_operator = operator
         update_fields.append("wallet_operator")
+    if "phone_2" in body:
+        provider.wallet_phone_2 = phone_2
+        update_fields.append("wallet_phone_2")
+    if "operator_2" in body:
+        provider.wallet_operator_2 = operator_2
+        update_fields.append("wallet_operator_2")
 
     if update_fields:
         provider.save(update_fields=update_fields)
@@ -1360,6 +1393,8 @@ def api_prestataire_wallet_update_info(request):
         "status": "ok",
         "wallet_phone": provider.wallet_phone,
         "wallet_operator": provider.wallet_operator,
+        "wallet_phone_2": provider.wallet_phone_2,
+        "wallet_operator_2": provider.wallet_operator_2,
     }, status=200)
 
 

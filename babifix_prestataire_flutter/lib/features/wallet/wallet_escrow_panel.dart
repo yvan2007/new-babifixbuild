@@ -20,7 +20,12 @@ import '../../shared/widgets/babifix_ring_loader.dart';
 
 class WalletEscrowPanel extends StatefulWidget {
   final double soldeDisponibleFcfa;
-  const WalletEscrowPanel({super.key, required this.soldeDisponibleFcfa});
+  final bool hidden;
+  const WalletEscrowPanel({
+    super.key,
+    required this.soldeDisponibleFcfa,
+    this.hidden = false,
+  });
 
   @override
   State<WalletEscrowPanel> createState() => _WalletEscrowPanelState();
@@ -132,6 +137,7 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
                   color: BabifixDesign.ciGreen,
                   icon: Icons.check_circle,
                   helper: 'retirable maintenant',
+                  masked: widget.hidden,
                 ),
               ),
               const SizedBox(width: 8),
@@ -142,6 +148,7 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
                   color: BabifixDesign.ciBlue,
                   icon: Icons.lock_outline,
                   helper: 'libéré à la confirmation',
+                  masked: widget.hidden,
                 ),
               ),
             ],
@@ -155,6 +162,7 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
               icon: Icons.payments_outlined,
               helper: 'à percevoir directement du client',
               wide: true,
+              masked: widget.hidden,
             ),
           ],
           if (_countActifs > 0) ...[
@@ -208,6 +216,7 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
     required IconData icon,
     required String helper,
     bool wide = false,
+    bool masked = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(10),
@@ -235,13 +244,22 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
           const SizedBox(height: 4),
           // Tween animé : si la valeur arrive à "12 345 F CFA", on affiche un
           // compteur qui grimpe en 650 ms — bien plus satisfaisant visuellement.
-          AnimatedMoney(
-            value: _parseMoney(value),
-            style: TextStyle(
-                fontSize: wide ? 17 : 16,
-                fontWeight: FontWeight.w900,
-                color: Colors.grey.shade900),
-          ),
+          masked
+              ? Text(
+                  '•••• F CFA',
+                  style: TextStyle(
+                      fontSize: wide ? 17 : 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                      color: Colors.grey.shade900),
+                )
+              : AnimatedMoney(
+                  value: _parseMoney(value),
+                  style: TextStyle(
+                      fontSize: wide ? 17 : 16,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.grey.shade900),
+                ),
           const SizedBox(height: 2),
           Text(helper,
               style: TextStyle(

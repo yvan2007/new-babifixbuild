@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
@@ -10,6 +11,7 @@ import '../../shared/auth_utils.dart';
 import 'wallet_escrow_panel.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/animated_check_circle.dart';
 import '../../shared/widgets/animated_money.dart';
 import '../../shared/services/confetti_toast_service.dart';
@@ -43,6 +45,14 @@ const _operatorColors = {
   'orange': Color(0xFFFF6B00),
   'wave': Color(0xFF00B4FF),
   'moov': Color(0xFF1565C0),
+};
+
+/// Canal interne (minuscules) -> identifiant logo de [BabifixPaymentMethodLogo].
+const _operatorLogoId = {
+  'mtn': 'MTN_MOMO',
+  'orange': 'ORANGE_MONEY',
+  'wave': 'WAVE',
+  'moov': 'MOOV',
 };
 
 Color _txColor(String type) {
@@ -108,10 +118,15 @@ class WalletScreen extends StatefulWidget {
 class _WalletScreenState extends State<WalletScreen>
     with SingleTickerProviderStateMixin {
   bool _loading = true;
+  bool _balanceHidden = false;
   String? _error;
   double _solde = 0;
   String _walletPhone = '';
   String _walletOperator = '';
+  String _walletPhone2 = '';
+  String _walletOperator2 = '';
+  String _lastPhone = '';
+  String _lastOperator = '';
   String _prestataireName = '';
   List<Map<String, dynamic>> _transactions = [];
 
@@ -152,6 +167,10 @@ class _WalletScreenState extends State<WalletScreen>
           _solde = (data['solde_fcfa'] as num?)?.toDouble() ?? 0;
           _walletPhone = data['wallet_phone'] as String? ?? '';
           _walletOperator = data['wallet_operator'] as String? ?? '';
+          _walletPhone2 = data['wallet_phone_2'] as String? ?? '';
+          _walletOperator2 = data['wallet_operator_2'] as String? ?? '';
+          _lastPhone = data['wallet_last_phone'] as String? ?? '';
+          _lastOperator = data['wallet_last_operator'] as String? ?? '';
           _prestataireName = data['prestataire_nom'] as String? ?? 'PRESTATAIRE';
           _transactions = List<Map<String, dynamic>>.from(
             (data['transactions'] as List?) ?? [],
@@ -175,8 +194,16 @@ class _WalletScreenState extends State<WalletScreen>
       backgroundColor: Colors.transparent,
       builder: (_) => _WithdrawSheet(
         currentBalance: _solde,
-        currentPhone: _walletPhone,
-        currentOperator: _walletOperator,
+        phone1: _walletPhone,
+        operator1: _walletOperator,
+        phone2: _walletPhone2,
+        operator2: _walletOperator2,
+        lastPhone: _lastPhone,
+        lastOperator: _lastOperator,
+        onManageNumbers: () {
+          Navigator.of(context).pop();
+          _openInfoSheet();
+        },
         onSuccess: (amount) {
           Navigator.of(context).pop();
           _load();
@@ -270,18 +297,22 @@ class _WalletScreenState extends State<WalletScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _MoMoInfoSheet(
-        currentPhone: _walletPhone,
-        currentOperator: _walletOperator,
-        onSaved: (phone, op) {
+        phone1: _walletPhone,
+        operator1: _walletOperator,
+        phone2: _walletPhone2,
+        operator2: _walletOperator2,
+        onSaved: (p1, o1, p2, o2) {
           Navigator.of(context).pop();
           setState(() {
-            _walletPhone = phone;
-            _walletOperator = op;
+            _walletPhone = p1;
+            _walletOperator = o1;
+            _walletPhone2 = p2;
+            _walletOperator2 = o2;
           });
           showBabifixToast(
         context,
         type: BabifixToastType.info,
-        message: 'Informations Mobile Money mises à jour',
+        message: 'Numéros de retrait mis à jour',
       );
         },
       ),
@@ -329,8 +360,19 @@ class _WalletScreenState extends State<WalletScreen>
           ),
           actions: [
             IconButton(
+              icon: Icon(
+                _balanceHidden
+                    ? Icons.visibility_off_rounded
+                    : Icons.visibility_rounded,
+                color: Colors.white70,
+              ),
+              tooltip: _balanceHidden ? 'Afficher le solde' : 'Masquer le solde',
+              onPressed: () =>
+                  setState(() => _balanceHidden = !_balanceHidden),
+            ),
+            IconButton(
               icon: const Icon(Icons.edit_rounded, color: _premiumGold),
-              tooltip: 'Gérer mon Mobile Money',
+              tooltip: 'Gérer mes numéros',
               onPressed: _openInfoSheet,
             ),
             IconButton(
@@ -354,6 +396,7 @@ class _WalletScreenState extends State<WalletScreen>
                         children: [
                           _BalanceCard(
                             solde: _solde,
+                            hidden: _balanceHidden,
                             phone: _walletPhone,
                             operator: _walletOperator,
                             prestataireName: _prestataireName,
@@ -364,6 +407,7 @@ class _WalletScreenState extends State<WalletScreen>
                           // Phase F / Escrow — distinguer Disponible vs En attente
                           WalletEscrowPanel(
                             soldeDisponibleFcfa: _solde,
+                            hidden: _balanceHidden,
                           ),
                           const SizedBox(height: 16),
                           if (_transactions.isEmpty)
@@ -410,6 +454,7 @@ class _WalletScreenState extends State<WalletScreen>
 class _BalanceCard extends StatelessWidget {
   const _BalanceCard({
     required this.solde,
+    required this.hidden,
     required this.phone,
     required this.operator,
     required this.prestataireName,
@@ -418,6 +463,7 @@ class _BalanceCard extends StatelessWidget {
   });
 
   final double solde;
+  final bool hidden;
   final String phone;
   final String operator;
   final String prestataireName;
@@ -593,12 +639,13 @@ class _BalanceCard extends StatelessWidget {
                           children: [
                             Flexible(
                               child: Text(
-                                _fcfa.format(solde),
+                                hidden ? '•••••• FCFA' : _fcfa.format(solde),
                                 style: TextStyle(
                                   color: _premiumGold,
                                   fontSize: cardHeight < 160 ? 24 : 30,
                                   fontWeight: FontWeight.w900,
                                   height: 1.0,
+                                  letterSpacing: hidden ? 2 : 0,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -856,20 +903,76 @@ class _TxTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Modèle : une option de retrait = un numéro + un canal (natif OU Wave)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PayoutOption {
+  const _PayoutOption({
+    required this.phone,
+    required this.channel,
+    required this.isWave,
+    required this.isPrimary,
+  });
+
+  final String phone;
+  final String channel; // 'orange' | 'mtn' | 'moov' | 'wave'
+  final bool isWave;
+  final bool isPrimary;
+
+  String get key => '$phone|$channel';
+}
+
+/// Construit la liste des options : pour chaque numéro enregistré, son
+/// opérateur natif ET Wave (Wave marche sur presque tous les numéros CI).
+List<_PayoutOption> _buildPayoutOptions({
+  required String phone1,
+  required String operator1,
+  required String phone2,
+  required String operator2,
+}) {
+  final out = <_PayoutOption>[];
+  void addFor(String phone, String nativeOp, bool primary) {
+    final p = phone.trim();
+    if (p.isEmpty) return;
+    final native = nativeOp.trim().toLowerCase();
+    if (native.isNotEmpty && native != 'wave') {
+      out.add(_PayoutOption(
+          phone: p, channel: native, isWave: false, isPrimary: primary));
+    }
+    out.add(_PayoutOption(
+        phone: p, channel: 'wave', isWave: true, isPrimary: primary));
+  }
+
+  addFor(phone1, operator1, true);
+  addFor(phone2, operator2, false);
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Withdraw Bottom Sheet
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _WithdrawSheet extends StatefulWidget {
   const _WithdrawSheet({
     required this.currentBalance,
-    required this.currentPhone,
-    required this.currentOperator,
+    required this.phone1,
+    required this.operator1,
+    required this.phone2,
+    required this.operator2,
+    required this.lastPhone,
+    required this.lastOperator,
+    required this.onManageNumbers,
     required this.onSuccess,
   });
 
   final double currentBalance;
-  final String currentPhone;
-  final String currentOperator;
+  final String phone1;
+  final String operator1;
+  final String phone2;
+  final String operator2;
+  final String lastPhone;
+  final String lastOperator;
+  final VoidCallback onManageNumbers;
   final ValueChanged<double> onSuccess;
 
   @override
@@ -878,30 +981,37 @@ class _WithdrawSheet extends StatefulWidget {
 
 class _WithdrawSheetState extends State<_WithdrawSheet> {
   final _amountCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  String _operator = 'mtn';
+  late final List<_PayoutOption> _options;
+  String? _selectedKey;
   bool _sending = false;
   String? _err;
 
   @override
   void initState() {
     super.initState();
-    if (widget.currentPhone.isNotEmpty) _phoneCtrl.text = widget.currentPhone;
-    if (widget.currentOperator.isNotEmpty) _operator = widget.currentOperator;
+    _options = _buildPayoutOptions(
+      phone1: widget.phone1,
+      operator1: widget.operator1,
+      phone2: widget.phone2,
+      operator2: widget.operator2,
+    );
+    if (_options.isNotEmpty) {
+      // Défaut intelligent : dernier canal utilisé, sinon 1re option.
+      final lastKey =
+          '${widget.lastPhone.trim()}|${widget.lastOperator.trim().toLowerCase()}';
+      final match = _options.where((o) => o.key == lastKey);
+      _selectedKey = match.isNotEmpty ? match.first.key : _options.first.key;
+    }
   }
 
   @override
   void dispose() {
     _amountCtrl.dispose();
-    _phoneCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final amountStr = _amountCtrl.text.trim();
-    final phone = _phoneCtrl.text.trim();
-    final amount = double.tryParse(amountStr);
-
+    final amount = double.tryParse(_amountCtrl.text.trim());
     if (amount == null || amount < 1000) {
       setState(() => _err = 'Montant minimum : 1 000 FCFA');
       return;
@@ -910,10 +1020,12 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
       setState(() => _err = 'Montant supérieur au solde disponible');
       return;
     }
-    if (phone.isEmpty) {
-      setState(() => _err = 'Numéro Mobile Money requis');
+    final sel = _options.where((o) => o.key == _selectedKey);
+    if (sel.isEmpty) {
+      setState(() => _err = 'Choisissez un numéro de réception');
       return;
     }
+    final chosen = sel.first;
 
     setState(() {
       _sending = true;
@@ -930,8 +1042,8 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
         },
         body: jsonEncode({
           'amount_fcfa': amount,
-          'phone': phone,
-          'operator': _operator,
+          'phone': chosen.phone,
+          'operator': chosen.channel,
         }),
       );
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -947,6 +1059,97 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
     }
   }
 
+  Widget _optionTile(_PayoutOption o) {
+    final selected = o.key == _selectedKey;
+    final color = _operatorColors[o.channel] ?? BabifixDesign.cyan;
+    final opName = _operatorNames[o.channel] ?? o.channel;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedKey = o.key),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? color : Colors.white.withValues(alpha: 0.12),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: BabifixPaymentMethodLogo(
+                methodId: _operatorLogoId[o.channel] ?? '',
+                height: 32,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        opName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          o.isPrimary ? 'Principal' : 'Secours',
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    o.phone,
+                    style: const TextStyle(
+                        color: Colors.white60, fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              selected
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_off_rounded,
+              color: selected ? color : Colors.white30,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
@@ -967,152 +1170,173 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
           ),
         ),
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _premiumGold.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Demande de retrait',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Solde disponible : ${_fcfa.format(widget.currentBalance)}',
-              style: const TextStyle(color: Colors.white60, fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-          const Text('Opérateur', style: TextStyle(color: _premiumGold, fontSize: 13, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: ['mtn', 'orange', 'wave', 'moov'].map((op) {
-              final selected = _operator == op;
-              final color = _operatorColors[op] ?? BabifixDesign.cyan;
-              return ChoiceChip(
-                label: Text(_operatorNames[op] ?? op),
-                selected: selected,
-                labelStyle: TextStyle(
-                  color: selected ? color : Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-                backgroundColor: Colors.white.withValues(alpha: 0.06),
-                side: BorderSide(
-                  color: selected ? color : Colors.white.withValues(alpha: 0.2),
-                  width: selected ? 2 : 1,
-                ),
-                onSelected: (_) => setState(() => _operator = op),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _phoneCtrl,
-            style: const TextStyle(color: Colors.white),
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: 'Numéro Mobile Money',
-              labelStyle: const TextStyle(color: Colors.white60),
-              prefixIcon: const Icon(Icons.phone_android_rounded, color: _premiumGold),
-              filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.06),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _amountCtrl,
-            style: const TextStyle(color: Colors.white),
-            keyboardType: const TextInputType.numberWithOptions(decimal: false),
-            decoration: InputDecoration(
-              labelText: 'Montant (FCFA)',
-              labelStyle: const TextStyle(color: Colors.white60),
-              prefixIcon: const Icon(Icons.account_balance_wallet_rounded, color: _premiumGold),
-              filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.06),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-              hintText: 'Min. 1 000 FCFA',
-              hintStyle: const TextStyle(color: Colors.white30),
-            ),
-          ),
-          if (_err != null) ...[
-            const SizedBox(height: 10),
-            Text(_err!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
-          ],
-          const SizedBox(height: 16),
-          Row(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.verified_user_rounded,
-                  size: 16, color: Color(0xFF4CC9F0)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Versement sécurisé vers votre Mobile Money, '
-                  'traité généralement sous 24 h après validation.',
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 11.5,
-                      height: 1.35),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _premiumGold.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
+              const SizedBox(height: 20),
+              const Text(
+                'Demande de retrait',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Solde disponible : ${_fcfa.format(widget.currentBalance)}',
+                style: const TextStyle(color: Colors.white60, fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              if (_options.isEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: _premiumGold.withValues(alpha: 0.25)),
+                  ),
+                  child: const Text(
+                    'Aucun numéro de retrait enregistré. Ajoutez d\'abord '
+                    'un numéro Mobile Money pour recevoir votre argent.',
+                    style: TextStyle(color: Colors.white70, fontSize: 13.5,
+                        height: 1.4),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: widget.onManageNumbers,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Ajouter un numéro'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _premiumGold,
+                      foregroundColor: _deepNavy,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                const Text('Recevoir sur',
+                    style: TextStyle(
+                        color: _premiumGold,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                ..._options.map(_optionTile),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: widget.onManageNumbers,
+                    icon: const Icon(Icons.tune_rounded,
+                        size: 16, color: Colors.white60),
+                    label: const Text('Gérer mes numéros',
+                        style:
+                            TextStyle(color: Colors.white60, fontSize: 12.5)),
+                    style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 32)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _amountCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: false),
+                  decoration: InputDecoration(
+                    labelText: 'Montant (FCFA)',
+                    labelStyle: const TextStyle(color: Colors.white60),
+                    prefixIcon: const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: _premiumGold),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.06),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                    hintText: 'Min. 1 000 FCFA',
+                    hintStyle: const TextStyle(color: Colors.white30),
+                  ),
+                ),
+                if (_err != null) ...[
+                  const SizedBox(height: 10),
+                  Text(_err!,
+                      style: const TextStyle(
+                          color: Colors.redAccent, fontSize: 13)),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.verified_user_rounded,
+                        size: 16, color: Color(0xFF4CC9F0)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Versement sécurisé vers votre Mobile Money, '
+                        'traité généralement sous 24 h après validation.',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 11.5,
+                            height: 1.35),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _sending ? null : _submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _premiumGold,
+                      foregroundColor: _deepNavy,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      elevation: 4,
+                      shadowColor: _premiumGold.withValues(alpha: 0.4),
+                    ),
+                    child: _sending
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: BabifixRingLoader.cyan(size: 28),
+                          )
+                        : const Text(
+                            'Confirmer le retrait',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 16),
+                          ),
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _sending ? null : _submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: _premiumGold,
-                foregroundColor: _deepNavy,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 4,
-                shadowColor: _premiumGold.withValues(alpha: 0.4),
-              ),
-              child: _sending
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: BabifixRingLoader.cyan(size: 28),
-                    )
-                  : const Text(
-                      'Confirmer le retrait',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                    ),
-            ),
-          ),
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -1124,56 +1348,153 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
 
 class _MoMoInfoSheet extends StatefulWidget {
   const _MoMoInfoSheet({
-    required this.currentPhone,
-    required this.currentOperator,
+    required this.phone1,
+    required this.operator1,
+    required this.phone2,
+    required this.operator2,
     required this.onSaved,
   });
 
-  final String currentPhone;
-  final String currentOperator;
-  final void Function(String phone, String operator) onSaved;
+  final String phone1;
+  final String operator1;
+  final String phone2;
+  final String operator2;
+  final void Function(String p1, String o1, String p2, String o2) onSaved;
 
   @override
   State<_MoMoInfoSheet> createState() => _MoMoInfoSheetState();
 }
 
 class _MoMoInfoSheetState extends State<_MoMoInfoSheet> {
-  late final TextEditingController _phoneCtrl;
-  late String _operator;
+  late final TextEditingController _phone1Ctrl;
+  late final TextEditingController _phone2Ctrl;
+  late String _operator1;
+  late String _operator2;
   bool _saving = false;
+  String? _err;
 
   @override
   void initState() {
     super.initState();
-    _phoneCtrl = TextEditingController(text: widget.currentPhone);
-    _operator = widget.currentOperator.isNotEmpty ? widget.currentOperator : 'mtn';
+    _phone1Ctrl = TextEditingController(text: widget.phone1);
+    _phone2Ctrl = TextEditingController(text: widget.phone2);
+    _operator1 = widget.operator1.isNotEmpty ? widget.operator1 : 'orange';
+    _operator2 = widget.operator2.isNotEmpty ? widget.operator2 : 'mtn';
   }
 
   @override
   void dispose() {
-    _phoneCtrl.dispose();
+    _phone1Ctrl.dispose();
+    _phone2Ctrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    final phone = _phoneCtrl.text.trim();
-    if (phone.isEmpty) return;
-    setState(() => _saving = true);
+    final p1 = _phone1Ctrl.text.trim();
+    final p2 = _phone2Ctrl.text.trim();
+    if (p1.isEmpty) {
+      setState(() => _err = 'Le numéro principal est requis');
+      return;
+    }
+    if (p1.length != 10) {
+      setState(() => _err = 'Le numéro principal doit faire 10 chiffres');
+      return;
+    }
+    if (p2.isNotEmpty && p2.length != 10) {
+      setState(() => _err = 'Le numéro secondaire doit faire 10 chiffres');
+      return;
+    }
+    if (p2.isNotEmpty && p1 == p2) {
+      setState(() => _err = 'Les deux numéros doivent être différents');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _err = null;
+    });
     try {
       final token = await readStoredApiToken();
-      await http.post(
+      final resp = await http.post(
         Uri.parse('${babifixApiBaseUrl()}/api/prestataire/wallet/info/'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'phone': phone, 'operator': _operator}),
+        body: jsonEncode({
+          'phone': p1,
+          'operator': _operator1,
+          'phone_2': p2,
+          'operator_2': p2.isEmpty ? '' : _operator2,
+        }),
       );
-      widget.onSaved(phone, _operator);
+      if (resp.statusCode == 200) {
+        widget.onSaved(p1, _operator1, p2, p2.isEmpty ? '' : _operator2);
+      } else {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        setState(() => _err = data['error'] as String? ?? 'Erreur enregistrement');
+      }
     } catch (_) {
+      setState(() => _err = 'Connexion impossible');
     } finally {
       setState(() => _saving = false);
     }
+  }
+
+  Widget _operatorChips(String selected, ValueChanged<String> onPick) {
+    return Wrap(
+      spacing: 8,
+      children: ['mtn', 'orange', 'wave', 'moov'].map((op) {
+        final sel = selected == op;
+        final color = _operatorColors[op] ?? BabifixDesign.cyan;
+        return ChoiceChip(
+          label: Text(_operatorNames[op] ?? op),
+          selected: sel,
+          labelStyle: TextStyle(
+            color: sel ? color : Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+          backgroundColor: Colors.white.withValues(alpha: 0.06),
+          side: BorderSide(
+            color: sel ? color : Colors.white.withValues(alpha: 0.2),
+            width: sel ? 2 : 1,
+          ),
+          onSelected: (_) => onPick(op),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _phoneField(TextEditingController c, String label) {
+    return TextField(
+      controller: c,
+      style: const TextStyle(color: Colors.white),
+      keyboardType: TextInputType.number,
+      // Numéros ivoiriens : 10 chiffres, peu importe l'opérateur.
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(10),
+      ],
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white60),
+        prefixIcon:
+            const Icon(Icons.phone_android_rounded, color: _premiumGold),
+        counterText: '',
+        hintText: '10 chiffres (ex. 0700000000)',
+        hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.06),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1196,88 +1517,98 @@ class _MoMoInfoSheetState extends State<_MoMoInfoSheet> {
           ),
         ),
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _premiumGold.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _premiumGold.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Informations Mobile Money',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 8,
-              children: ['mtn', 'orange', 'wave', 'moov'].map((op) {
-                final selected = _operator == op;
-                final color = _operatorColors[op] ?? BabifixDesign.cyan;
-                return ChoiceChip(
-                  label: Text(_operatorNames[op] ?? op),
-                  selected: selected,
-                  labelStyle: TextStyle(
-                    color: selected ? color : Colors.white,
-                    fontWeight: FontWeight.w700,
+              const SizedBox(height: 20),
+              const Text(
+                'Mes numéros de retrait',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Vous pourrez recevoir via l\'opérateur du numéro ou via Wave.',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6), fontSize: 12.5),
+              ),
+              const SizedBox(height: 20),
+              // ── Numéro principal ──
+              Row(children: [
+                const Icon(Icons.star_rounded, size: 16, color: _premiumGold),
+                const SizedBox(width: 6),
+                const Text('Numéro principal',
+                    style: TextStyle(
+                        color: _premiumGold,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 10),
+              _operatorChips(_operator1, (op) => setState(() => _operator1 = op)),
+              const SizedBox(height: 12),
+              _phoneField(_phone1Ctrl, 'Numéro Mobile Money principal'),
+              const SizedBox(height: 22),
+              // ── Numéro secondaire ──
+              Row(children: [
+                const Icon(Icons.backup_rounded,
+                    size: 16, color: Colors.white60),
+                const SizedBox(width: 6),
+                const Text('Numéro secondaire (optionnel)',
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 10),
+              _operatorChips(_operator2, (op) => setState(() => _operator2 = op)),
+              const SizedBox(height: 12),
+              _phoneField(_phone2Ctrl, 'Numéro Mobile Money secondaire'),
+              if (_err != null) ...[
+                const SizedBox(height: 12),
+                Text(_err!,
+                    style:
+                        const TextStyle(color: Colors.redAccent, fontSize: 13)),
+              ],
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _premiumGold,
+                    foregroundColor: _deepNavy,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    elevation: 4,
+                    shadowColor: _premiumGold.withValues(alpha: 0.4),
                   ),
-                  backgroundColor: Colors.white.withValues(alpha: 0.06),
-                  side: BorderSide(
-                    color: selected ? color : Colors.white.withValues(alpha: 0.2),
-                    width: selected ? 2 : 1,
-                  ),
-                onSelected: (_) => setState(() => _operator = op),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _phoneCtrl,
-            style: const TextStyle(color: Colors.white),
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: 'Numéro Mobile Money',
-              labelStyle: const TextStyle(color: Colors.white60),
-              prefixIcon: const Icon(Icons.phone_android_rounded, color: _premiumGold),
-              filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.06),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
+                  child: _saving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: BabifixRingLoader.cyan(size: 28))
+                      : const Text('Enregistrer',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-            ),
+            ],
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: _premiumGold,
-                foregroundColor: _deepNavy,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 4,
-                shadowColor: _premiumGold.withValues(alpha: 0.4),
-              ),
-              child: _saving
-                  ? const SizedBox(height: 20, width: 20, child: BabifixRingLoader.cyan(size: 28))
-                  : const Text('Enregistrer', style: TextStyle(fontWeight: FontWeight.w800)),
-            ),
-          ),
-        ],
-      ),
+        ),
       ),
     );
   }

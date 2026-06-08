@@ -81,9 +81,16 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
   Future<void> _prefillPhone() async {
     try {
       final profile = await BabifixUserStore.loadProfile();
-      final phone = profile['phone'] ?? '';
-      if (phone.isNotEmpty && mounted) {
-        _phoneCtl.text = phone;
+      final raw = '${profile['phone'] ?? ''}';
+      // Normaliser au format national ivoirien (10 chiffres) : on retire
+      // l'indicatif +225 / 225 et tout caractère non numérique.
+      var digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.startsWith('225') && digits.length == 13) {
+        digits = digits.substring(3);
+      }
+      if (digits.length > 10) digits = digits.substring(digits.length - 10);
+      if (digits.isNotEmpty && mounted) {
+        _phoneCtl.text = digits;
       }
     } catch (_) {}
   }
@@ -123,8 +130,8 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
       return;
     }
     final phone = _phoneCtl.text.trim();
-    if (phone.length < 8) {
-      setState(() => _error = 'Entrez un numéro valide (min. 8 chiffres).');
+    if (phone.length != 10) {
+      setState(() => _error = 'Entrez un numéro à 10 chiffres (ex. 0700000000).');
       return;
     }
 
@@ -576,16 +583,19 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _phoneCtl,
-                    keyboardType: TextInputType.phone,
+                    keyboardType: TextInputType.number,
+                    // Numéros ivoiriens : 10 chiffres, peu importe l'opérateur.
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s]'))
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
                     ],
                     style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 17,
                         color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Ex. : +225 07 00 00 00 00',
+                      counterText: '',
+                      hintText: 'Ex. : 0700000000 (10 chiffres)',
                       hintStyle: TextStyle(
                           color: Colors.white.withValues(alpha: 0.4),
                           fontSize: 14),
