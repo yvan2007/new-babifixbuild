@@ -199,7 +199,18 @@ _pg_db = os.getenv("POSTGRES_DB", "").strip()
 _mysql_db = (os.getenv("MYSQL_DATABASE") or os.getenv("MYSQL_NAME") or "").strip()
 if _database_url:
     import dj_database_url
-    DATABASES = {"default": dj_database_url.config(default=_database_url, conn_max_age=600)}
+    # conn_max_age=0 : connexion fraîche à chaque requête → évite de réutiliser
+    #   une connexion externe Render coupée (« SSL connection closed unexpectedly »).
+    # conn_health_checks : vérifie la connexion avant réutilisation.
+    # ssl_require : impose TLS (requis par Postgres Render).
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=_database_url,
+            conn_max_age=0,
+            conn_health_checks=True,
+            ssl_require=True,
+        )
+    }
 elif _pg_db:
     DATABASES = {
         "default": {
