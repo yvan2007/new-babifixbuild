@@ -24,6 +24,10 @@ from .views_finance import (
     api_urgence_preview,
 )
 from .views_extra import (
+    api_reservation_paiement_acompte,
+    api_reservation_paiement_solde,
+)
+from .views_extra import (
     api_admin_audit_log,
     api_admin_bulk_provider_action,
     api_admin_export_csv,
@@ -311,6 +315,16 @@ urlpatterns = [
         "api/prestataire/ratings",
         api_prestataire_ratings,
         name="api-prestataire-ratings",
+    ),
+    path(
+        "api/reservation/paiement-acompte/",
+        api_reservation_paiement_acompte,
+        name="api-reservation-paiement-acompte",
+    ),
+    path(
+        "api/reservation/paiement-solde/",
+        api_reservation_paiement_solde,
+        name="api-reservation-paiement-solde",
     ),
     path("api/prestataire/me", api_prestataire_me, name="api-prestataire-me"),
     path(

@@ -656,6 +656,39 @@ def api_prestataire_disputes(request):
 
 
 # =============================================================================
+# PAIEMENT ACOMPTE / SOLDE — endpoints réservation
+# POST /api/reservation/paiement-acompte/
+# POST /api/reservation/paiement-solde/
+# =============================================================================
+@csrf_exempt
+@require_api_auth(['client'])
+def api_reservation_paiement_acompte(request):
+    """Paiement d'acompte (dépôt de garantie) via GeniusPay."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'method_not_allowed'}, status=405)
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'invalid_json'}, status=400)
+    from .geniuspay import geniuspay_initiate
+    return geniuspay_initiate(request)
+
+
+@csrf_exempt
+@require_api_auth(['client'])
+def api_reservation_paiement_solde(request):
+    """Paiement du solde restant via GeniusPay."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'method_not_allowed'}, status=405)
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'invalid_json'}, status=400)
+    from .geniuspay import geniuspay_initiate
+    return geniuspay_initiate(request)
+
+
+# =============================================================================
 # FONCTIONS EMAIL MANQUANTES (TODO 2 — PARTIE 1)
 # =============================================================================
 
