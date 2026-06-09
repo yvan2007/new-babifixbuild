@@ -1893,6 +1893,67 @@ def api_public_actualite_detail(request, pk: int):
 
 
 @require_GET
+def api_public_provider_availability(request, provider_id):
+    """Disponibilités publiques d'un prestataire (pour le calendrier client).
+
+    Retourne les créneaux hebdomadaires, les périodes bloquées, et les
+    21 prochains jours avec leur disponibilité (jour avec créneau + non bloqué).
+    """
+    from datetime import date, timedelta
+    from .models import PrestataireAvailabilitySlot, PrestataireUnavailability
+
+    prov = Provider.objects.filter(pk=provider_id).first()
+    if not prov:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    slots = list(
+        PrestataireAvailabilitySlot.objects.filter(provider=prov, actif=True)
+    )
+    slots_by_day: dict[int, list] = {}
+    for s in slots:
+        slots_by_day.setdefault(s.jour_semaine, []).append(
+            {
+                "start": s.heure_debut.strftime("%H:%M"),
+                "end": s.heure_fin.strftime("%H:%M"),
+            }
+        )
+    for v in slots_by_day.values():
+        v.sort(key=lambda x: x["start"])
+
+    periods = list(PrestataireUnavailability.objects.filter(provider=prov))
+
+    def _blocked(d):
+        return any(p.date_debut <= d <= p.date_fin for p in periods)
+
+    today = date.today()
+    days = []
+    for i in range(21):
+        d = today + timedelta(days=i)
+        wd = d.weekday()  # 0 = lundi
+        day_slots = slots_by_day.get(wd, [])
+        blocked = _blocked(d)
+        days.append(
+            {
+                "date": d.isoformat(),
+                "weekday": wd,
+                "available": bool(day_slots) and not blocked,
+                "blocked": blocked,
+                "slots": day_slots,
+            }
+        )
+
+    return JsonResponse(
+        {
+            "provider_id": prov.id,
+            "provider_nom": prov.nom,
+            "has_availability": bool(slots),
+            "weekly_slots": {str(k): v for k, v in slots_by_day.items()},
+            "days": days,
+        }
+    )
+
+
+@require_GET
 def api_public_providers(request):
     """
     Liste publique des prestataires (sans authentification).
@@ -3342,9 +3403,16 @@ def api_prestataire_requests(request):
         )
     if status:
         queryset = queryset.filter(statut=status)
+    # Filtre optionnel par référence (récupération fiable d'une résa précise,
+    # ex. écran « En attente de paiement » — évite le faux 404 dû à la pagination).
+    ref_filter = request.GET.get("reference")
+    if ref_filter:
+        queryset = queryset.filter(reference=ref_filter)
+    # Tri récent d'abord pour que les dernières demandes soient toujours visibles.
+    queryset = queryset.order_by("-id")
 
     data = []
-    for item in queryset[:20]:
+    for item in queryset[:100]:
         prov_obj = item.assigned_provider
         ravg = (
             round(float(prov_obj.average_rating), 1)
@@ -4792,6 +4860,20 @@ def api_client_confirm_prestation(request, reference):
         f"Réservation {res.reference} — vous pouvez demander le paiement.",
         {"type": "client.confirmed", "reference": res.reference},
     )
+    # Reçu FINAL par e-mail à la confirmation (fin du parcours). On envoie le
+    # reçu du dernier paiement complété (le PDF récapitule le total de la
+    # prestation). Silencieux en cas d'échec — ne bloque jamais la confirmation.
+    try:
+        from .geniuspay import _send_receipt_email
+        last_pay = (
+            Payment.objects.filter(reservation=res, etat=Payment.State.COMPLETE)
+            .order_by("-id")
+            .first()
+        )
+        if last_pay:
+            _send_receipt_email(last_pay)
+    except Exception:
+        logger.warning("Reçu final: échec envoi pour %s", res.reference, exc_info=True)
     return JsonResponse({"ok": True, "status": res.statut, "points_fidelite_gagnes": points_gagnes})
 
 

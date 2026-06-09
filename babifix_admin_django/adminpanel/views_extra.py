@@ -463,13 +463,23 @@ def api_prestataire_availability_crud(request, id=None):
             return JsonResponse({"error": "invalid_json"}, status=400)
 
         jour = payload.get("jour_semaine")
-        debut = payload.get("heure_debut")
-        fin = payload.get("heure_fin")
+        if jour is None:
+            jour = payload.get("weekday")
+        debut = payload.get("heure_debut") or payload.get("start_time")
+        fin = payload.get("heure_fin") or payload.get("end_time")
 
-        if not all([jour, debut, fin]):
+        # NB : jour peut valoir 0 (lundi) — surtout pas de test « falsy »
+        # (0 est falsy en Python), sinon le lundi est rejeté à tort.
+        if jour is None or not debut or not fin:
             return JsonResponse(
                 {"error": "jour_semaine, heure_debut, heure_fin required"}, status=400
             )
+        try:
+            jour = int(jour)
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "jour_semaine invalide"}, status=400)
+        if jour < 0 or jour > 6:
+            return JsonResponse({"error": "jour_semaine hors plage (0-6)"}, status=400)
 
         from datetime import time
 

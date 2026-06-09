@@ -1208,31 +1208,131 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* ——— Menu mobile : hamburger + voile (cachés sur desktop) ——— */
+.menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 12px;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s var(--ease);
+}
+.menu-toggle:active { transform: scale(0.95); }
+.menu-toggle svg { width: 22px; height: 22px; }
+
+.sidebar-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  z-index: 199;
+  opacity: 0;
+  transition: opacity 0.28s var(--ease);
+}
+
 @media (max-width: 900px) {
-  body.app-shell { flex-direction: column; }
+  body.app-shell { display: block; }
+
+  /* Bouton hamburger visible sur mobile */
+  .menu-toggle { display: inline-flex; }
+
+  /* Sidebar = tiroir off-canvas qui glisse depuis la gauche */
   .sidebar {
-    position: sticky;
-    width: 100%;
-    height: auto;
-    max-height: none;
-    flex-direction: row;
-    flex-wrap: wrap;
-    padding: 16px;
-    gap: 12px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 84%;
+    max-width: 318px;
+    height: 100vh;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    padding: 22px 16px 20px;
+    gap: 0;
+    transform: translateX(-106%);
+    transition: transform 0.3s var(--ease);
+    z-index: 200;
+    box-shadow: 18px 0 48px rgba(2, 6, 23, 0.45);
   }
-  .sidebar::after { display: none; }
-  .subtitle, .crud-panel, .sidebar-footer { display: none; }
+  body.sidebar-open .sidebar { transform: none; }
+  body.sidebar-open .sidebar-scrim { display: block; opacity: 1; }
+
+  /* Sidebar complète restaurée dans le tiroir */
+  .sidebar::after { display: block; }
+  .sidebar .subtitle,
+  .sidebar-footer { display: block; }
   .side-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-wrap: nowrap;
     width: 100%;
   }
-  .nav-link { flex: 1 1 auto; min-width: 140px; justify-content: center; }
+  .nav-link {
+    flex: 0 0 auto;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  /* Topbar compacte et collante */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--card);
+    box-shadow: 0 2px 14px rgba(2, 6, 23, 0.06);
+  }
+  .topbar-titles { flex: 1; min-width: 0; }
+  .page-title { font-size: 1.15rem; }
+  .topbar-sub { display: none; }
+  .topbar-tools {
+    order: 3;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+  .search-wrap-form { order: -1; width: 100%; }
+  .search-input { width: 100%; min-width: 0; }
+  .user-label,
+  .live-feed-label { display: none; }
+
+  /* Contenu et bannières */
   .split { grid-template-columns: 1fr; }
-  .topbar { padding: 16px; }
-  .content { padding: 8px 16px 32px; }
-  .sync-banner { margin: 0 16px 12px; }
-  .role-banner { margin: 0 16px 12px; }
+  .content { padding: 10px 14px 32px; }
+  .sync-banner,
+  .role-banner { margin: 0 14px 12px; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* Tableaux : défilement horizontal propre (pas d'écrasement) */
+  .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .providers-table,
+  .data-table,
+  .kyc-checks-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+}
+
+/* Très petits écrans : 1 colonne et UI épurée */
+@media (max-width: 560px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .region-badge { display: none; }
+  .sidebar { width: 88%; }
+  .page-title { font-size: 1.05rem; }
 }
 
 /* ——— Graphique KPI + thème sombre ——— */

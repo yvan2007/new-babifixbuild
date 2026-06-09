@@ -134,6 +134,7 @@ from .views import (
     api_public_categories,
     api_public_payment_methods,
     api_public_providers,
+    api_public_provider_availability,
     api_public_vitrine,
     api_reservation_devis,
     api_admin_reservation_move,
@@ -147,6 +148,11 @@ urlpatterns = [
     path("api/public/vitrine/", api_public_vitrine, name="api-public-vitrine"),
     path("api/public/categories/", api_public_categories, name="api-public-categories"),
     path("api/public/providers/", api_public_providers, name="api-public-providers"),
+    path(
+        "api/public/providers/<int:provider_id>/availability/",
+        api_public_provider_availability,
+        name="api-public-provider-availability",
+    ),
     path(
         "api/public/payment-methods/",
         api_public_payment_methods,

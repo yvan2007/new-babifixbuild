@@ -106,8 +106,17 @@
     </div>
   </aside>
 
+  <!-- Voile mobile : assombrit le contenu quand le drawer est ouvert -->
+  <div class="sidebar-scrim" id="sidebarScrim" aria-hidden="true"></div>
+
   <div class="main-wrap">
     <header class="topbar">
+      <button type="button" class="menu-toggle" id="menuToggle"
+              aria-label="Ouvrir le menu" aria-controls="section-content" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M3 6h18M3 12h18M3 18h18"/>
+        </svg>
+      </button>
       <div class="topbar-titles">
         <h2 class="page-title">{{ page_heading }}</h2>
         <p class="topbar-sub">{{ page_subtitle }}</p>
@@ -2597,6 +2606,49 @@
       });
       form.submit();
     }
+  </script>
+
+  <!-- Menu mobile (drawer off-canvas) — sans effet sur desktop -->
+  <script>
+  (function () {
+    var body = document.body;
+    var toggle = document.getElementById('menuToggle');
+    var scrim = document.getElementById('sidebarScrim');
+    var sidebar = document.querySelector('.sidebar');
+    if (!toggle || !sidebar) return;
+
+    function openMenu() {
+      body.classList.add('sidebar-open');
+      toggle.setAttribute('aria-expanded', 'true');
+    }
+    function closeMenu() {
+      body.classList.remove('sidebar-open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+    function isOpen() { return body.classList.contains('sidebar-open'); }
+
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      isOpen() ? closeMenu() : openMenu();
+    });
+    if (scrim) scrim.addEventListener('click', closeMenu);
+
+    // Fermer le drawer après un clic sur un lien de navigation (mobile).
+    sidebar.addEventListener('click', function (e) {
+      if (e.target.closest('a.nav-link') && window.innerWidth <= 900) {
+        closeMenu();
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && isOpen()) closeMenu();
+    });
+
+    // Repasser proprement en mode desktop si on agrandit la fenêtre.
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 900 && isOpen()) closeMenu();
+    });
+  })();
   </script>
 </body>
 </html>

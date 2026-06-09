@@ -44,6 +44,85 @@ _OPERATOR_MAP = {
     "MOOV":         "pawapay",   # PawaPay gère Moov via auto-routing
 }
 
+# Statuts antérieurs à la confirmation : passables à « Confirmee » au paiement
+# de l'acompte. Au-delà, on ne régresse jamais le statut.
+_PRE_CONFIRM_STATUSES = {
+    "En attente", "PENDING", "DEMANDE_ENVOYEE", "DEVIS_ENVOYE", "DEVIS_ACCEPTE",
+}
+
+
+def _apply_payment_phase(reservation, payment) -> str:
+    """Applique un paiement à la réservation SELON LA PHASE (acompte/solde).
+
+    1er paiement (acompte non validé) = acompte ; 2e = solde. On se base sur
+    ``acompte_valide`` pour ne PAS réécraser l'acompte au paiement du solde
+    (sinon le client « repaie » le reste indéfiniment). Utilisé par l'init
+    (simulation/sandbox) ET par le webhook. Retourne 'acompte' ou 'solde'.
+    """
+    from decimal import Decimal
+    total = reservation.montant or Decimal("0")
+    paid_now = Decimal(str(payment.montant or 0))
+    if not reservation.acompte_valide:
+        reservation.acompte_valide = True
+        reservation.montant_verse = paid_now
+        reservation.montant_restant = max(Decimal("0"), total - paid_now)
+        fields = ["acompte_valide", "montant_verse", "montant_restant"]
+        if reservation.statut in _PRE_CONFIRM_STATUSES:
+            reservation.statut = Reservation.Status.CONFIRMED
+            fields.append("statut")
+        reservation.save(update_fields=fields)
+        return "acompte"
+    new_verse = (reservation.montant_verse or Decimal("0")) + paid_now
+    if new_verse > total:
+        new_verse = total
+    reservation.montant_verse = new_verse
+    reservation.montant_restant = max(Decimal("0"), total - new_verse)
+    fields = ["montant_verse", "montant_restant"]
+    if reservation.montant_restant <= 0:
+        reservation.solde_valide = True
+        fields.append("solde_valide")
+    reservation.save(update_fields=fields)
+    return "solde"
+
+
+def _send_receipt_email(payment) -> None:
+    """Génère le reçu PDF et l'envoie par e-mail au client (silencieux si échec)."""
+    try:
+        from .services.invoice_service import InvoiceService
+        from .views_extra import send_babifix_email_html
+        from django.template.loader import render_to_string
+
+        res = getattr(payment, "reservation", None)
+        client_user = getattr(res, "client_user", None) if res else None
+        if not (client_user and client_user.email):
+            return
+        pdf_bytes = InvoiceService.generate_pdf(payment)
+        if not pdf_bytes:
+            return
+        invoice_number = InvoiceService.generate_invoice_number(payment)
+        html_content = render_to_string(
+            "emails/receipt_email.html",
+            {
+                "invoice_number": invoice_number,
+                "reference":      res.reference,
+                "service_title":  getattr(res, "title", None) or res.reference,
+                "montant":        payment.montant,
+                "operateur":      "GeniusPay / Mobile Money",
+                "client_name":    client_user.get_full_name() or client_user.username,
+            },
+        )
+        send_babifix_email_html(
+            to_email=client_user.email,
+            subject=f"BABIFIX — Reçu de paiement {invoice_number}",
+            html_content=html_content,
+            attachments=[(f"recu_{invoice_number}.pdf", pdf_bytes, "application/pdf")],
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Erreur envoi reçu PDF pour paiement %s: %s",
+            getattr(payment, "reference", "?"), exc,
+        )
+
 
 # ---------------------------------------------------------------------------
 # HTTP helper — stdlib urllib (aucune dépendance externe)
@@ -190,28 +269,23 @@ def geniuspay_initiate(request):
         reference_externe="",   # sera renseigné après appel API
     )
 
-    from decimal import Decimal
-
     # Tentative réelle vers l'API GeniusPay
     def _do_fake_validation(ref: str) -> JsonResponse:
         """Simulation de validation — fallback quand l'API est indisponible."""
         payment.reference_externe = ref
         payment.etat = Payment.State.COMPLETE
         payment.save(update_fields=["reference_externe", "etat"])
-        taux_acompte = Decimal("0.30")
-        acompte = (reservation.montant * taux_acompte).quantize(Decimal("0.01"))
-        reservation.acompte_valide = True
-        reservation.montant_verse = acompte
-        reservation.montant_restant = reservation.montant - acompte
-        reservation.statut = Reservation.Status.CONFIRMED
-        reservation.save(update_fields=["acompte_valide", "montant_verse", "montant_restant", "statut"])
+        phase = _apply_payment_phase(reservation, payment)
+        # Reçu PDF par e-mail (acompte ET solde) — fonctionne aussi en local.
+        _send_receipt_email(payment)
         return JsonResponse({
             "transaction_id": ref,
             "payment_id":     payment.pk,
             "payment_url":    "",
             "checkout_url":   "",
             "status":         "valide",
-            "message":        "Acompte validé (simulation — API indisponible).",
+            "message": "Solde payé !" if phase == "solde"
+            else "Acompte validé (simulation — API indisponible).",
         })
 
     # Construire le payload GeniusPay
@@ -273,38 +347,41 @@ def geniuspay_initiate(request):
         payment.etat = Payment.State.COMPLETE
         payment.save(update_fields=["etat"])
 
-        # Valider l'acompte sur la réservation
+        # Appliquer le paiement à la réservation selon la phase (acompte/solde)
+        phase = "acompte"
         if payment.reservation:
-            res = payment.reservation
-            from decimal import Decimal
-            taux_acompte = Decimal("0.30")
-            montant_acompte = (res.montant * taux_acompte).quantize(Decimal("0.01"))
-            res.acompte_valide = True
-            res.montant_verse = montant_acompte
-            res.montant_restant = res.montant - montant_acompte
-            res.statut = Reservation.Status.CONFIRMED
-            res.save(update_fields=["acompte_valide", "montant_verse", "montant_restant", "statut"])
+            phase = _apply_payment_phase(payment.reservation, payment)
+            # Reçu PDF par e-mail (acompte ET solde)
+            _send_receipt_email(payment)
 
-        # Notifier le prestataire
+        # Notifier le prestataire selon la phase
         try:
             from .push_dispatch import _schedule
-            _schedule(
-                [payment.reservation.prestataire_user_id],
-                "BABIFIX — Acompte reçu",
-                f"Le client a payé l'acompte pour {payment.reservation.reference}. Réservation confirmée.",
-                {"type": "acompte.valide", "reference": payment.reservation.reference},
-            )
+            if phase == "solde":
+                _schedule(
+                    [payment.reservation.prestataire_user_id],
+                    "BABIFIX — Solde reçu",
+                    f"Le client a payé le solde pour {payment.reservation.reference}.",
+                    {"type": "solde.valide", "reference": payment.reservation.reference},
+                )
+            else:
+                _schedule(
+                    [payment.reservation.prestataire_user_id],
+                    "BABIFIX — Acompte reçu",
+                    f"Le client a payé l'acompte pour {payment.reservation.reference}. Réservation confirmée.",
+                    {"type": "acompte.valide", "reference": payment.reservation.reference},
+                )
         except Exception as exc:
             logger.warning("Push notification failed: %s", exc)
 
-        logger.info("GeniusPay sandbox auto-validee: %s", genius_reference)
+        logger.info("GeniusPay sandbox auto-validee (%s): %s", phase, genius_reference)
         return JsonResponse({
             "transaction_id": genius_reference,
             "payment_id":     payment.pk,
             "payment_url":    data.get("payment_url", ""),
             "checkout_url":   data.get("checkout_url", ""),
             "status":         "COMPLETE",
-            "message":        "Acompte validé !",
+            "message":        "Solde payé !" if phase == "solde" else "Acompte validé !",
         })
 
     return JsonResponse({
@@ -443,63 +520,38 @@ def geniuspay_webhook(request):
         payment.valide_par_admin = False
         payment.save(update_fields=["etat", "valide_par_admin"])
 
+        phase = "acompte"
         if payment.reservation:
             res = payment.reservation
-            from decimal import Decimal
-            taux_acompte = Decimal("0.30")
-            montant_acompte = (res.montant * taux_acompte).quantize(Decimal("0.01"))
+            # Phase-aware (acompte / solde) — plus de réécrasement de l'acompte.
+            phase = _apply_payment_phase(res, payment)
 
-            res.acompte_valide = True
-            res.montant_verse = montant_acompte
-            res.montant_restant = res.montant - montant_acompte
-            res.statut = Reservation.Status.CONFIRMED
-            res.save(update_fields=["acompte_valide", "montant_verse", "montant_restant", "statut"])
-
-            # Notifier le prestataire
+            # Notifier le prestataire selon la phase
             try:
                 from .push_dispatch import _schedule
-                _schedule(
-                    [res.prestataire_user_id],
-                    "BABIFIX — Acompte reçu",
-                    f"Le client a payé l'acompte ({montant_acompte} FCFA) pour {res.reference}. Réservation confirmée.",
-                    {"type": "acompte.valide", "reference": res.reference},
-                )
+                if phase == "solde":
+                    _schedule(
+                        [res.prestataire_user_id],
+                        "BABIFIX — Solde reçu",
+                        f"Le client a payé le solde pour {res.reference}.",
+                        {"type": "solde.valide", "reference": res.reference},
+                    )
+                else:
+                    _schedule(
+                        [res.prestataire_user_id],
+                        "BABIFIX — Acompte reçu",
+                        f"Le client a payé l'acompte pour {res.reference}. Réservation confirmée.",
+                        {"type": "acompte.valide", "reference": res.reference},
+                    )
             except Exception as exc:
                 logger.warning("Push notification failed: %s", exc)
 
-        # Générer et envoyer le reçu PDF
-        try:
-            from .services.invoice_service import InvoiceService
-            from .views_extra import send_babifix_email_html
-            from django.template.loader import render_to_string
+            # Reçu PDF par e-mail (acompte ET solde)
+            _send_receipt_email(payment)
 
-            pdf_bytes = InvoiceService.generate_pdf(payment)
-            if pdf_bytes and payment.reservation and payment.reservation.client_user:
-                client_email = payment.reservation.client_user.email
-                invoice_number = InvoiceService.generate_invoice_number(payment)
-                html_content = render_to_string(
-                    "emails/receipt_email.html",
-                    {
-                        "invoice_number": invoice_number,
-                        "reference":      payment.reservation.reference,
-                        "service_title":  getattr(payment.reservation, "titre", None) or payment.reservation.reference,
-                        "montant":        payment.montant,
-                        "operateur":      "GeniusPay / Mobile Money",
-                        "client_name":    payment.reservation.client_user.get_full_name()
-                                          or payment.reservation.client_user.username,
-                    },
-                )
-                send_babifix_email_html(
-                    to_email=client_email,
-                    subject=f"BABIFIX — Reçu de paiement {invoice_number}",
-                    html_content=html_content,
-                    attachments=[(f"recu_{invoice_number}.pdf", pdf_bytes, "application/pdf")],
-                )
-        except Exception as exc:
-            logger.warning("Erreur envoi reçu PDF pour paiement %s: %s", payment.reference, exc)
-
-        logger.info("GeniusPay webhook — paiement %s SUCCÈS acompte=%s confirmé pour %s",
-                    payment.reference, montant_acompte, res.reference if payment.reservation else "?")
+        logger.info("GeniusPay webhook — paiement %s SUCCÈS (%s) pour %s",
+                    payment.reference, phase,
+                    payment.reservation.reference if payment.reservation else "?")
 
     elif event_type in ("payment.failed", "payment.cancelled", "payment.expired"):
         payment.etat = Payment.State.DISPUTE

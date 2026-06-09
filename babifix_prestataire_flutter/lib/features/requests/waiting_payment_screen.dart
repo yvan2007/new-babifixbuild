@@ -74,7 +74,10 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
     }
     try {
       final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests'),
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/prestataire/requests'
+          '?reference=${Uri.encodeComponent(widget.reservationReference)}',
+        ),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 200) {
@@ -82,7 +85,9 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
         final requests = data['requests'] as List<dynamic>? ?? [];
         final found = requests.cast<Map<String, dynamic>>().firstWhere(
           (r) => r['reference'] == widget.reservationReference,
-          orElse: () => <String, dynamic>{},
+          orElse: () => requests.isNotEmpty
+              ? requests.first as Map<String, dynamic>
+              : <String, dynamic>{},
         );
         if (found.isNotEmpty) {
           setState(() {
@@ -91,7 +96,7 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
           });
         } else {
           setState(() {
-            _error = 'Réservation non trouvée';
+            _error = 'introuvable';
             _loading = false;
           });
         }
@@ -115,7 +120,10 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
     if (token == null) return;
     try {
       final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests'),
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/prestataire/requests'
+          '?reference=${Uri.encodeComponent(widget.reservationReference)}',
+        ),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 200) {
@@ -126,6 +134,8 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
           orElse: () => <String, dynamic>{},
         );
         if (found.isEmpty) return;
+        // Garder la fiche à jour (montant, statut) pendant l'attente.
+        if (mounted) setState(() => _reservation = found);
         final status = '${found['status'] ?? ''}'.toUpperCase();
         if (status == 'CONFIRMEE' || status == 'DEVIS_ACCEPTE') {
           if (mounted) widget.onPaymentReceived();
@@ -161,25 +171,87 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
   }
 
   Widget _buildError() {
+    final notFound = _error == 'introuvable';
+    final title = notFound
+        ? 'Suivi indisponible'
+        : (_error == 'Non connecté' ? 'Session expirée' : 'Connexion perdue');
+    final message = notFound
+        ? "Cette réservation n'est plus en attente de paiement, "
+              "ou son suivi n'est pas disponible ici. Retrouvez-la dans "
+              "« Demandes » avec son statut à jour."
+        : (_error == 'Non connecté'
+              ? 'Reconnectez-vous pour suivre le paiement.'
+              : 'Vérifiez votre connexion internet puis réessayez.');
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 64, color: _slate400),
-          const SizedBox(height: 16),
-          Text(
-            _error ?? 'Erreur',
-            style: const TextStyle(fontSize: 18, color: _slate400),
-            textAlign: TextAlign.center,
+          Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              color: (notFound ? _amber : _slate400).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              notFound
+                  ? Icons.fact_check_outlined
+                  : Icons.wifi_off_rounded,
+              size: 52,
+              color: notFound ? _amber : _slate400,
+            ),
           ),
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: () {
-              setState(() => _loading = true);
-              _loadReservation();
-            },
-            child: const Text('Réessayer'),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: _navy,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14.5, color: _slate400, height: 1.5),
+          ),
+          const SizedBox(height: 28),
+          if (!notFound)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  setState(() {
+                    _loading = true;
+                    _error = null;
+                  });
+                  _loadReservation();
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: _emerald,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Réessayer'),
+              ),
+            ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: widget.onBack,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: _slate400),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Retour aux demandes'),
+            ),
           ),
         ],
       ),

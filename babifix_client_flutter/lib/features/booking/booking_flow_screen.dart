@@ -1936,6 +1936,14 @@ class _StepDisponibilite extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+            if (providerId != null) ...[
+              _AvailabilityCalendar(
+                providerId: providerId!,
+                selectedLabel: disponibilites,
+                onPick: onDisponibilitesChanged,
+              ),
+              const SizedBox(height: 20),
+            ],
             if (providerId != null && onCheckAvailability != null) ...[
               const Text(
                 'Vérifier la disponibilité du prestataire',
@@ -2919,6 +2927,323 @@ class _RepereTextField extends StatelessWidget {
             fontSize: 12.5,
             fontStyle: FontStyle.italic,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Calendrier de disponibilité animé (client) ──────────────────────────────
+// Lit /api/public/providers/<id>/availability/ et affiche les prochains jours.
+// Les jours où le prestataire a des créneaux (et n'est pas en congé) sont
+// mis en avant et cliquables ; on choisit ensuite un créneau horaire.
+class _AvailabilityCalendar extends StatefulWidget {
+  const _AvailabilityCalendar({
+    required this.providerId,
+    required this.selectedLabel,
+    required this.onPick,
+  });
+
+  final int providerId;
+  final String selectedLabel;
+  final ValueChanged<String> onPick;
+
+  @override
+  State<_AvailabilityCalendar> createState() => _AvailabilityCalendarState();
+}
+
+class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
+  static const _kCyan = Color(0xFF4CC9F0);
+  static const _kNavy = Color(0xFF050D1A);
+  static const _kCard = Color(0xFF0D1525);
+  static const _wd = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+  bool _loading = true;
+  bool _hasAvailability = false;
+  bool _error = false;
+  List<Map<String, dynamic>> _days = [];
+  int _selectedDayIndex = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final resp = await http.get(
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/public/providers/${widget.providerId}/availability/',
+        ),
+      );
+      if (resp.statusCode == 200) {
+        final j = jsonDecode(resp.body) as Map<String, dynamic>;
+        final days =
+            ((j['days'] as List?) ?? const []).cast<Map<String, dynamic>>();
+        if (mounted) {
+          setState(() {
+            _hasAvailability = j['has_availability'] == true;
+            _days = days.take(14).toList();
+            _loading = false;
+          });
+        }
+      } else if (mounted) {
+        setState(() {
+          _error = true;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = true;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  String _seg(String iso, int i) {
+    final p = iso.split('-');
+    return p.length == 3 ? p[i] : '';
+  }
+
+  void _pickSlot(Map<String, dynamic> day, Map<String, dynamic> slot) {
+    final iso = '${day['date']}';
+    final wd = (day['weekday'] as num?)?.toInt() ?? 0;
+    final label =
+        '${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)} · ${slot['start']}–${slot['end']}';
+    widget.onPick(label);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.event_available_rounded, color: _kCyan, size: 18),
+            const SizedBox(width: 8),
+            const Text(
+              'Disponibilités du prestataire',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Center(child: BabifixRingLoader.cyan(size: 28)),
+          )
+        else if (_error || !_hasAvailability)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _kCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _kCyan.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded,
+                    color: _kCyan.withValues(alpha: 0.8), size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _error
+                        ? "Disponibilités indisponibles pour le moment. Indiquez vos préférences ci-dessous."
+                        : "Ce prestataire n'a pas encore publié ses créneaux. Indiquez vos préférences ci-dessous.",
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 12.5,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          SizedBox(
+            height: 86,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _days.length,
+              itemBuilder: (_, i) => _dayChip(i),
+            ),
+          ),
+          _buildSlots(),
+        ],
+      ],
+    );
+  }
+
+  Widget _dayChip(int index) {
+    final day = _days[index];
+    final available = day['available'] == true;
+    final blocked = day['blocked'] == true;
+    final selected = index == _selectedDayIndex;
+    final iso = '${day['date']}';
+    final wd = (day['weekday'] as num?)?.toInt() ?? 0;
+    final onLight = selected ? _kNavy : null;
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 300 + index * 35),
+      curve: Curves.easeOutCubic,
+      tween: Tween(begin: 0, end: 1),
+      builder: (_, v, child) => Opacity(
+        opacity: v.clamp(0.0, 1.0),
+        child: Transform.translate(offset: Offset(0, (1 - v) * 14), child: child),
+      ),
+      child: GestureDetector(
+        onTap: available
+            ? () => setState(
+                () => _selectedDayIndex = selected ? -1 : index)
+            : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 54,
+          margin: const EdgeInsets.only(right: 10),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? _kCyan
+                : (available ? _kCard : Colors.white.withValues(alpha: 0.03)),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? _kCyan
+                  : (available
+                      ? _kCyan.withValues(alpha: 0.25)
+                      : Colors.white.withValues(alpha: 0.06)),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _wd[wd],
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: onLight ??
+                      (available ? Colors.white70 : Colors.white24),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _seg(iso, 2),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color:
+                      onLight ?? (available ? Colors.white : Colors.white24),
+                ),
+              ),
+              const SizedBox(height: 5),
+              if (blocked)
+                const Icon(Icons.lock_rounded, size: 12, color: Colors.white24)
+              else
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: available
+                        ? (selected ? _kNavy : _kCyan)
+                        : Colors.transparent,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSlots() {
+    if (_selectedDayIndex < 0 || _selectedDayIndex >= _days.length) {
+      return const SizedBox.shrink();
+    }
+    final day = _days[_selectedDayIndex];
+    final slots = ((day['slots'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final iso = '${day['date']}';
+    final wd = (day['weekday'] as num?)?.toInt() ?? 0;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Créneaux du ${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)}',
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Colors.white60,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in slots)
+                  _slotChip(day, s,
+                      '${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)} · ${s['start']}–${s['end']}'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _slotChip(
+      Map<String, dynamic> day, Map<String, dynamic> slot, String label) {
+    final selected = widget.selectedLabel == label;
+    return GestureDetector(
+      onTap: () => _pickSlot(day, slot),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? _kCyan : _kCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? _kCyan : _kCyan.withValues(alpha: 0.25),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.schedule_rounded,
+                size: 15, color: selected ? _kNavy : _kCyan),
+            const SizedBox(width: 6),
+            Text(
+              '${slot['start']} – ${slot['end']}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: selected ? _kNavy : Colors.white,
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.check_rounded, size: 15, color: _kNavy),
+            ],
+          ],
         ),
       ),
     );
