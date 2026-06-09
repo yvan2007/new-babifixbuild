@@ -110,7 +110,7 @@ class BabifixFcm {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $apiBearerToken',
           },
-          body: jsonEncode({'token': t, 'platform': _platformLabel()}),
+          body: jsonEncode({'token': t, 'platform': _platformLabel(), 'app': 'client'}),
         );
       }
 

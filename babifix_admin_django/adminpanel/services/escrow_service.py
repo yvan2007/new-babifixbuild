@@ -55,6 +55,58 @@ MOBILE_DEPOSIT_RATE = Decimal("0.30")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+def _notify_provider_funds_received(reservation, net_amount: float) -> None:
+    """Prévient le prestataire que son argent est arrivé : push + e-mail.
+
+    Le push passe par `_schedule` qui brande automatiquement « BABIFIX PRO »
+    et ne cible que l'app prestataire.
+    """
+    if not getattr(reservation, "prestataire_user_id", None) or net_amount <= 0:
+        return
+    montant_txt = f"{net_amount:,.0f}".replace(",", " ")
+
+    # 1) Push notification (app prestataire)
+    try:
+        from adminpanel.push_dispatch import _schedule
+        _schedule(
+            [reservation.prestataire_user_id],
+            "Argent reçu",
+            f"{montant_txt} FCFA crédités sur votre wallet pour {reservation.reference}.",
+            {"type": "wallet.credited", "reference": reservation.reference},
+        )
+    except Exception:
+        logger.warning("notif push presta (funds) échouée %s", reservation.reference, exc_info=True)
+
+    # 2) E-mail de confirmation de versement (expéditeur « BABIFIX »)
+    try:
+        from django.contrib.auth.models import User
+        from .views_extra import send_babifix_email_html
+
+        presta = User.objects.filter(pk=reservation.prestataire_user_id).first()
+        if not (presta and presta.email):
+            return
+        nom = presta.get_full_name() or presta.username
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
+          <h2 style="color:#0B1B34">BABIFIX — Versement reçu</h2>
+          <p>Bonjour {nom},</p>
+          <p>Bonne nouvelle : <strong>{montant_txt} FCFA</strong> (net après commission)
+          viennent d'être crédités sur votre wallet BABIFIX pour la prestation
+          <strong>{reservation.reference}</strong>.</p>
+          <p>Vous pouvez demander un retrait depuis l'application
+          <strong>BABIFIX PRO</strong> → Mon Wallet.</p>
+          <p style="color:#64748b;font-size:13px">Merci de votre confiance.<br>L'équipe BABIFIX</p>
+        </div>
+        """
+        send_babifix_email_html(
+            to_email=presta.email,
+            subject=f"BABIFIX — Versement reçu ({montant_txt} FCFA)",
+            html_content=html,
+        )
+    except Exception:
+        logger.warning("e-mail presta (funds) échoué %s", reservation.reference, exc_info=True)
+
+
 def _latest_devis(reservation):
     """Devis ACCEPTE le plus récent, sinon ENVOYE, sinon None."""
     from adminpanel.models import Devis
@@ -482,6 +534,18 @@ class EscrowService:
         reservation.save(
             update_fields=["funds_released_at", "solde_valide", "cash_flow_status"]
         )
+
+        # Prévenir le PRESTATAIRE que son argent est arrivé : push (BABIFIX PRO)
+        # + e-mail de confirmation de versement.
+        try:
+            _notify_provider_funds_received(
+                reservation, float(result.get("released_to_provider") or 0)
+            )
+        except Exception:
+            logger.warning(
+                "release_funds: notification presta échouée %s",
+                reservation.reference, exc_info=True,
+            )
 
         logger.info(
             "EscrowService.release_funds: %s — strategy=%s released=%s commission=%s",

@@ -1045,6 +1045,16 @@ class DeviceToken(models.Model):
     platform = models.CharField(
         max_length=16, choices=Platform.choices, default=Platform.ANDROID
     )
+
+    class App(models.TextChoices):
+        CLIENT = "client", "Application Client (BABIFIX)"
+        PRO = "pro", "Application Prestataire (BABIFIX PRO)"
+
+    # Application d'origine du jeton : permet d'envoyer la notification au BON
+    # destinataire (un push « client » ne doit pas arriver sur l'app presta).
+    app = models.CharField(
+        max_length=12, choices=App.choices, default=App.CLIENT, db_index=True
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -12,6 +12,15 @@ from django.db import transaction
 from .models import Message, Provider, UserProfile
 
 
+def _strip_brand(title: str) -> str:
+    """Retire un préfixe de marque déjà présent pour éviter le doublon."""
+    t = (title or "").lstrip()
+    for prefix in ("BABIFIX PRO —", "BABIFIX PRO -", "BABIFIX —", "BABIFIX -", "BABIFIX"):
+        if t.startswith(prefix):
+            return t[len(prefix):].lstrip(" —-").strip()
+    return t.strip()
+
+
 def _schedule(
     user_ids: list[int | None],
     title: str,
@@ -25,7 +34,33 @@ def _schedule(
     def _run() -> None:
         from .fcm_backend import send_push_to_user_ids
 
-        send_push_to_user_ids(ids, title, body, data)
+        # Brander + cibler la BONNE app selon le RÔLE de chaque destinataire :
+        #  - client      → « BABIFIX … »      + jetons app=client
+        #  - prestataire → « BABIFIX PRO … »  + jetons app=pro
+        #  - admin/autre → titre inchangé, tous les jetons
+        roles = dict(
+            UserProfile.objects.filter(user_id__in=ids).values_list("user_id", "role")
+        )
+        groups: dict[str | None, list[int]] = {}
+        for uid in ids:
+            role = roles.get(uid)
+            if role == UserProfile.Role.PRESTATAIRE:
+                key = "pro"
+            elif role == UserProfile.Role.CLIENT:
+                key = "client"
+            else:
+                key = None
+            groups.setdefault(key, []).append(uid)
+
+        base = _strip_brand(title)
+        for app_key, group_ids in groups.items():
+            if app_key == "pro":
+                branded = f"BABIFIX PRO — {base}" if base else "BABIFIX PRO"
+            elif app_key == "client":
+                branded = f"BABIFIX — {base}" if base else "BABIFIX"
+            else:
+                branded = title  # admin / inconnu : on garde tel quel
+            send_push_to_user_ids(group_ids, branded, body, data, app=app_key)
 
     transaction.on_commit(lambda: threading.Thread(target=_run, daemon=True).start())
 

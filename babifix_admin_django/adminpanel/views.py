@@ -4365,9 +4365,13 @@ def api_auth_fcm_token(request):
     platform = (payload.get("platform") or "android").strip().lower()[:16]
     if platform not in {"android", "ios", "web"}:
         platform = DeviceToken.Platform.ANDROID
+    # App d'origine du jeton : 'client' (BABIFIX) ou 'pro' (BABIFIX PRO).
+    app = (payload.get("app") or "client").strip().lower()
+    if app not in {"client", "pro"}:
+        app = "client"
     DeviceToken.objects.update_or_create(
         token=token,
-        defaults={"user_id": uid, "platform": platform},
+        defaults={"user_id": uid, "platform": platform, "app": app},
     )
     return JsonResponse({"ok": True})
 

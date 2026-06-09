@@ -80,8 +80,13 @@ def send_push_to_user_ids(
     title: str,
     body: str,
     data: dict[str, Any] | None = None,
+    app: str | None = None,
 ) -> dict:
-    """Envoie une notification à tous les appareils enregistrés pour ces utilisateurs.
+    """Envoie une notification aux appareils enregistrés pour ces utilisateurs.
+
+    Si ``app`` est fourni ('client' ou 'pro'), on ne cible QUE les jetons de
+    cette application — pour qu'un push « client » n'atterrisse pas sur l'app
+    prestataire (et inversement).
 
     Retourne un résumé : {ready, tokens, sent, failed, reason}.
     """
@@ -93,9 +98,10 @@ def send_push_to_user_ids(
 
     from .models import DeviceToken
 
-    tokens = list(
-        DeviceToken.objects.filter(user_id__in=user_ids).values_list('token', flat=True).distinct()
-    )
+    qs = DeviceToken.objects.filter(user_id__in=user_ids)
+    if app in {'client', 'pro'}:
+        qs = qs.filter(app=app)
+    tokens = list(qs.values_list('token', flat=True).distinct())
     if not tokens:
         logger.info('FCM: aucun appareil enregistré pour les utilisateurs %s', user_ids)
         return {'ready': True, 'tokens': 0, 'sent': 0, 'failed': 0, 'reason': 'no_tokens'}
