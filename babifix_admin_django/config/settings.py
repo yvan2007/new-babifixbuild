@@ -19,14 +19,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 def _load_local_env():
     """Charge BABIFIX_BUILD/babifix_admin_django/.env (non versionné)."""
-    path = BASE_DIR / ".env"
+    path = BASE_DIR / '.env'
     if not path.is_file():
         return
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in path.read_text(encoding='utf-8').splitlines():
         line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
+        if not line or line.startswith('#') or '=' not in line:
             continue
-        key, _, val = line.partition("=")
+        key, _, val = line.partition('=')
         key = key.strip()
         val = val.strip().strip('"').strip("'")
         if key:
@@ -35,36 +35,14 @@ def _load_local_env():
 
 _load_local_env()
 
-
-def _autodetect_firebase_credentials():
-    """Branche automatiquement la clé de service Firebase si elle est présente.
-
-    Cherche un fichier de compte de service à la racine du projet admin (ignoré
-    par git) et définit FIREBASE_CREDENTIALS_JSON_PATH si aucune valeur n'est déjà
-    fournie. Permet d'activer les push FCM sans variable d'environnement manuelle.
-    """
-    if os.getenv("FIREBASE_CREDENTIALS_JSON_PATH") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-        return
-    for candidate in (
-        "firebase-admin-key.json",
-        "service-account-firebase.json",
-    ):
-        p = BASE_DIR / candidate
-        if p.is_file():
-            os.environ["FIREBASE_CREDENTIALS_JSON_PATH"] = str(p)
-            break
-
-
-_autodetect_firebase_credentials()
-
 # =============================================================================
 # PRODUCTION CHECKS — Empêcher config insécurisée en production
 # =============================================================================
-_env = os.getenv("DJANGO_ENV", "development").lower()
+_env = os.getenv('DJANGO_ENV', 'development').lower()
 
 # SECURITY WARNING: keep the secret key used in production secret!
-_secret_key = os.getenv("DJANGO_SECRET_KEY")
-if _env == "production":
+_secret_key = os.getenv('DJANGO_SECRET_KEY')
+if _env == 'production':
     if not _secret_key:
         raise RuntimeError(
             "DJANGO_SECRET_KEY must be set in production. "
@@ -72,120 +50,90 @@ if _env == "production":
         )
     SECRET_KEY = _secret_key
 else:
-    SECRET_KEY = _secret_key or "dev-insecure-change-me-babifix"
+    SECRET_KEY = _secret_key or 'dev-insecure-change-me-babifix'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = _env == "development" and os.getenv("DJANGO_DEBUG", "True").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+DEBUG = _env == 'development' and os.getenv('DJANGO_DEBUG', 'True').lower() in {'1', 'true', 'yes', 'on'}
 
 # En production, DEBUG force False quoi qu'il arrive
-if _env == "production":
+if _env == 'production':
     DEBUG = False
 
-_allowed_hosts_env = os.getenv("DJANGO_ALLOWED_HOSTS", "").strip()
-if _allowed_hosts_env:
-    ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_env.split(",") if host.strip()]
-elif _env == "production":
-    ALLOWED_HOSTS = ["babifix.ci", "www.babifix.ci", "localhost", "127.0.0.1"]
-else:
-    ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1", "10.0.2.2", ".ngrok-free.dev", ".ngrok.io", ".ngrok-free.app"]
-
-# Render injecte automatiquement RENDER_EXTERNAL_HOSTNAME — l'ajouter toujours
-_render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
-if _render_host and _render_host not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append(_render_host)
+ALLOWED_HOSTS = [host.strip() for host in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if host.strip()]
 
 # En production, il faut au moins un host configured
-if (
-    _env == "production"
-    and len(ALLOWED_HOSTS) == 1
-    and ALLOWED_HOSTS[0] in ("127.0.0.1", "localhost")
-):
+if _env == 'production' and len(ALLOWED_HOSTS) == 1 and ALLOWED_HOSTS[0] in ('127.0.0.1', 'localhost'):
     raise RuntimeError("DJANGO_ALLOWED_HOSTS must be configured in production")
 
 
 # Application definition
 # daphne en premier : runserver utilise ASGI (HTTP + WebSocket)
 INSTALLED_APPS = [
-    "daphne",
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "corsheaders",
-    "rest_framework",
-    "drf_spectacular",
-    "django_celery_beat",
-    "channels",
-    "adminpanel",
+    'daphne',
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'corsheaders',
+    'rest_framework',
+    'channels',
+    'adminpanel',
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # BABIFIX : CSP, Permissions-Policy, COOP, anti-cache admin.
-    "adminpanel.security_middleware.BabifixSecurityHeadersMiddleware",
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-_BABIFIX_ENV = _env
 
 # CORS - Lire depuis env var
 CORS_ALLOWED_ORIGINS = [
-    host.strip()
-    for host in os.getenv(
-        "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000"
-    ).split(",")
-    if host.strip()
+    host.strip() for host in os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://localhost:3000').split(',') if host.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
 
-ROOT_URLCONF = "config.urls"
+ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = "config.wsgi.application"
-ASGI_APPLICATION = "config.asgi.application"
+WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
 
 # Django Channels — Redis en prod multi-workers ; mémoire locale OK pour un seul processus dev
-_redis_url = os.getenv("REDIS_URL", "").strip()
+_redis_url = os.getenv('REDIS_URL', '').strip()
 if _redis_url:
     CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [_redis_url],
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [_redis_url],
             },
         },
     }
 else:
     CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
         },
     }
 
@@ -193,56 +141,41 @@ else:
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Priorité : DATABASE_URL (Render) > PostgreSQL > MySQL > SQLite
-_database_url = os.getenv("DATABASE_URL", "").strip()
-_pg_db = os.getenv("POSTGRES_DB", "").strip()
-_mysql_db = (os.getenv("MYSQL_DATABASE") or os.getenv("MYSQL_NAME") or "").strip()
-if _database_url:
-    import dj_database_url
-    # conn_max_age=0 : connexion fraîche à chaque requête → évite de réutiliser
-    #   une connexion externe Render coupée (« SSL connection closed unexpectedly »).
-    # conn_health_checks : vérifie la connexion avant réutilisation.
-    # ssl_require : impose TLS (requis par Postgres Render).
+# Priorité : PostgreSQL (POSTGRES_DB) > MySQL (MYSQL_DATABASE) > SQLite
+_pg_db = os.getenv('POSTGRES_DB', '').strip()
+_mysql_db = (os.getenv('MYSQL_DATABASE') or os.getenv('MYSQL_NAME') or '').strip()
+if _pg_db:
     DATABASES = {
-        "default": dj_database_url.config(
-            default=_database_url,
-            conn_max_age=0,
-            conn_health_checks=True,
-            ssl_require=True,
-        )
-    }
-elif _pg_db:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": _pg_db,
-            "USER": os.getenv("POSTGRES_USER", "babifix"),
-            "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
-            "HOST": os.getenv("POSTGRES_HOST", "localhost"),
-            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': _pg_db,
+            'USER': os.getenv('POSTGRES_USER', 'babifix'),
+            'PASSWORD': os.getenv('POSTGRES_PASSWORD', ''),
+            'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
+            'PORT': os.getenv('POSTGRES_PORT', '5432'),
         }
     }
 elif _mysql_db:
     # WAMP : souvent root sans mot de passe — MYSQL_PASSWORD vide ou absent
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.mysql",
-            "NAME": _mysql_db,
-            "USER": os.getenv("MYSQL_USER", "root"),
-            "PASSWORD": os.getenv("MYSQL_PASSWORD", ""),
-            "HOST": os.getenv("MYSQL_HOST", "127.0.0.1"),
-            "PORT": os.getenv("MYSQL_PORT", "3306"),
-            "OPTIONS": {
-                "charset": "utf8mb4",
-                "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': _mysql_db,
+            'USER': os.getenv('MYSQL_USER', 'root'),
+            'PASSWORD': os.getenv('MYSQL_PASSWORD', ''),
+            'HOST': os.getenv('MYSQL_HOST', '127.0.0.1'),
+            'PORT': os.getenv('MYSQL_PORT', '3306'),
+            'OPTIONS': {
+                'charset': 'utf8mb4',
+                'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             },
         }
     }
 else:
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 
@@ -252,36 +185,26 @@ else:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-        "OPTIONS": {"min_length": 10},
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
-]
-
-# Hashers : Argon2 en priorité (bien plus résistant au brute-force que PBKDF2 par défaut).
-# Nécessite `argon2-cffi` (à ajouter dans requirements.txt).
-PASSWORD_HASHERS = [
-    "django.contrib.auth.hashers.Argon2PasswordHasher",
-    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
-    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
-    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
 ]
 
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = "fr"
+LANGUAGE_CODE = 'fr'
 
-TIME_ZONE = "Africa/Abidjan"
+TIME_ZONE = 'Africa/Abidjan'
 
 USE_I18N = True
 
@@ -291,104 +214,81 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATIC_URL = 'static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # =============================================================================
 # EMAILS TRANSACTIONNELS BABIFIX
 # Configurer via .env : EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, etc.
 # =============================================================================
 EMAIL_BACKEND = os.getenv(
-    "EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend",  # Console en dev, SMTP en prod
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend',  # SMTP par défaut
 )
-EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.mailjet.com")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in {"1", "true", "yes"}
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.ci>")
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in {'1', 'true', 'yes'}
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'BABIFIX <kouayavana20@gmail.com>')
 
 # =============================================================================
 # SOCIAL AUTH (Google & Apple Sign-In)
 # Configurer via .env : GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APPLE_BUNDLE_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY
 # =============================================================================
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-APPLE_BUNDLE_ID = os.getenv("APPLE_BUNDLE_ID", "ci.babifix.client")
-APPLE_TEAM_ID = os.getenv("APPLE_TEAM_ID", "")
-APPLE_KEY_ID = os.getenv("APPLE_KEY_ID", "")
-APPLE_PRIVATE_KEY = os.getenv("APPLE_PRIVATE_KEY", "").replace("\\n", "\n")
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
+APPLE_BUNDLE_ID = os.getenv('APPLE_BUNDLE_ID', 'ci.babifix.client')
+APPLE_TEAM_ID = os.getenv('APPLE_TEAM_ID', '')
+APPLE_KEY_ID = os.getenv('APPLE_KEY_ID', '')
+APPLE_PRIVATE_KEY = os.getenv('APPLE_PRIVATE_KEY', '').replace('\\n', '\n')
 
 # =============================================================================
 # RATE LIMITING (cache-based via Django cache)
 # Les endpoints sensibles utilisent le cache Django pour throttle par IP.
 # =============================================================================
 CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "babifix-cache",
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'babifix-cache',
     }
 }
 if _redis_url:
     CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": _redis_url,
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _redis_url,
         }
     }
 
 # Throttle API : max 5 logins / 1 min par IP, max 20 req / min en général
-BABIFIX_THROTTLE_LOGIN_RATE = int(os.getenv("BABIFIX_THROTTLE_LOGIN_RATE", "5"))
-BABIFIX_THROTTLE_LOGIN_WINDOW = int(os.getenv("BABIFIX_THROTTLE_LOGIN_WINDOW", "60"))
+BABIFIX_THROTTLE_LOGIN_RATE = int(os.getenv('BABIFIX_THROTTLE_LOGIN_RATE', '5'))
+BABIFIX_THROTTLE_LOGIN_WINDOW = int(os.getenv('BABIFIX_THROTTLE_LOGIN_WINDOW', '60'))
 
 # =============================================================================
-# GENIUSPAY (Mobile Money CI — Wave, Orange, MTN, PawaPay)
-# Base URL : https://pay.genius.ci/api/v1/merchant
+# CINETPAY (Mobile Money CI)
 # =============================================================================
-GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  "")
-GENIUSPAY_SECRET_KEY  = os.getenv("GENIUSPAY_SECRET_KEY",  "")
-GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", "")   # ex: https://api.babifix.ci/api/paiements/geniuspay/webhook/
-GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", "")   # ex: https://app.babifix.ci/payment-success
-GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   "")   # ex: https://app.babifix.ci/payment-error
-
-# En production, refuser de démarrer si les clés GeniusPay manquent.
-if _env == "production" and (not GENIUSPAY_PUBLIC_KEY or not GENIUSPAY_SECRET_KEY):
-    raise RuntimeError(
-        "GENIUSPAY_PUBLIC_KEY et GENIUSPAY_SECRET_KEY doivent être définies en production. "
-        "Ne JAMAIS hardcoder ces valeurs — utiliser des variables d'environnement."
-    )
-
-# =============================================================================
-# SMILE IDENTITY (KYC — vérification CNI ivoirienne, niveau 3)
-# Sans ces clés : seuls les niveaux 1 (qualité image + format) et 2 (visage)
-# tournent, puis validation humaine. Avec ces clés : authentification de la
-# carte + lecture du numéro + correspondance biométrique via l'autorité.
-# Obtenir les clés sur https://portal.usesmileid.com (Partner ID + API Key).
-# =============================================================================
-SMILE_IDENTITY_PARTNER_ID = os.getenv("SMILE_IDENTITY_PARTNER_ID", "")
-SMILE_IDENTITY_API_KEY    = os.getenv("SMILE_IDENTITY_API_KEY", "")
-SMILE_IDENTITY_SERVER     = os.getenv("SMILE_IDENTITY_SERVER", "0")  # "0"=sandbox, "1"=production
+CINETPAY_APIKEY = os.getenv('CINETPAY_APIKEY', '')
+CINETPAY_SITE_ID = os.getenv('CINETPAY_SITE_ID', '')
+CINETPAY_NOTIFY_URL = os.getenv('CINETPAY_NOTIFY_URL', '')
+CINETPAY_RETURN_URL = os.getenv('CINETPAY_RETURN_URL', '')
 
 # =============================================================================
 # SENTRY (monitoring erreurs en production)
 # =============================================================================
-_sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
+_sentry_dsn = os.getenv('SENTRY_DSN', '').strip()
 if _sentry_dsn:
     try:
         import sentry_sdk
         from sentry_sdk.integrations.django import DjangoIntegration
-
         sentry_sdk.init(
             dsn=_sentry_dsn,
             integrations=[DjangoIntegration()],
@@ -399,42 +299,25 @@ if _sentry_dsn:
         pass  # sentry-sdk non installé — ignorer silencieusement
 
 # Connexion dashboard (CRUD) — même session que django-admin
-LOGIN_URL = "/admin/login/"
-LOGIN_REDIRECT_URL = "/"
-LOGOUT_REDIRECT_URL = "/admin/login/"
+LOGIN_URL = '/admin/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/admin/login/'
 
 # =============================================================================
-# REST FRAMEWORK (throttling + pagination + schema)
+# REST FRAMEWORK (throttling + pagination)
 # =============================================================================
 REST_FRAMEWORK = {
-    "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
     ],
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "60/hour",
-        "user": "200/hour",
-        "login": "3/minute",
-        "register": "5/hour",
-        "payment": "10/hour",
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '200/hour',
+        'login': '5/minute',
     },
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 20,
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-}
-
-# DRF SPECTACULAR (Swagger/OpenAPI)
-# =============================================================================
-SPECTACULAR_SETTINGS = {
-    "TITLE": "BABIFIX API",
-    "DESCRIPTION": "API REST de la plateforme BABIFIX - Services à domicile en Côte d'Ivoire",
-    "VERSION": "1.0.0",
-    "SERVE_INCLUDE_SCHEMA": False,
-    "SWAGGER_UI_SETTINGS": {
-        "persistAuthorization": True,
-        "displayOperationId": True,
-    },
-    "COMPONENT_SPLIT_REQUEST": True,
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
 }
 
 # =============================================================================
@@ -443,151 +326,59 @@ SPECTACULAR_SETTINGS = {
 import os
 
 LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-            "style": "{",
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
         },
-        "simple": {
-            "format": "{levelname} {message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
         },
     },
-    "root": {
-        "level": "INFO",
-        "handlers": ["console"],
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
         },
-        "adminpanel": {
-            "handlers": ["console"],
-            "level": "DEBUG",
-            "propagate": False,
+    },
+    'root': {
+        'level': 'INFO',
+        'handlers': ['console'],
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'adminpanel': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
         },
     },
 }
 
-# En production (Render/cloud) : console uniquement — la plateforme capture stdout/stderr.
-# Les fichiers de log locaux sont inutiles sur un filesystem éphémère.
-if _env != "development":
-    LOG_DIR = BASE_DIR / "logs"
-    if LOG_DIR.exists():
-        LOGGING["handlers"]["file"] = {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOG_DIR / "babifix.log",
-            "maxBytes": 10 * 1024 * 1024,
-            "backupCount": 5,
-            "formatter": "verbose",
-        }
-        LOGGING["root"]["handlers"] = ["console", "file"]
-        LOGGING["loggers"]["django"]["handlers"] = ["console", "file"]
-        LOGGING["loggers"]["adminpanel"]["handlers"] = ["console", "file"]
-
-# =============================================================================
-# Security headers — appliqués SYSTÉMATIQUEMENT (dev + prod) pour protéger les
-# cookies, prévenir XSS, clickjacking, MIME-sniffing, et exfiltration via referer.
-# =============================================================================
-
-# --- Cookies ---------------------------------------------------------------
-# HttpOnly : empêche le JavaScript du navigateur (et toute injection XSS) de
-# lire le cookie de session.
-SESSION_COOKIE_HTTPONLY = True
-# SameSite=Lax : bloque l'envoi du cookie sur les requêtes cross-site (CSRF).
-SESSION_COOKIE_SAMESITE = "Lax"
-# Durée de session limitée (8 h) ; expire à la fermeture du navigateur.
-SESSION_COOKIE_AGE = 60 * 60 * 8
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-# CSRF cookie : SameSite=Lax + non lisible côté JS (token est aussi rendu côté template).
-CSRF_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SAMESITE = "Lax"
-
-# --- Headers communs ------------------------------------------------------
-SECURE_CONTENT_TYPE_NOSNIFF = True       # X-Content-Type-Options: nosniff
-SECURE_BROWSER_XSS_FILTER = True         # X-XSS-Protection (legacy)
-SECURE_REFERRER_POLICY = "same-origin"   # Empêche fuite d'URL via Referer
-X_FRAME_OPTIONS = "DENY"                 # Anti clickjacking
-# Permissions-Policy : désactive les API sensibles non utilisées.
-SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
-
-# CSRF Trusted Origins pour les sous-domaines BABIFIX (et Render).
-_csrf_trusted_env = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()
-if _csrf_trusted_env:
-    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_trusted_env.split(",") if o.strip()]
-else:
-    CSRF_TRUSTED_ORIGINS = [
-        "https://babifix.ci",
-        "https://www.babifix.ci",
-        "https://*.babifix.ci",
-        "https://*.onrender.com",
-    ]
-
-# Borner la taille des requêtes pour limiter les DoS / uploads abusifs.
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024     # 10 MB de form-data en mémoire
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024     # 10 MB par fichier en mémoire
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000               # anti-DoS sur formulaires monstres
-
-# Permissions strictes pour les fichiers uploadés.
-FILE_UPLOAD_PERMISSIONS = 0o644
-
-# --- Production-only -------------------------------------------------------
-if _env == "production":
-    # Render termine le SSL lui-même (load balancer) — ne pas rediriger vers HTTPS
-    # sinon boucle infinie. On fait confiance au header X-Forwarded-Proto de Render.
-    SECURE_SSL_REDIRECT = False
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_HSTS_SECONDS = 31536000              # 1 an
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-
-# =============================================================================
-# CELERY CONFIGURATION (tâches asynchrones)
-# =============================================================================
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", _redis_url or "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv(
-    "CELERY_RESULT_BACKEND",
-    "redis://localhost:6379/1" if not _redis_url else _redis_url.replace("/0", "/1"),
-)
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "Africa/Abidjan"
-CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
-
-from celery.schedules import crontab  # noqa: E402
-
-CELERY_BEAT_SCHEDULE = {
-    # Annuler les demandes sans réponse après 72h (toutes les heures à H:00)
-    "expire-pending-reservations": {
-        "task": "adminpanel.tasks.expire_pending_reservations",
-        "schedule": crontab(minute=0),
-    },
-    # Auto-confirmer les interventions terminées sans retour client après 48h (H:30)
-    "auto-confirm-interventions": {
-        "task": "adminpanel.tasks.auto_confirm_interventions",
-        "schedule": crontab(minute=30),
-    },
-    # Clore les litiges inactifs depuis 5 jours (chaque nuit à 2h)
-    "expire-stale-disputes": {
-        "task": "adminpanel.tasks.expire_stale_disputes",
-        "schedule": crontab(hour=2, minute=0),
-    },
-    # Désactiver les abonnements premium expirés (toutes les heures à H:15)
-    "expire-premium-subscriptions": {
-        "task": "adminpanel.tasks.expire_premium_subscriptions",
-        "schedule": crontab(minute=15),
-    },
-}
+# En production, ajouter les fichiers de log
+if os.getenv('DJANGO_ENV') == 'production':
+    LOGGING['handlers']['file'] = {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': BASE_DIR / 'logs' / 'babifix.log',
+        'maxBytes': 10 * 1024 * 1024,
+        'backupCount': 5,
+        'formatter': 'verbose',
+    }
+    LOGGING['handlers']['error_file'] = {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': BASE_DIR / 'logs' / 'error.log',
+        'maxBytes': 10 * 1024 * 1024,
+        'backupCount': 5,
+        'level': 'ERROR',
+        'formatter': 'verbose',
+    }
+    LOGGING['root']['handlers'] = ['console', 'file']
+    LOGGING['loggers']['django']['handlers'] = ['console', 'file']
+    LOGGING['loggers']['adminpanel']['handlers'] = ['console', 'file', 'error_file']
