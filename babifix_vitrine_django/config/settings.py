@@ -40,6 +40,19 @@ elif _env == "production":
 else:
     ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1"]
 
+# Render fournit automatiquement le domaine du service (ex. xxx.onrender.com).
+_render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if _render_host and _render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_render_host)
+
+# CSRF (formulaires éventuels : contact, newsletter) sur les domaines publics.
+CSRF_TRUSTED_ORIGINS = [
+    "https://babifix.ci",
+    "https://www.babifix.ci",
+]
+if _render_host:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_render_host}")
+
 
 # Application definition
 
@@ -55,6 +68,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # WhiteNoise sert les fichiers statiques en production (juste après Security).
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -130,6 +145,14 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+# Destination de `collectstatic` (servi par WhiteNoise en production).
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
