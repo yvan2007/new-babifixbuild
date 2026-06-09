@@ -1324,10 +1324,22 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   background-size:cover !important; background-position:center !important;
 }
 .prov-section{
-  background-image:
-    linear-gradient(150deg, rgba(15,23,42,.82), rgba(12,35,64,.86) 55%, rgba(13,48,96,.82)),
-    url('{% static "vitrine/photos/bg-cta.jpg" %}') !important;
-  background-size:cover !important; background-position:center 25% !important;
+  background:
+    linear-gradient(150deg, rgba(15,23,42,.82), rgba(12,35,64,.86) 55%, rgba(13,48,96,.82)) !important;
+  position:relative; overflow:hidden;
+}
+.prov-section::before{
+  content:''; position:absolute; inset:0; z-index:0;
+  background:url('{% static "vitrine/photos/bg-cta.jpg" %}') center 25% / cover no-repeat;
+  filter:blur(3px);
+}
+.prov-section>*{position:relative;z-index:1;}
+.prov-section .container{position:relative;z-index:2;}
+.prov-section::after{
+  content:''; position:absolute; inset:0; z-index:3; pointer-events:none;
+  background:
+    radial-gradient(700px circle at calc(100% + 50px) -150px, rgba(14,165,233,.12), transparent 70%),
+    radial-gradient(500px circle at -80px calc(100% + 50px), rgba(249,115,22,.08), transparent 70%);
 }
 .cta-section{
   background-image:
