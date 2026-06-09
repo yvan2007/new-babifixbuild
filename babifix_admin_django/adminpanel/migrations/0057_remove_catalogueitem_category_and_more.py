@@ -4,8 +4,15 @@ from django.db import migrations, models
 
 
 def drop_catalogue_table(apps, schema_editor):
+    # Compatible MySQL (local) ET PostgreSQL (Render) : la syntaxe des
+    # identifiants diffère (backticks MySQL vs guillemets Postgres), et
+    # Postgres exige CASCADE pour lever les contraintes FK dépendantes.
+    table = "adminpanel_catalogueitem"
     with schema_editor.connection.cursor() as c:
-        c.execute("DROP TABLE IF EXISTS `adminpanel_catalogueitem`")
+        if schema_editor.connection.vendor == "postgresql":
+            c.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE')
+        else:
+            c.execute(f"DROP TABLE IF EXISTS `{table}`")
 
 
 class Migration(migrations.Migration):
