@@ -4254,11 +4254,18 @@ def api_auth_register(request):
         country_code=country_code,
         email_verify_token=email_token,
     )
-    # Envoi email de vérification uniquement pour les prestataires
+    # Envoi email de vérification uniquement pour les prestataires.
+    # NE DOIT JAMAIS faire échouer l'inscription : si le SMTP est indisponible
+    # (ex. clés mail non configurées sur Render), on log et on continue.
     if user.email and role == UserProfile.Role.PRESTATAIRE:
-        from .views_v2 import _send_verification_email
+        try:
+            from .views_v2 import _send_verification_email
 
-        _send_verification_email(user.email, email_token)
+            _send_verification_email(user.email, email_token)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "Email de vérification non envoyé pour %s: %s", user.email, e
+            )
 
     # Email de bienvenue
     try:
