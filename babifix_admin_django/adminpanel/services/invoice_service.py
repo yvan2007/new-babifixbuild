@@ -4,9 +4,11 @@ Apres paiement, le client peut telecharger sa facture.
 """
 import logging
 import io
+import os
 from dataclasses import dataclass
 from typing import Optional
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db.models import Sum
 from django.utils import timezone
@@ -14,6 +16,26 @@ from django.utils import timezone
 from ..models import Payment, Reservation, Provider
 
 logger = logging.getLogger(__name__)
+
+
+def _logo_file_path() -> Optional[str]:
+    """Chemin disque du logo BABIFIX, robuste dev (static/) ET prod (STATIC_ROOT)."""
+    rel = os.path.join("adminpanel", "logo_babifix.png")
+    candidates = []
+    static_root = getattr(settings, "STATIC_ROOT", None)
+    if static_root:
+        candidates.append(os.path.join(static_root, rel))
+    base = getattr(settings, "BASE_DIR", None)
+    if base:
+        candidates.append(os.path.join(base, "static", rel))
+        candidates.append(os.path.join(base, "adminpanel", "static", rel))
+    for p in candidates:
+        try:
+            if p and os.path.isfile(p):
+                return p
+        except Exception:
+            continue
+    return None
 
 
 @dataclass
@@ -143,12 +165,26 @@ class InvoiceService:
                 c.setFillColorRGB(r, g, b)
                 c.rect(0, H - 38*mm + (i * 38*mm / steps), W, 38*mm / steps + 0.5, stroke=0, fill=1)
 
-            # Logo / nom
+            # Logo (image si dispo) + nom. Le logo est embarqué dans le PDF :
+            # il s'affiche partout, sans dépendre d'une URL publique.
+            text_x = 20*mm
+            _logo = _logo_file_path()
+            if _logo:
+                try:
+                    from reportlab.lib.utils import ImageReader
+                    c.drawImage(
+                        ImageReader(_logo), 20*mm, H - 27*mm,
+                        width=15*mm, height=15*mm,
+                        mask="auto", preserveAspectRatio=True,
+                    )
+                    text_x = 39*mm
+                except Exception:
+                    text_x = 20*mm
             c.setFillColorRGB(1, 1, 1)
             c.setFont("Helvetica-Bold", 24)
-            c.drawString(20*mm, H - 18*mm, "BABIFIX")
+            c.drawString(text_x, H - 18*mm, "BABIFIX")
             c.setFont("Helvetica", 9)
-            c.drawString(20*mm, H - 23*mm, "Services à domicile  —  Côte d'Ivoire")
+            c.drawString(text_x, H - 23*mm, "Services à domicile  —  Côte d'Ivoire")
 
             # Bandeau "Reçu de paiement"
             c.setFont("Helvetica-Bold", 13)
