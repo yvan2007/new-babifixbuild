@@ -362,23 +362,5 @@ LOGGING = {
     },
 }
 
-# En production, ajouter les fichiers de log
-if os.getenv('DJANGO_ENV') == 'production':
-    LOGGING['handlers']['file'] = {
-        'class': 'logging.handlers.RotatingFileHandler',
-        'filename': BASE_DIR / 'logs' / 'babifix.log',
-        'maxBytes': 10 * 1024 * 1024,
-        'backupCount': 5,
-        'formatter': 'verbose',
-    }
-    LOGGING['handlers']['error_file'] = {
-        'class': 'logging.handlers.RotatingFileHandler',
-        'filename': BASE_DIR / 'logs' / 'error.log',
-        'maxBytes': 10 * 1024 * 1024,
-        'backupCount': 5,
-        'level': 'ERROR',
-        'formatter': 'verbose',
-    }
-    LOGGING['root']['handlers'] = ['console', 'file']
-    LOGGING['loggers']['django']['handlers'] = ['console', 'file']
-    LOGGING['loggers']['adminpanel']['handlers'] = ['console', 'file', 'error_file']
+# Sur Render, pas besoin de fichiers de log (stdout capturé par Render).
+# En production hors Render, créer le dossier logs/ et décommenter les handlers fichiers.
