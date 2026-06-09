@@ -1,15 +1,15 @@
 services:
   # ───────────────────────── API + WebSocket (ASGI / Daphne) ─────────────────
-  # IMPORTANT : le nom du service détermine l'URL publique.
+  # Le nom du service détermine l'URL publique :
   #   name: new-babifixbuild  →  https://new-babifixbuild.onrender.com
-  # Cette URL DOIT correspondre à `kBabifixProdUrl` dans
-  # babifix_client_flutter/lib/babifix_api_config.dart (et l'app prestataire).
+  # Cette URL DOIT correspondre à `kBabifixProdUrl` dans les apps Flutter.
   - type: web
     name: new-babifixbuild
-    env: python
+    runtime: python
     region: frankfurt
     plan: free
-    buildCommand: "./build.sh"
+    rootDir: babifix_admin_django          # le projet Django est dans ce sous-dossier
+    buildCommand: "bash build.sh"
     startCommand: daphne -b 0.0.0.0 -p $PORT config.asgi:application
     envVars:
       - key: DJANGO_ENV
@@ -18,24 +18,19 @@ services:
         value: "False"
       - key: DJANGO_SECRET_KEY
         generateValue: true
-      # RENDER_EXTERNAL_HOSTNAME est ajouté automatiquement aux ALLOWED_HOSTS
-      # par settings.py — on garde aussi une valeur explicite par sécurité.
       - key: DJANGO_ALLOWED_HOSTS
         value: new-babifixbuild.onrender.com
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
         value: https://new-babifixbuild.onrender.com
-      # ── Base de données Postgres (Render) ──
       - key: DATABASE_URL
         fromDatabase:
           name: babifix-db
           property: connectionString
-      # ── Channels temps réel (WebSocket) ──
       - key: REDIS_URL
         fromService:
           name: babifix-redis
           type: redis
           property: connectionString
-      # ── Paiement GeniusPay (secrets à saisir dans le dashboard Render) ──
       - key: GENIUSPAY_PUBLIC_KEY
         sync: false
       - key: GENIUSPAY_SECRET_KEY
@@ -44,7 +39,6 @@ services:
         value: https://new-babifixbuild.onrender.com/api/paiements/geniuspay/webhook/
       - key: CORS_ALLOWED_ORIGINS
         value: https://new-babifixbuild.onrender.com
-      # ── E-mail (expéditeur affiché « BABIFIX ») ──
       - key: EMAIL_BACKEND
         value: django.core.mail.backends.smtp.EmailBackend
       - key: EMAIL_HOST
@@ -59,11 +53,8 @@ services:
         sync: false
       - key: DEFAULT_FROM_EMAIL
         value: BABIFIX <kouayavana20@gmail.com>
-      # ── Push FCM (optionnel) : chemin du JSON de compte de service Firebase
-      #    Uploade le fichier comme "Secret File" sur Render et mets son chemin.
       - key: FIREBASE_CREDENTIALS_JSON_PATH
         sync: false
-      # ── Création automatique du superadmin au 1er déploiement ──
       - key: DJANGO_SUPERUSER_USERNAME
         sync: false
       - key: DJANGO_SUPERUSER_EMAIL
@@ -76,7 +67,7 @@ services:
     name: babifix-redis
     region: frankfurt
     plan: free
-    ipAllowList: []   # accès interne uniquement (autres services Render)
+    ipAllowList: []
 
 databases:
   - name: babifix-db
