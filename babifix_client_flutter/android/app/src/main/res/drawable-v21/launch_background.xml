@@ -1,15 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Splash natif Android 5+ — même rendu que la version drawable/. -->
+<!-- Splash natif Android 5+ — UNIQUEMENT le fond dégradé navy, SANS logo.
+     Le logo BABIFIX + le texte CLIENT s'animent une seule fois sur le splash
+     Dart : on enchaîne directement sur le splash, plus aucun logo natif. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@drawable/splash_gradient" />
-
-    <item
-        android:width="140dp"
-        android:height="140dp"
-        android:gravity="center">
-        <bitmap
-            android:src="@drawable/babifix_logo"
-            android:gravity="center"
-            android:antialias="true" />
-    </item>
 </layer-list>
