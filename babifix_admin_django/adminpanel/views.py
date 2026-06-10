@@ -1701,12 +1701,22 @@ def api_client_home(request):
         can_rate = (
             item.statut == "Terminee" and item.client_user_id == uid and not has_rating
         )
+        # « Quand » = créneau/disponibilité choisi par le client. Repli propre
+        # selon l'état (terminée → date de fin, sinon « Dès que possible »).
+        _when_label = (item.disponibilites_client or "").strip()
+        if not _when_label:
+            if item.prestation_terminee_at:
+                _when_label = "Terminée le " + item.prestation_terminee_at.strftime(
+                    "%d/%m/%Y"
+                )
+            else:
+                _when_label = "Dès que possible"
         reservations.append(
             {
                 "id": int(item.id),
                 "reference": item.reference,
                 "title": item.reference,
-                "when_label": f"{item.statut} - {item.client}",
+                "when_label": _when_label,
                 "amount": item.montant,
                 "status": item.statut,
                 "payment_type": item.payment_type,
