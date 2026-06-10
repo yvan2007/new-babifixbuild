@@ -126,6 +126,16 @@ INSTALLED_APPS = [
     "adminpanel",
 ]
 
+# ── Stockage média PERSISTANT via Cloudinary (CNI, portraits, photos) ──────────
+# Sur Render, le disque est éphémère : les fichiers uploadés disparaissent à
+# chaque redéploiement. Si CLOUDINARY_URL est défini (compte Cloudinary gratuit),
+# les médias sont stockés sur Cloudinary et persistent. Sans la variable (local),
+# on garde le disque local — comportement inchangé.
+CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "").strip()
+if CLOUDINARY_URL:
+    INSTALLED_APPS += ["cloudinary", "cloudinary_storage"]
+    DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",

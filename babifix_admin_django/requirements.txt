@@ -8,6 +8,9 @@ channels-redis>=4.2.0
 daphne>=4.1.0
 firebase-admin>=6.5.0
 psycopg[binary]>=3.1.0
+# Stockage média persistant (CNI/photos) — activé si CLOUDINARY_URL est défini
+cloudinary>=1.40.0
+django-cloudinary-storage>=0.3.0
 # MySQL (WAMP / XAMPP) — utilisé comme driver MySQLdb sous Windows
 PyMySQL>=1.1.0
 # CORS
