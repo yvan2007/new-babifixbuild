@@ -2913,6 +2913,31 @@ def api_client_create_reservation(request):
                 status=400,
             )
 
+    # Règle métier : un client ne peut pas avoir 2 réservations EN COURS avec le
+    # même prestataire. Tant qu'une n'est pas « Terminee » ou « Annulee », on
+    # bloque la création d'une nouvelle (message clair côté app).
+    if prov:
+        _TERMINAL_STATUSES = ("Terminee", "Annulee")
+        has_active = (
+            Reservation.objects.filter(
+                client_user_id=request.api_user_id,
+                assigned_provider=prov,
+            )
+            .exclude(statut__in=_TERMINAL_STATUSES)
+            .exists()
+        )
+        if has_active:
+            return JsonResponse(
+                {
+                    "error": "reservation_already_active",
+                    "message": (
+                        "Vous avez déjà une réservation en cours avec ce "
+                        "prestataire. Terminez-la avant d'en créer une nouvelle."
+                    ),
+                },
+                status=409,
+            )
+
     prest_label = prov.nom if prov else "A affecter"
     prest_user_id = prov.user_id if prov else None
 
