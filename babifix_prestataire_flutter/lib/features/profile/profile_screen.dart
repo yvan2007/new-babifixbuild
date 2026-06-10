@@ -10,6 +10,7 @@ import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/services/app_lock_service.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../auth/registration_screen.dart';
@@ -280,38 +281,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-        decoration: BoxDecoration(
-          color: isLight ? Colors.white : const Color(0xFF0D1B2E),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 40, height: 4, decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4))),
-          const SizedBox(height: 20),
-          const Icon(Icons.fingerprint_rounded, size: 56, color: Color(0xFF4CC9F0)),
-          const SizedBox(height: 14),
-          Text('Connexion biométrique',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800,
-                  color: isLight ? const Color(0xFF0F172A) : Colors.white)),
-          const SizedBox(height: 8),
-          Text('Activez Face ID ou l\'empreinte digitale pour accéder à votre espace prestataire rapidement.',
-              style: TextStyle(color: isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8), height: 1.45),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          SizedBox(width: double.infinity, child: FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx),
-            icon: const Icon(Icons.check_rounded),
-            label: const Text('Compris'),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF4CC9F0),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-          )),
-        ]),
-      ),
+      isScrollControlled: true,
+      builder: (ctx) => _BiometricLockSheet(isLight: isLight),
     );
   }
 
@@ -1574,4 +1545,139 @@ class _KycMeta {
   final IconData icon;
   final Color color;
   final String title, subtitle;
+}
+
+/// Feuille de réglage du verrou d'accès biométrique (Profil → Sécurité).
+/// Interrupteur réel : active/désactive le verrouillage de l'app au démarrage
+/// et au retour d'arrière-plan (biométrie ou code du téléphone).
+class _BiometricLockSheet extends StatefulWidget {
+  const _BiometricLockSheet({required this.isLight});
+  final bool isLight;
+
+  @override
+  State<_BiometricLockSheet> createState() => _BiometricLockSheetState();
+}
+
+class _BiometricLockSheetState extends State<_BiometricLockSheet> {
+  bool _enabled = false;
+  bool _loading = true;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final e = await AppLockService.isEnabled();
+    if (!mounted) return;
+    setState(() {
+      _enabled = e;
+      _loading = false;
+    });
+  }
+
+  Future<void> _toggle(bool value) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      if (value) {
+        // Vérifie qu'un moyen d'auth existe puis demande une authentification
+        // de confirmation avant d'activer.
+        final canAuth = await AppLockService.canAuthenticate();
+        if (!canAuth) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Aucune biométrie ni code d\'écran configuré sur ce téléphone. Configurez-le dans les réglages Android/iOS.'),
+            ));
+          }
+          return;
+        }
+        final ok = await AppLockService.authenticate(
+            reason: 'Confirmez pour activer le verrouillage');
+        if (!ok) return;
+        await AppLockService.setEnabled(true);
+        if (mounted) setState(() => _enabled = true);
+      } else {
+        // Désactivation : on demande aussi une auth pour éviter qu'un tiers
+        // désactive le verrou.
+        final ok = await AppLockService.authenticate(
+            reason: 'Confirmez pour désactiver le verrouillage');
+        if (!ok) return;
+        await AppLockService.setEnabled(false);
+        if (mounted) setState(() => _enabled = false);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = widget.isLight;
+    final fg = isLight ? const Color(0xFF0F172A) : Colors.white;
+    final sub = isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+      decoration: BoxDecoration(
+        color: isLight ? Colors.white : const Color(0xFF0D1B2E),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(4))),
+        const SizedBox(height: 20),
+        const Icon(Icons.fingerprint_rounded, size: 56, color: Color(0xFF4CC9F0)),
+        const SizedBox(height: 14),
+        Text('Connexion biométrique',
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w800, color: fg)),
+        const SizedBox(height: 8),
+        Text(
+          'Exigez l\'empreinte, Face ID ou le code de votre téléphone pour ouvrir BABIFIX Pro (au démarrage et au retour d\'arrière-plan).',
+          style: TextStyle(color: sub, height: 1.45),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 20),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: CircularProgressIndicator(color: Color(0xFF4CC9F0)),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: isLight ? const Color(0xFFF1F5F9) : const Color(0xFF152138),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: SwitchListTile(
+              value: _enabled,
+              onChanged: _busy ? null : _toggle,
+              activeThumbColor: const Color(0xFF4CC9F0),
+              title: Text('Verrouiller l\'application',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: fg)),
+              subtitle: Text(_enabled ? 'Activé' : 'Désactivé',
+                  style: TextStyle(color: sub)),
+              secondary: Icon(
+                  _enabled ? Icons.lock_rounded : Icons.lock_open_rounded,
+                  color: const Color(0xFF4CC9F0)),
+            ),
+          ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ),
+      ]),
+    );
+  }
 }

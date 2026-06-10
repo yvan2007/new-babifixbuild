@@ -18,6 +18,7 @@ import 'json_utils.dart';
 import 'category_icon_mapper.dart';
 
 import 'shared/app_palette_mode.dart';
+import 'shared/services/app_lock_gate.dart';
 import 'shared/auth_utils.dart';
 import 'shared/in_app_notifications.dart';
 import 'services/notification_sound_service.dart';
@@ -221,9 +222,11 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
       debugShowCheckedModeBanner: false,
       title: 'BABIFIX Prestataire',
       theme: _themeForMode(paletteMode),
-      home: _PrestataireFlow(
-        paletteMode: paletteMode,
-        onPaletteChanged: _setPalette,
+      home: AppLockGate(
+        child: _PrestataireFlow(
+          paletteMode: paletteMode,
+          onPaletteChanged: _setPalette,
+        ),
       ),
     );
   }
