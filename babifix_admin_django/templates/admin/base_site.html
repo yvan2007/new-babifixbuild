@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% comment %}
+  Override BABIFIX : ajoute le logo BABIFIX comme favicon (icône d'onglet) sur
+  TOUTES les pages de l'admin Django — au lieu du globe par défaut.
+  Le reste (titre, en-tête, navigation) reste identique à l'admin standard.
+{% endcomment %}
+
+{% block extrastyle %}{{ block.super }}
+  <link rel="icon" type="image/png" href="{% static 'adminpanel/logo_babifix.png' %}">
+  <link rel="shortcut icon" type="image/png" href="{% static 'adminpanel/logo_babifix.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'adminpanel/logo_babifix.png' %}">
+{% endblock %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
