@@ -45,5 +45,18 @@ urlpatterns = [
 handler404 = "adminpanel.views.error_404"
 handler500 = "adminpanel.views.error_500"
 
-# Servir les fichiers media (portraits, CNI, vidéos KYC) — dev et prod locale
+# Servir les fichiers media (portraits, CNI, vidéos KYC).
+# `static()` ne sert les médias qu'en DEBUG → en production (Render, DEBUG=False)
+# les médias renvoyaient 404. On ajoute donc une route explicite qui sert aussi
+# en production via django.views.static.serve.
+from django.views.static import serve as _serve_media  # noqa: E402
+from django.urls import re_path  # noqa: E402
+
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += [
+    re_path(
+        r"^media/(?P<path>.*)$",
+        _serve_media,
+        {"document_root": settings.MEDIA_ROOT},
+    ),
+]
