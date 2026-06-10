@@ -47,6 +47,7 @@ import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
 import 'features/services/service_detail_screen.dart';
 import 'features/booking/booking_flow_screen.dart';
 import 'features/booking/devis_kanban_screen.dart';
+import 'features/booking/devis_detail_screen.dart';
 import 'features/booking/escrow_quote_screen.dart';
 import 'features/booking/confirm_completion_screen.dart';
 import 'features/booking/client_journal_screen.dart';
@@ -6404,7 +6405,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
       return (color: const Color(0xFFEF4444), icon: Icons.cancel_rounded,
           label: 'Annulée', step: 0);
     }
-    if (low.contains('termin')) {
+    // Terminée : statut backend « Terminee/DONE », OU prestation confirmée par
+    // le client / reçu disponible (cas espèces où le statut reste « Confirmee »).
+    // Aligne la fiche détail sur le regroupement « Terminées » de la liste :
+    // timeline complète (étape 4) + bouton « Voir le reçu ».
+    if (low.contains('termin') || r.clientConfirmed || r.receiptAvailable) {
       return (color: const Color(0xFF22C55E), icon: Icons.verified_rounded,
           label: 'Terminée', step: 4);
     }
@@ -6820,6 +6825,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 Navigator.pop(ctx);
                 _rateReservation(r);
               },
+      ));
+    }
+    // Devis : consultable dès qu'un devis a été envoyé (étape ≥ 2), y compris
+    // sur une réservation terminée — photos, diagnostic, montant restent visibles.
+    if (meta.step >= 2) {
+      actions.add(_resaActionBtn(
+        icon: Icons.description_rounded,
+        label: 'Voir le devis',
+        accent: const Color(0xFF4CC9F0),
+        onTap: () {
+          Navigator.pop(ctx);
+          Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => DevisDetailScreen(
+                reservationReference: r.reference,
+                onBack: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+          );
+        },
       ));
     }
     if (isCompleted) {
