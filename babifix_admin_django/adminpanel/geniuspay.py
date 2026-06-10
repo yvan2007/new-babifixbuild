@@ -344,7 +344,6 @@ def geniuspay_initiate(request):
 
     if not genius_resp.get("success"):
         # Fallback simulation si en dev ou pas de clés
-        from django.conf import settings
         if settings.DEBUG or not GENIUSPAY_PUBLIC_KEY or not GENIUSPAY_SECRET_KEY:
             mode = "DEBUG" if settings.DEBUG else "clés API manquantes"
             logger.warning("GeniusPay API échouée, fallback simulation (%s) : %s", mode, genius_resp)
@@ -503,7 +502,6 @@ def geniuspay_webhook(request):
             pass
 
     # Vérification signature HMAC — ignorée en debug (sandbox local)
-    from django.conf import settings
     if settings.DEBUG:
         logger.info("GeniusPay webhook — DEBUG, signature non vérifiée")
     elif environment.lower() == "sandbox":
