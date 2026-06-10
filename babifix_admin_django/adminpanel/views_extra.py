@@ -1073,34 +1073,40 @@ def send_babifix_email_html(
 
     attachments: liste de tuples (filename, content, mimetype) — ex: PDF reçu.
     """
+    import threading
+
     from django.conf import settings
     from django.core.mail import EmailMultiAlternatives
 
-    try:
-        if not html_content:
-            return
+    if not html_content:
+        return
 
-        import re
+    import re
 
-        plain_text = re.sub(r"<[^>]+>", "", html_content)
-        plain_text = re.sub(r"\n+", "\n", plain_text).strip()
+    plain_text = re.sub(r"<[^>]+>", "", html_content)
+    plain_text = re.sub(r"\n+", "\n", plain_text).strip()
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.ci>")
+    _attachments = list(attachments or [])
 
-        msg = EmailMultiAlternatives(
-            subject=subject,
-            body=plain_text,
-            from_email=getattr(
-                settings, "DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.ci>"
-            ),
-            to=[to_email],
-        )
-        msg.attach_alternative(html_content, "text/html")
-        for filename, content, mimetype in (attachments or []):
-            msg.attach(filename, content, mimetype)
-        msg.send(fail_silently=False)
-        print(f"\n[EMAIL] Sent to {to_email}: {subject}\n")
-        logger.info(f"Email envoye a {to_email}: {subject}")
-    except Exception as exc:
-        logger.warning("Email non envoyé (%s) : %s", to_email, exc)
+    def _deliver() -> None:
+        # Envoi SMTP exécuté dans un thread : ne bloque JAMAIS la requête HTTP
+        # (sinon la latence Gmail dépasse le délai de l'app → CancelledError).
+        try:
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=plain_text,
+                from_email=from_email,
+                to=[to_email],
+            )
+            msg.attach_alternative(html_content, "text/html")
+            for filename, content, mimetype in _attachments:
+                msg.attach(filename, content, mimetype)
+            msg.send(fail_silently=False)
+            logger.info("Email envoye a %s: %s", to_email, subject)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Email non envoyé (%s) : %s", to_email, exc)
+
+    threading.Thread(target=_deliver, daemon=True).start()
 
 
 def _get_admin_emails() -> list:

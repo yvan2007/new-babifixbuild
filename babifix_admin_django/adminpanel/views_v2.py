@@ -400,49 +400,60 @@ def api_auth_forgot_password(request):
 
 
 def _send_verification_email(to_email: str, token: str) -> None:
+    import threading
+
     from django.core.mail import send_mail
     from django.conf import settings
 
-    try:
-        send_mail(
-            subject="Confirmez votre email BABIFIX",
-            message=(
-                f"Bonjour,\n\n"
-                f"Merci de vous être inscrit sur BABIFIX.\n"
-                f"Pour confirmer votre email, utilisez ce code dans l'application :\n\n"
-                f"{token}\n\n"
-                f"L'équipe BABIFIX | contact@babifix.ci"
-            ),
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "contact@babifix.ci"),
-            recipient_list=[to_email],
-            fail_silently=True,
-        )
-    except Exception as exc:
-        logger.warning("Verify email non envoyé (%s) : %s", to_email, exc)
+    def _deliver() -> None:
+        # SMTP en arrière-plan : ne bloque pas l'inscription (sinon CancelledError).
+        try:
+            send_mail(
+                subject="Confirmez votre email BABIFIX",
+                message=(
+                    f"Bonjour,\n\n"
+                    f"Merci de vous être inscrit sur BABIFIX.\n"
+                    f"Pour confirmer votre email, utilisez ce code dans l'application :\n\n"
+                    f"{token}\n\n"
+                    f"L'équipe BABIFIX | contact@babifix.ci"
+                ),
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "contact@babifix.ci"),
+                recipient_list=[to_email],
+                fail_silently=True,
+            )
+        except Exception as exc:
+            logger.warning("Verify email non envoyé (%s) : %s", to_email, exc)
+
+    threading.Thread(target=_deliver, daemon=True).start()
 
 
 def _send_reset_email(to_email: str, token: str) -> None:
+    import threading
+
     from django.core.mail import send_mail
     from django.conf import settings
 
-    reset_link = f"babifix://reset-password?token={token}"
-    try:
-        send_mail(
-            subject="Réinitialisation de votre mot de passe BABIFIX",
-            message=(
-                f"Bonjour,\n\n"
-                f"Vous avez demandé à réinitialiser votre mot de passe BABIFIX.\n\n"
-                f"Utilisez ce token dans l'application :\n{token}\n\n"
-                f"Ce lien expire dans 30 minutes.\n\n"
-                f"Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n\n"
-                f"L'équipe BABIFIX | contact@babifix.ci"
-            ),
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "contact@babifix.ci"),
-            recipient_list=[to_email],
-            fail_silently=True,
-        )
-    except Exception as exc:
-        logger.warning("Reset email non envoyé (%s) : %s", to_email, exc)
+    def _deliver() -> None:
+        # SMTP en arrière-plan : ne bloque pas la requête (sinon CancelledError).
+        try:
+            send_mail(
+                subject="Réinitialisation de votre mot de passe BABIFIX",
+                message=(
+                    f"Bonjour,\n\n"
+                    f"Vous avez demandé à réinitialiser votre mot de passe BABIFIX.\n\n"
+                    f"Utilisez ce token dans l'application :\n{token}\n\n"
+                    f"Ce lien expire dans 30 minutes.\n\n"
+                    f"Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n\n"
+                    f"L'équipe BABIFIX | contact@babifix.ci"
+                ),
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "contact@babifix.ci"),
+                recipient_list=[to_email],
+                fail_silently=True,
+            )
+        except Exception as exc:
+            logger.warning("Reset email non envoyé (%s) : %s", to_email, exc)
+
+    threading.Thread(target=_deliver, daemon=True).start()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
