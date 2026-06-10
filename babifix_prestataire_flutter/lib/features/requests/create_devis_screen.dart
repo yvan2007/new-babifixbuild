@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import '../../babifix_api_config.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/error_utils.dart';
@@ -33,6 +34,21 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
   bool _submitting = false;
 
   final List<_LigneDevis> _lignes = [];
+  // Photos jointes au devis (data:image base64) — visibles par le client.
+  final List<String> _photos = [];
+
+  Future<void> _pickPhotos() async {
+    try {
+      final imgs = await ImagePicker()
+          .pickMultiImage(imageQuality: 60, maxWidth: 1280);
+      for (final x in imgs) {
+        if (_photos.length >= 6) break;
+        final bytes = await x.readAsBytes();
+        _photos.add('data:image/jpeg;base64,${base64Encode(bytes)}');
+      }
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -99,6 +115,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
         if (_heureFin != null) 'heure_fin': fmtTime(_heureFin!),
         'validite_jours': _validiteJours,
         'note_prestataire': _noteCtrl.text.trim(),
+        if (_photos.isNotEmpty) 'photos': _photos,
         'lignes': _lignes
             .map(
               (l) => {
@@ -247,6 +264,59 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Photos (optionnel) — visibles par le client',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _photos.length >= 6 ? null : _pickPhotos,
+                  icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                  label: Text('Ajouter (${_photos.length}/6)'),
+                ),
+              ],
+            ),
+            if (_photos.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 76,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _photos.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final b64 = _photos[i].split(',').last;
+                    return Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(
+                            base64Decode(b64),
+                            width: 76, height: 76, fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 0, right: 0,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _photos.removeAt(i)),
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.black54, shape: BoxShape.circle),
+                              child: const Icon(Icons.close,
+                                  color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         ),
       ),

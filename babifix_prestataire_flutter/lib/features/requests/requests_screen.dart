@@ -686,6 +686,46 @@ class _RequestsScreenState extends State<RequestsScreen> {
             ),
             const SizedBox(height: 10),
           ],
+          // ── Bandeau « Devis refusé » + motif du client ────────────────
+          if (it.devisRefusMotif.trim().isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.35)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.cancel_outlined,
+                          color: Color(0xFFEF4444), size: 15),
+                      SizedBox(width: 6),
+                      Text(
+                        'Devis refusé par le client',
+                        style: TextStyle(
+                          color: Color(0xFFEF4444),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Motif : ${it.devisRefusMotif}',
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 12.5, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           // ── En-tête client + tag ──────────────────────────────────────
           Row(
             children: [
@@ -1427,6 +1467,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             disponibilitesClient: '${e['disponibilites_client'] ?? ''}',
             isUrgent: e['is_urgent'] == true,
             prixPropose: (e['prix_propose'] as num?)?.toDouble(),
+            devisRefusMotif: '${e['devis_refus_motif'] ?? ''}',
           );
         }).toList();
         // Les demandes urgentes remontent en tête, sinon tri par date décroissante.
@@ -1768,6 +1809,9 @@ class _RequestItem {
   final bool isUrgent;
   final double? prixPropose;
 
+  /// Motif fourni par le client s'il a refusé le devis précédent.
+  final String devisRefusMotif;
+
   /// Adresse structurée pro (chacun affiché avec son icône colorée).
   final String addressStreet;
   final String addressQuartier;
@@ -1799,6 +1843,7 @@ class _RequestItem {
     this.disponibilitesClient = '',
     this.isUrgent = false,
     this.prixPropose,
+    this.devisRefusMotif = '',
     this.addressStreet = '',
     this.addressQuartier = '',
     this.addressVille = '',

@@ -563,6 +563,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           _buildPrestataireInfo(devis),
           const SizedBox(height: 16),
           _buildDiagnostic(devis),
+          _buildDevisPhotos(devis),
           _buildDateInfo(devis),
           const SizedBox(height: 16),
           _buildLignes(lignes),
@@ -677,6 +678,57 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           color: Color(0xFFCBD5E1),
           fontSize: 14,
           height: 1.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDevisPhotos(Map<String, dynamic> devis) {
+    final raw = (devis['photos_prestataire'] as List?) ?? const [];
+    final photos = raw.map((e) => '$e').where((s) => s.isNotEmpty).toList();
+    if (photos.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: _SectionCard(
+        icon: Icons.photo_library_outlined,
+        title: 'Photos du devis',
+        child: SizedBox(
+          height: 90,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: photos.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final s = photos[i];
+              final b64 = s.contains(',') ? s.split(',').last : s;
+              Widget img;
+              try {
+                img = Image.memory(base64Decode(b64),
+                    width: 90, height: 90, fit: BoxFit.cover);
+              } catch (_) {
+                img = Container(
+                    width: 90, height: 90, color: Colors.white10,
+                    child: const Icon(Icons.broken_image,
+                        color: Colors.white30));
+              }
+              return GestureDetector(
+                onTap: () {
+                  try {
+                    showDialog<void>(
+                      context: context,
+                      builder: (_) => Dialog(
+                        backgroundColor: Colors.black,
+                        child: InteractiveViewer(
+                            child: Image.memory(base64Decode(b64))),
+                      ),
+                    );
+                  } catch (_) {}
+                },
+                child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10), child: img),
+              );
+            },
+          ),
         ),
       ),
     );
