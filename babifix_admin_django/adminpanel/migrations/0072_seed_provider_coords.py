@@ -1,6 +1,9 @@
 """
 Data migration : assigner des coordonnées GPS aux prestataires qui n'en ont pas,
 en fonction de leur ville déclarée.
+
+(Renumérotée 0021 -> 0072 et rattachée à 0071 pour éviter le conflit de
+« multiple leaf nodes » avec 0021_alter_client_depense_… qui dépend aussi de 0020.)
 """
 import random
 
@@ -38,7 +41,6 @@ VILLE_COORDS = {
     'san pedro': (4.7480, -6.6363),
     'yamoussoukro': (6.8206, -5.2767),
     'dabou': (5.3256, -4.3769),
-    'bouake': (7.6858, -5.0300),
     'soubré': (5.7833, -6.6000),
     'soubre': (5.7833, -6.6000),
     'abengourou': (6.7297, -3.4964),
@@ -69,7 +71,7 @@ def seed_provider_coords(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('adminpanel', '0020_prix_propose_cni_recto_verso'),
+        ('adminpanel', '0071_drop_orphan_columns'),
     ]
 
     operations = [
