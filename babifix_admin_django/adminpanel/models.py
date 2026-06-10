@@ -1555,6 +1555,8 @@ class Devis(models.Model):
     photos_prestataire = models.JSONField(blank=True, default=list)
 
     note_prestataire = models.TextField(blank=True, default="")
+    # Motif fourni par le client lorsqu'il REFUSE le devis (affiché au presta).
+    refus_motif = models.TextField(blank=True, default="")
     validite_jours = models.IntegerField(default=7)
     statut = models.CharField(
         max_length=20, choices=Statut.choices, default=Statut.BROUILLON

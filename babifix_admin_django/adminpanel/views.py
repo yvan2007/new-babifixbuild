@@ -3479,11 +3479,20 @@ def api_prestataire_requests(request):
             lat_out = item.latitude
             lon_out = item.longitude
 
+        # Motif du dernier devis refusé par le client (affiché au presta).
+        _last_refused = (
+            Devis.objects.filter(reservation=item, statut=Devis.Statut.REFUSE)
+            .order_by("-id")
+            .first()
+        )
+        _refus_motif = (_last_refused.refus_motif if _last_refused else "") or ""
+
         data.append(
             {
                 "id": item.id,
                 "reference": item.reference,
                 "client": item.client,
+                "devis_refus_motif": _refus_motif,
                 "service": item.title or "Intervention domiciliaire",
                 "date": item.location_captured_at.strftime("%d %b %Y")
                 if item.location_captured_at
@@ -5583,6 +5592,18 @@ def api_prestataire_create_devis(request, reference):
     if not isinstance(lignes_data, list):
         lignes_data = []
 
+    # Photos jointes au devis (data:image base64) — visibles par le client.
+    raw_devis_photos = payload.get("photos") or payload.get("photos_prestataire") or []
+    devis_photos = []
+    if isinstance(raw_devis_photos, list):
+        for entry in raw_devis_photos[:6]:
+            s = str(entry).strip()
+            if not s.startswith("data:image/"):
+                continue
+            if len(s) > 600_000:
+                s = s[:600_000]
+            devis_photos.append(s)
+
     if not diagnostic:
         return JsonResponse({"error": "diagnostic_required"}, status=400)
 
@@ -5662,6 +5683,7 @@ def api_prestataire_create_devis(request, reference):
             heure_fin=parsed_heure_fin,
             validite_jours=validite_jours,
             note_prestataire=note_prestataire,
+            photos_prestataire=devis_photos,
             commission_rate=commission_rate,
         )
 
@@ -5804,6 +5826,8 @@ def api_reservation_devis(request, reference):
                 "total_ttc": float(devis.total_ttc),
                 "net_prestataire": float(devis.sous_total - devis.commission_montant),
                 "note_prestataire": devis.note_prestataire,
+                "photos_prestataire": devis.photos_prestataire or [],
+                "refus_motif": devis.refus_motif or "",
                 "validite_jours": devis.validite_jours,
                 "statut": devis.statut,
                 "created_at": str(devis.created_at),
@@ -5905,6 +5929,7 @@ def api_client_refuse_devis(request, reference):
         return JsonResponse({"error": "devis_not_found"}, status=404)
 
     devis.statut = Devis.Statut.REFUSE
+    devis.refus_motif = motif
     devis.note_prestataire = (
         f"{devis.note_prestataire}\n\nRefusé par le client: {motif}".strip()[:1000]
     )
