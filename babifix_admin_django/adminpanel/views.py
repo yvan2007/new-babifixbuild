@@ -2611,9 +2611,12 @@ def api_messages_send_by_reservation(request):
 
     conv = Conversation.objects.filter(reservation=res).first()
     if not conv:
+        # Conversation.prestataire est une FK vers User → utiliser le User id
+        # du prestataire (prestataire_user_id), PAS l'id du Provider
+        # (assigned_provider_id), sinon mauvais destinataire / violation FK.
         conv = Conversation.objects.create(
             client_id=res.client_user_id,
-            prestataire_id=res.assigned_provider_id,
+            prestataire_id=res.prestataire_user_id,
             reservation=res,
         )
 
