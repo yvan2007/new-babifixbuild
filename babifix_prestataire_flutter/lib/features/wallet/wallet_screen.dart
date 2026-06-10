@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/services/wallet_pin_dialog.dart';
 import 'wallet_escrow_panel.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -1026,6 +1027,11 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
       return;
     }
     final chosen = sel.first;
+
+    // ── Code PIN à 4 chiffres requis pour confirmer la transaction ──
+    // (création au 1er retrait, vérification ensuite).
+    final pinOk = await showWalletPinDialog(context);
+    if (!pinOk) return; // annulé ou code incorrect → on n'envoie rien
 
     setState(() {
       _sending = true;
