@@ -35,6 +35,16 @@ GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", getattr(settings, "GE
 GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", getattr(settings, "GENIUSPAY_SUCCESS_URL", ""))
 GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   getattr(settings, "GENIUSPAY_ERROR_URL", ""))
 
+# Mode SIMULATION : clés sandbox (pk_sandbox/sk_sandbox) ou clés absentes →
+# on auto-valide les paiements sans dépendre de l'API temps réel (utile en démo
+# et sur Render avec des clés sandbox). En clés LIVE, vrai flux + webhook.
+GENIUSPAY_SANDBOX = (
+    (GENIUSPAY_PUBLIC_KEY or "").startswith("pk_sandbox")
+    or (GENIUSPAY_SECRET_KEY or "").startswith("sk_sandbox")
+    or not GENIUSPAY_PUBLIC_KEY
+    or not GENIUSPAY_SECRET_KEY
+)
+
 # Mapping opérateurs BABIFIX → codes GeniusPay
 _OPERATOR_MAP = {
     "ORANGE_MONEY": "orange_money",
@@ -245,12 +255,17 @@ def geniuspay_initiate(request):
         etat=Payment.State.PENDING,
     ).first()
     if existing:
-        return JsonResponse({
-            "transaction_id": existing.reference_externe,
-            "payment_id":     existing.pk,
-            "status":         "pending",
-            "message":        "Paiement déjà en cours.",
-        })
+        # En mode simulation (sandbox/dev), un pending périmé bloquerait
+        # l'auto-validation → on le supprime pour repartir proprement.
+        if GENIUSPAY_SANDBOX or settings.DEBUG:
+            existing.delete()
+        else:
+            return JsonResponse({
+                "transaction_id": existing.reference_externe,
+                "payment_id":     existing.pk,
+                "status":         "pending",
+                "message":        "Paiement déjà en cours.",
+            })
 
     # Référence locale unique
     payment_ref = "GPAY-" + uuid.uuid4().hex[:10].upper()
@@ -310,6 +325,13 @@ def geniuspay_initiate(request):
     # Opérateur spécifié → paiement direct
     if operator_raw and operator_raw in _OPERATOR_MAP:
         genius_payload["payment_method"] = _OPERATOR_MAP[operator_raw]
+
+    # Mode SIMULATION (dev / clés sandbox) → auto-validation immédiate, sans
+    # dépendre de la réponse temps réel de l'agrégateur (qui renvoie "pending"
+    # et ferait afficher « Erreur de paiement »). En clés LIVE → API réelle.
+    if settings.DEBUG or GENIUSPAY_SANDBOX:
+        logger.info("GeniusPay: mode simulation — auto-validation %s", payment_ref)
+        return _do_fake_validation("MTX-SANDBOX-" + uuid.uuid4().hex[:8].upper())
 
     genius_resp = _genius_request("POST", "/payments", genius_payload)
 
