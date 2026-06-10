@@ -35,11 +35,18 @@ GENIUSPAY_WEBHOOK_URL = os.getenv("GENIUSPAY_WEBHOOK_URL", getattr(settings, "GE
 GENIUSPAY_SUCCESS_URL = os.getenv("GENIUSPAY_SUCCESS_URL", getattr(settings, "GENIUSPAY_SUCCESS_URL", ""))
 GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   getattr(settings, "GENIUSPAY_ERROR_URL", ""))
 
-# Mode SIMULATION : clés sandbox (pk_sandbox/sk_sandbox) ou clés absentes →
-# on auto-valide les paiements sans dépendre de l'API temps réel (utile en démo
-# et sur Render avec des clés sandbox). En clés LIVE, vrai flux + webhook.
+# Interrupteur explicite : GENIUSPAY_SIMULATE=true|1|yes force le mode
+# simulation (auto-validation) quelles que soient les clés. Indispensable pour
+# tester en ligne (Render) avec de vraies clés mais sans confirmation USSD
+# réelle. Mettre la variable à false en production réelle.
+GENIUSPAY_SIMULATE = os.getenv("GENIUSPAY_SIMULATE", "").strip().lower() in ("1", "true", "yes", "on")
+
+# Mode SIMULATION : interrupteur explicite, OU clés sandbox (pk_sandbox/
+# sk_sandbox), OU clés absentes → on auto-valide les paiements sans dépendre de
+# l'API temps réel (utile en démo et sur Render). En clés LIVE, vrai flux + webhook.
 GENIUSPAY_SANDBOX = (
-    (GENIUSPAY_PUBLIC_KEY or "").startswith("pk_sandbox")
+    GENIUSPAY_SIMULATE
+    or (GENIUSPAY_PUBLIC_KEY or "").startswith("pk_sandbox")
     or (GENIUSPAY_SECRET_KEY or "").startswith("sk_sandbox")
     or not GENIUSPAY_PUBLIC_KEY
     or not GENIUSPAY_SECRET_KEY
