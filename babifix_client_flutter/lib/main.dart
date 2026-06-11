@@ -44,7 +44,6 @@ import 'features/profile/my_addresses_screen.dart';
 import 'features/map/providers_map_screen.dart';
 import 'features/chat/messages_screen.dart';
 import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
-import 'features/services/service_detail_screen.dart';
 import 'features/booking/booking_flow_screen.dart';
 import 'features/booking/devis_kanban_screen.dart';
 import 'features/booking/devis_detail_screen.dart';
@@ -3520,29 +3519,34 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           style: outlineStyle,
                           onPressed: () => Navigator.of(context).push<void>(
                             MaterialPageRoute(
-                              builder: (_) => ServiceDetailScreen(
-                                service: item,
-                                isLight: _isLight,
-                                onReserve: () =>
-                                    Navigator.of(context).push<void>(
-                                      MaterialPageRoute(
-                                        builder: (_) => BookingFlowScreen(
-                                          serviceTitle: item.title,
-                                          servicePrice: item.price,
-                                          onConfirm: (data) async {
-                                            final ok = await _createReservation(
-                                              item,
-                                              flowData: data,
-                                            );
-                                            if (ok && mounted)
-                                              setState(() => navIndex = 3);
-                                            return ok
-                                                ? {'ok': true}
-                                                : {'ok': false};
-                                          },
-                                        ),
+                              // Même fiche prestataire que l'Accueil (profil
+                              // premium) pour un rendu identique partout.
+                              builder: (_) => ProviderProfilePremiumScreen(
+                                providerId: item.providerId,
+                                onStartReservation: (service) async {
+                                  final result = await Navigator.of(context)
+                                      .push<Map<String, dynamic>?>(
+                                    MaterialPageRoute(
+                                      builder: (_) => BookingFlowScreen(
+                                        serviceTitle: service.title,
+                                        servicePrice: service.price,
+                                        onConfirm: (data) async {
+                                          final ok = await _createReservation(
+                                            service,
+                                            flowData: data,
+                                          );
+                                          if (ok && mounted) {
+                                            setState(() => navIndex = 3);
+                                          }
+                                          return ok
+                                              ? {'ok': true}
+                                              : {'ok': false};
+                                        },
                                       ),
                                     ),
+                                  );
+                                  return result?['ok'] == true;
+                                },
                               ),
                             ),
                           ),

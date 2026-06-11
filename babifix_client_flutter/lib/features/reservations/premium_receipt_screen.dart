@@ -239,11 +239,19 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
                     children: [
                       Container(
                         width: 40, height: 40,
+                        padding: const EdgeInsets.all(5),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(Icons.build_rounded, color: BabifixDesign.navy, size: 24),
+                        child: Image.asset(
+                          'assets/images/logo_babifix.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => Icon(
+                              Icons.build_rounded,
+                              color: BabifixDesign.navy,
+                              size: 24),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Column(
