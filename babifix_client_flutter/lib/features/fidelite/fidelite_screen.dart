@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -150,7 +150,7 @@ class _FideliteScreenState extends State<FideliteScreen>
                     _SectionHeader(
                       label: 'PARRAINAGE',
                       icon: Icons.people_rounded,
-                      color: const Color(0xFFA855F7),
+                      color: const Color(0xFF7C3AED),
                       isLight: isLight,
                     ),
                     const SizedBox(height: 10),
@@ -592,7 +592,7 @@ class _ParrainageCardState extends State<_ParrainageCard> {
     final code = widget.data['referral_code'] as String? ?? '—';
     final credits = widget.data['referral_credits'] as num? ?? 0;
     final filleuls = widget.data['filleuls_count'] as int? ?? 0;
-    const purple = Color(0xFFA855F7);
+    const purple = Color(0xFF7C3AED);
 
     return Container(
       decoration: BoxDecoration(
@@ -801,7 +801,7 @@ class _NiveauxTable extends StatelessWidget {
     _NiveauInfo('Bronze', '0–4 missions', '0%', Color(0xFFCD7F32)),
     _NiveauInfo('Argent', '5–9 missions', '-5%', Color(0xFF64748B)),
     _NiveauInfo('Or', '10–19 missions', '-10%', Color(0xFFF59E0B)),
-    _NiveauInfo('Platine', '20+ missions', '-15%', Color(0xFFA855F7)),
+    _NiveauInfo('Platine', '20+ missions', '-15%', Color(0xFF7C3AED)),
   ];
 
   @override

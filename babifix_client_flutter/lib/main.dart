@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
@@ -3885,7 +3885,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -3893,7 +3893,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF8B5CF6),
+                    color: Color(0xFF7C3AED),
                   ),
                 ),
               ),
@@ -4340,7 +4340,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       _QuickActionChip(
                         icon: r.rated ? Icons.star_rounded : Icons.star_outline_rounded,
                         label: r.rated ? 'Déjà noté' : 'Noter',
-                        color: r.rated ? const Color(0xFFCBD5E1) : const Color(0xFF8B5CF6),
+                        color: r.rated ? const Color(0xFFCBD5E1) : const Color(0xFF7C3AED),
                         onTap: r.rated ? null : () => _rateReservation(r),
                       ),
                   ],
@@ -5061,7 +5061,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
                 // ── Section : Preferences ─────────────────────────────
                 const SizedBox(height: 20),
-                _SectionLabel(label: 'PRÉFÉRENCES', icon: Icons.palette_outlined, color: const Color(0xFFA855F7), isLight: _isLight),
+                _SectionLabel(label: 'PRÉFÉRENCES', icon: Icons.palette_outlined, color: const Color(0xFF7C3AED), isLight: _isLight),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -5074,8 +5074,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     Row(children: [
                       Container(
                         width: 40, height: 40,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFA855F7).withValues(alpha: 0.12)),
-                        child: const Icon(Icons.brightness_6_rounded, color: Color(0xFFA855F7), size: 20),
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF7C3AED).withValues(alpha: 0.12)),
+                        child: const Icon(Icons.brightness_6_rounded, color: Color(0xFF7C3AED), size: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -7644,8 +7644,8 @@ class _ReservationStatusPill extends StatelessWidget {
       bg = const Color(0xFF4CC9F0).withValues(alpha: 0.15);
       fg = const Color(0xFF4CC9F0);
     } else if (status == 'INTERVENTION_EN_COURS') {
-      bg = const Color(0xFF8B5CF6).withValues(alpha: 0.15);
-      fg = const Color(0xFF8B5CF6);
+      bg = const Color(0xFF7C3AED).withValues(alpha: 0.15);
+      fg = const Color(0xFF7C3AED);
     } else if (status == 'Terminee' || status == 'DONE') {
       bg = const Color(0xFF22C55E).withValues(alpha: 0.15);
       fg = const Color(0xFF22C55E);

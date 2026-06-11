@@ -11,6 +11,8 @@ abstract final class BabifixDesign {
   static const Color success = Color(0xFF22C55E);
   static const Color error = Color(0xFFEF4444);
   static const Color warning = Color(0xFFF59E0B);
+  // Couleur OFFICIELLE Premium/Pro (exclusivité) — un seul ton, pas d'autre violet.
+  static const Color premium = Color(0xFF7C3AED);
 
   // Couleurs d'icônes "neutres" pour un rendu pro : le cyan reste réservé
   // aux états actifs/sélectionnés et aux boutons d'action.

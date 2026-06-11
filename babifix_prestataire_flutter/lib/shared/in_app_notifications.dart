@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -136,7 +136,7 @@ Color babifixNotifCategoryColor(String category) {
     case 'litige':
       return const Color(0xFFDC2626);
     case 'message':
-      return const Color(0xFF8B5CF6);
+      return const Color(0xFF7C3AED);
     case 'compte':
       return const Color(0xFF059669);
     case 'actu':

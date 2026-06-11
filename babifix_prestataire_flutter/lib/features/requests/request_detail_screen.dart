@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -136,7 +136,7 @@ class RequestDetailScreen extends StatelessWidget {
                   icon: Icons.build_rounded,
                   title: 'Service',
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFA78BFA), Color(0xFF8B5CF6)],
+                    colors: [Color(0xFF7C3AED), Color(0xFF7C3AED)],
                   ),
                   children: [
                     _InfoRow(label: 'Type', value: service),
@@ -455,7 +455,7 @@ class _StatusBadge extends StatelessWidget {
     final s = status.toLowerCase();
     if (s.contains('attente') || s.contains('demande')) return const Color(0xFFF59E0B);
     if (s.contains('devis')) return const Color(0xFF60A5FA);
-    if (s.contains('cours')) return const Color(0xFFA78BFA);
+    if (s.contains('cours')) return const Color(0xFF7C3AED);
     if (s.contains('termin')) return const Color(0xFF22C55E);
     if (s.contains('annul')) return const Color(0xFFF87171);
     if (s.contains('confirm')) return const Color(0xFF22C55E);

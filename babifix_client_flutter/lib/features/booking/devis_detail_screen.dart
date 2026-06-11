@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -770,7 +770,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final typeColors = {
       'FOURNITURE': BabifixDesign.cyan,
       'MAIN_OEUVRE': BabifixDesign.ciOrange,
-      'DEPLACEMENT': const Color(0xFF8B5CF6),
+      'DEPLACEMENT': const Color(0xFF7C3AED),
       'AUTRE': const Color(0xFF64748B),
     };
 

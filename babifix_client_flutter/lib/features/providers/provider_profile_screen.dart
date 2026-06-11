@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:carousel_slider/carousel_slider.dart';
@@ -567,7 +567,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
             value: yearsExp > 0 ? '${yearsExp}an${yearsExp > 1 ? 's' : ''}' : '—',
             label: 'Expérience',
             icon: Icons.workspace_premium_rounded,
-            color: const Color(0xFF8B5CF6),
+            color: const Color(0xFF7C3AED),
           ),
         ],
       ),
@@ -686,7 +686,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
           ...services.asMap().entries.map((entry) {
             final i = entry.key;
             final s = entry.value;
-            final colors = [BabifixDesign.cyan, BabifixDesign.ciBlue, const Color(0xFF22C55E), const Color(0xFF8B5CF6)];
+            final colors = [BabifixDesign.cyan, BabifixDesign.ciBlue, const Color(0xFF22C55E), const Color(0xFF7C3AED)];
             final color = colors[i % colors.length];
             return Container(
               margin: const EdgeInsets.only(bottom: 10),

@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -17,7 +17,7 @@ const _kCyan = Color(0xFF4CC9F0);
 const _kGreen = Color(0xFF22C55E);
 const _kAmber = Color(0xFFF59E0B);
 const _kRed = Color(0xFFEF4444);
-const _kPurple = Color(0xFF8B5CF6);
+const _kPurple = Color(0xFF7C3AED);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modèle local

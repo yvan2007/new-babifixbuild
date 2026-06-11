@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class CategoryIconMapper {
   CategoryIconMapper._();
@@ -14,7 +14,7 @@ class CategoryIconMapper {
     'chauffage': _CatMeta(Icons.whatshot_rounded, Color(0xFFDC2626)),
     'cle': _CatMeta(Icons.lock_rounded, Color(0xFF64748B)),
     'fenetre': _CatMeta(Icons.window_rounded, Color(0xFF7C3AED)),
-    'pinceau': _CatMeta(Icons.brush_rounded, Color(0xFF8B5CF6)),
+    'pinceau': _CatMeta(Icons.brush_rounded, Color(0xFF7C3AED)),
     'carrelage': _CatMeta(Icons.grid_view_rounded, Color(0xFF64748B)),
     'menuiserie': _CatMeta(Icons.carpenter_rounded, Color(0xFFD97706)),
     'tondeuse': _CatMeta(Icons.grass_rounded, Color(0xFF16A34A)),
@@ -58,7 +58,7 @@ class CategoryIconMapper {
       Color(0xFF78716C),
     ),
     'sol-souple': _CatMeta(Icons.layers_rounded, Color(0xFF64748B)),
-    'tapisserie-deco': _CatMeta(Icons.wallpaper_rounded, Color(0xFF8B5CF6)),
+    'tapisserie-deco': _CatMeta(Icons.wallpaper_rounded, Color(0xFF7C3AED)),
     'metallier': _CatMeta(Icons.fence_rounded, Color(0xFF475569)),
     'stores-volets': _CatMeta(Icons.blinds_rounded, Color(0xFF64748B)),
     'placo': _CatMeta(Icons.wallpaper_rounded, Color(0xFF78716C)),
@@ -81,8 +81,8 @@ class CategoryIconMapper {
     'couture': _CatMeta(Icons.content_cut_rounded, Color(0xFFEC4899)),
     'debarras': _CatMeta(Icons.delete_rounded, Color(0xFF64748B)),
     'montage-velo': _CatMeta(Icons.directions_bike_rounded, Color(0xFF22C55E)),
-    'home-staging': _CatMeta(Icons.home_rounded, Color(0xFF8B5CF6)),
-    'rideaux': _CatMeta(Icons.door_sliding_rounded, Color(0xFF8B5CF6)),
+    'home-staging': _CatMeta(Icons.home_rounded, Color(0xFF7C3AED)),
+    'rideaux': _CatMeta(Icons.door_sliding_rounded, Color(0xFF7C3AED)),
     'vmc': _CatMeta(Icons.air_rounded, Color(0xFF06B6D4)),
     'luminaires': _CatMeta(Icons.lightbulb_rounded, Color(0xFFF59E0B)),
     'pressing': _CatMeta(
@@ -102,7 +102,7 @@ class CategoryIconMapper {
     'wifi': _CatMeta(Icons.wifi_rounded, Color(0xFF0891B2)),
     'television': _CatMeta(Icons.tv_rounded, Color(0xFF1D4ED8)),
     'menage': _CatMeta(Icons.cleaning_services_rounded, Color(0xFF06B6D4)),
-    'peinture': _CatMeta(Icons.brush_rounded, Color(0xFF8B5CF6)),
+    'peinture': _CatMeta(Icons.brush_rounded, Color(0xFF7C3AED)),
     'jardinage': _CatMeta(Icons.yard_rounded, Color(0xFF22C55E)),
     'serrurerie': _CatMeta(Icons.lock_rounded, Color(0xFF64748B)),
     'coiffure': _CatMeta(Icons.content_cut_rounded, Color(0xFFBE185D)),

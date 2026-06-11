@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -1012,7 +1012,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Section : Préférences
                           const SizedBox(height: 20),
-                          _PrestSectionLabel(label: 'PRÉFÉRENCES', icon: Icons.palette_outlined, color: const Color(0xFFA855F7), isLight: isLight),
+                          _PrestSectionLabel(label: 'PRÉFÉRENCES', icon: Icons.palette_outlined, color: const Color(0xFF7C3AED), isLight: isLight),
                           const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1026,8 +1026,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Container(
                                   width: 40, height: 40,
                                   decoration: BoxDecoration(shape: BoxShape.circle,
-                                      color: const Color(0xFFA855F7).withValues(alpha: 0.12)),
-                                  child: const Icon(Icons.brightness_6_rounded, color: Color(0xFFA855F7), size: 20),
+                                      color: const Color(0xFF7C3AED).withValues(alpha: 0.12)),
+                                  child: const Icon(Icons.brightness_6_rounded, color: Color(0xFF7C3AED), size: 20),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

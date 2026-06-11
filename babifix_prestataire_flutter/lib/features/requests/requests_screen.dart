@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -142,7 +142,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         label: 'En cours',
         count: active.length,
         icon: Icons.build_rounded,
-        color: active.isNotEmpty ? const Color(0xFFA78BFA) : const Color(0xFF475569),
+        color: active.isNotEmpty ? const Color(0xFF7C3AED) : const Color(0xFF475569),
         bucket: 'active',
       ),
       _KanbanStep(
@@ -388,10 +388,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                               title: 'En cours',
                               subtitle: 'Interventions actives',
                               count: active.length,
-                              color: const Color(0xFFA78BFA),
+                              color: const Color(0xFF7C3AED),
                               icon: Icons.build_rounded,
                               accentGradient: const LinearGradient(
-                                colors: [Color(0xFFA78BFA), Color(0xFF8B5CF6)],
+                                colors: [Color(0xFF7C3AED), Color(0xFF7C3AED)],
                               ),
                             ),
                             ...active.map((item) => _buildCardTappable(item)),
@@ -895,12 +895,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
               decoration: BoxDecoration(
                 color: it.isUrgent
                     ? const Color(0xFFEF4444).withValues(alpha: 0.1)
-                    : const Color(0xFF8B5CF6).withValues(alpha: 0.08),
+                    : const Color(0xFF7C3AED).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: it.isUrgent
                       ? const Color(0xFFEF4444).withValues(alpha: 0.2)
-                      : const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                      : const Color(0xFF7C3AED).withValues(alpha: 0.15),
                 ),
               ),
               child: Column(
@@ -911,7 +911,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       Icon(
                         it.isUrgent ? Icons.priority_high_rounded : Icons.assignment_turned_in_outlined,
                         size: 14,
-                        color: it.isUrgent ? const Color(0xFFEF4444) : const Color(0xFF8B5CF6),
+                        color: it.isUrgent ? const Color(0xFFEF4444) : const Color(0xFF7C3AED),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -919,7 +919,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: it.isUrgent ? const Color(0xFFEF4444) : const Color(0xFF8B5CF6),
+                          color: it.isUrgent ? const Color(0xFFEF4444) : const Color(0xFF7C3AED),
                         ),
                       ),
                     ],

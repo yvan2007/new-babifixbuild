@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -99,7 +99,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     const palette = [
       Color(0xFF4CC9F0), Color(0xFF7C3AED), Color(0xFF22C55E),
       Color(0xFFF59E0B), Color(0xFFEF4444), Color(0xFFF97316),
-      Color(0xFF4CC9F0), Color(0xFF8B5CF6),
+      Color(0xFF4CC9F0), Color(0xFF7C3AED),
     ];
     final idx = name.isNotEmpty ? name.codeUnitAt(0) % palette.length : 0;
     return palette[idx];

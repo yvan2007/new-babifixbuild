@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../babifix_design_system.dart';
 
 enum BabifixErrorType {
@@ -149,7 +149,7 @@ class BabifixErrorScreen extends StatelessWidget {
       case BabifixErrorType.timeout:
         return const _ErrorConfig(
           icon: Icons.timer_off_rounded,
-          color: Color(0xFF8B5CF6),
+          color: Color(0xFF7C3AED),
           title: 'Délai expiré',
           message: 'La connexion a mis trop de temps à répondre.',
         );

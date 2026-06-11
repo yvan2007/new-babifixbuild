@@ -1,4 +1,4 @@
-/// ProviderProfilePremiumScreen — Refonte premium de la fiche prestataire.
+﻿/// ProviderProfilePremiumScreen — Refonte premium de la fiche prestataire.
 ///
 /// Sections (de haut en bas, dans un SliverList) :
 ///  1. Hero collapsing : photo de couverture + parallax + photo ronde
@@ -614,7 +614,7 @@ class _ProviderProfilePremiumScreenState
             value: yearsExp > 0 ? '$yearsExp an${yearsExp > 1 ? 's' : ''}' : '—',
             label: 'expérience',
             icon: Icons.workspace_premium_rounded,
-            color: const Color(0xFF8B5CF6),
+            color: const Color(0xFF7C3AED),
           ),
         ],
       ),

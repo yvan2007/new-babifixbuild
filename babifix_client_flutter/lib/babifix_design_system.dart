@@ -24,6 +24,11 @@ abstract final class BabifixDesign {
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
 
+  // ─── Premium / Pro ───────────────────────────────────────────────────────
+  // Couleur OFFICIELLE réservée aux fonctionnalités Premium/Pro (exclusivité).
+  // Un seul ton — ne PAS introduire d'autres violets.
+  static const Color premium = Color(0xFF7C3AED);
+
   // ─── Alias CI (compatibilité temporaire) → pointent vers les couleurs unifiées
   /// @deprecated Utiliser [cyan] à la place
   static const Color ciBlue = cyan;

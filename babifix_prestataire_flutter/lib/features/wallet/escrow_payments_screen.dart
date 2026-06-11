@@ -1,4 +1,4 @@
-/// Écran "Mes paiements en attente" — liste des montants bloqués en
+﻿/// Écran "Mes paiements en attente" — liste des montants bloqués en
 /// escrow + état (acompte reçu / intervention en cours / en attente de
 /// confirmation client) avec montant net à recevoir par réservation.
 ///
@@ -285,7 +285,7 @@ class _EscrowEntry {
     if (statut == 'Terminee') {
       return (
         label: 'En attente de confirmation client',
-        color: const Color(0xFF8B5CF6),
+        color: const Color(0xFF7C3AED),
         icon: Icons.hourglass_top,
         progress: 0.85,
       );

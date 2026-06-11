@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -345,7 +345,7 @@ class _EditProfilePrestataireScreenState
             icon: Icons.credit_card_rounded,
             title: 'Piece d\'identite',
             subtitle: 'CNI ou Passeport - Recto / Verso',
-            color: const Color(0xFFA855F7),
+            color: const Color(0xFF7C3AED),
             child: Row(
               children: [
                 Expanded(child: _CniUploaderPremium(label: 'Recto', currentUrl: _cniRectoUrl,

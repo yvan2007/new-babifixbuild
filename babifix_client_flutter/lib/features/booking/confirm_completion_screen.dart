@@ -1,4 +1,4 @@
-/// Écran "Confirmer travaux" (Phase F — C6).
+﻿/// Écran "Confirmer travaux" (Phase F — C6).
 ///
 /// Le client vérifie photos avant/après + résumé devis, puis confirme.
 /// La confirmation déclenche EscrowService.release_funds côté backend.
@@ -190,7 +190,7 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
           ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF8B5CF6),
+              backgroundColor: const Color(0xFF7C3AED),
               foregroundColor: Colors.white,
             ),
             icon: const Icon(Icons.star_outline_rounded, size: 18),
