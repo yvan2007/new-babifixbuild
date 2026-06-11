@@ -36,6 +36,8 @@ class _EditProfilePrestataireScreenState
   String _statut = '';
   String _cniRectoUrl = '';
   String _cniVersoUrl = '';
+  String _portraitUrl = '';   // URL portrait actuel (serveur)
+  String? _portraitB64;       // nouvelle photo choisie (data:image base64)
 
   String get _base => widget.apiBase ?? babifixApiBaseUrl();
 
@@ -80,6 +82,7 @@ class _EditProfilePrestataireScreenState
           _statut = d['statut'] as String? ?? '';
           _cniRectoUrl = d['cni_recto_url'] as String? ?? '';
           _cniVersoUrl = d['cni_verso_url'] as String? ?? '';
+          _portraitUrl = d['photo_portrait_url'] as String? ?? '';
           _loading = false;
         });
       } else { setState(() => _loading = false); }
@@ -96,6 +99,10 @@ class _EditProfilePrestataireScreenState
     };
     // tarif_horaire désactivé pour le prestataire — chaque devis a son prix.
     if (_expCtrl.text.trim().isNotEmpty) payload['years_experience'] = int.tryParse(_expCtrl.text.trim());
+    // Nouvelle photo de profil (base64) → le backend la sauvegarde (Cloudinary).
+    if (_portraitB64 != null && _portraitB64!.isNotEmpty) {
+      payload['photo_portrait_b64'] = _portraitB64;
+    }
     try {
       final req = http.Request('PATCH', Uri.parse('$_base/api/prestataire/profile'));
       req.headers['Authorization'] = 'Bearer $token';
@@ -109,6 +116,90 @@ class _EditProfilePrestataireScreenState
         setState(() { _saving = false; _error = (jsonDecode(body)['error'] ?? 'Erreur').toString(); });
       }
     } catch (_) { setState(() { _saving = false; _error = 'Erreur reseau.'; }); }
+  }
+
+  Future<void> _pickPortrait() async {
+    try {
+      final picker = ImagePicker();
+      final x = await picker.pickImage(
+          source: ImageSource.gallery, imageQuality: 70, maxWidth: 800);
+      if (x == null) return;
+      final bytes = await x.readAsBytes();
+      if (bytes.lengthInBytes > 3 * 1024 * 1024) {
+        if (mounted) setState(() => _error = 'Photo trop lourde (3 Mo max).');
+        return;
+      }
+      final ext = x.path.split('.').last.toLowerCase();
+      final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+      setState(() {
+        _portraitB64 = 'data:$mime;base64,${base64Encode(bytes)}';
+        _error = null;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Impossible de charger la photo.');
+    }
+  }
+
+  Widget _buildPortraitPicker() {
+    ImageProvider? provider;
+    if (_portraitB64 != null && _portraitB64!.isNotEmpty) {
+      try {
+        provider = MemoryImage(base64Decode(_portraitB64!.split(',').last));
+      } catch (_) {}
+    } else if (_portraitUrl.isNotEmpty) {
+      final url = _portraitUrl.startsWith('http')
+          ? _portraitUrl
+          : '$_base$_portraitUrl';
+      provider = NetworkImage(url);
+    }
+    return Center(
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 48,
+                backgroundColor: const Color(0xFF152138),
+                backgroundImage: provider,
+                child: provider == null
+                    ? Text(
+                        _nomCtrl.text.isNotEmpty
+                            ? _nomCtrl.text.characters.first.toUpperCase()
+                            : 'P',
+                        style: const TextStyle(
+                            fontSize: 34,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white),
+                      )
+                    : null,
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: GestureDetector(
+                  onTap: _pickPortrait,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: const BoxDecoration(
+                      color: BabifixDesign.cyan,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.photo_camera_rounded,
+                        size: 18, color: BabifixDesign.navy),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _pickPortrait,
+            icon: const Icon(Icons.edit_rounded, size: 16),
+            label: const Text('Modifier la photo de profil'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -193,6 +284,10 @@ class _EditProfilePrestataireScreenState
           if (_statut.isNotEmpty) _StatutBadgePremium(statut: _statut),
           if (_success != null) _AlertPremium(message: _success!, color: BabifixDesign.success, icon: Icons.check_circle_rounded),
           if (_error != null) _AlertPremium(message: _error!, color: BabifixDesign.error, icon: Icons.error_rounded),
+          const SizedBox(height: 16),
+
+          // Photo de profil (portrait) — visible par les clients
+          _buildPortraitPicker(),
           const SizedBox(height: 16),
 
           // Informations personnelles
