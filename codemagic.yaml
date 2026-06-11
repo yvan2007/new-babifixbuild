@@ -1,0 +1,61 @@
+# Codemagic — build iOS NON SIGNÉ pour BABIFIX (client + prestataire).
+# Produit un .ipa téléchargeable, à installer sur iPhone via Sideloadly
+# (Apple ID gratuit, app valable 7 jours). Aucun compte Apple Developer requis.
+#
+# Utilisation :
+#   1. codemagic.io → connecte ce dépôt GitHub.
+#   2. Lance le workflow voulu (ios-client ou ios-presta).
+#   3. Télécharge l'artifact .ipa et installe-le avec Sideloadly.
+
+workflows:
+  ios-client:
+    name: iOS — BABIFIX Client (non signé)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: babifix_client_flutter
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Flutter packages
+        script: flutter pub get
+      - name: Pods
+        script: cd ios && pod install || true
+      - name: Build iOS (no codesign)
+        script: flutter build ios --release --no-codesign
+      - name: Empaqueter en .ipa
+        script: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r -y babifix_client.ipa Payload >/dev/null
+          rm -rf Payload
+    artifacts:
+      - babifix_client_flutter/build/ios/iphoneos/*.ipa
+
+  ios-presta:
+    name: iOS — BABIFIX Pro (non signé)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: babifix_prestataire_flutter
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Flutter packages
+        script: flutter pub get
+      - name: Pods
+        script: cd ios && pod install || true
+      - name: Build iOS (no codesign)
+        script: flutter build ios --release --no-codesign
+      - name: Empaqueter en .ipa
+        script: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r -y babifix_pro.ipa Payload >/dev/null
+          rm -rf Payload
+    artifacts:
+      - babifix_prestataire_flutter/build/ios/iphoneos/*.ipa
