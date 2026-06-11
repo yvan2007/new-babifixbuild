@@ -51,7 +51,12 @@ def check_rate_limit(
     if current == 0:
         cache.set(cache_key, 1, timeout=window)
     else:
-        cache.incr(cache_key)
+        # La clé peut expirer entre le get et le incr (fenêtre écoulée) →
+        # cache.incr lève alors ValueError. On retombe proprement sur un set.
+        try:
+            cache.incr(cache_key)
+        except ValueError:
+            cache.set(cache_key, 1, timeout=window)
     return False
 
 

@@ -2677,9 +2677,13 @@ def api_messages_send_by_reservation(request):
 
 
 @csrf_exempt
-@require_http_methods(["GET"])
-@require_api_auth(["client", "prestataire"])
+@require_http_methods(["GET", "POST"])
+@require_api_auth(["client", "prestataire", "admin"])
 def api_messages(request):
+    # POST = envoi d'un message. Sans ce dispatch, /api/messages était GET-only
+    # et tout envoi renvoyait 405 (« erreur » côté client/prestataire).
+    if request.method == "POST":
+        return _api_messages_send(request)
     uid = int(request.api_user_id)
     prestataire_id = request.GET.get("prestataire_id")
     client_id = request.GET.get("client_id")
@@ -4192,24 +4196,50 @@ def api_auth_login(request):
     if not login_field:
         return JsonResponse({"error": "username_password_required"}, status=400)
 
-    # Chercher par email d'abord, puis par username
-    # Si username ressemble à un email, on essaie aussi la colonne email
-    user = None
+    # On accepte comme identifiant : l'email, le nom d'utilisateur, OU le nom
+    # complet choisi à l'inscription (Provider.nom / prénom+nom). On rassemble
+    # tous les comptes candidats puis on valide le mot de passe sur chacun.
+    ident = (email or username).strip()
+    ident_l = ident.lower()
+    candidates: list = []
+
+    def _add(qs):
+        for u in qs:
+            if u and all(u.pk != c.pk for c in candidates):
+                candidates.append(u)
+
     if email:
+        _add(User.objects.filter(email__iexact=email))
+    if username:
+        _add(User.objects.filter(username__iexact=username))
+        if "@" in username:
+            _add(User.objects.filter(email__iexact=username))
+    # Par email complet quand l'identifiant en est un (champ générique côté app).
+    if "@" in ident:
+        _add(User.objects.filter(email__iexact=ident))
+    # Par nom complet : prestataires (Provider.nom) puis prénom + nom.
+    if ident:
         try:
-            user = User.objects.get(email__iexact=email)
-        except User.DoesNotExist:
+            prov_uids = [
+                uid
+                for uid in Provider.objects.filter(nom__iexact=ident)
+                .values_list("user_id", flat=True)
+                if uid
+            ]
+            if prov_uids:
+                _add(User.objects.filter(id__in=prov_uids))
+        except Exception:
             pass
-    if not user and username:
-        try:
-            user = User.objects.get(username__iexact=username)
-        except User.DoesNotExist:
-            pass
-    if not user and username and '@' in username:
-        try:
-            user = User.objects.get(email__iexact=username)
-        except User.DoesNotExist:
-            pass
+        parts = ident.split()
+        if len(parts) >= 2:
+            _add(
+                User.objects.filter(
+                    first_name__iexact=parts[0],
+                    last_name__iexact=" ".join(parts[1:]),
+                )
+            )
+        # Nom d'utilisateur exact insensible à la casse (repli).
+        _add(User.objects.filter(username__iexact=ident_l))
 
     # Anti-timing-attack : on hash TOUJOURS un mot de passe — même si user inconnu —
     # pour que la durée de la réponse ne révèle pas l'existence d'un compte.
@@ -4218,10 +4248,13 @@ def api_auth_login(request):
         "argon2$argon2id$v=19$m=102400,t=2,p=8$"
         "ZHVtbXktc2FsdC1iYWJpZml4$KW5fF3nq3a3WZ9o/9c8Z4w"
     )
+    user = None
+    for c in candidates:
+        if c.check_password(password):
+            user = c
+            break
     if not user:
         _hasher_check(password, _DUMMY_HASH)
-        return JsonResponse({"error": "invalid_credentials"}, status=401)
-    if not user.check_password(password):
         return JsonResponse({"error": "invalid_credentials"}, status=401)
     if not user.is_active:
         return JsonResponse({"error": "account_disabled"}, status=403)

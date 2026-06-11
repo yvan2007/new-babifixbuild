@@ -294,12 +294,12 @@ class _LoginScreenState extends State<LoginScreen>
                                     // Champ email
                                     _PremiumField(
                                       controller: _user,
-                                      label: 'Email / Nom d\'utilisateur',
+                                      label: 'Email ou nom complet',
                                       icon: Icons.person_outline_rounded,
                                       inputType: TextInputType.emailAddress,
                                       textInputAction: TextInputAction.next,
                                       validator: (v) {
-                                        if (v == null || v.trim().isEmpty) return 'Email requis';
+                                        if (v == null || v.trim().isEmpty) return 'Email ou nom requis';
                                         return null;
                                       },
                                     ),
