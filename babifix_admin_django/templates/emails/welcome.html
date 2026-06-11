@@ -3,336 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>Bienvenue sur BABIFIX</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      background: #0A0F1E;
-      padding: 32px 16px;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrapper { max-width: 600px; margin: 0 auto; }
-
-    /* ── HEADER ── */
-    .header {
-      background: linear-gradient(135deg, #050D1A 0%, #0D1B2E 100%);
-      border-radius: 20px 20px 0 0;
-      padding: 40px 32px 32px;
-      text-align: center;
-      border-bottom: 1px solid rgba(76,201,240,0.15);
-      position: relative;
-      overflow: hidden;
-    }
-    .header::before {
-      content: '';
-      position: absolute;
-      top: -60px; right: -60px;
-      width: 200px; height: 200px;
-      background: radial-gradient(circle, rgba(76,201,240,0.12) 0%, transparent 70%);
-      border-radius: 50%;
-    }
-    .header::after {
-      content: '';
-      position: absolute;
-      bottom: -40px; left: -40px;
-      width: 160px; height: 160px;
-      background: radial-gradient(circle, rgba(249,115,22,0.10) 0%, transparent 70%);
-      border-radius: 50%;
-    }
-    .logo-badge {
-      display: inline-block;
-      border-radius: 18px;
-      width: 80px; height: 80px;
-      margin-bottom: 16px;
-      box-shadow: 0 8px 24px rgba(76,201,240,0.35);
-      overflow: hidden;
-    }
-    .logo-badge img {
-      width: 80px; height: 80px;
-      display: block;
-      border-radius: 18px;
-    }
-    .brand-name {
-      font-size: 30px;
-      font-weight: 900;
-      color: #FFFFFF;
-      letter-spacing: 6px;
-      display: block;
-      margin-bottom: 6px;
-    }
-    .brand-tagline {
-      font-size: 13px;
-      color: rgba(76,201,240,0.8);
-      letter-spacing: 1px;
-      font-weight: 600;
-    }
-
-    /* ── HERO ── */
-    .hero {
-      background: #0D1B2E;
-      padding: 36px 32px 28px;
-      text-align: center;
-    }
-    .hero-icon {
-      font-size: 52px;
-      display: block;
-      margin-bottom: 16px;
-    }
-    .hero h2 {
-      font-size: 26px;
-      font-weight: 800;
-      color: #FFFFFF;
-      margin-bottom: 10px;
-      letter-spacing: -0.3px;
-    }
-    .hero p {
-      font-size: 15px;
-      color: rgba(255,255,255,0.55);
-      line-height: 1.6;
-    }
-    .hero strong { color: #4CC9F0; }
-
-    /* ── BODY ── */
-    .body {
-      background: #0D1B2E;
-      padding: 0 32px 32px;
-    }
-
-    /* ── FEATURE CARDS ── */
-    .features { margin: 8px 0 24px; }
-    .feature-card {
-      display: flex;
-      align-items: flex-start;
-      gap: 16px;
-      padding: 16px 20px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(76,201,240,0.12);
-      border-radius: 14px;
-      margin-bottom: 10px;
-    }
-    .feature-icon {
-      font-size: 26px;
-      flex-shrink: 0;
-      line-height: 1;
-      margin-top: 2px;
-    }
-    .feature-text h4 {
-      font-size: 14px;
-      font-weight: 700;
-      color: #FFFFFF;
-      margin-bottom: 4px;
-    }
-    .feature-text p {
-      font-size: 13px;
-      color: rgba(255,255,255,0.50);
-      line-height: 1.5;
-    }
-
-    /* ── STEPS (prestataire) ── */
-    .steps-section {
-      margin: 20px 0;
-      padding: 20px;
-      background: rgba(249,115,22,0.07);
-      border: 1px solid rgba(249,115,22,0.2);
-      border-radius: 14px;
-    }
-    .steps-title {
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 1.5px;
-      color: #F97316;
-      text-transform: uppercase;
-      margin-bottom: 14px;
-    }
-    .step {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-    .step:last-child { margin-bottom: 0; }
-    .step-num {
-      width: 28px; height: 28px;
-      background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
-      border-radius: 50%;
-      flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 800; color: #fff;
-    }
-    .step-label {
-      font-size: 13px;
-      color: rgba(255,255,255,0.75);
-      line-height: 1.4;
-    }
-
-    /* ── CTA ── */
-    .cta-section { text-align: center; padding: 20px 0 8px; }
-    .cta-btn {
-      display: inline-block;
-      background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
-      color: #FFFFFF;
-      text-decoration: none;
-      padding: 16px 40px;
-      border-radius: 14px;
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      box-shadow: 0 8px 24px rgba(249,115,22,0.35);
-    }
-
-    /* ── TRUST BADGES ── */
-    .trust {
-      margin: 24px 0 0;
-      padding: 18px;
-      background: rgba(16,185,129,0.07);
-      border: 1px solid rgba(16,185,129,0.18);
-      border-radius: 14px;
-      text-align: center;
-    }
-    .trust p {
-      font-size: 12px;
-      color: rgba(255,255,255,0.45);
-      margin-bottom: 12px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
-    .badges {
-      display: flex;
-      justify-content: center;
-      gap: 24px;
-      flex-wrap: wrap;
-    }
-    .badge {
-      font-size: 12px;
-      color: #10B981;
-      font-weight: 600;
-    }
-    .badge span { display: block; font-size: 20px; margin-bottom: 4px; }
-
-    /* ── FOOTER ── */
-    .footer {
-      background: #050D1A;
-      border-radius: 0 0 20px 20px;
-      padding: 28px 32px;
-      text-align: center;
-      border-top: 1px solid rgba(76,201,240,0.1);
-    }
-    .footer-brand {
-      font-size: 16px;
-      font-weight: 900;
-      color: #4CC9F0;
-      letter-spacing: 3px;
-      margin-bottom: 8px;
-    }
-    .footer p {
-      font-size: 12px;
-      color: rgba(255,255,255,0.4);
-      margin: 3px 0;
-      line-height: 1.5;
-    }
-    .footer a { color: #4CC9F0; text-decoration: none; }
-    .footer .social { margin: 12px 0; }
-    .footer .social a { margin: 0 10px; font-size: 12px; font-weight: 600; }
-    .footer .copyright { color: rgba(255,255,255,0.25); font-size: 11px; margin-top: 12px; }
-
-    @media (max-width: 480px) {
-      body { padding: 16px 8px; }
-      .header, .hero, .body, .footer { padding-left: 20px; padding-right: 20px; }
-      .cta-btn { display: block; }
-    }
-  </style>
 </head>
-<body>
-  <div class="wrapper">
+<!-- Template EMAIL-SAFE : tables + styles inline (Gmail/Outlook compatibles). -->
+<body style="margin:0;padding:0;background-color:#0B1B34;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0B1B34;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#0D1B2E;border-radius:16px;overflow:hidden;">
 
-    <!-- HEADER -->
-    <div class="header">
-      <div class="logo-badge">
-        <img src="https://new-babifixbuild.onrender.com/static/adminpanel/logo_babifix.png" alt="BABIFIX" onerror="this.src='https://new-babifixbuild.onrender.com/static/adminpanel/logo_babifix.png'">
-      </div>
-      <span class="brand-name">BABIFIX</span>
-      <span class="brand-tagline">Services à domicile · Côte d'Ivoire</span>
-    </div>
+          <!-- HEADER + LOGO -->
+          <tr>
+            <td align="center" style="background-color:#0B1B34;padding:36px 24px 28px;border-bottom:2px solid #4CC9F0;">
+              <img src="https://new-babifixbuild.onrender.com/static/adminpanel/logo_babifix.png"
+                   alt="BABIFIX" width="76" height="76"
+                   style="display:block;border-radius:16px;margin:0 auto 14px;">
+              <div style="font-size:28px;font-weight:bold;color:#FFFFFF;letter-spacing:4px;">BABIFIX</div>
+              <div style="font-size:13px;color:#4CC9F0;margin-top:6px;">Services à domicile · Côte d'Ivoire</div>
+            </td>
+          </tr>
 
-    <!-- HERO -->
-    <div class="hero">
-      <span class="hero-icon">🎉</span>
-      <h2>Bienvenue, {{ username }} !</h2>
-      <p>{{ role_description }}<br>Votre compte <strong>BABIFIX</strong> est maintenant actif.</p>
-    </div>
+          <!-- HERO -->
+          <tr>
+            <td align="center" style="padding:32px 28px 8px;">
+              <div style="font-size:24px;font-weight:bold;color:#FFFFFF;">Bienvenue, {{ username }} !</div>
+              <p style="font-size:15px;color:#9FB0C9;line-height:1.6;margin:12px 0 0;">
+                {{ role_description }}<br>Votre compte <span style="color:#4CC9F0;font-weight:bold;">BABIFIX</span> est maintenant actif.
+              </p>
+            </td>
+          </tr>
 
-    <!-- BODY -->
-    <div class="body">
-      <div class="features">
-        <div class="feature-card">
-          <div class="feature-icon">💳</div>
-          <div class="feature-text">
-            <h4>Paiement Mobile Money sécurisé</h4>
-            <p>MTN, Orange Money, Moov Money avec protection intégrée.</p>
-          </div>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">✅</div>
-          <div class="feature-text">
-            <h4>Prestataires certifiés</h4>
-            <p>Tous nos professionnels sont vérifiés, formés et notés.</p>
-          </div>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">⚡</div>
-          <div class="feature-text">
-            <h4>Intervention rapide</h4>
-            <p>Sous 24h ou sur rendez-vous selon votre agenda.</p>
-          </div>
-        </div>
-      </div>
+          <!-- FEATURES (table, pas flexbox) -->
+          <tr>
+            <td style="padding:24px 28px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:14px 16px;background-color:#13243B;border-radius:12px;">
+                    <span style="font-size:15px;color:#FFFFFF;font-weight:bold;">💳 Paiement Mobile Money sécurisé</span><br>
+                    <span style="font-size:13px;color:#8FA1BC;">Orange Money, MTN, Wave, Moov — protégé de bout en bout.</span>
+                  </td>
+                </tr>
+                <tr><td style="height:10px;line-height:10px;">&nbsp;</td></tr>
+                <tr>
+                  <td style="padding:14px 16px;background-color:#13243B;border-radius:12px;">
+                    <span style="font-size:15px;color:#FFFFFF;font-weight:bold;">✅ Prestataires certifiés</span><br>
+                    <span style="font-size:13px;color:#8FA1BC;">Tous nos professionnels sont vérifiés et notés.</span>
+                  </td>
+                </tr>
+                <tr><td style="height:10px;line-height:10px;">&nbsp;</td></tr>
+                <tr>
+                  <td style="padding:14px 16px;background-color:#13243B;border-radius:12px;">
+                    <span style="font-size:15px;color:#FFFFFF;font-weight:bold;">⚡ Intervention rapide</span><br>
+                    <span style="font-size:13px;color:#8FA1BC;">Sous 24h ou sur rendez-vous selon votre agenda.</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-      {% if is_prestataire %}
-      <div class="steps-section">
-        <div class="steps-title">Prochaines étapes</div>
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-label">Complétez votre profil avec photo et description</div>
-        </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-label">Lisez et acceptez votre contrat prestataire</div>
-        </div>
-        <div class="step">
-          <div class="step-num">3</div>
-          <div class="step-label">Recevez des demandes et gérez vos missions</div>
-        </div>
-      </div>
-      {% endif %}
+          <!-- CTA (bouton bulletproof) -->
+          <tr>
+            <td align="center" style="padding:24px 28px 8px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" bgcolor="#4CC9F0" style="border-radius:12px;">
+                    <a href="{{ app_url }}"
+                       style="display:inline-block;padding:15px 36px;font-size:16px;font-weight:bold;color:#0B1B34;text-decoration:none;border-radius:12px;">
+                      {{ cta_text }}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-      <div class="cta-section">
-        <a href="{{ app_url }}" class="cta-btn">{{ cta_text }}</a>
-      </div>
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background-color:#0B1B34;padding:26px 24px;border-top:1px solid #1E3350;">
+              <div style="font-size:15px;font-weight:bold;color:#4CC9F0;letter-spacing:2px;">BABIFIX</div>
+              <p style="font-size:12px;color:#7C8DA8;margin:8px 0 0;">Connection. Service. Confiance.</p>
+              <p style="font-size:12px;color:#7C8DA8;margin:4px 0 0;">Abidjan, Côte d'Ivoire ·
+                <a href="mailto:contact@babifix.ci" style="color:#4CC9F0;text-decoration:none;">contact@babifix.ci</a>
+              </p>
+              <p style="font-size:11px;color:#536179;margin:12px 0 0;">© 2026 BABIFIX — Tous droits réservés.</p>
+            </td>
+          </tr>
 
-      <div class="trust">
-        <p>Pourquoi BABIFIX ?</p>
-        <div class="badges">
-          <div class="badge"><span>🔒</span>Paiement sécurisé</div>
-          <div class="badge"><span>⭐</span>Vérifié & Approuvé</div>
-          <div class="badge"><span>🇨🇮</span>Made in CI</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- FOOTER -->
-    <div class="footer">
-      <div class="footer-brand">BABIFIX</div>
-      <p>Connection. Service. Confiance.</p>
-      <p>📍 Abidjan, Côte d'Ivoire</p>
-      <div class="social">
-        <a href="https://new-babifixbuild.onrender.com">babifix.ci</a>
-        <a href="mailto:contact@babifix.ci">contact@babifix.ci</a>
-      </div>
-      <p class="copyright">© 2026 BABIFIX — Tous droits réservés.</p>
-    </div>
-
-  </div>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
