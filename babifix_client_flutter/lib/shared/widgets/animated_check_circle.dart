@@ -42,13 +42,19 @@ class _AnimatedCheckCircleState extends State<AnimatedCheckCircle>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) => CustomPaint(
-        size: Size.square(widget.size),
-        painter: _CheckPainter(
-          progress: _ctrl.value,
-          color: widget.color,
+    // SizedBox force la taille : sans contrainte ferme, CustomPaint peut
+    // s'étendre à tout l'espace dispo (cercle géant qui déborde du dialogue).
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (_, __) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _CheckPainter(
+            progress: _ctrl.value,
+            color: widget.color,
+          ),
         ),
       ),
     );
