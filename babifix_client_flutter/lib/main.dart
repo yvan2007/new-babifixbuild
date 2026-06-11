@@ -1244,12 +1244,18 @@ class _ClientHomePageState extends State<ClientHomePage> {
         canPop: false,
         onPopInvokedWithResult: (bool didPop, _) {
           if (didPop) return;
+          // Si on n'est pas sur l'onglet Accueil → y revenir (ne PAS quitter).
+          if (navIndex != 0) {
+            setState(() => navIndex = 0);
+            return;
+          }
+          // Sur l'Accueil → double appui en moins de 2 s pour quitter.
+          final now = DateTime.now();
           if (_lastBackPress != null &&
-              DateTime.now().difference(_lastBackPress!) <
-                  const Duration(seconds: 2)) {
+              now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
             SystemNavigator.pop();
           } else {
-            _lastBackPress = DateTime.now();
+            _lastBackPress = now;
             showBabifixToast(
               context,
               message: 'Appuyez une seconde fois pour quitter',
