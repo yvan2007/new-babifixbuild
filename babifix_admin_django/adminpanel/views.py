@@ -4412,6 +4412,15 @@ def api_auth_me(request):
         if country:
             profile.country_code = country
             fields.append("country_code")
+        # Photo de profil (avatar) — base64 data:image → fichier (Cloudinary).
+        photo = str(
+            payload.get("photo_b64") or payload.get("avatar_b64") or ""
+        )
+        if photo.startswith("data:image/"):
+            saved = _decode_and_save_media(photo, "avatars", "avatar")
+            if saved:
+                profile.avatar_url = saved
+                fields.append("avatar_url")
         if fields:
             profile.save(update_fields=fields)
 
@@ -4422,6 +4431,9 @@ def api_auth_me(request):
             "role": request.api_role,
             "phone_e164": profile.phone_e164 if profile else "",
             "country_code": profile.country_code if profile else "CI",
+            "avatar_url": _safe_photo_url(
+                (profile.avatar_url if profile else "") or "", request
+            ),
         }
     )
 

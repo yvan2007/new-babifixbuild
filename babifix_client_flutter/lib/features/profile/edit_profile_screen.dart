@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
+import '../../babifix_api_config.dart';
 import '../../shared/widgets/smart_address_picker.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
@@ -297,6 +301,26 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     }
   }
 
+  Future<void> _uploadAvatar(Uint8List bytes) async {
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      if (token == null || token.isEmpty) return;
+      final b64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      await http
+          .post(
+            Uri.parse('${babifixApiBaseUrl()}/api/auth/me'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'photo_b64': b64}),
+          )
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      // Silencieux : la photo locale reste affichée même si l'upload échoue.
+    }
+  }
+
   Future<void> _save() async {
     if (_saving) return;
 
@@ -338,6 +362,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       if (_avatarChanged) {
         if (_avatarBytes != null) {
           await BabifixUserStore.saveAvatarBytes(_avatarBytes!);
+          // Persiste aussi côté serveur (survit à la réinstallation, visible
+          // ailleurs). Silencieux si échec — la photo locale reste valable.
+          await _uploadAvatar(_avatarBytes!);
         } else {
           try {
             await BabifixUserStore.saveAvatarBytes(Uint8List(0));

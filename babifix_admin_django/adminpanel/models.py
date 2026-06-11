@@ -1142,6 +1142,11 @@ class UserProfile(models.Model):
         max_digits=10, decimal_places=2, default=0,
         help_text="Crédit de réduction obtenu en convertissant des points de fidélité",
     )
+    # Photo de profil (avatar) — URL servie (disque local ou Cloudinary).
+    avatar_url = models.TextField(
+        blank=True, default="",
+        help_text="URL de la photo de profil de l'utilisateur",
+    )
 
     def __str__(self):
         return f"{self.user.username} ({self.role})"
