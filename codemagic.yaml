@@ -32,7 +32,7 @@ workflows:
           zip -r -y babifix_client.ipa Payload >/dev/null
           rm -rf Payload
     artifacts:
-      - babifix_client_flutter/build/ios/iphoneos/*.ipa
+      - "**/*.ipa"
 
   ios-presta:
     name: iOS — BABIFIX Pro (non signé)
@@ -58,4 +58,4 @@ workflows:
           zip -r -y babifix_pro.ipa Payload >/dev/null
           rm -rf Payload
     artifacts:
-      - babifix_prestataire_flutter/build/ios/iphoneos/*.ipa
+      - "**/*.ipa"
