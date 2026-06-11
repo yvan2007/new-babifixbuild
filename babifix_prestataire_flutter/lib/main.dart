@@ -689,6 +689,8 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
 
   void _attachRealtime(String jwt) {
     _fcmSub?.cancel();
+    // iOS sans config Firebase → ne pas accéder à FirebaseMessaging (crash).
+    if (!BabifixFcm.isReady) return;
     _fcmSub = FirebaseMessaging.onMessage.listen((msg) {
       final d = msg.data;
       final ty = '${d['type'] ?? ''}';

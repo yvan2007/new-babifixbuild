@@ -892,6 +892,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
         } catch (_) {}
       }, onError: (_) {});
     } catch (_) {}
+    // iOS sans config Firebase → ne pas accéder à FirebaseMessaging (crash).
+    if (!BabifixFcm.isReady) return;
     _clientFcmSub = FirebaseMessaging.onMessage.listen((msg) {
       final d = msg.data;
       final ty = '${d['type'] ?? ''}';

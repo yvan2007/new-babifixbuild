@@ -33,6 +33,10 @@ class BabifixFcm {
   static bool _initAttempted = false;
   static bool _refreshListening = false;
 
+  /// Firebase est-il réellement initialisé ? (false sur iOS sans
+  /// GoogleService-Info.plist → ne PAS toucher à FirebaseMessaging.instance).
+  static bool get isReady => _initOK;
+
   static Future<void> ensureInitialized() async {
     if (_initOK) return;
     if (_initAttempted) return;
