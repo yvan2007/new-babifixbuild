@@ -128,7 +128,7 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
         babifixRoute(
           (ctx) => PrestataireActuDetailScreen(
             item: full,
-            isLight: widget.paletteMode == AppPaletteMode.light,
+            isLight: widget.paletteMode != AppPaletteMode.blue,
           ),
         ),
       );
@@ -137,7 +137,7 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
 
   @override
   Widget build(BuildContext context) {
-    final isLight = widget.paletteMode == AppPaletteMode.light;
+    final isLight = widget.paletteMode != AppPaletteMode.blue;
     final bg = isLight ? const Color(0xFFF6F8FC) : const Color(0xFF0B1B34);
     final card = isLight ? Colors.white : const Color(0xFF151D2E);
     final text = isLight ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);

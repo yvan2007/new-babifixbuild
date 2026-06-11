@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import '../babifix_design_system.dart';
 
-enum AppPaletteMode { blue, light }
+enum AppPaletteMode { blue, light, white }
 
 abstract final class BabifixTheme {
   BabifixTheme._();
 
   static ThemeData forMode(AppPaletteMode mode) {
     final base = ThemeData(useMaterial3: true);
-    final isLight = mode == AppPaletteMode.light;
-    final bg = isLight ? const Color(0xFFF6F8FC) : BabifixDesign.navy;
+    final isDark = mode == AppPaletteMode.blue;
+    final isWhite = mode == AppPaletteMode.white;
+    // "light" et "white" partagent la luminosité claire ; seul le fond change
+    // (blanc pur pour "white", très légèrement teinté pour "light").
+    final isLight = !isDark;
+    final bg = isDark
+        ? BabifixDesign.navy
+        : (isWhite ? const Color(0xFFFFFFFF) : const Color(0xFFF6F8FC));
     final seed = BabifixDesign.cyan;
     final onBg = isLight ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final muted = isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);

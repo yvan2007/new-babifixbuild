@@ -196,9 +196,11 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
     // du splash ait le temps de se jouer (1800ms = entrée + ~1 cycle loader).
     final started = DateTime.now();
     final p = await SharedPreferences.getInstance();
-    final newPalette = p.getString(_kPaletteKey) == 'blue'
-        ? AppPaletteMode.blue
-        : AppPaletteMode.light;
+    final newPalette = switch (p.getString(_kPaletteKey)) {
+      'blue' => AppPaletteMode.blue,
+      'white' => AppPaletteMode.white,
+      _ => AppPaletteMode.light,
+    };
     final newSeen = p.getBool(_kOnboardingKey) ?? false;
     final elapsed = DateTime.now().difference(started);
     const minSplash = Duration(milliseconds: 1800);
@@ -217,7 +219,11 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
     final p = await SharedPreferences.getInstance();
     await p.setString(
       _kPaletteKey,
-      mode == AppPaletteMode.blue ? 'blue' : 'light',
+      switch (mode) {
+        AppPaletteMode.blue => 'blue',
+        AppPaletteMode.white => 'white',
+        AppPaletteMode.light => 'light',
+      },
     );
   }
 
@@ -1213,7 +1219,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
-  bool get _isLight => widget.paletteMode == AppPaletteMode.light;
+  // "white" ET "light" sont des thèmes clairs ; seul "blue" (navy) est sombre.
+  bool get _isLight => widget.paletteMode != AppPaletteMode.blue;
   Color get _textPrimary => _isLight ? const Color(0xFF0F172A) : Colors.white;
   Color get _textSecondary =>
       _isLight ? const Color(0xFF475569) : const Color(0xFF9CA3AF);
@@ -5057,26 +5064,39 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: _isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                   ),
-                  child: Row(children: [
-                    Container(
-                      width: 40, height: 40,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFA855F7).withValues(alpha: 0.12)),
-                      child: const Icon(Icons.brightness_6_rounded, color: Color(0xFFA855F7), size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text("Theme d'affichage", style: TextStyle(fontWeight: FontWeight.w700, color: _textPrimary, fontSize: 14)),
-                      Text(
-                        widget.paletteMode == AppPaletteMode.light ? 'Mode blanc (actif)' : 'Bleu BABIFIX (actif)',
-                        style: TextStyle(color: _textSecondary, fontSize: 12),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFA855F7).withValues(alpha: 0.12)),
+                        child: const Icon(Icons.brightness_6_rounded, color: Color(0xFFA855F7), size: 20),
                       ),
-                    ])),
-                    Switch(
-                      value: widget.paletteMode == AppPaletteMode.blue,
-                      activeThumbColor: const Color(0xFF4CC9F0),
-                      activeTrackColor: const Color(0xFF4CC9F0).withValues(alpha: 0.3),
-                      onChanged: (v) => widget.onPaletteChanged(v ? AppPaletteMode.blue : AppPaletteMode.light),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text("Theme d'affichage", style: TextStyle(fontWeight: FontWeight.w700, color: _textPrimary, fontSize: 14)),
+                        Text(
+                          switch (widget.paletteMode) {
+                            AppPaletteMode.white => 'Blanc (actif)',
+                            AppPaletteMode.blue => 'Bleu BABIFIX (actif)',
+                            AppPaletteMode.light => 'Clair (actif)',
+                          },
+                          style: TextStyle(color: _textSecondary, fontSize: 12),
+                        ),
+                      ])),
+                    ]),
+                    const SizedBox(height: 12),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final m in const [
+                        (AppPaletteMode.white, 'Blanc'),
+                        (AppPaletteMode.light, 'Clair'),
+                        (AppPaletteMode.blue, 'Bleu BABIFIX'),
+                      ])
+                        ChoiceChip(
+                          label: Text(m.$2),
+                          selected: widget.paletteMode == m.$1,
+                          onSelected: (_) => widget.onPaletteChanged(m.$1),
+                        ),
+                    ]),
                   ]),
                 ),
 
@@ -8476,9 +8496,16 @@ class _SettingsSheetState extends State<_SettingsSheet> {
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
+                runSpacing: 8,
                 children: [
                   ChoiceChip(
-                    label: const Text('Blanc (par defaut)'),
+                    label: const Text('Blanc'),
+                    selected: widget.currentMode == AppPaletteMode.white,
+                    onSelected: (_) =>
+                        widget.onModeChanged(AppPaletteMode.white),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Clair'),
                     selected: widget.currentMode == AppPaletteMode.light,
                     onSelected: (_) =>
                         widget.onModeChanged(AppPaletteMode.light),

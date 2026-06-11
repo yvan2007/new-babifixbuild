@@ -98,7 +98,7 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
     // du splash respirer (1800ms ≈ animation entrée + 1 boucle de loader).
     final started = DateTime.now();
     final p = await SharedPreferences.getInstance();
-    final v = p.getString('prestataire_palette') ?? 'light';
+    final vStr = p.getString('prestataire_palette') ?? 'light';
     final elapsed = DateTime.now().difference(started);
     const minSplash = Duration(milliseconds: 1800);
     if (elapsed < minSplash) {
@@ -106,7 +106,11 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
     }
     if (!mounted) return;
     setState(() {
-      paletteMode = v == 'blue' ? AppPaletteMode.blue : AppPaletteMode.light;
+      paletteMode = switch (vStr) {
+        'blue' => AppPaletteMode.blue,
+        'white' => AppPaletteMode.white,
+        _ => AppPaletteMode.light,
+      };
       _loadedPrefs = true;
     });
   }
@@ -115,7 +119,11 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
     final p = await SharedPreferences.getInstance();
     await p.setString(
       'prestataire_palette',
-      m == AppPaletteMode.blue ? 'blue' : 'light',
+      switch (m) {
+        AppPaletteMode.blue => 'blue',
+        AppPaletteMode.white => 'white',
+        AppPaletteMode.light => 'light',
+      },
     );
     if (!mounted) return;
     setState(() => paletteMode = m);
@@ -123,8 +131,13 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
 
   ThemeData _themeForMode(AppPaletteMode mode) {
     final base = ThemeData(useMaterial3: true);
-    final isLight = mode == AppPaletteMode.light;
-    final bg = isLight ? const Color(0xFFF6F8FC) : BabifixDesign.navy;
+    final isDark = mode == AppPaletteMode.blue;
+    final isWhite = mode == AppPaletteMode.white;
+    // "light" et "white" = thèmes clairs ; seul "blue" est sombre.
+    final isLight = !isDark;
+    final bg = isDark
+        ? BabifixDesign.navy
+        : (isWhite ? const Color(0xFFFFFFFF) : const Color(0xFFF6F8FC));
     final seed = BabifixDesign.cyan;
     final onBg = isLight ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final muted = isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);

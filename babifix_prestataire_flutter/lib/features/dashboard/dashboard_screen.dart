@@ -49,7 +49,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   List<double> _revenueByMonth = [0, 0, 0, 0, 0, 0];
   List<String> _revenueMonthLabels = ['M-5', 'M-4', 'M-3', 'M-2', 'M-1', 'Ce mois'];
 
-  bool get _isLight => widget.paletteMode == AppPaletteMode.light;
+  bool get _isLight => widget.paletteMode != AppPaletteMode.blue;
 
   @override
   void initState() {

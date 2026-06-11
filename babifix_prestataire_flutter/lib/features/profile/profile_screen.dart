@@ -334,7 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _openSettings() {
-    final isLight = widget.paletteMode == AppPaletteMode.light;
+    final isLight = widget.paletteMode != AppPaletteMode.blue;
     final fg = isLight ? const Color(0xFF0F172A) : Colors.white;
     final sub = isLight ? const Color(0xFF64748B) : const Color(0xFF9CA3AF);
     showModalBottomSheet<void>(
@@ -355,7 +355,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               runSpacing: 8,
               children: [
                 ChoiceChip(
-                  label: const Text('Blanc (par d\u00e9faut)'),
+                  label: const Text('Blanc'),
+                  selected: widget.paletteMode == AppPaletteMode.white,
+                  onSelected: (_) => widget.onPaletteChanged(AppPaletteMode.white),
+                ),
+                ChoiceChip(
+                  label: const Text('Clair'),
                   selected: widget.paletteMode == AppPaletteMode.light,
                   onSelected: (_) => widget.onPaletteChanged(AppPaletteMode.light),
                 ),
@@ -482,7 +487,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = widget.paletteMode == AppPaletteMode.light;
+    final isLight = widget.paletteMode != AppPaletteMode.blue;
     final textPrimary = isLight ? const Color(0xFF0F172A) : Colors.white;
     final textSecondary = isLight ? const Color(0xFF475569) : const Color(0xFF9CA3AF);
     final cardBg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF1A1F28);
@@ -1016,27 +1021,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                             ),
-                            child: Row(children: [
-                              Container(
-                                width: 40, height: 40,
-                                decoration: BoxDecoration(shape: BoxShape.circle,
-                                    color: const Color(0xFFA855F7).withValues(alpha: 0.12)),
-                                child: const Icon(Icons.brightness_6_rounded, color: Color(0xFFA855F7), size: 20),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text("Thème d'affichage", style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary, fontSize: 14)),
-                                Text(
-                                  widget.paletteMode == AppPaletteMode.light ? 'Mode blanc (actif)' : 'Bleu BABIFIX (actif)',
-                                  style: TextStyle(color: textSecondary, fontSize: 12),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Row(children: [
+                                Container(
+                                  width: 40, height: 40,
+                                  decoration: BoxDecoration(shape: BoxShape.circle,
+                                      color: const Color(0xFFA855F7).withValues(alpha: 0.12)),
+                                  child: const Icon(Icons.brightness_6_rounded, color: Color(0xFFA855F7), size: 20),
                                 ),
-                              ])),
-                              Switch(
-                                value: widget.paletteMode == AppPaletteMode.blue,
-                                activeColor: const Color(0xFF4CC9F0),
-                                activeTrackColor: const Color(0xFF4CC9F0).withValues(alpha: 0.3),
-                                onChanged: (v) => widget.onPaletteChanged(v ? AppPaletteMode.blue : AppPaletteMode.light),
-                              ),
+                                const SizedBox(width: 12),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text("Thème d'affichage", style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary, fontSize: 14)),
+                                  Text(
+                                    switch (widget.paletteMode) {
+                                      AppPaletteMode.white => 'Blanc (actif)',
+                                      AppPaletteMode.blue => 'Bleu BABIFIX (actif)',
+                                      AppPaletteMode.light => 'Clair (actif)',
+                                    },
+                                    style: TextStyle(color: textSecondary, fontSize: 12),
+                                  ),
+                                ])),
+                              ]),
+                              const SizedBox(height: 12),
+                              Wrap(spacing: 8, runSpacing: 8, children: [
+                                for (final m in const [
+                                  (AppPaletteMode.white, 'Blanc'),
+                                  (AppPaletteMode.light, 'Clair'),
+                                  (AppPaletteMode.blue, 'Bleu BABIFIX'),
+                                ])
+                                  ChoiceChip(
+                                    label: Text(m.$2),
+                                    selected: widget.paletteMode == m.$1,
+                                    onSelected: (_) => widget.onPaletteChanged(m.$1),
+                                  ),
+                              ]),
                             ]),
                           ),
 

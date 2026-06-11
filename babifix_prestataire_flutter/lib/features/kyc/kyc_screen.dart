@@ -170,7 +170,7 @@ class _KYCScreenState extends State<KYCScreen> {
     setState(() => _loading = false);
   }
 
-  bool get _isLight => widget.paletteMode == AppPaletteMode.light;
+  bool get _isLight => widget.paletteMode != AppPaletteMode.blue;
 
   Color get _bg     => _isLight ? const Color(0xFFF6F8FC) : const Color(0xFF0B1B34);
   Color get _card   => _isLight ? Colors.white : const Color(0xFF1A2744);
