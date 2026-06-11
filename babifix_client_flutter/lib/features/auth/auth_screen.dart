@@ -11,7 +11,6 @@ import '../../babifix_api_config.dart';
 import '../../services/zego_call_service.dart';
 import '../../user_store.dart';
 import 'biometric_login_screen.dart';
-import 'email_verification_screen.dart';
 import 'post_signup_onboarding.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -135,21 +134,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       _snack(err);
       return;
     }
-    final email = emailCtrl.text.trim();
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) => EmailVerificationScreen(
-          email: email,
-          onContinue: () {
-            Navigator.of(context).pop();
-            showPostSignupOnboardingIfNeeded(
-              context,
-              onDone: widget.onAuthSuccess,
-            );
-          },
-        ),
-      ),
+    // Inscription client : pas de page « Vérifiez votre email ». On entre
+    // directement dans l'application (onboarding éventuel puis succès).
+    showPostSignupOnboardingIfNeeded(
+      context,
+      onDone: widget.onAuthSuccess,
     );
   }
 

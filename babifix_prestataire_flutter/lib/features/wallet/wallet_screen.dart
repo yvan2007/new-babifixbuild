@@ -9,6 +9,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/services/wallet_pin_dialog.dart';
+import '../../shared/services/wallet_pin_service.dart';
 import 'wallet_escrow_panel.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -292,6 +293,32 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
+  /// Crée le code PIN de retrait (1ʳᵉ fois) ou le modifie (après vérification).
+  Future<void> _managePin() async {
+    final hasPin = await WalletPinService.hasPin();
+    if (!mounted) return;
+    if (!hasPin) {
+      final ok = await showWalletPinDialog(context); // flux création
+      if (ok && mounted) {
+        showBabifixToast(context,
+            type: BabifixToastType.success,
+            message: 'Code PIN de retrait créé.');
+      }
+      return;
+    }
+    // PIN existant : on vérifie l'actuel, puis on en définit un nouveau.
+    final verified = await showWalletPinDialog(context); // flux vérification
+    if (!verified || !mounted) return;
+    await WalletPinService.clearPin();
+    if (!mounted) return;
+    final created = await showWalletPinDialog(context); // re-création
+    if (created && mounted) {
+      showBabifixToast(context,
+          type: BabifixToastType.success,
+          message: 'Code PIN modifié.');
+    }
+  }
+
   void _openInfoSheet() {
     showModalBottomSheet(
       context: context,
@@ -375,6 +402,11 @@ class _WalletScreenState extends State<WalletScreen>
               icon: const Icon(Icons.edit_rounded, color: _premiumGold),
               tooltip: 'Gérer mes numéros',
               onPressed: _openInfoSheet,
+            ),
+            IconButton(
+              icon: const Icon(Icons.lock_outline_rounded, color: Colors.white70),
+              tooltip: 'Code PIN de retrait',
+              onPressed: _managePin,
             ),
             IconButton(
               icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
