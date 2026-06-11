@@ -64,11 +64,19 @@ def email_welcome(user, role: str) -> None:
         if is_prestataire
         else "Trouvez le prestataire idéal près de chez vous"
     )
+    # Nom d'affichage propre (évite « Bienvenue, email@gmail.com »).
+    display_name = (user.get_full_name() or user.username or "").strip()
+    if "@" in display_name:
+        display_name = display_name.split("@")[0]
+    display_name = display_name.capitalize() if display_name else "bienvenue"
 
     html_content = render_to_string('emails/welcome.html', {
-        "username": user.username,
+        "username": display_name,
         "role_description": role_description,
-        "app_url": "https://babifix.ci/app",
+        "app_url": "https://new-babifixbuild.onrender.com",
+        "is_prestataire": is_prestataire,
+        "cta_text": "Accéder à mon espace" if is_prestataire
+        else "Découvrir BABIFIX",
     })
 
     try:

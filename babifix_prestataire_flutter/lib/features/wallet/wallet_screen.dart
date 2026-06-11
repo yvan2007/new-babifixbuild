@@ -1485,6 +1485,17 @@ class _MoMoInfoSheetState extends State<_MoMoInfoSheet> {
         final sel = selected == op;
         final color = _operatorColors[op] ?? BabifixDesign.cyan;
         return ChoiceChip(
+          avatar: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: BabifixPaymentMethodLogo(
+              methodId: _operatorLogoId[op] ?? '',
+              height: 18,
+            ),
+          ),
           label: Text(_operatorNames[op] ?? op),
           selected: sel,
           labelStyle: TextStyle(
