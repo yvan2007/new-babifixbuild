@@ -55,6 +55,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _submit() async {
+    if (_loading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final identifier = _user.text.trim();
     final pass = _pass.text;
@@ -80,6 +81,9 @@ class _LoginScreenState extends State<LoginScreen>
           await writeStoredApiToken(tok);
           if (refresh != null) await writeStoredRefreshToken(refresh);
           babifixRegisterFcm(tok);
+          // On NE réinitialise PAS _loading : le spinner reste affiché pendant
+          // le chargement du dashboard (bootstrap) jusqu'à la bascule d'écran,
+          // exactement comme l'app client (plus d'écran figé sans chargement).
           if (mounted) widget.onSuccess();
           return;
         }
@@ -91,11 +95,13 @@ class _LoginScreenState extends State<LoginScreen>
             ? 'Compte suspendu. Contactez l\'administrateur.'
             : 'Erreur serveur (${res.statusCode}). Réessayez.';
         _snack(msg);
+        setState(() => _loading = false);
       }
     } catch (_) {
-      if (mounted) _snack('Impossible de contacter le serveur.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        _snack('Impossible de contacter le serveur.');
+        setState(() => _loading = false);
+      }
     }
   }
 
