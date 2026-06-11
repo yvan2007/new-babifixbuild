@@ -605,10 +605,11 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         label = 'En attente de votre decision';
         break;
       default:
-        bgColor = const Color(0x1AFFFFFF);
-        fgColor = const Color(0xFF94A3B8);
-        icon = Icons.info_outline;
-        label = statut;
+        // Réservation terminée / autre état : devis figé en lecture seule.
+        bgColor = BabifixDesign.success.withValues(alpha: 0.12);
+        fgColor = BabifixDesign.success;
+        icon = Icons.verified_rounded;
+        label = 'Devis validé';
     }
 
     return Container(
