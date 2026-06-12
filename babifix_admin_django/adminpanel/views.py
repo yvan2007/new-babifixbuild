@@ -900,7 +900,88 @@ def _dashboard_forms_context(request, section):
                 "-created_at",
             )[:100]
         )
+    elif section == "finances":
+        # Vue financière complète (commissions, versements, soldes, remboursements).
+        ctx["finance"] = _finance_overview()
     return ctx
+
+
+def _finance_overview():
+    """Vue financière complète pour l'admin : commissions (revenus BABIFIX),
+    versements prestataires, soldes wallet, remboursements + réconciliation."""
+    from decimal import Decimal as _D
+    from django.db.models import Sum
+
+    Z = _D("0")
+
+    def _wt(**f):
+        return WalletTransaction.objects.filter(**f).aggregate(
+            s=Sum("amount_fcfa")
+        )["s"] or Z
+
+    # ── Versements prestataires (retraits = débits du wallet) ──
+    withdrawals_paid = _wt(tx_type="debit", status="success")
+    withdrawals_inflight = _wt(tx_type="debit", status="pending")
+    alert_withdrawals_failed = WalletTransaction.objects.filter(
+        tx_type="debit", status="failed"
+    ).count()
+    alert_withdrawals_inflight = WalletTransaction.objects.filter(
+        tx_type="debit", status="pending"
+    ).count()
+
+    # ── Mouvements wallet (crédits/remboursements) ──
+    wallet_credits = _wt(tx_type="credit", status="success")
+    wallet_refunds = _wt(tx_type="refund", status="success")
+    wallet_balances = Provider.objects.aggregate(s=Sum("solde_fcfa"))["s"] or Z
+    wallet_expected = wallet_credits + wallet_refunds - withdrawals_paid - withdrawals_inflight
+    wallet_ecart = wallet_balances - wallet_expected
+    wallet_ok = abs(wallet_ecart) <= _D("1")
+
+    # ── Commission BABIFIX = TON revenu (somme des commissions encaissées) ──
+    commission_total = Z
+    completed_payments = 0
+    for p in Payment.objects.filter(etat="Complete").only("commission"):
+        commission_total += _safe_decimal(p.commission)
+        completed_payments += 1
+
+    # ── Remboursements clients (depuis Reservation) ──
+    refunds_owed_qs = Reservation.objects.filter(refund_owed_fcfa__gt=0).exclude(
+        refund_status="paid"
+    )
+    refunds_owed_total = refunds_owed_qs.aggregate(s=Sum("refund_owed_fcfa"))["s"] or Z
+    refunds_paid_qs = Reservation.objects.filter(
+        refund_status="paid", refund_owed_fcfa__gt=0
+    )
+    refunds_paid_total = refunds_paid_qs.aggregate(s=Sum("refund_owed_fcfa"))["s"] or Z
+
+    return {
+        "revenue_total": commission_total,
+        "commission_total": commission_total,
+        "commission_count": completed_payments,
+        "withdrawals_paid": withdrawals_paid,
+        "withdrawals_inflight": withdrawals_inflight,
+        "wallet_balances": wallet_balances,
+        "wallet_credits": wallet_credits,
+        "wallet_refunds": wallet_refunds,
+        "wallet_expected": wallet_expected,
+        "wallet_ecart": wallet_ecart,
+        "wallet_ok": wallet_ok,
+        "refunds_owed_total": refunds_owed_total,
+        "refunds_owed_count": refunds_owed_qs.count(),
+        "refunds_paid_total": refunds_paid_total,
+        "refunds_paid_count": refunds_paid_qs.count(),
+        "alert_withdrawals_failed": alert_withdrawals_failed,
+        "alert_withdrawals_inflight": alert_withdrawals_inflight,
+        "alert_refunds_failed": Reservation.objects.filter(refund_status="failed").count(),
+        "alert_refunds_manual": Reservation.objects.filter(refund_status="manual").count(),
+        "revenue_by_source": [
+            {
+                "source": "Commissions (Mobile Money)",
+                "total": commission_total,
+                "count": completed_payments,
+            },
+        ],
+    }
 
 
 def _dashboard_kpi_payload():
