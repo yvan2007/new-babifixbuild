@@ -4,7 +4,7 @@
 {# ── KPI Cards ────────────────────────────────────────────────────────────── #}
 <section class="kpi-grid" aria-label="Indicateurs clés">
   {% for stat in stats %}
-  <article class="kpi-card kpi-card--{{ forloop.counter0 }}" style="--i:{{ forloop.counter0 }}">
+  <article class="kpi-card kpi-card--ic-{{ stat.icon }}{% if stat.warn and stat.value > 0 %} kpi-card--alert{% endif %}" style="--i:{{ forloop.counter0 }}">
     <div class="kpi-card__icon">
       {% if stat.icon == "user" %}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
