@@ -84,6 +84,16 @@ dev_dependencies:
     sdk: flutter
   mockito: ^5.4.4
   build_runner: ^2.4.9
+  flutter_launcher_icons: ^0.14.2
+
+# Icônes d'application BABIFIX (logo sur fond navy) — iOS uniquement ici
+# (Android déjà configuré). Génère : dart run flutter_launcher_icons
+flutter_launcher_icons:
+  ios: true
+  android: false
+  remove_alpha_ios: true
+  background_color_ios: "#0B1B34"
+  image_path: "assets/images/logo_babifix.png"
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
