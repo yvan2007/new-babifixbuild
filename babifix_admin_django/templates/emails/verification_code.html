@@ -3,170 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vérifiez votre email — BABIFIX</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      background: #0A0F1E;
-      padding: 32px 16px;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrapper { max-width: 600px; margin: 0 auto; }
-
-    .header {
-      background: linear-gradient(135deg, #050D1A 0%, #0D1B2E 100%);
-      border-radius: 20px 20px 0 0;
-      padding: 36px 32px 28px;
-      text-align: center;
-      border-bottom: 1px solid rgba(76,201,240,0.15);
-      position: relative;
-      overflow: hidden;
-    }
-    .header::before {
-      content: '';
-      position: absolute;
-      top: -50px; right: -50px;
-      width: 180px; height: 180px;
-      background: radial-gradient(circle, rgba(76,201,240,0.12) 0%, transparent 70%);
-      border-radius: 50%;
-    }
-    .logo-badge {
-      display: inline-block;
-      border-radius: 18px;
-      width: 80px; height: 80px;
-      margin-bottom: 14px;
-      box-shadow: 0 8px 24px rgba(76,201,240,0.35);
-      overflow: hidden;
-    }
-    .logo-badge img {
-      width: 80px; height: 80px;
-      display: block;
-      border-radius: 18px;
-    }
-    .brand-name {
-      font-size: 26px; font-weight: 900; color: #FFFFFF;
-      letter-spacing: 5px; display: block; margin-bottom: 4px;
-    }
-    .brand-tagline {
-      font-size: 12px; color: rgba(76,201,240,0.75);
-      letter-spacing: 0.8px; font-weight: 600;
-    }
-
-    .body {
-      background: #0D1B2E;
-      padding: 40px 32px;
-    }
-    .title {
-      font-size: 24px; font-weight: 800; color: #FFFFFF;
-      text-align: center; margin-bottom: 8px;
-    }
-    .subtitle {
-      font-size: 14px; color: rgba(255,255,255,0.5);
-      text-align: center; line-height: 1.6; margin-bottom: 32px;
-    }
-    .subtitle strong { color: #4CC9F0; }
-
-    .code-box {
-      background: rgba(76,201,240,0.07);
-      border: 2px solid rgba(76,201,240,0.3);
-      border-radius: 16px;
-      padding: 32px 24px;
-      text-align: center;
-      margin: 0 0 28px;
-      position: relative;
-    }
-    .code-label {
-      font-size: 11px; font-weight: 700; letter-spacing: 2px;
-      text-transform: uppercase; color: rgba(76,201,240,0.7);
-      margin-bottom: 14px;
-    }
-    .code {
-      font-size: 42px; font-weight: 900; color: #4CC9F0;
-      letter-spacing: 12px; font-family: 'Courier New', monospace;
-      display: block;
-    }
-    .code-expiry {
-      font-size: 12px; color: rgba(255,255,255,0.4);
-      margin-top: 14px;
-    }
-    .code-expiry strong { color: rgba(249,115,22,0.9); }
-
-    .warning-box {
-      background: rgba(249,115,22,0.08);
-      border: 1px solid rgba(249,115,22,0.25);
-      border-radius: 12px;
-      padding: 16px 20px;
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-    }
-    .warning-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-    .warning-text {
-      font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.5;
-    }
-
-    .footer {
-      background: #050D1A;
-      border-radius: 0 0 20px 20px;
-      padding: 24px 32px;
-      text-align: center;
-      border-top: 1px solid rgba(76,201,240,0.1);
-    }
-    .footer-brand {
-      font-size: 14px; font-weight: 900; color: #4CC9F0;
-      letter-spacing: 3px; margin-bottom: 6px;
-    }
-    .footer p { font-size: 12px; color: rgba(255,255,255,0.35); margin: 2px 0; }
-    .footer a { color: #4CC9F0; text-decoration: none; }
-    .footer .copyright { color: rgba(255,255,255,0.2); font-size: 11px; margin-top: 10px; }
-
-    @media (max-width: 480px) {
-      body { padding: 16px 8px; }
-      .header, .body, .footer { padding-left: 20px; padding-right: 20px; }
-      .code { font-size: 32px; letter-spacing: 8px; }
-    }
-  </style>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Code de vérification — BABIFIX</title>
 </head>
-<body>
-  <div class="wrapper">
+<!-- Email 100% table-based : compatible Gmail, Outlook, Apple Mail, Yahoo. -->
+<body style="margin:0;padding:0;background-color:#eef2f7;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef2f7;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
 
-    <div class="header">
-      <div class="logo-badge">
-        <img src="https://new-babifixbuild.onrender.com/static/adminpanel/logo_babifix.png" alt="BABIFIX">
-      </div>
-      <span class="brand-name">BABIFIX</span>
-      <span class="brand-tagline">Services à domicile · Côte d'Ivoire</span>
-    </div>
+          <!-- HEADER -->
+          <tr>
+            <td align="center" bgcolor="#0B1B34" style="background-color:#0B1B34;padding:32px 24px;">
+              <img src="https://new-babifixbuild.onrender.com/static/adminpanel/logo_babifix.png" alt="BABIFIX" width="64" height="64" style="display:block;border-radius:14px;margin-bottom:12px;">
+              <div style="color:#ffffff;font-size:24px;font-weight:bold;letter-spacing:3px;">BABIFIX</div>
+              <div style="color:#4CC9F0;font-size:13px;margin-top:4px;">Services à domicile · Côte d'Ivoire</div>
+            </td>
+          </tr>
 
-    <div class="body">
-      <div class="title">Vérification de votre email</div>
-      <p class="subtitle">
-        Bonjour <strong>{{ username }}</strong>,<br>
-        Utilisez le code ci-dessous pour activer votre compte BABIFIX.
-      </p>
+          <!-- BODY -->
+          <tr>
+            <td style="padding:36px 32px 12px;color:#1a1a2e;">
+              <h1 style="margin:0 0 14px;font-size:22px;color:#0B1B34;">Confirmez votre email</h1>
+              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#475569;">
+                Bonjour <strong>{{ username }}</strong>,
+              </p>
+              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#475569;">
+                Voici votre code de vérification BABIFIX. Saisissez-le dans l'application pour activer votre compte.
+              </p>
+            </td>
+          </tr>
 
-      <div class="code-box">
-        <div class="code-label">Votre code de vérification</div>
-        <span class="code">{{ verification_code }}</span>
-        <div class="code-expiry">Ce code expire dans <strong>15 minutes</strong></div>
-      </div>
+          <!-- CODE -->
+          <tr>
+            <td align="center" style="padding:0 32px 8px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f9ff;border:2px solid #bae6fd;border-radius:14px;">
+                <tr>
+                  <td align="center" style="padding:24px;">
+                    <div style="font-size:13px;color:#0369a1;letter-spacing:1px;text-transform:uppercase;font-weight:bold;">Votre code</div>
+                    <div style="font-size:40px;font-weight:bold;color:#0B1B34;letter-spacing:8px;margin-top:10px;">{{ verification_code }}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-      <div class="warning-box">
-        <div class="warning-icon">⚠️</div>
-        <div class="warning-text">
-          Si vous n'êtes pas à l'origine de cette demande, ignorez cet email. Votre compte reste sécurisé et ce code ne pourra pas être utilisé sans votre mot de passe.
-        </div>
-      </div>
-    </div>
+          <tr>
+            <td style="padding:18px 32px 36px;">
+              <p style="margin:0;font-size:13px;line-height:1.6;color:#94a3b8;">
+                Ce code expire dans quelques minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+              </p>
+            </td>
+          </tr>
 
-    <div class="footer">
-      <div class="footer-brand">BABIFIX</div>
-      <p>Connection. Service. Confiance.</p>
-      <p>📍 Abidjan, Côte d'Ivoire · <a href="mailto:contact@babifix.ci">contact@babifix.ci</a></p>
-      <p class="copyright">© 2026 BABIFIX — Tous droits réservés.</p>
-    </div>
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" bgcolor="#0B1B34" style="background-color:#0B1B34;padding:24px 32px;">
+              <div style="color:#4CC9F0;font-weight:bold;font-size:15px;letter-spacing:1px;">BABIFIX</div>
+              <div style="color:#94a3b8;font-size:12px;margin-top:6px;">Abidjan, Côte d'Ivoire · contact@babifix.ci</div>
+              <div style="color:#64748b;font-size:11px;margin-top:10px;">© 2026 BABIFIX — Tous droits réservés.</div>
+            </td>
+          </tr>
 
-  </div>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>

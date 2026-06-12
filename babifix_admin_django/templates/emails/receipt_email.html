@@ -1,94 +1,103 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reçu de paiement — BABIFIX</title>
-    <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 20px; -webkit-font-smoothing: antialiased; }
-        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .header { background: linear-gradient(135deg, #0D1F3C 0%, #1a3a6e 100%); padding: 40px 30px; text-align: center; }
-        .header .icon { font-size: 52px; margin-bottom: 12px; }
-        .header h1 { color: #4CC9F0; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
-        .header p { color: rgba(255,255,255,0.8); margin: 8px 0 0; font-size: 15px; }
-        .invoice-badge { display: inline-block; background: #4CC9F0; color: #0D1F3C; padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-top: 14px; letter-spacing: 0.5px; }
-        .content { padding: 36px 30px; }
-        .greeting { font-size: 16px; color: #374151; margin-bottom: 6px; }
-        .subtext { font-size: 15px; color: #6b7280; margin-bottom: 28px; }
-        .amount-box { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #bae6fd; border-radius: 16px; padding: 28px; margin: 20px 0 28px; text-align: center; }
-        .amount-label { font-size: 12px; color: #0369a1; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
-        .amount { font-size: 44px; font-weight: 900; color: #0D1F3C; margin: 10px 0 4px; line-height: 1; }
-        .amount-currency { font-size: 18px; color: #6b7280; font-weight: 400; }
-        .operator-tag { display: inline-block; background: #0D1F3C; color: #4CC9F0; padding: 5px 16px; border-radius: 12px; font-size: 13px; font-weight: 600; margin-top: 10px; }
-        .details-table { width: 100%; margin: 0 0 24px; border-collapse: collapse; }
-        .details-table tr { border-bottom: 1px solid #f3f4f6; }
-        .details-table tr:last-child { border-bottom: none; }
-        .details-table td { padding: 13px 4px; vertical-align: middle; }
-        .details-table td:first-child { color: #9ca3af; font-size: 13px; font-weight: 500; width: 45%; }
-        .details-table td:last-child { color: #111827; font-weight: 700; text-align: right; font-size: 14px; }
-        .pdf-notice { background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 10px; padding: 16px 20px; text-align: center; margin: 20px 0 0; }
-        .pdf-notice p { margin: 0; font-size: 13px; color: #6b7280; }
-        .pdf-notice strong { color: #374151; }
-        .footer { background: #0D1F3C; padding: 28px 30px; text-align: center; }
-        .footer p { color: rgba(255,255,255,0.65); margin: 5px 0; font-size: 13px; }
-        .footer .brand { color: #4CC9F0; font-weight: 700; font-size: 15px; letter-spacing: 1px; margin-bottom: 8px; }
-        .footer .copyright { color: rgba(255,255,255,0.35); font-size: 11px; margin-top: 12px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Reçu de paiement — BABIFIX</title>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <img src="https://new-babifixbuild.onrender.com/static/adminpanel/logo_babifix.png" alt="BABIFIX" width="64" height="64" style="border-radius:16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(76,201,240,0.35);">
-            <h1>Reçu de Paiement</h1>
-            <p>Votre paiement a bien été reçu et validé</p>
-            <div class="invoice-badge">{{ invoice_number }}</div>
-        </div>
+<!-- Email 100% table-based : compatible Gmail, Outlook, Apple Mail, Yahoo. -->
+<body style="margin:0;padding:0;background-color:#eef2f7;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef2f7;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
 
-        <div class="content">
-            <p class="greeting">Bonjour <strong>{{ client_name }}</strong>,</p>
-            <p class="subtext">
-                Nous avons bien reçu votre paiement pour la prestation <strong>{{ service_title }}</strong>.
-                Votre reçu officiel est joint à cet email en format PDF.
-            </p>
+          <!-- HEADER -->
+          <tr>
+            <td align="center" bgcolor="#0B1B34" style="background-color:#0B1B34;padding:32px 24px;">
+              <img src="https://new-babifixbuild.onrender.com/static/adminpanel/logo_babifix.png" alt="BABIFIX" width="60" height="60" style="display:block;border-radius:14px;margin-bottom:12px;">
+              <div style="color:#4CC9F0;font-size:24px;font-weight:bold;">Reçu de paiement</div>
+              <div style="color:#ffffff;font-size:13px;margin-top:6px;">Votre paiement a bien été reçu et validé</div>
+              <div style="display:inline-block;background-color:#4CC9F0;color:#0B1B34;padding:6px 16px;border-radius:18px;font-size:13px;font-weight:bold;margin-top:12px;">{{ invoice_number }}</div>
+            </td>
+          </tr>
 
-            <div class="amount-box">
-                <div class="amount-label">Montant payé</div>
-                <div class="amount">{{ montant }}<span class="amount-currency"> FCFA</span></div>
-                <div class="operator-tag">{{ operateur }}</div>
-            </div>
+          <!-- BODY -->
+          <tr>
+            <td style="padding:32px 32px 8px;color:#1a1a2e;">
+              <p style="margin:0 0 6px;font-size:16px;color:#374151;">Bonjour <strong>{{ client_name }}</strong>,</p>
+              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#6b7280;">
+                Nous avons bien reçu votre paiement pour la prestation <strong>{{ service_title }}</strong>. Votre reçu officiel est joint en PDF.
+              </p>
+            </td>
+          </tr>
 
-            <table class="details-table">
+          <!-- MONTANT -->
+          <tr>
+            <td align="center" style="padding:0 32px 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f9ff;border:2px solid #bae6fd;border-radius:14px;">
                 <tr>
-                    <td>N° Facture</td>
-                    <td>{{ invoice_number }}</td>
+                  <td align="center" style="padding:24px;">
+                    <div style="font-size:12px;color:#0369a1;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Montant payé</div>
+                    <div style="font-size:40px;font-weight:bold;color:#0B1B34;margin:8px 0 4px;">{{ montant }} <span style="font-size:16px;color:#6b7280;font-weight:normal;">FCFA</span></div>
+                    <div style="display:inline-block;background-color:#0B1B34;color:#4CC9F0;padding:5px 14px;border-radius:10px;font-size:13px;font-weight:bold;">{{ operateur }}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- DETAILS -->
+          <tr>
+            <td style="padding:0 32px 8px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size:14px;">
+                <tr>
+                  <td style="padding:12px 0;color:#9ca3af;border-bottom:1px solid #f1f5f9;">N° Facture</td>
+                  <td align="right" style="padding:12px 0;color:#111827;font-weight:bold;border-bottom:1px solid #f1f5f9;">{{ invoice_number }}</td>
                 </tr>
                 <tr>
-                    <td>Référence réservation</td>
-                    <td>{{ reference }}</td>
+                  <td style="padding:12px 0;color:#9ca3af;border-bottom:1px solid #f1f5f9;">Référence réservation</td>
+                  <td align="right" style="padding:12px 0;color:#111827;font-weight:bold;border-bottom:1px solid #f1f5f9;">{{ reference }}</td>
                 </tr>
                 <tr>
-                    <td>Service</td>
-                    <td>{{ service_title }}</td>
+                  <td style="padding:12px 0;color:#9ca3af;border-bottom:1px solid #f1f5f9;">Service</td>
+                  <td align="right" style="padding:12px 0;color:#111827;font-weight:bold;border-bottom:1px solid #f1f5f9;">{{ service_title }}</td>
                 </tr>
                 <tr>
-                    <td>Opérateur</td>
-                    <td>{{ operateur }}</td>
+                  <td style="padding:12px 0;color:#9ca3af;">Opérateur</td>
+                  <td align="right" style="padding:12px 0;color:#111827;font-weight:bold;">{{ operateur }}</td>
                 </tr>
-            </table>
+              </table>
+            </td>
+          </tr>
 
-            <div class="pdf-notice">
-                <p>📎 <strong>Votre reçu PDF est joint à cet email.</strong><br>
-                Vous pouvez également télécharger votre reçu depuis l'application BABIFIX,
-                rubrique <em>Mes réservations → Télécharger le reçu</em>.</p>
-            </div>
-        </div>
+          <!-- PDF NOTICE -->
+          <tr>
+            <td style="padding:20px 32px 36px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f9fafb;border:1px dashed #d1d5db;border-radius:10px;">
+                <tr>
+                  <td align="center" style="padding:16px 20px;font-size:13px;color:#6b7280;line-height:1.6;">
+                    📎 <strong style="color:#374151;">Votre reçu PDF est joint à cet email.</strong><br>
+                    Vous pouvez aussi le télécharger dans l'app : <em>Mes réservations → Télécharger le reçu</em>.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-        <div class="footer">
-            <p class="brand">BABIFIX</p>
-            <p>🔧 Connection. Service. Confiance.</p>
-            <p>📍 Abidjan, Côte d'Ivoire | contact@babifix.ci</p>
-            <p class="copyright">© 2026 BABIFIX — Ce reçu fait foi de votre paiement.</p>
-        </div>
-    </div>
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" bgcolor="#0B1B34" style="background-color:#0B1B34;padding:24px 32px;">
+              <div style="color:#4CC9F0;font-weight:bold;font-size:15px;letter-spacing:1px;">BABIFIX</div>
+              <div style="color:#94a3b8;font-size:12px;margin-top:6px;">Abidjan, Côte d'Ivoire · contact@babifix.ci</div>
+              <div style="color:#64748b;font-size:11px;margin-top:10px;">© 2026 BABIFIX — Ce reçu fait foi de votre paiement.</div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>

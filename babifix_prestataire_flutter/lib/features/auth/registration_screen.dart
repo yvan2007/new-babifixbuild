@@ -10,10 +10,12 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../babifix_api_config.dart';
 import '../../json_utils.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/services/nominatim_geocode.dart';
 import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -95,6 +97,44 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   double _yearsExperience = 3;
   LatLng? _villePin;
   String _villeAddressLabel = '';
+  bool _locating = false;
+
+  /// « Me localiser » : récupère la position GPS et remplit la ville
+  /// automatiquement (reverse geocoding) — plus de saisie 100 % manuelle.
+  Future<void> _locateMe() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _snack('Activez la localisation de votre téléphone.');
+        return;
+      }
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        _snack('Autorisez l\'accès à la position pour vous localiser.');
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition();
+      final place = await nominatimReverse(pos.latitude, pos.longitude);
+      if (!mounted) return;
+      setState(() {
+        _villePin = LatLng(pos.latitude, pos.longitude);
+        final label = (place?.displayName ?? '').trim();
+        if (label.isNotEmpty) {
+          _villeCtrl.text = label;
+          _villeAddressLabel = label;
+        }
+      });
+    } catch (_) {
+      _snack('Localisation impossible. Réessayez ou saisissez votre ville.');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
 
   // ── Documents étape 2 ────────────────────────────────────────────────────
   String? _profilePhotoPath;
@@ -967,6 +1007,32 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                             _villePin = ll;
                             _villeAddressLabel = label;
                           }),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _locating ? null : _locateMe,
+                      icon: _locating
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: _kCyan),
+                            )
+                          : const Icon(Icons.my_location_rounded,
+                              size: 18, color: _kCyan),
+                      label: Text(
+                        _locating ? 'Localisation…' : 'Me localiser (GPS)',
+                        style: const TextStyle(color: _kCyan, fontWeight: FontWeight.w600),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: _kCyan),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ),
                   if (_villePin != null) ...[
