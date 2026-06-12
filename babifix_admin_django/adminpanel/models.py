@@ -436,6 +436,7 @@ class Reservation(models.Model):
 
     reference = models.CharField(max_length=40, unique=True)
     title = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
     client = models.CharField(max_length=120)
     prestataire = models.CharField(max_length=120)
     montant = models.DecimalField(

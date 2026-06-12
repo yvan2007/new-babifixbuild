@@ -1989,3 +1989,26 @@ def api_prestataire_payments_history(request):
     return JsonResponse({"payments": result})
 
 
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def api_run_reminders(request):
+    """Déclenche les relances email (prestataires inactifs, devis/demandes en
+    attente). À appeler par un cron externe gratuit (ex. cron-job.org) une fois
+    par jour : GET /api/internal/run-reminders/?key=<CRON_SECRET>.
+    Protégé par la variable d'environnement CRON_SECRET."""
+    import os
+    from io import StringIO
+    from django.core.management import call_command
+
+    expected = (os.getenv("CRON_SECRET", "") or "").strip()
+    key = (request.GET.get("key") or request.POST.get("key") or "").strip()
+    if not expected or key != expected:
+        return JsonResponse({"error": "forbidden"}, status=403)
+    out = StringIO()
+    try:
+        call_command("send_reminders", stdout=out)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("run-reminders a échoué")
+        return JsonResponse({"error": "command_failed", "detail": str(exc)}, status=500)
+    return JsonResponse({"ok": True, "result": out.getvalue().strip()})
+

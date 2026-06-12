@@ -26,6 +26,7 @@ from .views_finance import (
 from .views_extra import (
     api_reservation_paiement_acompte,
     api_reservation_paiement_solde,
+    api_run_reminders,
 )
 from .views_extra import (
     api_admin_audit_log,
@@ -520,6 +521,7 @@ urlpatterns = [
     # ── App mobile : version gate + remontée d'erreurs ─────────────────────────
     path("api/app/version", api_app_version, name="api-app-version"),
     path("api/app/version/", api_app_version, name="api-app-version-slash"),
+    path("api/internal/run-reminders/", api_run_reminders, name="api-run-reminders"),
     path("api/app/log-error", api_app_log_error, name="api-app-log-error"),
     path("api/app/log-error/", api_app_log_error, name="api-app-log-error-slash"),
     # ── Devis ─────────────────────────────────────────────────────────────────
