@@ -6,14 +6,22 @@
   {% for stat in stats %}
   <article class="kpi-card kpi-card--{{ forloop.counter0 }}" style="--i:{{ forloop.counter0 }}">
     <div class="kpi-card__icon">
-      {% if forloop.counter0 == 0 %}
+      {% if stat.icon == "user" %}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11a4 4 0 10-8 0 4 4 0 008 0z"/><path d="M4 20a8 8 0 0116 0"/></svg>
-      {% elif forloop.counter0 == 1 %}
+      {% elif stat.icon == "users" %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      {% elif stat.icon == "clock" %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      {% elif stat.icon == "calendar" %}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
-      {% elif forloop.counter0 == 2 %}
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0zM12 9v4M12 17h.01"/></svg>
-      {% elif forloop.counter0 == 3 %}
+      {% elif stat.icon == "activity" %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      {% elif stat.icon == "check" %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+      {% elif stat.icon == "card" %}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      {% elif stat.icon == "alert" %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0zM12 9v4M12 17h.01"/></svg>
       {% else %}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       {% endif %}
@@ -21,10 +29,10 @@
     <div class="kpi-card__body">
       <span class="kpi-card__label">{{ stat.label }}</span>
       <strong class="kpi-card__value" data-target="{{ stat.value }}">0</strong>
-      <span class="kpi-card__trend {% if forloop.counter0 == 2 %}kpi-card__trend--warn{% else %}kpi-card__trend--up{% endif %}">
-        {% if forloop.counter0 == 2 %}
+      <span class="kpi-card__trend {% if stat.warn and stat.value > 0 %}kpi-card__trend--warn{% else %}kpi-card__trend--up{% endif %}">
+        {% if stat.warn and stat.value > 0 %}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4M12 17h.01M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0z"/></svg>
-        {% if stat.value|add:"0" > 0 %}Traitement requis{% else %}OK{% endif %}
+        Traitement requis
         {% else %}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
         Mise à jour live
@@ -95,8 +103,9 @@
   var lineCtx = document.getElementById('lineChart');
   if (lineCtx) {
     /* Génération de données simulées sur 7 jours à partir des KPI actuels */
-    var baseRes = Math.max(kpi.data[1] || 0, 1);
-    var basePay = Math.max(kpi.data[3] || 0, 1);
+    /* Ordre kpi_chart.data : [providers, clients, actives, terminées, paiements, litiges] */
+    var baseRes = Math.max(kpi.data[2] || 0, 1);
+    var basePay = Math.max(kpi.data[4] || 0, 1);
     var labels7 = [];
     var dataRes = [];
     var dataPay = [];

@@ -906,47 +906,61 @@ def _dashboard_forms_context(request, section):
 def _dashboard_kpi_payload():
     """KPI pour le tableau de bord (réutilisé par la page complète et le fragment HTMX)."""
     conv_n = Conversation.objects.count()
+
+    # Réservation « active » = toute réservation NON terminale (toutes les
+    # demandes en cours comptent : DEMANDE_ENVOYEE, DEVIS_*, En cours, etc.).
+    # L'ancien filtre ["En attente","Confirmee"] ratait les nouvelles demandes
+    # (statut par défaut DEMANDE_ENVOYEE) → le compteur restait à 0.
+    _TERMINAL = ["Terminee", "Annulee"]
+    total_providers = Provider.objects.count()
+    pending_providers = Provider.objects.filter(statut="En attente").count()
+    total_reservations = Reservation.objects.count()
+    active_reservations = Reservation.objects.exclude(statut__in=_TERMINAL).count()
+    done_reservations = Reservation.objects.filter(statut="Terminee").count()
+    total_clients = Client.objects.count()
+    payments_count = Payment.objects.count()
+    open_disputes = Dispute.objects.filter(decision="En cours").count()
+
+    # warn=True → carte avec indicateur orange « traitement requis » (éléments
+    # qui demandent une action admin : prestataires en attente, litiges).
     stats = [
-        {
-            "label": "Prestataires en attente",
-            "value": Provider.objects.filter(statut="En attente").count(),
-        },
-        {
-            "label": "Reservations actives",
-            "value": Reservation.objects.filter(
-                statut__in=["En attente", "Confirmee"]
-            ).count(),
-        },
-        {
-            "label": "Litiges ouverts",
-            "value": Dispute.objects.filter(decision="En cours").count(),
-        },
-        {"label": "Transactions (FCFA) en base", "value": Payment.objects.count()},
-        {"label": "Conversations actives (threads)", "value": conv_n},
+        {"label": "Prestataires (total)", "value": total_providers, "icon": "user", "warn": False},
+        {"label": "Prestataires en attente", "value": pending_providers, "icon": "clock", "warn": True},
+        {"label": "Clients inscrits", "value": total_clients, "icon": "users", "warn": False},
+        {"label": "Réservations (total)", "value": total_reservations, "icon": "calendar", "warn": False},
+        {"label": "Réservations actives", "value": active_reservations, "icon": "activity", "warn": False},
+        {"label": "Réservations terminées", "value": done_reservations, "icon": "check", "warn": False},
+        {"label": "Paiements enregistrés", "value": payments_count, "icon": "card", "warn": False},
+        {"label": "Litiges ouverts", "value": open_disputes, "icon": "alert", "warn": True},
+        {"label": "Conversations actives", "value": conv_n, "icon": "chat", "warn": False},
     ]
     kpi = {
-        "pending_providers": Provider.objects.filter(statut="En attente").count(),
-        "active_reservations": Reservation.objects.filter(
-            statut__in=["En attente", "Confirmee"]
-        ).count(),
-        "open_disputes": Dispute.objects.filter(decision="En cours").count(),
-        "payments_count": Payment.objects.count(),
+        "total_providers": total_providers,
+        "pending_providers": pending_providers,
+        "total_clients": total_clients,
+        "total_reservations": total_reservations,
+        "active_reservations": active_reservations,
+        "done_reservations": done_reservations,
+        "open_disputes": open_disputes,
+        "payments_count": payments_count,
         "conversations": conv_n,
     }
     kpi_chart = {
         "labels": [
-            "Prestataires en attente",
+            "Prestataires",
+            "Clients",
             "Réservations actives",
-            "Litiges ouverts",
-            "Paiements enregistrés",
-            "Conversations actives",
+            "Terminées",
+            "Paiements",
+            "Litiges",
         ],
         "data": [
-            kpi["pending_providers"],
-            kpi["active_reservations"],
-            kpi["open_disputes"],
-            kpi["payments_count"],
-            kpi["conversations"],
+            total_providers,
+            total_clients,
+            active_reservations,
+            done_reservations,
+            payments_count,
+            open_disputes,
         ],
     }
     return stats, kpi, kpi_chart
