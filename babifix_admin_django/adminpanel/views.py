@@ -4238,6 +4238,7 @@ def api_prestataire_me(request):
                 # Champs lus par l'app prestataire au boot pour décider de la
                 # route (contrat obligatoire / dashboard / KYC / premium).
                 "contrat_signe": bool(prov.contrat_accepte_at),
+                "a_numero_retrait": bool((prov.wallet_phone or "").strip()),
                 "contrat_accepte_at": prov.contrat_accepte_at.isoformat()
                     if prov.contrat_accepte_at else None,
                 "contrat_version": prov.contrat_version or "",

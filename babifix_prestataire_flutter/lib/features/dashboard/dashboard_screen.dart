@@ -45,6 +45,11 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   bool _isAvailable = true;
   bool _togglingAvail = false;
   String? _photoUrl;
+  // Checklist de démarrage (onboarding guidé)
+  bool _contratSigne = false;
+  bool _aNumeroRetrait = false;
+  bool _bioOk = false;
+  bool _onboardingDismissed = false;
   // Données graphique revenus (6 derniers mois)
   List<double> _revenueByMonth = [0, 0, 0, 0, 0, 0];
   List<String> _revenueMonthLabels = ['M-5', 'M-4', 'M-3', 'M-2', 'M-1', 'Ce mois'];
@@ -96,6 +101,9 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
               _isAvailable = dispo == true || dispo == 1;
               _photoUrl = photo.isEmpty ? null : photo;
               providerVille = '${prov['ville'] ?? ''}'.trim();
+              _contratSigne = prov['contrat_signe'] == true;
+              _aNumeroRetrait = prov['a_numero_retrait'] == true;
+              _bioOk = '${prov['bio'] ?? ''}'.trim().length >= 10;
               _loadingMe = false;
             });
             return;
@@ -106,6 +114,94 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
       }
     } catch (_) {}
     if (mounted) setState(() => _loadingMe = false);
+  }
+
+  /// Checklist de démarrage : guide le prestataire pour activer son compte.
+  /// Disparaît automatiquement quand toutes les étapes sont faites (ou ignorée).
+  Widget _buildOnboardingChecklist() {
+    if (_loadingMe || _onboardingDismissed) return const SizedBox.shrink();
+    final steps = <({bool done, String label, String target, IconData icon})>[
+      (done: _photoUrl != null, label: 'Ajouter une photo de profil', target: 'profile', icon: Icons.photo_camera_rounded),
+      (done: _bioOk, label: 'Compléter votre description', target: 'profile', icon: Icons.edit_note_rounded),
+      (done: _contratSigne, label: 'Signer le contrat prestataire', target: 'contrat_mandatory', icon: Icons.assignment_turned_in_rounded),
+      (done: _aNumeroRetrait, label: 'Ajouter un numéro de retrait', target: 'wallet', icon: Icons.account_balance_wallet_rounded),
+    ];
+    final doneCount = steps.where((s) => s.done).length;
+    if (doneCount >= steps.length) return const SizedBox.shrink();
+
+    const cyan = Color(0xFF4CC9F0);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF152138),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cyan.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.rocket_launch_rounded, color: cyan, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Activez votre compte',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+              ),
+              Text('$doneCount/${steps.length}',
+                  style: const TextStyle(color: cyan, fontWeight: FontWeight.w700, fontSize: 13)),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 18),
+                tooltip: 'Plus tard',
+                onPressed: () => setState(() => _onboardingDismissed = true),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: doneCount / steps.length,
+              minHeight: 6,
+              backgroundColor: Colors.white.withValues(alpha: 0.08),
+              valueColor: const AlwaysStoppedAnimation(cyan),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...steps.map((s) => InkWell(
+                onTap: s.done ? null : () => widget.onNavigate(s.target),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        s.done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        color: s.done ? const Color(0xFF22C55E) : const Color(0xFF94A3B8),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          s.label,
+                          style: TextStyle(
+                            color: s.done ? const Color(0xFF94A3B8) : Colors.white,
+                            fontWeight: s.done ? FontWeight.w500 : FontWeight.w600,
+                            fontSize: 13.5,
+                            decoration: s.done ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                      ),
+                      if (!s.done)
+                        const Icon(Icons.chevron_right_rounded, color: cyan, size: 20),
+                    ],
+                  ),
+                ),
+              )),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadRevenueChart() async {
@@ -278,6 +374,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                           ],
                         ),
                         const SizedBox(height: 16),
+                        _buildOnboardingChecklist(),
                         Row(
                           children: [
                             Expanded(
