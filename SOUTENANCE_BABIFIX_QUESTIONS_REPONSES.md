@@ -137,6 +137,33 @@
 ### Q10 — « Comment l'entreprise gagne-t-elle de l'argent ? »
 > « Par une **commission** sur chaque prestation réalisée — entre 15 et 20 % selon la catégorie. Elle est **déduite de la part du prestataire**, jamais ajoutée au prix du client : le client paie le prix annoncé, sans surprise. Seconde source : l'**abonnement premium** des prestataires, qui réduit leur commission en échange d'une plus grande visibilité. »
 
+### Q10-bis — « Pourquoi 18 % précisément ? Quelle est la logique derrière ce taux, et comment évolue-t-il ? »
+> « Le 18 % n'est pas un chiffre arbitraire, il résulte de trois raisonnements : un **benchmark**, une **structure de coûts**, et une **stratégie d'adhésion**.
+>
+> **1. Le benchmark.** Les plateformes de mise en relation prélèvent généralement entre **15 et 30 %** : Uber/Bolt tournent autour de 20-25 %, les marketplaces de services internationales (TaskRabbit, Thumbtack) entre 15 et 30 %. Me placer à **18 %** me positionne dans le **bas de la fourchette** : assez pour être viable, assez bas pour rester **attractif** face à un marché ivoirien encore informel, où l'intermédiaire ("le cousin qui connaît quelqu'un") prend parfois plus, de façon opaque.
+>
+> **2. La structure de coûts — à quoi servent ces 18 %.** Ce n'est pas de la marge pure. Sur 100 F de commission, on couvre approximativement :
+> - **~2 %** de frais d'agrégateur Mobile Money (GeniusPay) ;
+> - **l'infrastructure** (serveurs, base de données, notifications, stockage des photos/CNI) ;
+> - la **vérification KYC** de chaque prestataire (contrôle d'identité) ;
+> - la **gestion des litiges** et le suivi de l'escrow (séquestre du paiement) ;
+> - un **fonds de garantie** "dégâts" (micro-assurance prélevée sur la commission, prévu en feuille de route) ;
+> - le **marketing et la visibilité** qui ramènent des clients au prestataire ;
+> - une **marge** pour la pérennité de l'entreprise.
+> Autrement dit, le prestataire ne paie pas une "taxe", il **achète un service** : des clients, une réputation, un paiement garanti.
+>
+> **3. La stratégie d'adhésion — le plan de réduction.** Le 18 % est le **taux Standard (gratuit)**. Il est conçu pour **baisser** à mesure que le prestataire s'engage :
+>
+> | Palier | Commission | Logique |
+> |---|---|---|
+> | **Standard** (gratuit) | **18 %** | taux de base, sans engagement |
+> | **Silver** (7 500 F/mois) | **13 %** (−5 pts) | rentable dès ~40 000 F de missions/mois |
+> | **Gold** (15 000 F/mois) | **8 %** (−10 pts) | pour les prestataires à fort volume |
+>
+> Le message au prestataire est clair : **plus tu travailles avec BABIFIX, moins tu paies.** Le calculateur de rentabilité intégré lui montre, chiffres réels en main, à partir de quel volume chaque palier devient gagnant. On aligne ainsi notre intérêt et le sien : on gagne quand **lui** gagne.
+>
+> **Et c'est paramétrable** : la commission est stockée en base et ajustable par catégorie (15-20 %) — un métier très concurrentiel peut avoir un taux plus bas pour attirer l'offre, un métier de niche un peu plus haut. Le 18 % est donc un **point d'équilibre de départ**, pas une fin en soi. »
+
 ### Q11 — « Pourquoi un prestataire paierait pour le premium si ça lui coûte de l'argent ? »
 > « Parce que c'est un **investissement rentable**, et l'application le **prouve chiffres en main** : un calculateur de rentabilité montre, selon son activité réelle des 30 derniers jours, combien il **économiserait** avec chaque palier. Le premium réduit sa commission sur *toutes* ses missions futures, le met en avant dans les résultats, lui donne un badge de confiance et un quota de devis plus élevé. Un prestataire actif rentabilise vite. »
 
