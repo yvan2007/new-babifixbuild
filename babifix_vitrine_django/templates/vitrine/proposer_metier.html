@@ -1,0 +1,151 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proposer un métier — BABIFIX</title>
+  <link rel="icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
+  <link rel="shortcut icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#0B1B34;color:#fff;min-height:100vh;
+      background:linear-gradient(160deg,#0B1B34 0%,#0E2844 100%);}
+    .wrap{max-width:760px;margin:0 auto;padding:32px 18px 60px;}
+    .top{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+    .top img{width:46px;height:46px;border-radius:12px;}
+    .top b{font-size:20px;letter-spacing:1px;}
+    h1{font-size:28px;margin:18px 0 6px;}
+    .sub{color:#9fb3cc;line-height:1.6;margin-bottom:26px;}
+    .card{background:rgba(255,255,255,0.05);border:1px solid rgba(76,201,240,0.18);border-radius:16px;
+      padding:18px;margin-bottom:14px;}
+    .form-card{border-color:rgba(76,201,240,0.35);}
+    label{display:block;font-size:13px;color:#9fb3cc;margin:10px 0 5px;}
+    input{width:100%;padding:13px 14px;border-radius:11px;border:1px solid rgba(255,255,255,0.15);
+      background:#0E2844;color:#fff;font-size:15px;}
+    input:focus{outline:none;border-color:#4CC9F0;}
+    .btn{width:100%;margin-top:16px;padding:14px;border:none;border-radius:12px;background:#4CC9F0;
+      color:#0B1B34;font-weight:800;font-size:15px;cursor:pointer;}
+    .btn:disabled{opacity:.6;cursor:default;}
+    .msg{margin-top:12px;padding:11px 14px;border-radius:10px;font-size:14px;display:none;}
+    .msg.ok{display:block;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.4);color:#bbf7d0;}
+    .msg.err{display:block;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#fecaca;}
+    h2{font-size:17px;margin:30px 0 12px;color:#4CC9F0;}
+    .metier{display:flex;align-items:center;gap:14px;}
+    .metier .info{flex:1;min-width:0;}
+    .metier .nom{font-weight:700;font-size:15px;}
+    .bar{height:7px;border-radius:99px;background:rgba(255,255,255,.1);margin-top:7px;overflow:hidden;}
+    .bar i{display:block;height:100%;background:#4CC9F0;border-radius:99px;}
+    .count{font-size:12px;color:#9fb3cc;margin-top:5px;}
+    .badge{font-size:11px;font-weight:700;padding:4px 9px;border-radius:99px;white-space:nowrap;}
+    .badge.wait{background:rgba(245,158,11,.15);color:#fcd34d;}
+    .badge.ok{background:rgba(34,197,94,.18);color:#86efac;}
+    .join{background:transparent;border:1px solid #4CC9F0;color:#4CC9F0;border-radius:10px;
+      padding:9px 14px;font-weight:700;cursor:pointer;white-space:nowrap;}
+    .empty{color:#9fb3cc;text-align:center;padding:18px;}
+    a.back{color:#4CC9F0;text-decoration:none;font-size:14px;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <img src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX">
+      <b>BABIFIX</b>
+    </div>
+    <a class="back" href="/">← Retour à l'accueil</a>
+
+    <h1>Un métier manque ? Proposez-le 👷</h1>
+    <p class="sub">
+      Votre métier (ou celui que vous cherchez) n'est pas encore sur BABIFIX ?
+      Proposez-le ici. Dès qu'un métier atteint <b>5 demandes</b>, nous l'ajoutons —
+      et vous êtes <b>prévenu par email</b> quand il devient disponible.
+    </p>
+
+    <div class="card form-card">
+      <label for="nom">Métier proposé</label>
+      <input id="nom" placeholder="Ex : Soudeur, Coiffeur à domicile, Vitrier…" maxlength="120">
+      <label for="email">Votre email (pour vous prévenir)</label>
+      <input id="email" type="email" placeholder="vous@exemple.com">
+      <button class="btn" id="send">Proposer / Soutenir ce métier</button>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <h2>Métiers déjà proposés par la communauté</h2>
+    <div id="list"><p class="empty">Chargement…</p></div>
+  </div>
+
+  <script>
+    const API = "{{ api_base }}";
+    const listEl = document.getElementById('list');
+    const nomEl = document.getElementById('nom');
+    const emailEl = document.getElementById('email');
+    const btn = document.getElementById('send');
+    const msg = document.getElementById('msg');
+
+    function showMsg(text, ok){ msg.textContent = text; msg.className = 'msg ' + (ok ? 'ok' : 'err'); }
+
+    function render(metiers, seuil){
+      if(!metiers || !metiers.length){ listEl.innerHTML = '<p class="empty">Aucun métier proposé pour l\'instant. Soyez le premier !</p>'; return; }
+      listEl.innerHTML = '';
+      metiers.forEach(function(m){
+        const pct = Math.min(100, Math.round((m.votes / (m.seuil || seuil)) * 100));
+        const dispo = m.statut === 'disponible';
+        const card = document.createElement('div');
+        card.className = 'card metier';
+        card.innerHTML =
+          '<div class="info">'+
+            '<div class="nom">'+escapeHtml(m.nom)+'</div>'+
+            '<div class="bar"><i style="width:'+pct+'%"></i></div>'+
+            '<div class="count">'+m.votes+' / '+(m.seuil||seuil)+' demandes</div>'+
+          '</div>'+
+          (dispo
+            ? '<span class="badge ok">✓ Disponible</span>'
+            : '<button class="join" data-nom="'+escapeAttr(m.nom)+'">Je suis intéressé(e)</button>');
+        listEl.appendChild(card);
+      });
+      document.querySelectorAll('.join').forEach(function(b){
+        b.addEventListener('click', function(){
+          nomEl.value = b.getAttribute('data-nom');
+          emailEl.focus();
+          window.scrollTo({top:0, behavior:'smooth'});
+        });
+      });
+    }
+
+    function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+    function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+    function load(){
+      fetch(API + '/api/public/metiers/')
+        .then(r => r.json())
+        .then(d => render(d.metiers, d.seuil || 5))
+        .catch(() => { listEl.innerHTML = '<p class="empty">Impossible de charger la liste pour le moment.</p>'; });
+    }
+
+    btn.addEventListener('click', function(){
+      const nom = nomEl.value.trim();
+      const email = emailEl.value.trim();
+      if(nom.length < 2){ showMsg('Indiquez le nom du métier.', false); return; }
+      if(!email.includes('@')){ showMsg('Entrez un email valide pour être prévenu.', false); return; }
+      btn.disabled = true; btn.textContent = 'Envoi…';
+      fetch(API + '/api/public/metiers/', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({nom:nom, email:email})
+      })
+      .then(r => r.json().then(j => ({status:r.status, j})))
+      .then(({status, j}) => {
+        if(j.ok){
+          showMsg(j.already ? 'Vous aviez déjà soutenu ce métier — merci !' : 'Merci ! Votre proposition est enregistrée. Vous serez prévenu par email.', true);
+          nomEl.value=''; load();
+        } else {
+          showMsg('Erreur : ' + (j.error || 'réessayez'), false);
+        }
+      })
+      .catch(() => showMsg('Connexion impossible, réessayez.', false))
+      .finally(() => { btn.disabled=false; btn.textContent='Proposer / Soutenir ce métier'; });
+    });
+
+    load();
+  </script>
+</body>
+</html>

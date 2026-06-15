@@ -6211,14 +6211,25 @@ def _normalize_metier(nom: str) -> str:
 
 
 @csrf_exempt
-@require_http_methods(["GET", "POST"])
+@require_http_methods(["GET", "POST", "OPTIONS"])
 def api_public_metiers(request):
     """Espace communautaire « Proposer un métier » (vitrine).
 
     GET  → liste des métiers proposés (nom, nb de demandes, seuil, statut).
     POST → {nom, email} : ajoute une demande (crée le métier si nouveau).
+
+    CORS ouvert (*) : endpoint public, appelé par le site vitrine (autre domaine).
     """
     from .models import MetierPropose
+
+    def _cors(resp):
+        resp["Access-Control-Allow-Origin"] = "*"
+        resp["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        resp["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
+    if request.method == "OPTIONS":  # préflight navigateur
+        return _cors(JsonResponse({}))
 
     if request.method == "GET":
         items = []
@@ -6231,22 +6242,22 @@ def api_public_metiers(request):
                 "statut": m.statut,
             })
         items.sort(key=lambda x: (-x["votes"], x["nom"]))
-        return JsonResponse({"metiers": items, "seuil": MetierPropose.SEUIL})
+        return _cors(JsonResponse({"metiers": items, "seuil": MetierPropose.SEUIL}))
 
     # POST — proposer / rejoindre un métier
     from .throttle import check_rate_limit, rate_limited_response
     if check_rate_limit(request, "metier_propose", max_requests=10, window=300):
-        return rate_limited_response()
+        return _cors(rate_limited_response())
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
-        return JsonResponse({"error": "invalid_json"}, status=400)
+        return _cors(JsonResponse({"error": "invalid_json"}, status=400))
     nom = str(payload.get("nom", "")).strip()[:120]
     email = str(payload.get("email", "")).strip().lower()[:200]
     if len(nom) < 2:
-        return JsonResponse({"error": "nom_trop_court"}, status=400)
+        return _cors(JsonResponse({"error": "nom_trop_court"}, status=400))
     if "@" not in email or "." not in email:
-        return JsonResponse({"error": "email_invalide"}, status=400)
+        return _cors(JsonResponse({"error": "email_invalide"}, status=400))
 
     norm = _normalize_metier(nom)
     m, created = MetierPropose.objects.get_or_create(
@@ -6266,10 +6277,10 @@ def api_public_metiers(request):
                 )
             except Exception:
                 pass
-    return JsonResponse({
+    return _cors(JsonResponse({
         "ok": True,
         "created": created,
         "already": already,
         "metier": {"id": m.id, "nom": m.nom, "votes": m.votes,
                    "seuil": MetierPropose.SEUIL, "statut": m.statut},
-    }, status=201 if created else 200)
+    }, status=201 if created else 200))

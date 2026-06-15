@@ -5,6 +5,7 @@ from .views import (
     creer_un_compte,
     devenir_prestataire,
     home,
+    proposer_metier,
     telecharger_app_client,
     cgu,
     confidentialite,
@@ -19,6 +20,7 @@ urlpatterns = [
         "devenir-prestataire", devenir_prestataire, name="vitrine-devenir-prestataire"
     ),
     path("creer-un-compte", creer_un_compte, name="vitrine-creer-compte"),
+    path("proposer-metier/", proposer_metier, name="vitrine-proposer-metier"),
     path("cgu/", cgu, name="vitrine-cgu"),
     path("confidentialite/", confidentialite, name="vitrine-confidentialite"),
     path(

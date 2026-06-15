@@ -322,3 +322,13 @@ def cgu(request):
 
 def confidentialite(request):
     return render(request, "vitrine/confidentialite.html")
+
+
+def proposer_metier(request):
+    """Espace communautaire : proposer / soutenir un métier manquant.
+
+    Le contenu (liste + vote) est chargé via JS depuis l'API centrale BABIFIX.
+    """
+    return render(request, "vitrine/proposer_metier.html", {
+        "api_base": "https://new-babifixbuild.onrender.com",
+    })
