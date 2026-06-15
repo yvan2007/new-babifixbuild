@@ -1830,3 +1830,41 @@ class ProInvoice(models.Model):
 
     def __str__(self):
         return f"Facture {self.reference} — {self.total_fcfa} FCFA"
+
+
+class MetierPropose(models.Model):
+    """Métier proposé par la communauté (clients/prestataires) depuis la vitrine.
+
+    Quand un métier atteint 5 demandes, l'admin est notifié et peut décider de
+    l'ajouter en catégorie. Les personnes intéressées sont prévenues par email
+    une fois le métier rendu disponible.
+    """
+    class Statut(models.TextChoices):
+        EN_ATTENTE = "en_attente", "En attente"
+        DISPONIBLE = "disponible", "Disponible"
+
+    SEUIL = 5  # nombre de demandes déclenchant la notification admin
+
+    nom = models.CharField(max_length=120)
+    nom_normalise = models.CharField(max_length=120, db_index=True, unique=True)
+    emails = models.JSONField(
+        default=list, blank=True,
+        help_text="Emails des personnes intéressées (sert au comptage + notification)",
+    )
+    statut = models.CharField(
+        max_length=20, choices=Statut.choices, default=Statut.EN_ATTENTE
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    disponible_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Métier proposé"
+        verbose_name_plural = "Métiers proposés"
+
+    @property
+    def votes(self) -> int:
+        return len(self.emails or [])
+
+    def __str__(self):
+        return f"{self.nom} ({self.votes} demande(s)) — {self.statut}"

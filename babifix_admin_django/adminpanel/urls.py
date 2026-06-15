@@ -133,6 +133,7 @@ from .views import (
     api_prestataire_terminer_intervention,
     api_prestataire_upload_photos,
     api_public_categories,
+    api_public_metiers,
     api_public_payment_methods,
     api_public_providers,
     api_public_provider_availability,
@@ -148,6 +149,7 @@ urlpatterns = [
     path("", dashboard, name="admin-dashboard"),
     path("api/public/vitrine/", api_public_vitrine, name="api-public-vitrine"),
     path("api/public/categories/", api_public_categories, name="api-public-categories"),
+    path("api/public/metiers/", api_public_metiers, name="api-public-metiers"),
     path("api/public/providers/", api_public_providers, name="api-public-providers"),
     path(
         "api/public/providers/<int:provider_id>/availability/",

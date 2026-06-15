@@ -6201,3 +6201,75 @@ def api_admin_reservation_status(request, id):
     res.save(update_fields=["statut"])
 
     return JsonResponse({"ok": True, "reference": res.reference, "statut": new_status})
+
+
+def _normalize_metier(nom: str) -> str:
+    import unicodedata
+    s = unicodedata.normalize("NFKD", (nom or "").strip().lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return " ".join(s.split())
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def api_public_metiers(request):
+    """Espace communautaire « Proposer un métier » (vitrine).
+
+    GET  → liste des métiers proposés (nom, nb de demandes, seuil, statut).
+    POST → {nom, email} : ajoute une demande (crée le métier si nouveau).
+    """
+    from .models import MetierPropose
+
+    if request.method == "GET":
+        items = []
+        for m in MetierPropose.objects.all():
+            items.append({
+                "id": m.id,
+                "nom": m.nom,
+                "votes": m.votes,
+                "seuil": MetierPropose.SEUIL,
+                "statut": m.statut,
+            })
+        items.sort(key=lambda x: (-x["votes"], x["nom"]))
+        return JsonResponse({"metiers": items, "seuil": MetierPropose.SEUIL})
+
+    # POST — proposer / rejoindre un métier
+    from .throttle import check_rate_limit, rate_limited_response
+    if check_rate_limit(request, "metier_propose", max_requests=10, window=300):
+        return rate_limited_response()
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+    nom = str(payload.get("nom", "")).strip()[:120]
+    email = str(payload.get("email", "")).strip().lower()[:200]
+    if len(nom) < 2:
+        return JsonResponse({"error": "nom_trop_court"}, status=400)
+    if "@" not in email or "." not in email:
+        return JsonResponse({"error": "email_invalide"}, status=400)
+
+    norm = _normalize_metier(nom)
+    m, created = MetierPropose.objects.get_or_create(
+        nom_normalise=norm, defaults={"nom": nom}
+    )
+    emails = list(m.emails or [])
+    already = email in emails
+    if not already:
+        emails.append(email)
+        m.emails = emails
+        m.save(update_fields=["emails"])
+        # Notifie l'admin quand le seuil est atteint.
+        if m.votes == MetierPropose.SEUIL:
+            try:
+                Notification.objects.create(
+                    title=f"Métier « {m.nom} » a atteint {MetierPropose.SEUIL} demandes — à ajouter ?"
+                )
+            except Exception:
+                pass
+    return JsonResponse({
+        "ok": True,
+        "created": created,
+        "already": already,
+        "metier": {"id": m.id, "nom": m.nom, "votes": m.votes,
+                   "seuil": MetierPropose.SEUIL, "statut": m.statut},
+    }, status=201 if created else 200)

@@ -335,6 +335,46 @@ class WalletTransactionAdmin(admin.ModelAdmin):
     raw_id_fields = ("provider",)
 
 
+from .models import MetierPropose as _MetierPropose
+
+
+@admin.register(_MetierPropose)
+class MetierProposeAdmin(admin.ModelAdmin):
+    list_display = ("nom", "votes_display", "statut", "created_at")
+    list_filter = ("statut",)
+    search_fields = ("nom",)
+    actions = ["rendre_disponible"]
+
+    @admin.display(description="Demandes")
+    def votes_display(self, obj):
+        return f"{obj.votes} / {_MetierPropose.SEUIL}"
+
+    @admin.action(description="Marquer disponible + notifier les interesses")
+    def rendre_disponible(self, request, queryset):
+        from django.utils import timezone as _tz
+        n = 0
+        for m in queryset:
+            m.statut = _MetierPropose.Statut.DISPONIBLE
+            m.disponible_at = _tz.now()
+            m.save(update_fields=["statut", "disponible_at"])
+            try:
+                from .views_extra import send_babifix_email_html
+                for em in (m.emails or []):
+                    send_babifix_email_html(
+                        to_email=em,
+                        subject=f"BABIFIX — Le metier « {m.nom} » est disponible !",
+                        html_content=(
+                            f"<p>Bonne nouvelle ! Le metier <b>{m.nom}</b> que vous "
+                            f"avez demande est desormais disponible sur BABIFIX. "
+                            f"Ouvrez l'application pour en profiter.</p>"
+                        ),
+                    )
+            except Exception:
+                pass
+            n += 1
+        self.message_user(request, f"{n} metier(s) rendu(s) disponible(s) et interesses notifies.")
+
+
 admin.site.site_header = "BABIFIX — Administration"
 admin.site.site_title = "BABIFIX Admin"
 admin.site.index_title = "CRUD : prestataires, réservations, paiements, contenido…"
