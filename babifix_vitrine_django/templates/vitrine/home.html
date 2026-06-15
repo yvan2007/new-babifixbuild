@@ -1398,6 +1398,20 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   background-size:cover !important; background-position:center 30% !important;
 }
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "BABIFIX",
+  "url": "{{ request.scheme }}://{{ request.get_host }}/",
+  "logo": "{{ request.scheme }}://{{ request.get_host }}{% load static %}{% static 'vitrine/assets/babifix-logo.png' %}",
+  "description": "Place de marché de services à domicile en Côte d'Ivoire : plomberie, électricité, ménage, jardinage et plus. Prestataires vérifiés, paiement Mobile Money sécurisé.",
+  "areaServed": { "@type": "Country", "name": "Côte d'Ivoire" },
+  "address": { "@type": "PostalAddress", "addressLocality": "Abidjan", "addressCountry": "CI" },
+  "email": "contact@babifix.ci",
+  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "2500" }
+}
+</script>
 </head>
 <body>
 

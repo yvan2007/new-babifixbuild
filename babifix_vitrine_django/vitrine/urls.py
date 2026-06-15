@@ -6,6 +6,8 @@ from .views import (
     devenir_prestataire,
     home,
     proposer_metier,
+    robots_txt,
+    sitemap_xml,
     telecharger_app_client,
     cgu,
     confidentialite,
@@ -21,6 +23,8 @@ urlpatterns = [
     ),
     path("creer-un-compte", creer_un_compte, name="vitrine-creer-compte"),
     path("proposer-metier/", proposer_metier, name="vitrine-proposer-metier"),
+    path("robots.txt", robots_txt, name="vitrine-robots"),
+    path("sitemap.xml", sitemap_xml, name="vitrine-sitemap"),
     path("cgu/", cgu, name="vitrine-cgu"),
     path("confidentialite/", confidentialite, name="vitrine-confidentialite"),
     path(

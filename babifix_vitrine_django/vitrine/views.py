@@ -4,7 +4,7 @@ import os
 from django.conf import settings
 from django.core.cache import cache
 from django.core.mail import send_mail
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -366,3 +366,37 @@ def proposer_metier(request):
     return render(request, "vitrine/proposer_metier.html", {
         "api_base": "https://new-babifixbuild.onrender.com",
     })
+
+
+def robots_txt(request):
+    """Indique aux moteurs de recherche quoi explorer + l'emplacement du sitemap."""
+    base = request.build_absolute_uri("/").rstrip("/")
+    lines = [
+        "User-agent: *",
+        "Allow: /",
+        f"Sitemap: {base}/sitemap.xml",
+    ]
+    return HttpResponse("\n".join(lines) + "\n", content_type="text/plain")
+
+
+def sitemap_xml(request):
+    """Plan du site (liste des pages publiques) pour le référencement Google."""
+    base = request.build_absolute_uri("/").rstrip("/")
+    paths = [
+        ("/", "1.0"),
+        ("/telecharger-app-client", "0.8"),
+        ("/devenir-prestataire", "0.8"),
+        ("/proposer-metier/", "0.6"),
+        ("/cgu/", "0.3"),
+        ("/confidentialite/", "0.3"),
+    ]
+    items = "".join(
+        f"<url><loc>{base}{p}</loc><priority>{prio}</priority></url>"
+        for p, prio in paths
+    )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        + items + "</urlset>"
+    )
+    return HttpResponse(xml, content_type="application/xml")
