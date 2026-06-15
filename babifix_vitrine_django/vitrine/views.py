@@ -194,52 +194,86 @@ def home(request):
     return render(request, "vitrine/home.html", context)
 
 
+def _svg(path):
+    return (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + path + "</svg>"
+    )
+
+
 def telecharger_app_client(request):
     vd = fetch_admin_public_vitrine()
-    ios = (vd.get("store_ios_url") or "").strip()
-    android = (vd.get("store_android_url") or "").strip()
-    lines = []
-    if ios:
-        lines.append(
-            f'<p><a class="btn primary" href="{ios}" rel="noopener">App Store (iOS)</a></p>'
-        )
-    if android:
-        lines.append(
-            f'<p><a class="btn primary" href="{android}" rel="noopener">Google Play (Android)</a></p>'
-        )
-    if not lines:
-        lines.append(
-            "<p>Les liens stores seront affichés ici une fois renseignés dans l’admin BABIFIX (SiteContent).</p>"
-        )
-    return render(
-        request,
-        "vitrine/simple_page.html",
-        {"title": "Telecharger l app Client", "body_safe": "".join(lines)},
-    )
+    return render(request, "vitrine/telecharger.html", {
+        "page_title": "Télécharger l'app Client",
+        "accent": "#4CC9F0",
+        "pill": "Application Client",
+        "heading_pre": "Vos services à domicile,",
+        "heading_hl": "en quelques clics.",
+        "lead": "Trouvez un prestataire vérifié près de chez vous, obtenez un "
+                "devis clair, et payez en Mobile Money en toute sécurité — "
+                "votre argent est protégé jusqu'à la fin du travail.",
+        "ios_url": (vd.get("store_ios_url") or "").strip(),
+        "android_url": (vd.get("store_android_url") or "").strip(),
+        "features": [
+            {"icon": _svg('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
+             "title": "Prestataires géolocalisés", "desc": "Voyez les pros disponibles autour de vous."},
+            {"icon": _svg('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>'),
+             "title": "Paiement sécurisé", "desc": "Mobile Money + argent bloqué jusqu'à validation."},
+            {"icon": _svg('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>'),
+             "title": "Prestataires vérifiés", "desc": "Identité (CNI) et profil contrôlés avant validation."},
+            {"icon": _svg('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>'),
+             "title": "Devis & reçus clairs", "desc": "Le prix avant, le reçu après. Aucune surprise."},
+        ],
+        "stats": [
+            {"v": "50K+", "l": "Services réalisés"},
+            {"v": "4.8★", "l": "Note moyenne"},
+            {"v": "100%", "l": "Paiement protégé"},
+        ],
+        "mock_hi": "Bonjour 👋", "mock_sub": "Quel service aujourd'hui ?",
+        "mock_promo_t": "Paiement 100% sécurisé", "mock_promo_s": "Mobile Money · argent protégé",
+        "mock_tiles": [
+            {"e": "🔧", "t": "Plomberie"}, {"e": "⚡", "t": "Électricité"},
+            {"e": "🧹", "t": "Ménage"}, {"e": "🌿", "t": "Jardinage"},
+        ],
+    })
 
 
 def devenir_prestataire(request):
     vd = fetch_admin_public_vitrine()
-    ios = (vd.get("store_prestataire_ios_url") or "").strip()
-    android = (vd.get("store_prestataire_android_url") or "").strip()
-    lines = []
-    if ios:
-        lines.append(
-            f'<p><a class="btn primary" href="{ios}" rel="noopener">App Prestataire — App Store</a></p>'
-        )
-    if android:
-        lines.append(
-            f'<p><a class="btn primary" href="{android}" rel="noopener">App Prestataire — Google Play</a></p>'
-        )
-    if not lines:
-        lines.append(
-            "<p>Téléchargez l’application prestataire BABIFIX depuis les stores (liens à configurer dans l’admin).</p>"
-        )
-    return render(
-        request,
-        "vitrine/simple_page.html",
-        {"title": "Devenir prestataire", "body_safe": "".join(lines)},
-    )
+    return render(request, "vitrine/telecharger.html", {
+        "page_title": "Devenir prestataire",
+        "accent": "#E87722",
+        "pill": "Application Prestataire",
+        "heading_pre": "Votre savoir-faire,",
+        "heading_hl": "vos revenus.",
+        "lead": "Recevez des demandes près de chez vous, envoyez vos devis, "
+                "et soyez payé en toute confiance. Plus vous êtes actif, plus "
+                "votre commission baisse. Construisez votre réputation.",
+        "ios_url": (vd.get("store_prestataire_ios_url") or "").strip(),
+        "android_url": (vd.get("store_prestataire_android_url") or "").strip(),
+        "features": [
+            {"icon": _svg('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'),
+             "title": "Des missions régulières", "desc": "Recevez les demandes des clients autour de vous."},
+            {"icon": _svg('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>'),
+             "title": "Paiement garanti", "desc": "Votre argent est versé via Mobile Money, en sécurité."},
+            {"icon": _svg('<polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/>'),
+             "title": "Réputation & avis", "desc": "Vos bonnes notes vous ramènent de nouveaux clients."},
+            {"icon": _svg('<path d="M3 3v18h18"/><path d="M19 9l-5 5-4-4-3 3"/>'),
+             "title": "Commission dégressive", "desc": "Plus vous travaillez, moins vous payez (jusqu'à 8%)."},
+        ],
+        "stats": [
+            {"v": "18%→8%", "l": "Commission dégressive"},
+            {"v": "0F", "l": "Inscription gratuite"},
+            {"v": "24h", "l": "Validation rapide"},
+        ],
+        "mock_hi": "Tableau de bord", "mock_sub": "Bonjour, prestataire 👷",
+        "mock_promo_t": "+ 45 000 F ce mois", "mock_promo_s": "12 missions réalisées",
+        "mock_tiles": [
+            {"e": "📥", "t": "Demandes"}, {"e": "💰", "t": "Gains"},
+            {"e": "💬", "t": "Messages"}, {"e": "⭐", "t": "Avis"},
+        ],
+    })
 
 
 def creer_un_compte(request):

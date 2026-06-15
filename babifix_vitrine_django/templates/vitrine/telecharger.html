@@ -1,0 +1,132 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }} — BABIFIX</title>
+  <link rel="icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
+  <link rel="shortcut icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
+  <style>
+    :root{ --accent: {{ accent }}; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#0B1B34;color:#fff;
+      background:radial-gradient(1200px 600px at 80% -10%, rgba(76,201,240,.18), transparent 60%),
+                 linear-gradient(160deg,#0B1B34 0%,#0E2844 100%);min-height:100vh;}
+    a{text-decoration:none;}
+    .nav{max-width:1080px;margin:0 auto;padding:20px 22px;display:flex;align-items:center;gap:12px;}
+    .nav img{width:42px;height:42px;border-radius:11px;}
+    .nav b{font-size:19px;letter-spacing:1px;}
+    .nav .back{margin-left:auto;color:#9fb3cc;font-size:14px;}
+    .wrap{max-width:1080px;margin:0 auto;padding:20px 22px 70px;
+      display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;}
+    @media(max-width:860px){.wrap{grid-template-columns:1fr;gap:30px;text-align:center;}}
+    .pill{display:inline-flex;align-items:center;gap:7px;background:rgba(76,201,240,.14);
+      color:#4CC9F0;font-weight:700;font-size:13px;padding:7px 14px;border-radius:99px;margin-bottom:18px;}
+    h1{font-size:42px;line-height:1.1;margin-bottom:14px;}
+    h1 .hl{color:var(--accent);}
+    .lead{color:#9fb3cc;font-size:17px;line-height:1.65;margin-bottom:26px;}
+    .stores{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:30px;}
+    @media(max-width:860px){.stores{justify-content:center;}}
+    .store{display:inline-flex;align-items:center;gap:10px;background:#fff;color:#0B1B34;
+      padding:12px 20px;border-radius:14px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.25);}
+    .store small{display:block;font-size:10px;font-weight:600;color:#64748b;}
+    .store .s2{font-size:15px;}
+    .store.soon{background:rgba(255,255,255,.1);color:#9fb3cc;box-shadow:none;}
+    .feats{display:grid;gap:14px;max-width:440px;}
+    @media(max-width:860px){.feats{margin:0 auto;text-align:left;}}
+    .feat{display:flex;gap:13px;align-items:flex-start;}
+    .feat .ic{flex-shrink:0;width:38px;height:38px;border-radius:11px;background:rgba(76,201,240,.15);
+      color:var(--accent);display:flex;align-items:center;justify-content:center;}
+    .feat .ic svg{width:19px;height:19px;}
+    .feat h4{font-size:15px;margin-bottom:3px;}
+    .feat p{font-size:13px;color:#9fb3cc;line-height:1.5;}
+    .stats{display:flex;gap:26px;margin-top:30px;flex-wrap:wrap;}
+    @media(max-width:860px){.stats{justify-content:center;}}
+    .stat .v{font-size:26px;font-weight:900;color:var(--accent);}
+    .stat .l{font-size:12px;color:#9fb3cc;}
+    /* maquette */
+    .device{justify-self:center;width:280px;height:560px;border-radius:42px;background:#0B1B34;
+      border:8px solid #0a1426;box-shadow:0 50px 120px rgba(0,0,0,.55), inset 0 0 0 2px rgba(76,201,240,.15);
+      position:relative;overflow:hidden;}
+    .device .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:26px;background:#0a1426;border-radius:16px;z-index:3;}
+    .device .scr{position:absolute;inset:10px;border-radius:34px;overflow:hidden;
+      background:linear-gradient(160deg,#102a4d,#0B1B34);}
+    .scr .top{background:linear-gradient(150deg,#0B1B34,#15376b);padding:26px 18px 18px;}
+    .scr .hi{font-size:15px;font-weight:800;}
+    .scr .hi small{display:block;font-size:11px;color:rgba(255,255,255,.6);font-weight:500;margin-top:2px;}
+    .scr .promo{margin:14px 16px 0;padding:14px;border-radius:14px;
+      background:linear-gradient(120deg,var(--accent),#2a9fd6);color:#042033;}
+    .scr .promo b{font-size:13px;} .scr .promo span{display:block;font-size:11px;opacity:.85;}
+    .scr .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:16px 16px 0;}
+    .scr .tile{background:rgba(255,255,255,.06);border-radius:13px;padding:14px 8px;text-align:center;}
+    .scr .tile .e{font-size:22px;} .scr .tile .t{font-size:10px;font-weight:700;margin-top:5px;color:#dbe7f5;}
+    .glow{position:absolute;width:240px;height:240px;border-radius:50%;
+      background:radial-gradient(circle,var(--accent),transparent 65%);opacity:.25;filter:blur(20px);}
+    .g1{top:-60px;right:-40px;} .g2{bottom:-70px;left:-50px;}
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <img src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX"><b>BABIFIX</b>
+    <a class="back" href="/">← Accueil</a>
+  </div>
+
+  <div class="wrap">
+    <div>
+      <span class="pill">{{ pill }}</span>
+      <h1>{{ heading_pre }} <span class="hl">{{ heading_hl }}</span></h1>
+      <p class="lead">{{ lead }}</p>
+
+      <div class="stores">
+        {% if android_url %}
+        <a class="store" href="{{ android_url }}" rel="noopener">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#0B1B34"><path d="M3 20.5V3.5c0-.4.2-.7.5-.9L13.8 12 3.5 21.4c-.3-.2-.5-.5-.5-.9zM16.8 15 6.2 21.4l8-8 2.6 1.6zM20.5 10.3c.6.4.6 1.3 0 1.7l-2.3 1.3-2.9-2.1 2.9-2.1 2.3 1.2zM6.2 2.6 16.8 9l-2.6 1.6-8-8z"/></svg>
+          <span><small>Disponible sur</small><span class="s2">Google Play</span></span>
+        </a>
+        {% endif %}
+        {% if ios_url %}
+        <a class="store" href="{{ ios_url }}" rel="noopener">
+          <svg width="22" height="22" viewBox="0 0 384 512" fill="#0B1B34"><path d="M318.7 268c-.3-37 16.4-65 50.2-85.6-18.9-27-47.5-41.9-85.1-44.8-35.7-2.8-74.8 20.9-89 20.9-15.1 0-49.7-19.9-76.9-19.9C61.4 139.2 0 184.6 0 276.5c0 27.2 5 55.3 14.9 84.3 13.3 38.2 61.3 132 111.3 130.5 26.2-.6 44.7-18.6 78.8-18.6 33.1 0 50.2 18.6 78.9 18.6 50.4-.7 93.8-86 106.5-124.3-67.7-31.9-71.7-93.5-71.7-95zM256.4 84.5c30-35.6 27.3-68 26.4-79.5-26.5 1.5-57.2 18-74.7 38.3-19.3 21.7-30.6 48.5-28.2 78.9 28.6 2.2 54.7-12.5 76.5-37.7z"/></svg>
+          <span><small>Télécharger sur</small><span class="s2">App Store</span></span>
+        </a>
+        {% endif %}
+        {% if not android_url and not ios_url %}
+        <span class="store soon">Bientôt sur les stores</span>
+        {% endif %}
+      </div>
+
+      <div class="feats">
+        {% for f in features %}
+        <div class="feat">
+          <div class="ic">{{ f.icon|safe }}</div>
+          <div><h4>{{ f.title }}</h4><p>{{ f.desc }}</p></div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="stats">
+        {% for s in stats %}
+        <div class="stat"><div class="v">{{ s.v }}</div><div class="l">{{ s.l }}</div></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="device">
+      <div class="glow g1"></div><div class="glow g2"></div>
+      <div class="notch"></div>
+      <div class="scr">
+        <div class="top">
+          <div class="hi">{{ mock_hi }}<small>{{ mock_sub }}</small></div>
+          <div class="promo"><b>{{ mock_promo_t }}</b><span>{{ mock_promo_s }}</span></div>
+        </div>
+        <div class="grid">
+          {% for t in mock_tiles %}
+          <div class="tile"><div class="e">{{ t.e }}</div><div class="t">{{ t.t }}</div></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
