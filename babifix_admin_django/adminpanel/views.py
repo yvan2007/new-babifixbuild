@@ -4963,12 +4963,22 @@ def api_public_payment_methods(request):
 
 @require_GET
 def api_public_categories(request):
-    """Categories pour vitrine / apps (UML Categorie)."""
+    """Categories pour vitrine / apps (UML Categorie).
+
+    - Sans paramètre (CLIENT) : seules les catégories ayant au moins 1
+      prestataire validé sont renvoyées (pas de catégorie vide côté client).
+    - Avec ?all=1 (PRESTATAIRE, à l'inscription) : TOUTES les catégories,
+      car c'est là qu'il choisit son métier.
+    """
     _bootstrap_data()
+    include_all = request.GET.get("all") == "1"
+    cache_key = (
+        "babifix:public:categories:all" if include_all
+        else "babifix:public:categories:client"
+    )
     # Redis cache (5 min) pour eviter de requeter la DB a chaque appel
     try:
         from django.core.cache import cache
-        cache_key = "babifix:public:categories"
         cached = cache.get(cache_key)
         if cached is not None:
             return JsonResponse({"categories": cached})
@@ -4986,6 +4996,9 @@ def api_public_categories(request):
         .order_by("ordre_affichage", "nom")
     )
     for cat in cats:
+        # Côté client : on masque les catégories sans aucun prestataire validé.
+        if not include_all and cat.providers_count == 0:
+            continue
         icon_url = ""
         if (cat.icone_url or "").strip().startswith("http"):
             icon_url = cat.icone_url.strip()
@@ -5009,7 +5022,7 @@ def api_public_categories(request):
     # Mise en cache Redis (5 min TTL)
     try:
         from django.core.cache import cache
-        cache.set("babifix:public:categories", rows, 300)
+        cache.set(cache_key, rows, 300)
     except Exception:
         pass
     return JsonResponse(

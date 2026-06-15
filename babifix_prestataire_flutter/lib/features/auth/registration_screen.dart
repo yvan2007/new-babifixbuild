@@ -194,7 +194,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
   Future<void> _loadPublicCategories() async {
     try {
-      final url = '${babifixApiBaseUrl()}/api/public/categories/';
+      // ?all=1 → le prestataire voit TOUTES les catégories (même vides) pour
+      // choisir son métier. Le client, lui, ne voit que les catégories remplies.
+      final url = '${babifixApiBaseUrl()}/api/public/categories/?all=1';
       debugPrint(
         'BABIFIX PRESTATAIRE REGISTRATION: Loading categories from $url',
       );
