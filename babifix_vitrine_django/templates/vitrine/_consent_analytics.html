@@ -1,0 +1,59 @@
+{# Bandeau de consentement cookies + Google Analytics (chargé APRÈS accord). #}
+<style>
+  #bx-cookie{position:fixed;left:0;right:0;bottom:0;z-index:9999;display:none;
+    background:#0B1B34;color:#fff;border-top:1px solid rgba(76,201,240,.35);
+    box-shadow:0 -8px 30px rgba(0,0,0,.35);font-family:'Segoe UI',system-ui,Arial,sans-serif;}
+  #bx-cookie .in{max-width:1080px;margin:0 auto;padding:16px 20px;display:flex;
+    align-items:center;gap:16px;flex-wrap:wrap;}
+  #bx-cookie p{flex:1;min-width:240px;font-size:13.5px;line-height:1.55;color:#cdd9ea;margin:0;}
+  #bx-cookie a{color:#4CC9F0;text-decoration:underline;}
+  #bx-cookie .acts{display:flex;gap:10px;flex-wrap:wrap;}
+  #bx-cookie button{border:none;cursor:pointer;font-weight:700;font-size:13px;
+    padding:11px 20px;border-radius:11px;}
+  #bx-cookie .ref{background:rgba(255,255,255,.1);color:#cdd9ea;}
+  #bx-cookie .acc{background:#4CC9F0;color:#0B1B34;}
+</style>
+
+<div id="bx-cookie" role="dialog" aria-label="Consentement cookies">
+  <div class="in">
+    <p>🍪 BABIFIX utilise des cookies de mesure d'audience pour améliorer le site.
+       Vous pouvez accepter ou refuser. <a href="/confidentialite/">En savoir plus</a>.</p>
+    <div class="acts">
+      <button class="ref" id="bx-ck-refuse">Refuser</button>
+      <button class="acc" id="bx-ck-accept">Accepter</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'babifix_cookie_consent';
+  var GA_ID = "{{ ga_id }}";
+  var banner = document.getElementById('bx-cookie');
+
+  function loadGA(){
+    if(!GA_ID) return;
+    if(window.__bxGAloaded) return; window.__bxGAloaded = true;
+    var s = document.createElement('script'); s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+    window.gtag = gtag;
+    gtag('js', new Date());
+    gtag('config', GA_ID, { anonymize_ip: true });
+  }
+
+  var choice = null;
+  try { choice = localStorage.getItem(KEY); } catch(e){}
+
+  if(choice === 'accepted'){ loadGA(); }
+  else if(choice !== 'refused'){ if(banner) banner.style.display = 'block'; }
+
+  function set(v){ try { localStorage.setItem(KEY, v); } catch(e){} if(banner) banner.style.display='none'; }
+  var a = document.getElementById('bx-ck-accept');
+  var r = document.getElementById('bx-ck-refuse');
+  if(a) a.addEventListener('click', function(){ set('accepted'); loadGA(); });
+  if(r) r.addEventListener('click', function(){ set('refused'); });
+})();
+</script>

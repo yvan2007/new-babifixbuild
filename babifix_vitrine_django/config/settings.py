@@ -90,6 +90,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "vitrine.context_processors.site_globals",
             ],
         },
     },
@@ -177,3 +178,8 @@ EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in {"1", "true", "yes
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.ci>")
+
+# ── Analytics (Google Analytics 4) ───────────────────────────────────────────
+# Renseigner GA_MEASUREMENT_ID (ex: G-XXXXXXXXXX) dans l'environnement Render.
+# Le tag ne se charge QUE si le visiteur a accepté les cookies (bandeau consent).
+GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID", "")
