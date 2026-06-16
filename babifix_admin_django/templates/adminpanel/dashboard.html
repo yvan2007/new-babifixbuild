@@ -2195,6 +2195,16 @@
                 <a href="?section=actualites&edit_actualite={{ a.id }}" class="kanban-card-action-btn" title="Modifier">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </a>
+                <form method="post" style="display:inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="actualite_toggle_publish">
+                  <input type="hidden" name="pk" value="{{ a.id }}">
+                  {% if a.publie %}
+                  <button type="submit" class="kanban-card-action-btn" title="Repasser en brouillon">⤺ Brouillon</button>
+                  {% else %}
+                  <button type="submit" class="kanban-card-action-btn" title="Publier maintenant" style="background:#16A34A;color:#fff">✓ Publier</button>
+                  {% endif %}
+                </form>
               </div>
             </div>
             {% empty %}
@@ -2236,6 +2246,16 @@
               <td>{{ a.date_publication|date:"d/m/Y H:i" }}</td>
               <td class="cell-actions">
                 <a href="?section=actualites&amp;edit_actualite={{ a.id }}" class="link-edit">Modifier</a>
+                <form method="post" style="display:inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="actualite_toggle_publish">
+                  <input type="hidden" name="pk" value="{{ a.id }}">
+                  {% if a.publie %}
+                  <button type="submit" class="table-btn">Repasser en brouillon</button>
+                  {% else %}
+                  <button type="submit" class="table-btn" style="background:#16A34A;color:#fff;border-color:#16A34A">Publier</button>
+                  {% endif %}
+                </form>
                 <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer cette actualité ?');">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="actualite_delete">
