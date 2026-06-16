@@ -1510,6 +1510,56 @@ def dashboard(request):
                 obj.created_by = request.user
                 obj.save()
                 messages.success(request, "Actualité enregistrée.")
+                # Retour visuel immédiat : portée réelle de la notification push.
+                if obj.publie:
+                    try:
+                        from .fcm_backend import _ensure_firebase_app
+
+                        target_ids = UserProfile.objects.filter(
+                            role__in=(
+                                UserProfile.Role.CLIENT,
+                                UserProfile.Role.PRESTATAIRE,
+                            ),
+                            active=True,
+                        ).values_list("user_id", flat=True)
+                        nb_devices = (
+                            DeviceToken.objects.filter(user_id__in=target_ids)
+                            .values("token")
+                            .distinct()
+                            .count()
+                        )
+                        if not _ensure_firebase_app():
+                            messages.warning(
+                                request,
+                                "⚠️ Firebase non configuré : aucune notification push "
+                                "ne sera envoyée (la clé de service Firebase est absente).",
+                            )
+                        elif nb_devices == 0:
+                            messages.warning(
+                                request,
+                                "ℹ️ Aucun appareil enregistré pour le moment : personne "
+                                "ne recevra de notification. Les utilisateurs doivent "
+                                "ouvrir/rouvrir l'application (version récente) pour "
+                                "enregistrer leur appareil.",
+                            )
+                        else:
+                            messages.success(
+                                request,
+                                f"📲 Notification push envoyée à {nb_devices} "
+                                f"appareil(s) enregistré(s).",
+                            )
+                    except Exception as exc:  # pragma: no cover - retour best-effort
+                        messages.warning(
+                            request,
+                            f"Impossible d'estimer la portée de la notification : {exc}",
+                        )
+                else:
+                    messages.info(
+                        request,
+                        "Actualité enregistrée en brouillon (non publiée) : "
+                        "aucune notification n'est envoyée tant que « Publié » "
+                        "n'est pas coché.",
+                    )
             else:
                 messages.error(request, form.errors.as_text())
         elif action == "actualite_delete":
