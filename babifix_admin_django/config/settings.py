@@ -131,10 +131,29 @@ INSTALLED_APPS = [
 # chaque redéploiement. Si CLOUDINARY_URL est défini (compte Cloudinary gratuit),
 # les médias sont stockés sur Cloudinary et persistent. Sans la variable (local),
 # on garde le disque local — comportement inchangé.
+#
+# IMPORTANT : depuis Django 5.1, les réglages DEFAULT_FILE_STORAGE et
+# STATICFILES_STORAGE sont SUPPRIMÉS et ignorés. Il faut impérativement passer
+# par le dict STORAGES, sinon Cloudinary n'est jamais utilisé et les médias
+# repartent sur le disque éphémère (images cassées après chaque déploiement).
 CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "").strip()
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    # Compression WhiteNoise SANS manifeste : on évite les erreurs 500 si un
+    # asset référencé manque (le manifeste lèverait une exception). WhiteNoise
+    # sert et compresse quand même les fichiers statiques.
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 if CLOUDINARY_URL:
     INSTALLED_APPS += ["cloudinary", "cloudinary_storage"]
-    DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+    STORAGES["default"] = {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    }
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -304,7 +323,8 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# NB : le backend staticfiles est désormais défini dans STORAGES (voir plus haut).
+# STATICFILES_STORAGE est ignoré depuis Django 5.1.
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"

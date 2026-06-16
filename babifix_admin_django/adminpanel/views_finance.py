@@ -367,15 +367,34 @@ def api_rating_voice_upload(request, reference):
     }
     ext = ext_map.get(audio_file.content_type, "audio")
     filename = f"{uuid.uuid4().hex}.{ext}"
-    save_dir = os.path.join(settings.MEDIA_ROOT, "voice_notes")
-    os.makedirs(save_dir, exist_ok=True)
-    filepath = os.path.join(save_dir, filename)
+    name = f"voice_notes/{filename}"
 
-    with open(filepath, "wb") as f:
-        for chunk in audio_file.chunks():
-            f.write(chunk)
+    # Stockage par défaut = Cloudinary si configuré (persistant), sinon disque local.
+    from django.core.files.storage import default_storage
 
-    voice_url = f"{settings.MEDIA_URL}voice_notes/{filename}"
+    storage = default_storage
+    if "cloudinary" in type(storage).__module__.lower():
+        # Cloudinary traite l'audio comme une ressource « video ».
+        try:
+            from cloudinary_storage.storage import VideoMediaCloudinaryStorage
+
+            storage = VideoMediaCloudinaryStorage()
+        except Exception:
+            storage = default_storage
+    try:
+        saved_name = storage.save(name, audio_file)
+        voice_url = storage.url(saved_name)
+    except Exception:
+        # Repli disque local.
+        save_dir = os.path.join(settings.MEDIA_ROOT, "voice_notes")
+        os.makedirs(save_dir, exist_ok=True)
+        filepath = os.path.join(save_dir, filename)
+        audio_file.seek(0)
+        with open(filepath, "wb") as f:
+            for chunk in audio_file.chunks():
+                f.write(chunk)
+        voice_url = f"{settings.MEDIA_URL}voice_notes/{filename}"
+
     rating.voice_note_url = voice_url
     rating.save(update_fields=["voice_note_url"])
 

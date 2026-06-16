@@ -516,12 +516,21 @@ def _safe_photo_url(url: str, request=None) -> str:
 
 def _decode_and_save_media(b64_data: str, subfolder: str, prefix: str) -> str:
     """
-    Décode une data URL base64 et sauvegarde le fichier dans MEDIA_ROOT.
-    Retourne l'URL relative (ex: /media/providers/portraits/uuid.jpg).
-    Retourne '' si données invalides.
+    Décode une data URL base64 et enregistre le fichier via le stockage Django
+    par défaut.
+
+    Quand CLOUDINARY_URL est défini, STORAGES["default"] pointe vers Cloudinary :
+    le fichier est alors envoyé sur Cloudinary et l'URL retournée est PERSISTANTE
+    (https://res.cloudinary.com/...). Sinon, on retombe sur le disque local
+    (MEDIA_ROOT) — éphémère sur Render, OK en développement.
+
+    Retourne l'URL du fichier, ou '' si les données sont invalides.
     """
     import base64 as _b64
     import re as _re
+
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
 
     if not b64_data or not b64_data.startswith("data:"):
         return ""
@@ -542,14 +551,41 @@ def _decode_and_save_media(b64_data: str, subfolder: str, prefix: str) -> str:
         file_bytes = _b64.b64decode(raw_b64)
     except Exception:
         return ""
-    # Créer le répertoire si nécessaire
-    save_dir = os.path.join(settings.MEDIA_ROOT, "providers", subfolder)
-    os.makedirs(save_dir, exist_ok=True)
-    filename = f"{prefix}_{uuid.uuid4().hex[:12]}.{ext}"
-    filepath = os.path.join(save_dir, filename)
-    with open(filepath, "wb") as f:
-        f.write(file_bytes)
-    return f"{settings.MEDIA_URL}providers/{subfolder}/{filename}"
+
+    name = f"providers/{subfolder}/{prefix}_{uuid.uuid4().hex[:12]}.{ext}"
+    is_video = mime_type.startswith("video/")
+
+    # Stockage par défaut = Cloudinary si configuré, sinon disque local.
+    storage = default_storage
+    using_cloudinary = "cloudinary" in type(storage).__module__.lower()
+    # Cloudinary distingue images et vidéos : route les vidéos vers le bon backend.
+    if is_video and using_cloudinary:
+        try:
+            from cloudinary_storage.storage import VideoMediaCloudinaryStorage
+
+            storage = VideoMediaCloudinaryStorage()
+        except Exception:
+            storage = default_storage
+
+    try:
+        saved_name = storage.save(name, ContentFile(file_bytes))
+        return storage.url(saved_name)
+    except Exception as exc:
+        logger.warning(
+            "Echec enregistrement media via storage (%s) — repli sur disque local",
+            exc,
+        )
+        # Repli : disque local (comportement historique).
+        save_dir = os.path.join(settings.MEDIA_ROOT, "providers", subfolder)
+        os.makedirs(save_dir, exist_ok=True)
+        filename = os.path.basename(name)
+        filepath = os.path.join(save_dir, filename)
+        try:
+            with open(filepath, "wb") as f:
+                f.write(file_bytes)
+        except OSError:
+            return ""
+        return f"{settings.MEDIA_URL}providers/{subfolder}/{filename}"
 
 
 def _is_in_cote_ivoire(lat, lon):
