@@ -3703,35 +3703,70 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   onRefresh: _loadRemoteData,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(24, 40, 24, 120),
+                    padding: const EdgeInsets.fromLTRB(28, 70, 28, 120),
                     children: [
-                      Icon(
-                        Icons.event_busy_rounded,
-                        size: 72,
-                        color: _textSecondary.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Aucune reservation pour l\'instant',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: _textPrimary,
+                      Center(
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                BabifixDesign.cyan.withValues(alpha: 0.22),
+                                BabifixDesign.cyan.withValues(alpha: 0.05),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: BabifixDesign.cyan.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.event_available_rounded,
+                            size: 54,
+                            color: BabifixDesign.cyan,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Parcourez le catalogue et reservez une prestation. Elle apparaitra ici.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: _textSecondary, height: 1.4),
-                      ),
                       const SizedBox(height: 24),
+                      Text(
+                        'Aucune réservation pour l\'instant',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                          color: _textPrimary,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Trouvez un prestataire vérifié et réservez en quelques clics. Vos demandes apparaîtront ici.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _textSecondary,
+                          height: 1.5,
+                          fontSize: 14.5,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
                       Center(
                         child: FilledButton.icon(
                           onPressed: () => setState(() => navIndex = 1),
                           icon: const Icon(Icons.home_repair_service_rounded),
-                          label: const Text('Voir les services'),
+                          label: const Text('Découvrir les services'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: BabifixDesign.cyan,
+                            foregroundColor: BabifixDesign.navy,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 26, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                            textStyle: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 15),
+                          ),
                         ),
                       ),
                     ],

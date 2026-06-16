@@ -932,28 +932,49 @@ class _PaymentScreenState extends State<PaymentScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Icône opérateur avec pulsation
-              CustomAnimatedBuilder(
-                animation: _pulseAnim,
-                builder: (_, child) =>
-                    Transform.scale(scale: _pulseAnim.value, child: child),
-                child: Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: op.color.withValues(alpha: 0.12),
-                    border: Border.all(
-                      color: op.color.withValues(alpha: 0.3),
-                      width: 2,
+              // Logo opérateur : anneau de chargement qui tourne + pulsation.
+              SizedBox(
+                width: 132,
+                height: 132,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 132,
+                      height: 132,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor: AlwaysStoppedAnimation<Color>(op.color),
+                        backgroundColor: op.color.withValues(alpha: 0.12),
+                      ),
                     ),
-                  ),
-                  child: Center(
-                    child: BabifixPaymentMethodLogo(
-                      methodId: op.id,
-                      height: 52,
+                    CustomAnimatedBuilder(
+                      animation: _pulseAnim,
+                      builder: (_, child) =>
+                          Transform.scale(scale: _pulseAnim.value, child: child),
+                      child: Container(
+                        width: 104,
+                        height: 104,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: op.color.withValues(alpha: 0.12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: op.color.withValues(alpha: 0.25),
+                              blurRadius: 24,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: BabifixPaymentMethodLogo(
+                            methodId: op.id,
+                            height: 50,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
               const SizedBox(height: 28),
