@@ -4085,12 +4085,31 @@ class _ClientHomePageState extends State<ClientHomePage> {
           boxShadow: isPending
               ? [
                   BoxShadow(
-                    color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
                   ),
                 ]
-              : null,
+              : isActive
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.18),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : isCancelled
+                      ? null
+                      : [
+                          // Ombre douce pour la profondeur (cartes terminées/standard).
+                          BoxShadow(
+                            color: _isLight
+                                ? const Color(0x140F172A)
+                                : const Color(0x33000000),
+                            blurRadius: 14,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
