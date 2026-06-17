@@ -413,49 +413,146 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.workspace_premium_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Premium ${_currentTier.toUpperCase()}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$_daysRemaining jours restants',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Commission : ${_commissionEffective.toStringAsFixed(0)}%',
+                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Premium ${_currentTier.toUpperCase()}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _subscribing ? null : _cancelSubscription,
+              icon: const Icon(Icons.cancel_outlined,
+                  size: 18, color: Colors.white),
+              label: const Text(
+                'Résilier mon abonnement',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$_daysRemaining jours restants',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.6)),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Commission : ${_commissionEffective.toStringAsFixed(0)}%',
-                  style: const TextStyle(color: Colors.white60, fontSize: 12),
-                ),
-              ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _cancelSubscription() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF152A45),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Résilier l\'abonnement ?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Vous repasserez en formule Standard : commission de base (18 %), '
+          '3 devis actifs et perte du badge. Cette action est immédiate.',
+          style: TextStyle(color: Color(0xFFB4C2D9), height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler',
+                style: TextStyle(color: Color(0xFFB4C2D9))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: BabifixDesign.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Résilier'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() { _subscribing = true; });
+    try {
+      final resp = await BabifixUserStore.authPost(
+        '/api/prestataire/premium/subscribe/',
+        body: jsonEncode({'tier': 'standard'}),
+      );
+      final data = jsonDecode(resp.body);
+      if (resp.statusCode == 200 && data['ok'] == true) {
+        if (!mounted) return;
+        showBabifixToast(
+          context,
+          type: BabifixToastType.info,
+          message: 'Abonnement résilié — retour en Standard.',
+        );
+        await _load();
+      } else {
+        if (!mounted) return;
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: data['error']?.toString() ?? 'Erreur',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showBabifixToast(
+        context,
+        type: BabifixToastType.error,
+        message: userFriendlyError(e),
+      );
+    } finally {
+      if (mounted) setState(() { _subscribing = false; });
+    }
   }
 
   Widget _buildCommissionInfo() {
