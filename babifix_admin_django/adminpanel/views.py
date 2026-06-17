@@ -4689,14 +4689,20 @@ def api_auth_me(request):
             profile.country_code = country
             fields.append("country_code")
         # Photo de profil (avatar) — base64 data:image → fichier (Cloudinary).
+        # Ne JAMAIS faire échouer la requête à cause de l'avatar : on isole.
         photo = str(
             payload.get("photo_b64") or payload.get("avatar_b64") or ""
         )
         if photo.startswith("data:image/"):
-            saved = _decode_and_save_media(photo, "avatars", "avatar")
-            if saved:
-                profile.avatar_url = saved
-                fields.append("avatar_url")
+            try:
+                saved = _decode_and_save_media(photo, "avatars", "avatar")
+                if saved:
+                    profile.avatar_url = saved
+                    fields.append("avatar_url")
+                else:
+                    logger.warning("Avatar non enregistré (données invalides) user=%s", user.id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Echec enregistrement avatar user=%s: %s", user.id, exc)
         if fields:
             profile.save(update_fields=fields)
 

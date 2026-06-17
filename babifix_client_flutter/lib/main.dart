@@ -5534,18 +5534,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
             );
           }
           debugPrint('BABIFIX-GPS: STEP 4 pos=${pos.latitude},${pos.longitude}');
-          // Garde-fou émulateur (Mountain View → fallback Abidjan).
-          final useLat = isInCotedIvoire(pos.latitude, pos.longitude)
-              ? pos.latitude
-              : kAbidjanLat;
-          final useLon = isInCotedIvoire(pos.latitude, pos.longitude)
-              ? pos.longitude
-              : kAbidjanLon;
-          params['lat'] = useLat.toStringAsFixed(6);
-          params['lon'] = useLon.toStringAsFixed(6);
-          // Rayon adaptatif backend (5 → 15 → 30 → 50 km, premier non-vide).
-          params['radius'] = 'auto';
-          debugPrint('BABIFIX: Filtering providers near (${params['lat']}, ${params['lon']}) radius=auto');
+          // On n'utilise QUE la vraie position GPS si elle est en Côte d'Ivoire
+          // (pas de point fictif). Hors CI (ex. émulateur), on laisse le repli
+          // ci-dessous prendre l'adresse réelle enregistrée par le client.
+          if (isInCotedIvoire(pos.latitude, pos.longitude)) {
+            params['lat'] = pos.latitude.toStringAsFixed(6);
+            params['lon'] = pos.longitude.toStringAsFixed(6);
+            params['radius'] = 'auto';
+            debugPrint('BABIFIX: position GPS réelle (${params['lat']}, ${params['lon']}) radius=auto');
+          }
         }
       } catch (e) {
         debugPrint('BABIFIX-GPS: EXCEPTION $e');
@@ -5738,8 +5735,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
             params['lat'] = pos.latitude.toStringAsFixed(6);
             params['lon'] = pos.longitude.toStringAsFixed(6);
           } else {
-            params['lat'] = kAbidjanLat.toStringAsFixed(6);
-            params['lon'] = kAbidjanLon.toStringAsFixed(6);
+            // Hors CI (émulateur) : on préfère l'adresse réelle enregistrée.
+            final saved = await BabifixUserStore.loadAddressCoords();
+            params['lat'] = (saved?.lat ?? kAbidjanLat).toStringAsFixed(6);
+            params['lon'] = (saved?.lng ?? kAbidjanLon).toStringAsFixed(6);
           }
         } else {
           // Pas de GPS : repli sur l'adresse enregistrée, sinon centre d'Abidjan.

@@ -282,12 +282,22 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   Future<void> _pickPhoto(ImageSource source) async {
     try {
       final x = await _picker.pickImage(
-          source: source, maxWidth: 1024, imageQuality: 85);
-      if (x == null) return;
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (x == null) return; // l'utilisateur a annulé
       final bytes = await x.readAsBytes();
-      if (bytes.lengthInBytes > 3 * 1024 * 1024) {
+      if (bytes.isEmpty) {
         if (!mounted) return;
-        _showSnack('Photo trop lourde (3 Mo max).', error: true);
+        _showSnack('Photo illisible, réessayez avec une autre image.',
+            error: true);
+        return;
+      }
+      if (bytes.lengthInBytes > 5 * 1024 * 1024) {
+        if (!mounted) return;
+        _showSnack('Photo trop lourde (5 Mo max).', error: true);
         return;
       }
       if (!mounted) return;
@@ -295,9 +305,17 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         _avatarBytes = bytes;
         _avatarChanged = true;
       });
-    } catch (_) {
+    } on PlatformException catch (e) {
       if (!mounted) return;
-      _showSnack('Impossible de charger la photo.', error: true);
+      // Message clair selon la cause (permission refusée, etc.).
+      final msg = (e.code == 'photo_access_denied' ||
+              e.code == 'camera_access_denied')
+          ? 'Accès refusé. Autorisez la galerie/caméra dans les réglages.'
+          : 'Impossible d\'ouvrir la photo (${e.code}).';
+      _showSnack(msg, error: true);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Impossible de charger la photo : $e', error: true);
     }
   }
 
