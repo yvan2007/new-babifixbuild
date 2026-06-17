@@ -5551,6 +5551,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
         debugPrint('BABIFIX-GPS: EXCEPTION $e');
       }
 
+      // Repli sans GPS : si aucune position n'a pu être obtenue (permission
+      // refusée, GPS coupé), on utilise l'adresse enregistrée au profil pour
+      // calculer quand même la distance en km vers les prestataires.
+      if (!params.containsKey('lat')) {
+        final saved = await BabifixUserStore.loadAddressCoords();
+        if (saved != null) {
+          params['lat'] = saved.lat.toStringAsFixed(6);
+          params['lon'] = saved.lng.toStringAsFixed(6);
+          params['radius'] = 'auto';
+          debugPrint('BABIFIX-GPS: repli adresse enregistrée (${params['lat']}, ${params['lon']})');
+        }
+      }
+
       final uri = Uri.parse('$base/api/public/providers/').replace(queryParameters: params);
       debugPrint('BABIFIX: Fetching providers from: $uri');
       final pres = await http.get(uri).timeout(const Duration(seconds: 15));
@@ -5729,12 +5742,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
             params['lon'] = kAbidjanLon.toStringAsFixed(6);
           }
         } else {
-          params['lat'] = kAbidjanLat.toStringAsFixed(6);
-          params['lon'] = kAbidjanLon.toStringAsFixed(6);
+          // Pas de GPS : repli sur l'adresse enregistrée, sinon centre d'Abidjan.
+          final saved = await BabifixUserStore.loadAddressCoords();
+          params['lat'] = (saved?.lat ?? kAbidjanLat).toStringAsFixed(6);
+          params['lon'] = (saved?.lng ?? kAbidjanLon).toStringAsFixed(6);
         }
       } catch (_) {
-        params['lat'] = kAbidjanLat.toStringAsFixed(6);
-        params['lon'] = kAbidjanLon.toStringAsFixed(6);
+        final saved = await BabifixUserStore.loadAddressCoords();
+        params['lat'] = (saved?.lat ?? kAbidjanLat).toStringAsFixed(6);
+        params['lon'] = (saved?.lng ?? kAbidjanLon).toStringAsFixed(6);
       }
       final uri = Uri.parse('$base/api/client/home').replace(queryParameters: params.isNotEmpty ? params : null);
       final res = await BabifixUserStore.authGet(uri.toString());
