@@ -137,6 +137,15 @@ INSTALLED_APPS = [
 # par le dict STORAGES, sinon Cloudinary n'est jamais utilisé et les médias
 # repartent sur le disque éphémère (images cassées après chaque déploiement).
 CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "").strip()
+# Tolérance : si la valeur a été collée avec le préfixe « CLOUDINARY_URL= »
+# (erreur fréquente dans le dashboard d'hébergement), on le retire pour que le
+# SDK Cloudinary puisse parser la chaîne « cloudinary://... » correctement.
+while CLOUDINARY_URL.upper().startswith("CLOUDINARY_URL="):
+    CLOUDINARY_URL = CLOUDINARY_URL.split("=", 1)[1].strip()
+# On réinjecte la valeur nettoyée dans l'environnement : le SDK Cloudinary lit
+# directement os.environ['CLOUDINARY_URL'].
+if CLOUDINARY_URL:
+    os.environ["CLOUDINARY_URL"] = CLOUDINARY_URL
 
 STORAGES = {
     "default": {
