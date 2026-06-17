@@ -324,6 +324,12 @@ urlpatterns = [
         api_prestataire_ratings,
         name="api-prestataire-ratings",
     ),
+    # L'app appelle la variante avec slash final → on l'enregistre aussi.
+    path(
+        "api/prestataire/ratings/",
+        api_prestataire_ratings,
+        name="api-prestataire-ratings-slash",
+    ),
     path(
         "api/reservation/paiement-acompte/",
         api_reservation_paiement_acompte,
