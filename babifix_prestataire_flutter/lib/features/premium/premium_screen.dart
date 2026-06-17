@@ -504,7 +504,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       child: Row(
         children: [
           Expanded(child: _toggleButton('Mensuel', false)),
-          Expanded(child: _toggleButton('Annuel −20%', true)),
+          Expanded(child: _toggleButton('Annuel · 2 mois offerts', true)),
         ],
       ),
     );
