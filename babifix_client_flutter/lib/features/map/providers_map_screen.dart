@@ -116,12 +116,17 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
           onTimeout: () => throw Exception('GPS timeout'),
         );
       }
-      // Garde-fou émulateur : si on est clairement hors de Côte d'Ivoire
-      // (typiquement Mountain View, lat≈37°), on retombe sur Abidjan
-      // pour ne pas casser les calculs de distance & l'expérience carto.
-      _myPosition = isInCotedIvoire(pos.latitude, pos.longitude)
-          ? LatLng(pos.latitude, pos.longitude)
-          : const LatLng(kAbidjanLat, kAbidjanLon);
+      // Position GPS réelle si en Côte d'Ivoire. Hors CI (émulateur), on
+      // préfère l'adresse RÉELLE enregistrée au profil plutôt qu'un point
+      // fictif (Abidjan), pour des distances exactes.
+      if (isInCotedIvoire(pos.latitude, pos.longitude)) {
+        _myPosition = LatLng(pos.latitude, pos.longitude);
+      } else {
+        final saved = await BabifixUserStore.loadAddressCoords();
+        _myPosition = saved != null
+            ? LatLng(saved.lat, saved.lng)
+            : const LatLng(kAbidjanLat, kAbidjanLon);
+      }
       _mapCtrl.move(_myPosition!, 12);
       await _loadProviders();
     } catch (e) {

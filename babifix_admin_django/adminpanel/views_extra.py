@@ -1699,8 +1699,8 @@ def api_prestataire_kyc_submit(request):
     errors = {}
     if not cni_number:
         errors["cni_number"] = ["Ce champ est requis."]
-    if not cni_expiry:
-        errors["cni_expiry"] = ["Cette date est requise."]
+    elif len(cni_number) < 5:
+        errors["cni_number"] = ["Numéro de CNI trop court."]
     if not cni_recto:
         errors["cni_recto_b64"] = ["Photo recto requise."]
     if not cni_verso:
@@ -1708,23 +1708,52 @@ def api_prestataire_kyc_submit(request):
     if not selfie:
         errors["selfie_b64"] = ["Selfie requis."]
 
+    # Date d'expiration : requise, valide, et NON expirée (KYC strict).
+    expiry_date = None
+    if not cni_expiry:
+        errors["cni_expiry"] = ["Cette date est requise."]
+    else:
+        try:
+            expiry_date = datetime.strptime(cni_expiry, "%Y-%m-%d").date()
+            if expiry_date <= timezone.now().date():
+                errors["cni_expiry"] = [
+                    "Cette pièce d'identité est expirée. Fournissez une CNI valide."
+                ]
+        except ValueError:
+            errors["cni_expiry"] = ["Date invalide (format attendu : AAAA-MM-JJ)."]
+
+    # Les photos doivent être de vraies images base64.
+    for key, val in (
+        ("cni_recto_b64", cni_recto),
+        ("cni_verso_b64", cni_verso),
+        ("selfie_b64", selfie),
+    ):
+        if val and not val.startswith("data:image/"):
+            errors[key] = ["Image invalide."]
+
     if errors:
         return JsonResponse({"error": "validation_failed", "fields": errors}, status=400)
 
+    # Stockage robuste : on envoie les pièces sur Cloudinary (URL persistante)
+    # plutôt que de garder le base64 brut en base. Repli base64 si l'upload
+    # échoue (on ne perd jamais le document).
+    from .views import _decode_and_save_media
+
+    def _store(b64: str, prefix: str) -> str:
+        try:
+            url = _decode_and_save_media(b64, "kyc", prefix)
+            return url or b64
+        except Exception:
+            return b64
+
     # Mise à jour fournisseur
     provider.kyc_cni_number = cni_number
-    provider.kyc_cni_recto_url = cni_recto
-    provider.kyc_cni_verso_url = cni_verso
-    provider.kyc_selfie_url = selfie
+    provider.kyc_cni_recto_url = _store(cni_recto, "cni_recto")
+    provider.kyc_cni_verso_url = _store(cni_verso, "cni_verso")
+    provider.kyc_selfie_url = _store(selfie, "selfie")
     provider.kyc_status = "pending"
     provider.kyc_submitted_at = timezone.now()
-
-    # Date d'expiration
-    if cni_expiry:
-        try:
-            provider.kyc_cni_expiry = datetime.strptime(cni_expiry, "%Y-%m-%d").date()
-        except ValueError:
-            pass  # ignore, garde null
+    provider.kyc_cni_expiry = expiry_date
 
     provider.save(update_fields=[
         "kyc_cni_number", "kyc_cni_recto_url", "kyc_cni_verso_url",
