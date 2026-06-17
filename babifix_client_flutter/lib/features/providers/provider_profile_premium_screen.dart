@@ -1003,6 +1003,7 @@ class _ProviderProfilePremiumScreenState
   Widget _bottomBar() {
     final p = _p!;
     final name = ('${p['prenom'] ?? ''} ${p['nom'] ?? ''}').trim();
+    final disponible = (p['disponible'] ?? true) as bool;
     return SafeArea(
       top: false,
       child: Container(
@@ -1052,7 +1053,9 @@ class _ProviderProfilePremiumScreenState
             const SizedBox(width: 10),
             Expanded(
               child: ElevatedButton(
-                onPressed: () async {
+                onPressed: !disponible
+                    ? null
+                    : () async {
                   // Vérifier l'auth avant d'ouvrir le flow.
                   final token = await BabifixUserStore.getApiToken();
                   if (token == null || token.isEmpty) {
@@ -1087,19 +1090,26 @@ class _ProviderProfilePremiumScreenState
                 style: ElevatedButton.styleFrom(
                   backgroundColor: BabifixDesign.cyan,
                   foregroundColor: const Color(0xFF0B1B34),
+                  disabledBackgroundColor: const Color(0xFFE2E8F0),
+                  disabledForegroundColor: const Color(0xFF94A3B8),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.calendar_month_rounded, size: 18),
-                    SizedBox(width: 8),
+                    Icon(
+                      disponible
+                          ? Icons.calendar_month_rounded
+                          : Icons.event_busy_rounded,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
                     Text(
-                      'Réserver',
-                      style: TextStyle(
+                      disponible ? 'Réserver' : 'Indisponible',
+                      style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.3),

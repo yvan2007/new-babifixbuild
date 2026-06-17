@@ -1856,7 +1856,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ),
                           ],
                         ),
-                        child: Material(
+                        child: Opacity(
+                          opacity: p.disponible ? 1.0 : 0.5,
+                          child: Material(
                           color: _cardBg,
                           borderRadius: BorderRadius.circular(20),
                           clipBehavior: Clip.antiAlias,
@@ -2010,6 +2012,41 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                               compact: true,
                                             ),
                                           ],
+                                          if (!p.disponible) ...[
+                                            const SizedBox(height: 4),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 3,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0x1FF59E0B),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.event_busy_rounded,
+                                                    size: 12,
+                                                    color: Color(0xFFB45309),
+                                                  ),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    'Indisponible',
+                                                    style: TextStyle(
+                                                      fontSize: 10.5,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: Color(0xFFB45309),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                           // Prix supprimé — chaque devis est sur mesure
                                         ],
                                       ),
@@ -2019,6 +2056,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               ),
                             ),
                           ),
+                        ),
                         ),
                       ),
                     );

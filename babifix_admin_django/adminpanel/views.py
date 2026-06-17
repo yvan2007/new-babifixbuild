@@ -2003,7 +2003,9 @@ def api_client_home(request):
     for p in (
         Provider.objects.filter(statut=Provider.Status.VALID, is_deleted=False)
         .select_related("category", "user")
-        .order_by("-user__date_joined")[:12]
+        # Disponibles d'abord, puis les plus récents : les indisponibles
+        # se retrouvent tout en bas de la liste « Nouveaux prestataires ».
+        .order_by("-disponible", "-user__date_joined")[:12]
     ):
         recent_providers.append(
             {
@@ -3101,6 +3103,18 @@ def api_client_create_reservation(request):
             {
                 "error": "provider_unavailable",
                 "message": "Ce prestataire n'est pas disponible actuellement.",
+            },
+            status=400,
+        )
+
+    # Prestataire marqué indisponible manuellement (bouton dispo OFF) : on
+    # refuse la réservation côté serveur (défense en profondeur, même si l'UI
+    # désactive déjà le bouton « Réserver »).
+    if prov and not prov.disponible:
+        return JsonResponse(
+            {
+                "error": "provider_unavailable",
+                "message": "Ce prestataire est actuellement indisponible.",
             },
             status=400,
         )
