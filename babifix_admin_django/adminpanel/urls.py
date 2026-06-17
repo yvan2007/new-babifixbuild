@@ -1,6 +1,11 @@
 from django.urls import path
 
-from .geniuspay import geniuspay_initiate, geniuspay_status, geniuspay_webhook
+from .geniuspay import (
+    geniuspay_initiate,
+    geniuspay_premium_initiate,
+    geniuspay_status,
+    geniuspay_webhook,
+)
 from . import views_calls as _calls_views
 from .views_b2b import (
     api_pro_formules,
@@ -618,6 +623,7 @@ urlpatterns = [
     path("api/prestataire/premium/tiers/", api_premium_tiers, name="api-premium-tiers"),
     path("api/prestataire/premium/subscribe/", api_premium_subscribe, name="api-premium-subscribe"),
     path("api/prestataire/premium/calculator/", api_premium_calculator, name="api-premium-calculator"),
+    path("api/prestataire/premium/pay/", geniuspay_premium_initiate, name="api-premium-pay"),
     path("api/client/fidelite/", api_client_fidelite, name="api-client-fidelite"),
     path("api/admin/business-kpis/", api_admin_business_kpis, name="api-admin-business-kpis"),
     path("dashboard/kpis/", kpi_dashboard_page, name="kpi-dashboard"),

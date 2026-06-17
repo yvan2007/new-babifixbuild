@@ -423,6 +423,211 @@ def geniuspay_initiate(request):
 
 
 # ---------------------------------------------------------------------------
+# Abonnement premium prestataire payé via Mobile Money (GeniusPay)
+# ---------------------------------------------------------------------------
+def _activate_premium_from_payment(payment) -> bool:
+    """Active l'abonnement premium à partir d'un Payment 'PREMIUM-…' complété.
+
+    La référence encode tout le contexte : PREMIUM-{provider_id}-{tier}-{A|M}-{hex}.
+    Utilisé par la simulation (auto-validation) ET par le webhook réel.
+    """
+    ref = payment.reference or ""
+    if not ref.startswith("PREMIUM-"):
+        return False
+    parts = ref.split("-")
+    if len(parts) < 4:
+        return False
+    try:
+        provider_id = int(parts[1])
+    except (ValueError, TypeError):
+        return False
+    tier = parts[2].lower()
+    is_annual = parts[3].upper() == "A"
+
+    from .models import Provider
+    from .services.provider_subscription_service import (
+        ProviderSubscriptionService,
+        PREMIUM_TIERS,
+    )
+
+    if tier not in PREMIUM_TIERS:
+        return False
+    provider = Provider.objects.filter(pk=provider_id).first()
+    if not provider:
+        return False
+
+    duration = 365 if is_annual else 30
+    result = ProviderSubscriptionService.subscribe(
+        provider, tier, duration_days=duration, is_annual=is_annual
+    )
+    if not result.success:
+        return False
+    # Enregistrer le revenu premium + notifier le prestataire.
+    try:
+        from .services.wallet_service import WalletService
+        WalletService.credit_provider_premium(provider, tier, payment.montant)
+    except Exception as exc:
+        logger.warning("credit_provider_premium failed: %s", exc)
+    try:
+        from .views_finance import _notify_premium_activated
+        _notify_premium_activated(provider, tier, trial=False)
+    except Exception:
+        pass
+    logger.info("Premium activé via GeniusPay pour provider=%s tier=%s", provider_id, tier)
+    return True
+
+
+@require_api_auth(["prestataire", "admin"])
+def geniuspay_premium_initiate(request):
+    """
+    POST → payer un abonnement premium via Mobile Money (GeniusPay).
+
+    Body JSON : tier ('silver'|'gold'), billing_period ('monthly'|'annual'),
+                mobile_money_operator (ORANGE_MONEY|MTN_MOMO|WAVE|MOOV).
+
+    Au succès (simulation, sandbox, ou webhook réel), l'abonnement est activé
+    directement — sans transiter par le wallet.
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "method_not_allowed"}, status=405)
+    if check_rate_limit(request, "geniuspay", max_requests=10, window=60):
+        return rate_limited_response()
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    from .models import Provider
+    from .services.provider_subscription_service import PREMIUM_TIERS, annual_price
+
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    tier = str(payload.get("tier") or "").lower()
+    if tier not in PREMIUM_TIERS:
+        return JsonResponse(
+            {"error": "tier_invalide", "valid": list(PREMIUM_TIERS.keys())}, status=400
+        )
+    billing_period = str(payload.get("billing_period") or "monthly").lower()
+    is_annual = billing_period == "annual"
+    monthly = int(PREMIUM_TIERS[tier]["price"])
+    montant_int = annual_price(monthly) if is_annual else monthly
+
+    operator_raw = str(
+        payload.get("mobile_money_operator") or payload.get("payment_method") or ""
+    ).upper().strip()
+    phone = str(payload.get("phone", "")).strip()
+    customer_name = str(
+        payload.get("customer_name", provider.nom or "Prestataire BABIFIX")
+    ).strip()
+
+    payment_ref = (
+        f"PREMIUM-{provider.id}-{tier}-{'A' if is_annual else 'M'}-"
+        f"{uuid.uuid4().hex[:6].upper()}"
+    )
+    payment = Payment.objects.create(
+        reference=payment_ref,
+        client="",
+        prestataire=provider.nom or "",
+        montant=str(montant_int),
+        commission="0",
+        etat=Payment.State.PENDING,
+        reservation=None,
+        type_paiement=Payment.TypePaiement.MOBILE_MONEY,
+        valide_par_admin=False,
+        reference_externe="",
+    )
+
+    def _fake_validate(extref: str) -> JsonResponse:
+        payment.reference_externe = extref
+        payment.etat = Payment.State.COMPLETE
+        payment.save(update_fields=["reference_externe", "etat"])
+        _activate_premium_from_payment(payment)
+        return JsonResponse({
+            "ok": True,
+            "transaction_id": extref,
+            "payment_id": payment.pk,
+            "checkout_url": "",
+            "payment_url": "",
+            "status": "valide",
+            "tier": tier,
+            "is_annual": is_annual,
+            "message": "Abonnement premium activé (simulation).",
+        })
+
+    # Mode simulation (dev / sandbox / clés absentes) → activation immédiate.
+    if settings.DEBUG or GENIUSPAY_SANDBOX:
+        return _fake_validate("MTX-SANDBOX-" + uuid.uuid4().hex[:8].upper())
+
+    genius_payload = {
+        "amount": montant_int,
+        "currency": "XOF",
+        "customer": {
+            "name": customer_name,
+            "email": f"presta_{provider.id}@babifix.ci",
+            "phone": phone or "",
+            "country": "CI",
+        },
+        "metadata": {
+            "premium": True,
+            "provider_id": str(provider.id),
+            "tier": tier,
+            "billing": "annual" if is_annual else "monthly",
+            "payment_ref": payment_ref,
+        },
+        "success_url": GENIUSPAY_SUCCESS_URL or "",
+        "error_url": GENIUSPAY_ERROR_URL or "",
+    }
+    if operator_raw in _OPERATOR_MAP:
+        genius_payload["payment_method"] = _OPERATOR_MAP[operator_raw]
+
+    genius_resp = _genius_request("POST", "/payments", genius_payload)
+    if not genius_resp.get("success"):
+        if settings.DEBUG or not GENIUSPAY_PUBLIC_KEY or not GENIUSPAY_SECRET_KEY:
+            return _fake_validate("MTX-SIMUL-" + uuid.uuid4().hex[:8].upper())
+        payment.delete()
+        return JsonResponse(
+            {
+                "error": "geniuspay_error",
+                "message": genius_resp.get("message") or genius_resp.get("error") or "Erreur GeniusPay",
+            },
+            status=502,
+        )
+
+    data = genius_resp.get("data", {})
+    genius_reference = data.get("reference", "")
+    payment.reference_externe = genius_reference
+    payment.save(update_fields=["reference_externe"])
+    status = data.get("status", "pending")
+
+    if str(genius_reference).startswith("SANDBOX_") or status.lower() in ("success", "valide"):
+        payment.etat = Payment.State.COMPLETE
+        payment.save(update_fields=["etat"])
+        _activate_premium_from_payment(payment)
+        return JsonResponse({
+            "ok": True,
+            "transaction_id": genius_reference,
+            "payment_id": payment.pk,
+            "checkout_url": data.get("checkout_url", ""),
+            "payment_url": data.get("payment_url", ""),
+            "status": "COMPLETE",
+            "tier": tier,
+            "is_annual": is_annual,
+            "message": "Abonnement premium activé !",
+        })
+
+    return JsonResponse({
+        "transaction_id": genius_reference,
+        "payment_id": payment.pk,
+        "checkout_url": data.get("checkout_url", ""),
+        "payment_url": data.get("payment_url", ""),
+        "status": status,
+        "message": "Paiement initié. Suivez les instructions sur votre téléphone.",
+    })
+
+
+# ---------------------------------------------------------------------------
 # GET /api/paiements/geniuspay/status/<reference>/
 # ---------------------------------------------------------------------------
 @require_api_auth(["client", "prestataire", "admin"])
@@ -575,6 +780,13 @@ def geniuspay_webhook(request):
 
             # Reçu PDF par e-mail (acompte ET solde)
             _send_receipt_email(payment)
+
+        # Paiement d'abonnement premium (sans réservation) → activer le premium.
+        if not payment.reservation and (payment.reference or "").startswith("PREMIUM-"):
+            try:
+                _activate_premium_from_payment(payment)
+            except Exception as exc:
+                logger.warning("Premium activation (webhook) failed: %s", exc)
 
         logger.info("GeniusPay webhook — paiement %s SUCCÈS (%s) pour %s",
                     payment.reference, phase,

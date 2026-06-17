@@ -129,6 +129,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
     final price = (data['price'] ?? 0).toDouble();
     final solde = (data['solde_actuel'] ?? 0).toDouble();
     final tier = (data['tier'] ?? '').toString();
+    final billingPeriod = (data['billing_period'] ?? 'monthly').toString();
     final diff = (price - solde).clamp(0, double.infinity);
 
     String? selectedOperator;
@@ -210,7 +211,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       Navigator.pop(ctx);
                       _payPremiumViaMobileMoney(
                         tier: tier,
-                        amount: price.toInt(),
+                        billingPeriod: billingPeriod,
                         operator: selectedOperator!,
                       );
                     },
@@ -221,45 +222,56 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
-  /// Payer l'abonnement via Mobile Money (GeniusPay). Ouvre la page de
-  /// checkout dans le navigateur. Au retour, l'utilisateur peut
-  /// re-cliquer sur l'abonnement → le backend confirme avec le wallet
-  /// rechargé entretemps.
+  /// Payer l'abonnement premium via Mobile Money (GeniusPay) — endpoint dédié.
+  /// En simulation, l'abonnement est activé immédiatement (réponse ok:true).
+  /// En paiement réel, une page de checkout s'ouvre ; le webhook GeniusPay
+  /// activera l'abonnement à la confirmation.
   Future<void> _payPremiumViaMobileMoney({
     required String tier,
-    required int amount,
+    required String billingPeriod,
     required String operator,
   }) async {
+    setState(() { _subscribing = true; });
     try {
       final resp = await BabifixUserStore.authPost(
-        '/api/paiements/geniuspay/initiate/',
+        '/api/prestataire/premium/pay/',
         body: jsonEncode({
-          'montant': amount,
-          'customer_name': 'Prestataire BABIFIX',
-          // pas de reservation : c'est un paiement abonnement
-          'note': 'Abonnement Premium $tier',
+          'tier': tier,
+          'billing_period': billingPeriod,
           'mobile_money_operator': operator,
         }),
       );
       if (resp.statusCode >= 400) {
         if (mounted) {
           showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Échec initialisation paiement : ${resp.statusCode}',
-      );
+            context,
+            type: BabifixToastType.error,
+            message: 'Échec initialisation paiement : ${resp.statusCode}',
+          );
         }
         return;
       }
       final j = jsonDecode(resp.body);
+      // Activation immédiate (simulation / sandbox / auto-validation).
+      if (j['ok'] == true) {
+        if (!mounted) return;
+        showBabifixToast(
+          context,
+          type: BabifixToastType.info,
+          message: 'Abonnement ${tier.toUpperCase()} activé',
+        );
+        await _load();
+        return;
+      }
+      // Paiement réel : ouvrir la page de checkout. Le webhook activera ensuite.
       final url = (j['checkout_url'] ?? j['payment_url'] ?? '').toString();
       if (url.isEmpty) {
         if (mounted) {
           showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Paiement simulé. Réessayez de souscrire à l\'abonnement.',
-      );
+            context,
+            type: BabifixToastType.warning,
+            message: 'Paiement initié. Vérifiez votre téléphone, puis actualisez.',
+          );
         }
         return;
       }
@@ -267,19 +279,21 @@ class _PremiumScreenState extends State<PremiumScreen> {
           mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: "Impossible d'ouvrir la page de paiement.",
-      );
+          context,
+          type: BabifixToastType.error,
+          message: "Impossible d'ouvrir la page de paiement.",
+        );
       }
     } catch (e) {
       if (mounted) {
         showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: userFriendlyError(e),
-      );
+          context,
+          type: BabifixToastType.error,
+          message: userFriendlyError(e),
+        );
       }
+    } finally {
+      if (mounted) setState(() { _subscribing = false; });
     }
   }
 
