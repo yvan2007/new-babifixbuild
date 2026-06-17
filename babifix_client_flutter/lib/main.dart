@@ -5462,19 +5462,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Future<void> _loadRemoteData() async {
-    setState(() => loadingRemote = true);
+    if (mounted) setState(() => loadingRemote = true);
 
-    // Charger les categories publiques (sans authentification)
-    await _loadPublicCategories();
+    // try/finally : quoi qu'il arrive (timeout, erreur réseau, cold start),
+    // on éteint TOUJOURS le loader → l'app ne reste jamais figée sur l'écran vide.
+    try {
+      // Catégories publiques (sans authentification)
+      await _loadPublicCategories();
 
-    // Charger les prestataires sans authentification (force pour refresh)
-    await _loadPublicProviders(forceUpdate: true);
+      // Prestataires publics (force pour refresh)
+      await _loadPublicProviders(forceUpdate: true);
 
-    // Charger les donnees utilisateur (si connecte)
-    if (authToken != null) {
-      await _loadClientHomeData();
-    } else {
-      await _loadPublicActualites();
+      // Données utilisateur (si connecté)
+      if (authToken != null) {
+        await _loadClientHomeData();
+      } else {
+        await _loadPublicActualites();
+      }
+    } catch (e) {
+      debugPrint('BABIFIX: _loadRemoteData error: $e');
+    } finally {
       if (mounted) {
         setState(() => loadingRemote = false);
         Future.delayed(const Duration(milliseconds: 600), () {
@@ -5633,7 +5640,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
       final base = babifixApiBaseUrl();
       final url = '$base/api/public/categories/';
       debugPrint('BABIFIX: _loadPublicCategories START');
-      final cres = await http.get(Uri.parse(url));
+      final cres = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 40));
       debugPrint('BABIFIX: Categories response status: ${cres.statusCode}');
       if (cres.statusCode == 200) {
         final cdata = jsonDecode(cres.body) as Map<String, dynamic>;
@@ -5679,16 +5686,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
     } catch (e) {
       debugPrint('BABIFIX: Error loading categories: $e');
     }
-    if (mounted) {
-      setState(() => loadingRemote = false);
-    }
+    // Note : le loader est éteint par le finally de _loadRemoteData.
   }
 
   Future<void> _loadPublicActualites() async {
     try {
       final base = babifixApiBaseUrl();
       final url = '$base/api/public/actualites';
-      final res = await http.get(Uri.parse(url));
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 40));
       if (res.statusCode == 200 && mounted) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final items = (data['items'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();

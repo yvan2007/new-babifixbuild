@@ -84,20 +84,22 @@ class BabifixUserStore {
   }) async {
     var token = await getApiToken();
     final fullUrl = url.startsWith('http') ? url : '${babifixApiBaseUrl()}$url';
+    // Timeout généreux pour survivre au réveil du serveur (cold start Render),
+    // mais borné pour ne jamais figer l'app indéfiniment.
     var res = await http.get(
       Uri.parse(fullUrl),
       headers: {
         if (token != null) 'Authorization': 'Bearer $token',
         ...extraHeaders,
       },
-    );
+    ).timeout(const Duration(seconds: 40));
     if (res.statusCode == 401) {
       final fresh = await refreshAccessToken();
       if (fresh != null) {
         res = await http.get(
           Uri.parse(fullUrl),
           headers: {'Authorization': 'Bearer $fresh', ...extraHeaders},
-        );
+        ).timeout(const Duration(seconds: 40));
       }
     }
     return res;
