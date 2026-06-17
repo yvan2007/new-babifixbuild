@@ -359,6 +359,12 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         addressLat: _addrLat,
         addressLng: _addrLng,
       );
+      // Persistance serveur (visible après reconnexion / autre appareil).
+      await BabifixUserStore.pushProfileToServer(
+        name: nameCtrl.text.trim(),
+        email: emailCtrl.text.trim(),
+        phone: phoneCtrl.text.trim(),
+      );
       if (_avatarChanged) {
         if (_avatarBytes != null) {
           await BabifixUserStore.saveAvatarBytes(_avatarBytes!);

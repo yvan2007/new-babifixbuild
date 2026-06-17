@@ -4578,11 +4578,17 @@ def api_auth_register(request):
 
     import secrets as _secrets
 
+    # Nom complet choisi à l'inscription (stocké dans first_name pour persister
+    # côté serveur — sinon le nom serait perdu à la reconnexion / réinstallation).
+    full_name = str(payload.get("name") or payload.get("full_name") or "").strip()[:150]
     user = User.objects.create_user(
         username=username,
         password=password,
         email=email if email else None,
     )
+    if full_name:
+        user.first_name = full_name
+        user.save(update_fields=["first_name"])
     email_token = _secrets.token_urlsafe(32)
     profile = UserProfile.objects.create(
         user=user,
@@ -4619,7 +4625,7 @@ def api_auth_register(request):
         try:
             client_email = user.email or username
             Client.objects.create(
-                nom=username,
+                nom=full_name or username,
                 email=client_email,
                 ville=country_code,
                 reservations=0,
@@ -4663,6 +4669,18 @@ def api_auth_me(request):
             )
         phone_e164 = str(payload.get("phone_e164") or payload.get("phone") or "").strip()[:24]
         country = str(payload.get("country_code") or "").strip()[:5]
+        # Nom complet + email modifiables depuis l'écran « Mon profil ».
+        name = str(payload.get("name") or payload.get("full_name") or "").strip()[:150]
+        new_email = str(payload.get("email") or "").strip()[:254]
+        user_fields = []
+        if name and name != user.first_name:
+            user.first_name = name
+            user_fields.append("first_name")
+        if new_email and new_email != (user.email or ""):
+            user.email = new_email
+            user_fields.append("email")
+        if user_fields:
+            user.save(update_fields=user_fields)
         fields = []
         if phone_e164:
             profile.phone_e164 = phone_e164
@@ -4682,10 +4700,15 @@ def api_auth_me(request):
         if fields:
             profile.save(update_fields=fields)
 
+    full_name = (user.first_name or "").strip() or (
+        f"{user.first_name} {user.last_name}".strip()
+    )
     return JsonResponse(
         {
             "id": int(user.id),
             "username": user.username,
+            "name": full_name,
+            "email": user.email or "",
             "role": request.api_role,
             "phone_e164": profile.phone_e164 if profile else "",
             "country_code": profile.country_code if profile else "CI",

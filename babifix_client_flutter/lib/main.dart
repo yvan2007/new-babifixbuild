@@ -958,9 +958,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Future<void> _loadProfile() async {
+    final logged = await BabifixUserStore.isLoggedIn();
+    // Récupère nom/téléphone réels du serveur (corrige le nom = email hérité,
+    // et remonte le téléphone saisi à l'inscription). Sans réseau : valeurs locales.
+    if (logged) {
+      await BabifixUserStore.hydrateProfileFromServer();
+    }
     final m = await BabifixUserStore.loadProfile();
     final av = await BabifixUserStore.loadAvatarBytes();
-    final logged = await BabifixUserStore.isLoggedIn();
     if (!mounted) return;
     setState(() {
       sessionLoggedIn = logged;

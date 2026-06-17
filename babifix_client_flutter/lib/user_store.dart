@@ -176,6 +176,78 @@ class BabifixUserStore {
     };
   }
 
+  /// Récupère le profil réel depuis le serveur (`/api/auth/me`) et le fusionne
+  /// dans le stockage local : nom complet, email, téléphone saisis à
+  /// l'inscription. Évite que le nom affiché soit l'email après reconnexion.
+  /// Silencieux en cas d'échec réseau (on garde les valeurs locales).
+  static Future<void> hydrateProfileFromServer() async {
+    try {
+      final token = await getApiToken();
+      if (token == null || token.isEmpty) return;
+      final res = await http
+          .get(
+            Uri.parse('${babifixApiBaseUrl()}/api/auth/me'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return;
+      final d = jsonDecode(res.body) as Map<String, dynamic>;
+      final serverName = (d['name'] ?? '').toString().trim();
+      final serverEmail = (d['email'] ?? '').toString().trim();
+      final serverPhone = (d['phone_e164'] ?? '').toString().trim();
+      final local = await loadProfile();
+      // On n'écrase un champ local que si le serveur a une valeur utile.
+      await saveProfile(
+        name: serverName.isNotEmpty ? serverName : null,
+        email: serverEmail.isNotEmpty ? serverEmail : null,
+        phone: serverPhone.isNotEmpty ? serverPhone : null,
+      );
+      // Si le serveur ne renvoie pas de nom mais que le local vaut l'email,
+      // on évite d'afficher l'email comme nom.
+      if (serverName.isEmpty) {
+        final n = (local['name'] ?? '').trim();
+        final em = (local['email'] ?? serverEmail).trim();
+        if (n.isNotEmpty && n == em && n.contains('@')) {
+          await saveProfile(name: n.split('@').first);
+        }
+      }
+    } catch (_) {
+      // Réseau indisponible : on conserve les valeurs locales.
+    }
+  }
+
+  /// Pousse les modifications du profil vers le serveur (`/api/auth/me`) pour
+  /// qu'elles persistent (visibles après reconnexion / sur un autre appareil).
+  static Future<void> pushProfileToServer({
+    String? name,
+    String? email,
+    String? phone,
+  }) async {
+    try {
+      final token = await getApiToken();
+      if (token == null || token.isEmpty) return;
+      final body = <String, dynamic>{};
+      if (name != null && name.trim().isNotEmpty) body['name'] = name.trim();
+      if (email != null && email.trim().isNotEmpty) body['email'] = email.trim();
+      if (phone != null && phone.trim().isNotEmpty) {
+        body['phone_e164'] = phone.trim();
+      }
+      if (body.isEmpty) return;
+      await http
+          .post(
+            Uri.parse('${babifixApiBaseUrl()}/api/auth/me'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 12));
+    } catch (_) {
+      // Silencieux : la valeur locale reste enregistrée.
+    }
+  }
+
   /// Coordonnées de l'adresse profil (repli proximité quand le GPS est coupé).
   static Future<({double lat, double lng})?> loadAddressCoords() async {
     final p = await SharedPreferences.getInstance();
@@ -260,6 +332,7 @@ class BabifixUserStore {
         body: jsonEncode({
           'username': key,
           'email': key, // Ajouter le champ email
+          'name': name.trim(), // Nom complet → persiste côté serveur
           'password': password,
           'role': 'client',
           'phone_e164': phone.trim(),
@@ -337,7 +410,10 @@ class BabifixUserStore {
         if (token != null) {
           await _saveApiToken(token);
           if (refreshToken != null) await _saveRefreshToken(refreshToken);
-          await saveProfile(name: username, email: email.trim());
+          // Email d'abord, puis on récupère nom/téléphone réels du serveur
+          // (ne PAS mettre name=username : ce serait l'email).
+          await saveProfile(email: email.trim());
+          await hydrateProfileFromServer();
           await _setSession(true);
           await BabifixFcm.registerTokenWithBackend(token);
           return null;
