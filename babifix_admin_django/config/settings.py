@@ -155,6 +155,19 @@ if CLOUDINARY_URL:
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
     }
 
+# Diagnostic visible dans les logs Render : confirme si les médias persistent.
+import sys as _sys
+print(
+    "[BABIFIX] Stockage médias : "
+    + (
+        "Cloudinary ✅ (médias persistants)"
+        if CLOUDINARY_URL
+        else "DISQUE LOCAL ⚠️ — CLOUDINARY_URL absent : les images seront perdues "
+        "au prochain redéploiement. Définissez CLOUDINARY_URL sur Render."
+    ),
+    file=_sys.stderr,
+)
+
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
