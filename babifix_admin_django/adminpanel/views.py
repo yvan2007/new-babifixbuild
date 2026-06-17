@@ -1069,12 +1069,22 @@ def _dashboard_kpi_payload():
     # L'ancien filtre ["En attente","Confirmee"] ratait les nouvelles demandes
     # (statut par défaut DEMANDE_ENVOYEE) → le compteur restait à 0.
     _TERMINAL = ["Terminee", "Annulee"]
-    total_providers = Provider.objects.count()
+    # Source de vérité = UserProfile (tout compte créé par les apps). Les tables
+    # Provider/Client sont secondaires : un prestataire n'a une ligne Provider
+    # qu'après le KYC, donc les compter raterait les inscrits récents (→ 0).
+    # On prend le maximum entre les deux pour rester juste dans tous les cas.
+    profiles_providers = UserProfile.objects.filter(
+        role=UserProfile.Role.PRESTATAIRE
+    ).count()
+    profiles_clients = UserProfile.objects.filter(
+        role=UserProfile.Role.CLIENT
+    ).count()
+    total_providers = max(Provider.objects.count(), profiles_providers)
     pending_providers = Provider.objects.filter(statut="En attente").count()
     total_reservations = Reservation.objects.count()
     active_reservations = Reservation.objects.exclude(statut__in=_TERMINAL).count()
     done_reservations = Reservation.objects.filter(statut="Terminee").count()
-    total_clients = Client.objects.count()
+    total_clients = max(Client.objects.count(), profiles_clients)
     payments_count = Payment.objects.count()
     open_disputes = Dispute.objects.filter(decision="En cours").count()
 
@@ -1157,18 +1167,53 @@ def _sync_missing_clients():
         Client.objects.bulk_create(to_create, ignore_conflicts=True)
 
 
+def _sync_missing_providers():
+    """Crée une ligne Provider minimale pour chaque UserProfile prestataire qui
+    n'en a pas encore (inscrit mais KYC non commencé).
+
+    Statut « En attente » → le prestataire reste invisible aux clients (seuls les
+    « Valide » s'affichent), mais il apparaît dans l'admin et est compté
+    correctement. Le KYC mettra ensuite à jour cette même ligne (pas de doublon).
+    """
+    existing_user_ids = set(
+        Provider.objects.exclude(user_id=None).values_list("user_id", flat=True)
+    )
+    profiles = UserProfile.objects.filter(
+        role=UserProfile.Role.PRESTATAIRE
+    ).select_related("user")
+    to_create = []
+    for profile in profiles:
+        if not profile.user_id or profile.user_id in existing_user_ids:
+            continue
+        user = profile.user
+        to_create.append(
+            Provider(
+                user=user,
+                nom=user.username,
+                specialite="",
+                ville=profile.country_code or "",
+                statut=Provider.Status.PENDING,
+            )
+        )
+        existing_user_ids.add(profile.user_id)
+    if to_create:
+        Provider.objects.bulk_create(to_create, ignore_conflicts=True)
+
+
 def _filter_lists_for_section(section, search_q):
     """
     Filtre les listes selon la section courante et le paramètre GET q=.
     """
     q = (search_q or "").strip()
+    # Synchroniser depuis UserProfile (rattrapage des inscriptions passées) :
+    # tout prestataire/client créé par les apps apparaît dans l'admin.
+    _sync_missing_providers()
+    _sync_missing_clients()
     providers = Provider.objects.filter(is_deleted=False).select_related(
         "user", "category"
     )
     reservations = Reservation.objects.all()
     litiges = Dispute.objects.all()
-    # Synchroniser les clients réels depuis UserProfile (rattrapage des inscriptions passées)
-    _sync_missing_clients()
     clients = Client.objects.all()
     paiements = Payment.objects.all()
     categories = Category.objects.all()
