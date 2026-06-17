@@ -54,6 +54,26 @@ PREMIUM_TIERS = {
 }
 
 
+# Formule annuelle : on paie 10 mois, on en obtient 12 (≈ 2 mois offerts).
+ANNUAL_PAID_MONTHS = 10
+ANNUAL_MONTHS = 12
+TRIAL_DAYS = 7
+
+
+def annual_price(monthly_price: int) -> int:
+    """Prix annuel (10 mois payés au lieu de 12)."""
+    return int(monthly_price) * ANNUAL_PAID_MONTHS
+
+
+def annual_savings_pct(monthly_price: int) -> int:
+    """Pourcentage d'économie de la formule annuelle vs 12 mois pleins."""
+    if not monthly_price:
+        return 0
+    full = monthly_price * ANNUAL_MONTHS
+    saved = full - annual_price(monthly_price)
+    return int(round(saved / full * 100))
+
+
 def get_tier_config(tier: str) -> dict:
     """Configuration d'un palier quelconque (standard inclus)."""
     t = (tier or "").lower()
@@ -92,6 +112,8 @@ class ProviderSubscriptionService:
         provider: Provider,
         tier: str,
         duration_days: int = 30,
+        is_annual: bool = False,
+        is_trial: bool = False,
     ) -> SubscriptionResult:
         """
         Souscrire a un abonnement premium.
@@ -117,12 +139,18 @@ class ProviderSubscriptionService:
             provider.premium_tier = tier.lower()
             provider.premium_since = timezone.now()
             provider.premium_until = timezone.now() + timezone.timedelta(days=duration_days)
-            provider.save(update_fields=[
+            provider.is_premium_annual = bool(is_annual)
+            update_fields = [
                 "is_premium",
                 "premium_tier",
                 "premium_since",
                 "premium_until",
-            ])
+                "is_premium_annual",
+            ]
+            if is_trial:
+                provider.premium_trial_used = True
+                update_fields.append("premium_trial_used")
+            provider.save(update_fields=update_fields)
             
             logger.info(
                 f"Provider {provider.id} subscribed to {tier} until {provider.premium_until}"
@@ -294,16 +322,22 @@ class ProviderSubscriptionService:
             "id": STANDARD_TIER["id"],
             "name": STANDARD_TIER["name"],
             "price": STANDARD_TIER["price"],
+            "price_annual": 0,
+            "annual_savings_pct": 0,
             "badge": STANDARD_TIER["badge"],
             "free": True,
+            "trial_available": False,
             "features": features(STANDARD_TIER),
         }]
         tiers += [{
             "id": tier_id,
             "name": config["name"],
             "price": config["price"],
+            "price_annual": annual_price(config["price"]),
+            "annual_savings_pct": annual_savings_pct(config["price"]),
             "badge": config["badge"],
             "free": False,
+            "trial_available": True,
             "features": features(config),
         } for tier_id, config in PREMIUM_TIERS.items()]
         return tiers

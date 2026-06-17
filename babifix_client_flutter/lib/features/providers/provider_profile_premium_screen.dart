@@ -207,6 +207,7 @@ class _ProviderProfilePremiumScreenState
   // ── Hero collapsible ─────────────────────────────────────────────
   Widget _hero(String name, String metier, String photoUrl,
       bool isCertified, bool isPremium) {
+    final premiumBadgeLabel = (_p?['premium_badge'] ?? '').toString().trim();
     return SliverAppBar(
       expandedHeight: 280,
       pinned: true,
@@ -371,15 +372,17 @@ class _ProviderProfilePremiumScreenState
                           ),
                         ],
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.workspace_premium,
+                          const Icon(Icons.workspace_premium,
                               size: 14, color: Colors.white),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
-                            'PREMIUM',
-                            style: TextStyle(
+                            premiumBadgeLabel.isNotEmpty
+                                ? premiumBadgeLabel.toUpperCase()
+                                : 'PREMIUM',
+                            style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               color: Colors.white,

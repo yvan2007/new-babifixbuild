@@ -127,6 +127,14 @@ class Provider(models.Model):
         null=True,
         blank=True,
     )
+    is_premium_annual = models.BooleanField(
+        default=False,
+        help_text="Abonnement souscrit en formule annuelle (sinon mensuelle)",
+    )
+    premium_trial_used = models.BooleanField(
+        default=False,
+        help_text="L'essai gratuit premium (7 jours) a déjà été utilisé",
+    )
     # v2 — Galerie réalisations (max 12 photos, data URL base64)
     portfolio_photos = models.JSONField(
         default=list,

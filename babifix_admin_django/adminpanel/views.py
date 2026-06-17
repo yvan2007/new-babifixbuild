@@ -2704,6 +2704,7 @@ def api_client_prestataire_detail(request, pk):
             "bio": p.bio or "",
             "years_experience": p.years_experience or 0,
             "is_certified": p.is_certified,
+            "is_premium": bool(p.is_premium),
             "premium_tier": (p.premium_tier if p.is_premium else "standard"),
             "premium_badge": _premium_badge_label(p),
             "latitude": p.latitude,

@@ -97,6 +97,30 @@ def api_premium_tiers(request):
 
 
 @csrf_exempt
+def _notify_premium_activated(provider, tier: str, trial: bool = False) -> None:
+    """Notification push d'activation premium (essai ou payant)."""
+    try:
+        from .push_dispatch import _schedule
+
+        until = (
+            provider.premium_until.strftime("%d/%m/%Y")
+            if provider.premium_until
+            else ""
+        )
+        if trial:
+            body = f"Votre essai gratuit {tier.title()} est actif jusqu'au {until}."
+        else:
+            body = f"Votre abonnement {tier.title()} est actif jusqu'au {until}."
+        _schedule(
+            [provider.user_id],
+            "BABIFIX Premium activé !",
+            body,
+            {"type": "premium.activated", "tier": tier, "route": "/prestataire/premium"},
+        )
+    except Exception:
+        pass
+
+
 @require_api_auth(["prestataire", "admin"])
 def api_premium_subscribe(request):
     """
@@ -117,6 +141,8 @@ def api_premium_subscribe(request):
         return JsonResponse({
             "is_premium": provider.is_premium,
             "tier": provider.premium_tier or "standard",
+            "is_annual": bool(provider.is_premium_annual),
+            "trial_available": not provider.premium_trial_used,
             "premium_since": provider.premium_since.isoformat() if provider.premium_since else None,
             "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
             "days_remaining": max(
@@ -136,14 +162,26 @@ def api_premium_subscribe(request):
         except (json.JSONDecodeError, TypeError):
             return JsonResponse({"error": "invalid_json"}, status=400)
 
+        from .services.provider_subscription_service import (
+            annual_price,
+            TRIAL_DAYS,
+        )
+
         tier = str(body.get("tier") or "").lower()
-        duration_days = int(body.get("duration_days") or 30)
+        # Formule : 'monthly' (défaut), 'annual', 'trial'. On accepte aussi
+        # l'ancien paramètre duration_days pour rétro-compatibilité.
+        billing_period = str(body.get("billing_period") or "").lower()
+        if not billing_period:
+            billing_period = "annual" if int(body.get("duration_days") or 30) >= 360 else "monthly"
 
         # Retour au palier gratuit (résiliation)
         if tier == "standard":
             provider.is_premium = False
             provider.premium_tier = ""
-            provider.save(update_fields=["is_premium", "premium_tier"])
+            provider.is_premium_annual = False
+            provider.save(
+                update_fields=["is_premium", "premium_tier", "is_premium_annual"]
+            )
             return JsonResponse({
                 "ok": True,
                 "tier": "standard",
@@ -156,7 +194,40 @@ def api_premium_subscribe(request):
         if tier not in PREMIUM_TIERS:
             return JsonResponse({"error": "tier_invalide", "valid": list(PREMIUM_TIERS.keys())}, status=400)
 
-        price = Decimal(str(PREMIUM_TIERS[tier]["price"]))
+        # ── Essai gratuit 7 jours (une seule fois par prestataire) ───────────
+        if billing_period == "trial":
+            if provider.premium_trial_used:
+                return JsonResponse({
+                    "error": "trial_already_used",
+                    "message": "Vous avez déjà utilisé votre essai gratuit premium.",
+                }, status=403)
+            result = ProviderSubscriptionService.subscribe(
+                provider, tier, duration_days=TRIAL_DAYS, is_annual=False, is_trial=True
+            )
+            if not result.success:
+                return JsonResponse({"error": result.error}, status=500)
+            _notify_premium_activated(provider, tier, trial=True)
+            return JsonResponse({
+                "ok": True,
+                "tier": tier,
+                "trial": True,
+                "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
+                "commission_effective": float(
+                    ProviderSubscriptionService.calculate_effective_commission(provider)
+                ),
+            }, status=200)
+
+        # ── Formule mensuelle ou annuelle ───────────────────────────────────
+        monthly = int(PREMIUM_TIERS[tier]["price"])
+        is_annual = billing_period == "annual"
+        if is_annual:
+            price = Decimal(str(annual_price(monthly)))
+            duration_days = 365
+        else:
+            price = Decimal(str(monthly))
+            duration_days = 30
+
+        period_label = "an" if is_annual else "mois"
 
         # Tenter de débiter le wallet
         if (provider.solde_fcfa or Decimal("0")) >= price:
@@ -170,7 +241,7 @@ def api_premium_subscribe(request):
                     tx_type="debit",
                     amount_fcfa=price,
                     reference=f"PREMIUM-{tier}",
-                    description=f"Souscription abonnement Premium {tier.title()} ({duration_days}j)",
+                    description=f"Abonnement Premium {tier.title()} ({period_label})",
                     status="success",
                 )
             # Enregistrer dans les revenus BABIFIX
@@ -184,32 +255,22 @@ def api_premium_subscribe(request):
                 "message": "Solde insuffisant. Veuillez recharger votre wallet ou payer via Mobile Money.",
                 "geniuspay_required": True,
                 "tier": tier,
+                "billing_period": billing_period,
                 "duration_days": duration_days,
             }, status=402)
 
-        result = ProviderSubscriptionService.subscribe(provider, tier, duration_days)
+        result = ProviderSubscriptionService.subscribe(
+            provider, tier, duration_days=duration_days, is_annual=is_annual
+        )
         if not result.success:
             return JsonResponse({"error": result.error}, status=500)
 
-        # Notification push
-        try:
-            from .push_dispatch import _schedule
-            _schedule(
-                [provider.user_id],
-                "BABIFIX Premium activé !",
-                f"Votre abonnement {tier.title()} est actif jusqu'au {provider.premium_until.strftime('%d/%m/%Y')}.",
-                {
-                    "type": "premium.activated",
-                    "tier": tier,
-                    "route": "/prestataire/premium",
-                },
-            )
-        except Exception:
-            pass
+        _notify_premium_activated(provider, tier, trial=False)
 
         return JsonResponse({
             "ok": True,
             "tier": tier,
+            "is_annual": is_annual,
             "premium_until": provider.premium_until.isoformat() if provider.premium_until else None,
             "commission_effective": float(
                 ProviderSubscriptionService.calculate_effective_commission(provider)
