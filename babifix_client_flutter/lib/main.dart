@@ -5452,13 +5452,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _initSession() async {
     authToken = await BabifixUserStore.getApiToken();
-    if (authToken != null) {
-      await BabifixFcm.registerTokenWithBackend(authToken!);
-    }
-    await _initLiveKitForClientIfNeeded(authToken, context);
+    // PRIORITÉ : charger les données tout de suite. On ne bloque JAMAIS le
+    // chargement de l'écran derrière l'enregistrement FCM ou LiveKit (qui
+    // peuvent traîner/échouer au réveil du serveur).
     await _loadRemoteData();
-    await _refreshUnreadChat();
-    await _attachClientRealtime();
+    // Le reste en best-effort, non bloquant (erreurs ignorées).
+    if (authToken != null) {
+      BabifixFcm.registerTokenWithBackend(authToken!).catchError((_) {});
+    }
+    _initLiveKitForClientIfNeeded(authToken, context).catchError((_) {});
+    _refreshUnreadChat().catchError((_) {});
+    _attachClientRealtime().catchError((_) {});
   }
 
   Future<void> _loadRemoteData() async {

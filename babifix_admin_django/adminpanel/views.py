@@ -1629,7 +1629,22 @@ def dashboard(request):
             if form.is_valid():
                 obj = form.save(commit=False)
                 obj.created_by = request.user
-                obj.save()
+                try:
+                    obj.save()
+                except Exception as exc:  # noqa: BLE001
+                    # Échec de l'upload média (ex. Cloudinary mal configuré /
+                    # signature invalide) : on enregistre quand même l'actualité
+                    # SANS l'image plutôt que de planter (500).
+                    logger.warning("Actualité : échec save avec image (%s) — sauvegarde sans image", exc)
+                    if obj.image:
+                        obj.image = None
+                    obj.save()
+                    messages.warning(
+                        request,
+                        "Actualité enregistrée, mais l'image n'a pas pu être "
+                        "envoyée (vérifiez la clé Cloudinary CLOUDINARY_URL). "
+                        "Réessayez l'image une fois la clé corrigée.",
+                    )
                 messages.success(request, "Actualité enregistrée.")
                 # Retour visuel immédiat : portée réelle de la notification push.
                 if obj.publie:
