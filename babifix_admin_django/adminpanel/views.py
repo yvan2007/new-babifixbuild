@@ -5970,7 +5970,9 @@ def api_client_confirmer_travaux(request, reference):
     if res.client_user_id != uid and request.api_role != "admin":
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    target_status = Reservation.Status.CONFIRMED
+    # Le client confirme les travaux → « Terminee » (PAS « Confirmee », sinon le
+    # prestataire reverrait « Démarrer la prestation »).
+    target_status = Reservation.Status.DONE
     is_valid, allowed = validate_reservation_transition(res.statut, target_status)
     if not is_valid:
         return JsonResponse(
@@ -5982,14 +5984,18 @@ def api_client_confirmer_travaux(request, reference):
     res.statut = target_status
     res.save(update_fields=["client_confirme_prestation_at", "statut"])
 
-    # Libérer les fonds bloqués en escrow
-    try:
-        from .services.escrow_service import EscrowService
+    # Mobile Money : la confirmation libère les fonds bloqués en escrow.
+    # ESPÈCES : on NE libère RIEN ici — c'est le handshake qui s'applique
+    # (le client déclare « j'ai payé en espèces », PUIS le prestataire confirme
+    # « j'ai reçu » → seulement là la commission est reconnue).
+    if res.payment_type != Reservation.PaymentType.ESPECES:
+        try:
+            from .services.escrow_service import EscrowService
 
-        escrow_result = EscrowService.release_funds(res)
-        logger.info("release_funds %s: %s", res.reference, escrow_result)
-    except Exception as exc:
-        logger.exception("release_funds %s: %s", res.reference, exc)
+            escrow_result = EscrowService.release_funds(res)
+            logger.info("release_funds %s: %s", res.reference, escrow_result)
+        except Exception as exc:
+            logger.exception("release_funds %s: %s", res.reference, exc)
 
     return JsonResponse(
         {

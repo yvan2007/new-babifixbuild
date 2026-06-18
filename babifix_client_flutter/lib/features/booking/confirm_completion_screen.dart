@@ -170,7 +170,8 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
             Text(
               released > 0
                   ? 'Vous avez libéré ${fmtMoney(released)} au prestataire.'
-                  : 'Le règlement cash est acté. Vous pouvez régler le solde au prestataire en main propre.',
+                  : 'Travaux confirmés ! Réglez maintenant le prestataire en espèces, '
+                      'puis revenez confirmer le paiement (glisser) pour finaliser.',
               style: const TextStyle(fontSize: 14, height: 1.4),
             ),
             const SizedBox(height: 12),
