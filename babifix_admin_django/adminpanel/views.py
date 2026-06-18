@@ -2222,6 +2222,62 @@ def api_public_provider_availability(request, provider_id):
     )
 
 
+def _geocode_ci_city(ville: str):
+    """Géocode une ville ivoirienne → (lat, lon). Mis en cache 30 j (par ville).
+    Renvoie un tuple, ou False si introuvable. Best-effort (jamais d'exception)."""
+    from django.core.cache import cache
+
+    key = "geocode_ci:" + ville.strip().lower()
+    cached = cache.get(key)
+    if cached is not None:
+        return cached  # tuple (lat, lon) OU False (déjà tenté, introuvable)
+    result = False
+    try:
+        import requests as _req
+
+        r = _req.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": f"{ville}, Côte d'Ivoire",
+                "format": "json",
+                "limit": 1,
+                "countrycodes": "ci",
+            },
+            headers={"User-Agent": "BABIFIX/1.0 backend"},
+            timeout=4,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if data:
+                result = (float(data[0]["lat"]), float(data[0]["lon"]))
+    except Exception:
+        result = False
+    cache.set(key, result, 60 * 60 * 24 * 30)
+    return result
+
+
+def _ensure_provider_coordinates(provider) -> bool:
+    """Si le prestataire n'a pas de GPS mais une ville, on géocode la ville et
+    on sauvegarde les coords (une seule fois). Retourne True si un appel réseau
+    de géocodage a réellement été fait (pour borner le budget par requête)."""
+    if provider.latitude is not None and provider.longitude is not None:
+        return False
+    ville = (provider.ville or "").strip()
+    if not ville:
+        return False
+    from django.core.cache import cache
+
+    did_network = cache.get("geocode_ci:" + ville.lower()) is None
+    coords = _geocode_ci_city(ville)
+    if coords:
+        provider.latitude, provider.longitude = coords[0], coords[1]
+        try:
+            provider.save(update_fields=["latitude", "longitude"])
+        except Exception:
+            pass
+    return did_network
+
+
 @require_GET
 def api_public_providers(request):
     """
@@ -2327,7 +2383,19 @@ def api_public_providers(request):
         return round(r * c, 2)
 
     items = []
+    # Budget de géocodage réseau par requête (les villes déjà en cache sont
+    # gratuites) : un prestataire sans GPS mais avec une ville obtient des
+    # coordonnées approximatives → il apparaît sur la carte et a une distance.
+    geo_budget = 8
     for p in qs:
+        if (
+            geo_budget > 0
+            and (p.latitude is None or p.longitude is None)
+            and (p.ville or "").strip()
+        ):
+            if _ensure_provider_coordinates(p):
+                geo_budget -= 1
+
         uid = p.user_id
         avg = (
             round(float(p.average_rating), 2)
@@ -2572,7 +2640,18 @@ def api_client_prestataires(request):
     qs = qs[offset:offset + page_size]
 
     items = []
+    # Géocodage best-effort ville → coords (cache + sauvegarde) pour les
+    # prestataires sans GPS, afin qu'ils apparaissent sur la carte.
+    geo_budget = 8
     for p in qs:
+        if (
+            geo_budget > 0
+            and (p.latitude is None or p.longitude is None)
+            and (p.ville or "").strip()
+        ):
+            if _ensure_provider_coordinates(p):
+                geo_budget -= 1
+
         uid = p.user_id
         avg = (
             round(float(p.average_rating), 2)
