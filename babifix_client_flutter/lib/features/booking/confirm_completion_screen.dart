@@ -161,7 +161,7 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        icon: const AnimatedCheckCircle(size: 78),
+        icon: const AnimatedCheckCircle(size: 60),
         title: const Text('Travaux confirmés'),
         content: Column(
           mainAxisSize: MainAxisSize.min,

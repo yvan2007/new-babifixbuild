@@ -34,10 +34,12 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
   bool _loading = true;
   bool _busy = false;
   String? _error;
+  bool _acompteValide = false;
 
   @override
   void initState() {
     super.initState();
+    _acompteValide = widget.reservationInfo?['acompte_valide'] == true;
     _load();
   }
 
@@ -48,8 +50,16 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
     });
     try {
       final d = await DevisApi.get(widget.reservationReference);
+      // Rafraîchit le statut d'acompte (sinon « Payer maintenant » réapparaît
+      // après paiement, car widget.reservationInfo est figé).
+      bool acompte = _acompteValide;
+      try {
+        final q = await EscrowApi.quote(widget.reservationReference);
+        acompte = q.acompteValide;
+      } catch (_) {}
       setState(() {
         _devis = d;
+        _acompteValide = acompte;
         _loading = false;
       });
     } on BabifixApiException catch (e) {
@@ -195,7 +205,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
 
   Widget _content(Devis devis) {
     final stat = (widget.reservationInfo?['statut'] ?? 'DEVIS_ENVOYE').toString();
-    final acompteValide = widget.reservationInfo?['acompte_valide'] == true;
+    final acompteValide = _acompteValide;
     final steps = buildReservationTimeline(
       currentStatut: stat,
       acompteValide: acompteValide,
@@ -245,7 +255,9 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
 
   Widget _actionsBar(Devis devis) {
     final canAct = devis.statut == DevisStatus.envoye;
-    final canPay = devis.statut == DevisStatus.accepte;
+    // « Payer maintenant » seulement si le devis est accepté ET l'acompte n'a
+    // pas encore été versé (sinon la page réapparaissait après paiement).
+    final canPay = devis.statut == DevisStatus.accepte && !_acompteValide;
     return SafeArea(
       top: false,
       child: Container(
@@ -328,14 +340,39 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   )
-                : Center(
-                    child: Text(
-                      'Devis ${devis.statut.label.toLowerCase()}',
-                      style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
+                : (devis.statut == DevisStatus.accepte && _acompteValide)
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF22C55E).withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_rounded,
+                                color: Color(0xFF16A34A), size: 20),
+                            SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                'Acompte payé — en attente de l\'intervention du prestataire.',
+                                style: TextStyle(
+                                    color: Color(0xFF16A34A),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Center(
+                        child: Text(
+                          'Devis ${devis.statut.label.toLowerCase()}',
+                          style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
       ),
     );
   }
