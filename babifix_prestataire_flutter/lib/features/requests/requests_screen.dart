@@ -1324,6 +1324,33 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 ),
               ),
           ],
+          // Espèces : le client a confirmé la prestation mais n'a pas encore
+          // déclaré avoir payé → le presta attend le règlement.
+          if (it.status == 'completed' &&
+              it.paymentType == 'ESPECES' &&
+              it.cashFlowStatus.isEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              decoration: BoxDecoration(
+                color: BabifixDesign.warning.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.payments_outlined, size: 16, color: Color(0xFFF59E0B)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'En attente du règlement espèces du client. Vous confirmerez la réception ici.',
+                      style: TextStyle(fontSize: 12.5, color: Color(0xFFB45309), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (it.status == 'completed' && _canConfirmCash(it)) ...[
             const SizedBox(height: 10),
             SizedBox(
