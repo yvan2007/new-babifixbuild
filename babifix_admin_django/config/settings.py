@@ -142,6 +142,17 @@ CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "").strip()
 # SDK Cloudinary puisse parser la chaîne « cloudinary://... » correctement.
 while CLOUDINARY_URL.upper().startswith("CLOUDINARY_URL="):
     CLOUDINARY_URL = CLOUDINARY_URL.split("=", 1)[1].strip()
+
+# Option plus simple et SANS erreur de syntaxe : 3 variables séparées
+# (CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET).
+# Si CLOUDINARY_URL n'est pas défini, on le reconstruit à partir d'elles.
+if not CLOUDINARY_URL:
+    _cn = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
+    _ak = os.getenv("CLOUDINARY_API_KEY", "").strip()
+    _as = os.getenv("CLOUDINARY_API_SECRET", "").strip()
+    if _cn and _ak and _as:
+        CLOUDINARY_URL = f"cloudinary://{_ak}:{_as}@{_cn}"
+
 # On réinjecte la valeur nettoyée dans l'environnement : le SDK Cloudinary lit
 # directement os.environ['CLOUDINARY_URL'].
 if CLOUDINARY_URL:
