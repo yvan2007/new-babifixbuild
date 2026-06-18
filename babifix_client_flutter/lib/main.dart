@@ -3672,8 +3672,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
         r.status == 'Annulee' ||
         r.status == 'CANCELLED').toList();
 
+    // « En attente client » = le presta a terminé mais le client n'a PAS encore
+    // confirmé → ça reste ACTIF (à confirmer), jamais dans « Terminées », même
+    // si un flag résiduel (reçu/solde) traîne d'un test précédent.
     final completed = reservations.where((r) =>
-        !cancelled.contains(r) && (
+        !cancelled.contains(r) &&
+        !(r.status == 'En attente client' && !r.clientConfirmed) && (
         r.status == 'Terminee' ||
         r.status == 'DONE' ||
         // Espèces : le statut backend reste « Confirmee » après la fin du
@@ -3687,6 +3691,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         r.status == 'Confirmee' ||
         r.status == 'DEVIS_ACCEPTE' ||
         r.status == 'INTERVENTION_EN_COURS' ||
+        r.status == 'En attente client' ||
         r.status == 'En cours' ||
         r.canConfirmService ||
         r.canPay ||
@@ -6557,6 +6562,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
     if (low.contains('annul')) {
       return (color: const Color(0xFFEF4444), icon: Icons.cancel_rounded,
           label: 'Annulée', step: 0);
+    }
+    // Le prestataire a terminé mais le CLIENT n'a pas encore confirmé.
+    // État DISTINCT (surtout pas « Terminée ») : il reste l'étape de
+    // confirmation. Timeline : intervention faite, « Terminé » encore en attente.
+    // On le place avant le test « terminé » pour ignorer d'éventuels flags
+    // résiduels (receipt/solde) tant que le client n'a pas confirmé.
+    if (s == 'En attente client' && !r.clientConfirmed) {
+      return (color: const Color(0xFFF59E0B), icon: Icons.fact_check_rounded,
+          label: 'À confirmer', step: 3);
     }
     // Terminée : statut backend « Terminee/DONE », OU prestation confirmée par
     // le client / reçu disponible (cas espèces où le statut reste « Confirmee »).
