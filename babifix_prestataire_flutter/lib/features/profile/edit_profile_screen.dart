@@ -1,11 +1,13 @@
 ﻿import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/services/nominatim_geocode.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -38,6 +40,12 @@ class _EditProfilePrestataireScreenState
   String _cniVersoUrl = '';
   String _portraitUrl = '';   // URL portrait actuel (serveur)
   String? _portraitB64;       // nouvelle photo choisie (data:image base64)
+
+  // Localisation : le prestataire la partage explicitement (consentement) et
+  // peut la modifier à tout moment depuis son profil.
+  double? _lat;
+  double? _lon;
+  bool _locating = false;
 
   String get _base => widget.apiBase ?? babifixApiBaseUrl();
 
@@ -83,10 +91,76 @@ class _EditProfilePrestataireScreenState
           _cniRectoUrl = d['cni_recto_url'] as String? ?? '';
           _cniVersoUrl = d['cni_verso_url'] as String? ?? '';
           _portraitUrl = d['photo_portrait_url'] as String? ?? '';
+          _lat = (d['latitude'] as num?)?.toDouble();
+          _lon = (d['longitude'] as num?)?.toDouble();
           _loading = false;
         });
       } else { setState(() => _loading = false); }
     } catch (_) { setState(() => _loading = false); }
+  }
+
+  /// Partage de la position GPS — AVEC consentement explicite du prestataire.
+  /// Demande l'autorisation, capture la position, renseigne la ville et
+  /// l'enregistre côté serveur (/api/prestataire/location/update).
+  Future<void> _shareMyLocation() async {
+    if (_locating) return;
+    setState(() { _locating = true; });
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (mounted) showBabifixToast(context, type: BabifixToastType.warning,
+            message: 'Activez la localisation (GPS) de votre téléphone.');
+        return;
+      }
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission(); // ← consentement
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        if (mounted) showBabifixToast(context, type: BabifixToastType.warning,
+            message: 'Autorisation refusée. Vous pouvez l\'activer dans les réglages.');
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      ).timeout(const Duration(seconds: 12));
+      // Ville (best-effort) via reverse geocoding.
+      String ville = _villeCtrl.text.trim();
+      try {
+        final place = await nominatimReverse(pos.latitude, pos.longitude);
+        final label = (place?.displayName ?? '').trim();
+        if (label.isNotEmpty) ville = label;
+      } catch (_) {}
+      final token = await _token();
+      if (token == null) return;
+      final res = await http.post(
+        Uri.parse('$_base/api/prestataire/location/update'),
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'latitude': pos.latitude,
+          'longitude': pos.longitude,
+          if (ville.isNotEmpty) 'ville': ville,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        if (!mounted) return;
+        setState(() {
+          _lat = pos.latitude;
+          _lon = pos.longitude;
+          if (ville.isNotEmpty) _villeCtrl.text = ville;
+        });
+        showBabifixToast(context, type: BabifixToastType.info,
+            message: 'Position enregistrée — vous êtes visible sur la carte.');
+      } else {
+        if (mounted) showBabifixToast(context, type: BabifixToastType.error,
+            message: 'Échec de l\'enregistrement (${res.statusCode}).');
+      }
+    } catch (e) {
+      if (mounted) showBabifixToast(context, type: BabifixToastType.error,
+          message: 'Impossible d\'obtenir la position : $e');
+    } finally {
+      if (mounted) setState(() { _locating = false; });
+    }
   }
 
   Future<void> _save() async {
@@ -303,6 +377,79 @@ class _EditProfilePrestataireScreenState
                 _PremiumField(controller: _specialiteCtrl, label: 'Specialite', icon: Icons.work_rounded),
                 const SizedBox(height: 12),
                 _PremiumField(controller: _villeCtrl, label: 'Ville & zone d\'intervention', icon: Icons.location_on_rounded, hint: 'Ex: Cocody, Abidjan'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Localisation (partage avec consentement)
+          _SectionCardPremium(
+            icon: Icons.my_location_rounded,
+            title: 'Ma position sur la carte',
+            subtitle: 'Partagez votre position pour être trouvé par les clients',
+            color: BabifixDesign.ciGreen,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: (_lat != null && _lon != null
+                            ? BabifixDesign.ciGreen
+                            : BabifixDesign.ciOrange)
+                        .withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _lat != null && _lon != null
+                            ? Icons.check_circle_rounded
+                            : Icons.location_off_rounded,
+                        size: 20,
+                        color: _lat != null && _lon != null
+                            ? BabifixDesign.ciGreen
+                            : BabifixDesign.ciOrange,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _lat != null && _lon != null
+                              ? 'Position partagée — vous apparaissez sur la carte des clients.'
+                              : 'Position non partagée — vous n\'apparaissez pas encore sur la carte.',
+                          style: const TextStyle(fontSize: 12.5, height: 1.3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _locating ? null : _shareMyLocation,
+                    icon: _locating
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: BabifixRingLoader.cyan(size: 18))
+                        : const Icon(Icons.my_location_rounded, size: 18),
+                    label: Text(_lat != null && _lon != null
+                        ? 'Mettre à jour ma position'
+                        : 'Partager ma position (GPS)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BabifixDesign.ciGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Votre position n\'est utilisée que pour vous proposer aux clients proches. Vous pouvez la mettre à jour à tout moment.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), height: 1.3),
+                ),
               ],
             ),
           ),

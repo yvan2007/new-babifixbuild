@@ -689,6 +689,12 @@ def api_prestataire_profile_update(request):
                 "average_rating": provider.average_rating,
                 "rating_count": provider.rating_count,
                 "photo_portrait_url": provider.photo_portrait_url,
+                "latitude": float(provider.latitude)
+                if provider.latitude is not None
+                else None,
+                "longitude": float(provider.longitude)
+                if provider.longitude is not None
+                else None,
             }
         )
     # PATCH
