@@ -118,19 +118,29 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         _snack('Autorisez l\'accès à la position pour vous localiser.');
         return;
       }
-      final pos = await Geolocator.getCurrentPosition();
-      final place = await nominatimReverse(pos.latitude, pos.longitude);
+      // Position : cache d'abord (instantané), sinon position fraîche bornée à
+      // 12 s (sans timeout, getCurrentPosition peut bloquer/planter sur émulateur).
+      Position? pos = await Geolocator.getLastKnownPosition();
+      pos ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+      ).timeout(const Duration(seconds: 12));
       if (!mounted) return;
-      setState(() {
-        _villePin = LatLng(pos.latitude, pos.longitude);
+      // On pose le pin GPS TOUT DE SUITE (même si le reverse-geocoding échoue).
+      setState(() => _villePin = LatLng(pos!.latitude, pos.longitude));
+      // Reverse-geocoding best-effort pour pré-remplir la ville.
+      try {
+        final place = await nominatimReverse(pos.latitude, pos.longitude);
         final label = (place?.displayName ?? '').trim();
-        if (label.isNotEmpty) {
-          _villeCtrl.text = label;
-          _villeAddressLabel = label;
+        if (label.isNotEmpty && mounted) {
+          setState(() {
+            _villeCtrl.text = label;
+            _villeAddressLabel = label;
+          });
         }
-      });
-    } catch (_) {
-      _snack('Localisation impossible. Réessayez ou saisissez votre ville.');
+      } catch (_) {/* la ville reste à saisir, le GPS est déjà capté */}
+      _snack('Position captée ✓');
+    } on Exception catch (_) {
+      _snack('Localisation indisponible ici. Saisissez votre ville manuellement.');
     } finally {
       if (mounted) setState(() => _locating = false);
     }

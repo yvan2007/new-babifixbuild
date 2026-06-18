@@ -5106,8 +5106,18 @@ def api_client_declare_cash(request, reference):
         return JsonResponse({"error": "forbidden"}, status=403)
     if res.payment_type != Reservation.PaymentType.ESPECES:
         return JsonResponse({"error": "not_cash_reservation"}, status=400)
-    if res.statut not in ("Terminee", "Confirmee"):
-        return JsonResponse({"error": "reservation_not_completed"}, status=400)
+    # Ordre STRICT : on ne peut déclarer le paiement espèces qu'APRÈS que le
+    # prestataire a terminé ET que le client a confirmé la prestation (statut
+    # « Terminee » + confirmation). Sinon le cash se bouclerait dès l'acompte,
+    # avant même que le presta démarre (« logique bizarre »).
+    if res.statut != "Terminee" or not res.client_confirme_prestation_at:
+        return JsonResponse(
+            {
+                "error": "prestation_not_confirmed",
+                "message": "Confirmez d'abord la prestation terminée avant de régler en espèces.",
+            },
+            status=400,
+        )
     if res.cash_client_declared_at:
         return JsonResponse({"error": "already_declared"}, status=400)
     with transaction.atomic():
