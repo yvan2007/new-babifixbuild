@@ -70,6 +70,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
   static String _bucketFromApi(String raw) {
     final t = raw.trim();
     if (t == 'Annulee' || t.toLowerCase().contains('annul')) return 'refused';
+    // « En attente client » = travaux terminés, en attente de confirmation du
+    // client. Doit rester dans le flux actif (PAS dans les nouvelles demandes,
+    // même si le libellé contient « attente »).
+    if (t == 'En attente client') return 'active';
     if (t == 'En attente' || t.toLowerCase().contains('attente'))
       return 'pending';
     if (t == 'Terminee' || t.toLowerCase().contains('termin'))
@@ -1279,10 +1283,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 width: double.infinity,
                 height: 48,
                 child: FilledButton.icon(
-                  onPressed: () async {
-                    await _terminerIntervention(it);
-                    if (mounted) _navigateToWaitingPayment(it);
-                  },
+                  // On reste dans la liste après « terminé » : la réservation
+                  // passe en « En attente de confirmation du client ». Plus de
+                  // navigation vers l'écran d'attente de paiement (dead-end).
+                  onPressed: () => _terminerIntervention(it),
                   icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
                   label: const Text(
                     'Déclarer travaux terminés',
@@ -1292,6 +1296,27 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     backgroundColor: BabifixDesign.success,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
+                ),
+              ),
+            if (it.apiStatus == 'En attente client')
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.ciBlue.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.hourglass_bottom_rounded, size: 16, color: BabifixDesign.ciBlue),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Travaux terminés — en attente de confirmation du client.',
+                        style: TextStyle(fontSize: 12.5, color: BabifixDesign.ciBlue, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -1668,8 +1693,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
         showBabifixToast(
         context,
         type: BabifixToastType.success,
-        message: 'Travaux déclarés terminés',
+        message: 'Travaux terminés — en attente de confirmation du client.',
       );
+        _loadRequests(); // rafraîchit la liste (l'item passe au bon endroit)
       } else if (mounted) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         showBabifixToast(

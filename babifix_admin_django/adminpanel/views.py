@@ -1991,6 +1991,9 @@ def api_client_home(request):
                 "dispute_ouverte": bool(item.dispute_ouverte),
                 "can_confirm_service": item.statut in ("En attente client", "Terminee")
                 and item.client_user_id == uid
+                # Une fois la prestation confirmée par le client, on n'affiche
+                # plus « Confirmer » (sinon doublon avec le paiement espèces).
+                and not item.client_confirme_prestation_at
                 # Mobile Money : on ne peut confirmer (et libérer) qu'une fois le
                 # solde (70 %) payé. Tant qu'il reste un solde, on n'affiche que
                 # « Payer le solde ».
@@ -5796,22 +5799,24 @@ def api_prestataire_terminer_intervention(request, reference):
             status=400,
         )
 
-    # Validation transition de statut
-    is_valid, allowed = validate_reservation_transition(res.statut, "Terminee")
+    # Le prestataire déclare les travaux terminés → on passe en « En attente
+    # client » (le CLIENT doit ensuite confirmer la prestation, ce qui fera
+    # passer en « Terminee »). On NE saute PAS directement à « Terminee ».
+    is_valid, allowed = validate_reservation_transition(res.statut, "En attente client")
     if not is_valid:
         return JsonResponse(
             {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
             status=400,
         )
 
-    res.statut = "Terminee"
+    res.statut = "En attente client"
     res.prestation_terminee_at = timezone.now()
     res.save(update_fields=["statut", "prestation_terminee_at"])
 
     _schedule(
         [res.client_user_id] if res.client_user_id else [],
         "Travaux terminés",
-        f"{provider.nom} a terminé l'intervention. Veuillez confirmer la réception.",
+        f"{provider.nom} a terminé l'intervention. Veuillez confirmer la prestation.",
         {"type": "intervention.finished", "reference": res.reference},
     )
 
