@@ -689,86 +689,206 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
 
   Widget _buildPollingScreen(Color text, Color sub) {
     final op = _currentOp;
+    const cardBg = Color(0xFF112138);
     return Scaffold(
       backgroundColor: BabifixDesign.navy,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A1628),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close_rounded, color: Colors.white),
           onPressed: _cancelPolling,
         ),
         title: const Text(
-          'En attente…',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          'Paiement',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
+        centerTitle: true,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedBuilder(
-                animation: _pulseAnim,
-                builder: (_, child) =>
-                    Transform.scale(scale: _pulseAnim.value, child: child),
-                child: Container(
-                  width: 110, height: 110,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: op.color.withValues(alpha: 0.12),
-                    border: Border.all(
-                        color: op.color.withValues(alpha: 0.3), width: 2),
-                  ),
-                  child: Center(
-                    child:
-                        BabifixPaymentMethodLogo(methodId: op.id, height: 52),
-                  ),
+              const SizedBox(height: 16),
+              // ── Héros : anneaux pulsants + anneau de progression + icône ──
+              SizedBox(
+                width: 168,
+                height: 168,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _pulseAnim,
+                      builder: (_, __) => Container(
+                        width: 168 * _pulseAnim.value,
+                        height: 168 * _pulseAnim.value,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: op.color.withValues(alpha: 0.10),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 124,
+                      height: 124,
+                      child: CircularProgressIndicator(
+                        value: (_pollCount / 24).clamp(0.02, 1.0),
+                        strokeWidth: 5,
+                        backgroundColor: Colors.white.withValues(alpha: 0.08),
+                        valueColor: AlwaysStoppedAnimation<Color>(op.color),
+                        strokeCap: StrokeCap.round,
+                      ),
+                    ),
+                    Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [op.color, op.color.withValues(alpha: 0.7)],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: op.color.withValues(alpha: 0.45),
+                            blurRadius: 22,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.smartphone_rounded,
+                          color: Colors.white, size: 42),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
+              // ── Puce opérateur ──
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: op.color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: op.color.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 9, height: 9,
+                      decoration:
+                          BoxDecoration(color: op.color, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(op.label,
+                        style: TextStyle(
+                            color: op.color,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
               Text(
-                'Confirmation en cours…',
+                'Confirmation du paiement',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: text),
+                    fontSize: 22, fontWeight: FontWeight.w900, color: text),
               ),
               const SizedBox(height: 10),
               Text(
-                'Acompte via ${op.label}',
+                'Validez la demande reçue sur votre téléphone, puis patientez. '
+                'Nous confirmons automatiquement le paiement.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: sub, height: 1.5, fontSize: 14),
               ),
-              const SizedBox(height: 32),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: (_pollCount / 24).clamp(0.0, 1.0),
-                  backgroundColor: op.color.withValues(alpha: 0.12),
-                  valueColor: AlwaysStoppedAnimation<Color>(op.color),
-                  minHeight: 6,
+              const SizedBox(height: 26),
+              // ── Carte étapes ──
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                ),
+                child: Column(
+                  children: [
+                    _pollStep(op.color, Icons.notifications_active_rounded,
+                        'Validez la demande sur votre téléphone', true),
+                    Divider(
+                        height: 18,
+                        color: Colors.white.withValues(alpha: 0.06)),
+                    _pollStep(op.color, Icons.verified_rounded,
+                        'Confirmation automatique par BABIFIX', false),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Text('Vérification $_pollCount/24',
-                  style: TextStyle(fontSize: 12, color: sub)),
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.lock_rounded,
+                      size: 13, color: sub),
+                  const SizedBox(width: 6),
+                  Text('Paiement sécurisé · vérification en cours…',
+                      style: TextStyle(fontSize: 11.5, color: sub)),
+                ],
+              ),
+              const SizedBox(height: 22),
+              TextButton.icon(
                 onPressed: _cancelPolling,
-                icon: const Icon(Icons.cancel_outlined, size: 18),
-                label: const Text('Annuler'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFDC2626),
-                  side: const BorderSide(color: Color(0xFFFCA5A5)),
+                icon: const Icon(Icons.close_rounded, size: 18),
+                label: const Text('Annuler le paiement'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFF87171),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _pollStep(Color color, IconData icon, String label, bool active) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: active ? 0.18 : 0.07),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon,
+              size: 18, color: active ? color : Colors.white38),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: active ? 0.95 : 0.55),
+              fontSize: 13.5,
+              fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ),
+        if (active)
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+      ],
     );
   }
 
