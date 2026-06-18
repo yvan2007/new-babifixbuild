@@ -2282,6 +2282,81 @@ def _ensure_provider_coordinates(provider) -> bool:
 
 
 @require_GET
+def api_public_provider_reviews(request, pk):
+    """Avis publics d'un prestataire (note + commentaire), du plus récent au plus ancien."""
+    qs = (
+        Rating.objects.filter(provider_id=pk)
+        .select_related("client")
+        .order_by("-created_at")[:50]
+    )
+    reviews = []
+    for r in qs:
+        u = r.client
+        author = ""
+        if u:
+            author = (u.first_name or "").strip() or u.username
+        reviews.append(
+            {
+                "author": author or "Client",
+                "rate": int(r.note or 0),
+                "text": r.commentaire or "",
+                "date": r.created_at.isoformat() if r.created_at else "",
+            }
+        )
+    return JsonResponse({"reviews": reviews, "count": len(reviews)})
+
+
+@require_api_auth(["client", "admin"])
+@require_GET
+def api_client_check_duplicate(request):
+    """Pré-vérifie un doublon de réservation AVANT création :
+    - même prestataire, réservation active → blocage strict ;
+    - même catégorie chez un autre prestataire → avertissement.
+    """
+    uid = request.api_user_id
+    provider_id = request.GET.get("provider_id")
+    _TERMINAL = ("Terminee", "Annulee")
+    dup_provider = None
+    dup_category = None
+    if provider_id and str(provider_id).isdigit():
+        prov = Provider.objects.filter(pk=int(provider_id)).select_related("category").first()
+        if prov:
+            existing = (
+                Reservation.objects.filter(client_user_id=uid, assigned_provider=prov)
+                .exclude(statut__in=_TERMINAL)
+                .first()
+            )
+            if existing:
+                dup_provider = {
+                    "reference": existing.reference,
+                    "provider": prov.nom,
+                    "statut": existing.statut,
+                }
+            elif prov.category_id:
+                other = (
+                    Reservation.objects.filter(
+                        client_user_id=uid,
+                        assigned_provider__category_id=prov.category_id,
+                    )
+                    .exclude(statut__in=_TERMINAL)
+                    .exclude(assigned_provider=prov)
+                    .select_related("assigned_provider")
+                    .first()
+                )
+                if other:
+                    dup_category = {
+                        "reference": other.reference,
+                        "category": prov.category.nom if prov.category_id else "",
+                        "provider": other.assigned_provider.nom
+                        if other.assigned_provider_id
+                        else (other.prestataire or ""),
+                    }
+    return JsonResponse(
+        {"duplicate_provider": dup_provider, "duplicate_category": dup_category}
+    )
+
+
+@require_GET
 def api_public_providers(request):
     """
     Liste publique des prestataires (sans authentification).

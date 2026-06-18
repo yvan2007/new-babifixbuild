@@ -102,6 +102,8 @@ from .views import (
     api_client_pay_deposit,
     api_client_pay_remainder,
     api_client_create_reservation,
+    api_client_check_duplicate,
+    api_public_provider_reviews,
     api_client_declare_cash,
     api_client_demandes_list,
     api_client_home,
@@ -214,6 +216,16 @@ urlpatterns = [
         name="api-client-reservations-create",
     ),
     path(
+        "api/client/reservations/check-duplicate",
+        api_client_check_duplicate,
+        name="api-client-check-duplicate",
+    ),
+    path(
+        "api/client/prestataires/<int:pk>/reviews",
+        api_public_provider_reviews,
+        name="api-client-provider-reviews",
+    ),
+    path(
         "api/client/reservations/<str:reference>/rating",
         api_client_rate_reservation,
         name="api-client-reservation-rating",
@@ -273,6 +285,11 @@ urlpatterns = [
         "api/prestataire/requests",
         api_prestataire_requests,
         name="api-prestataire-requests",
+    ),
+    path(
+        "api/prestataire/requests/",
+        api_prestataire_requests,
+        name="api-prestataire-requests-slash",
     ),
     path(
         "api/prestataire/location/update",
