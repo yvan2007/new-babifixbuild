@@ -590,39 +590,43 @@ class _RequestsScreenState extends State<RequestsScreen> {
     );
   }
 
-  Widget _buildCardTappable(_RequestItem it) {
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => RequestDetailScreen(
-            reference: it.reference,
-            client: it.client,
-            service: it.service,
-            date: it.date,
-            hour: it.hour,
-            amount: it.amount,
-            address: it.address,
-            addressStreet: it.addressStreet,
-            addressQuartier: it.addressQuartier,
-            addressVille: it.addressVille,
-            addressPays: it.addressPays,
-            addressRepere: it.addressRepere,
-            addressLat: it.addressLat,
-            addressLon: it.addressLon,
-            addressIsApproximate: it.addressIsApproximate,
-            description: it.description,
-            apiStatus: it.apiStatus,
-            paymentType: it.paymentType,
-            mobileMoneyOperator: it.mobileMoneyOperator,
-            rating: it.rating,
-            clientMessage: it.clientMessage,
-            clientPhotos: it.clientPhotos,
-            disponibilitesClient: it.disponibilitesClient,
-            isUrgent: it.isUrgent,
-            prixPropose: it.prixPropose,
-          ),
+  void _openRequestDetail(_RequestItem it) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => RequestDetailScreen(
+          reference: it.reference,
+          client: it.client,
+          service: it.service,
+          date: it.date,
+          hour: it.hour,
+          amount: it.amount,
+          address: it.address,
+          addressStreet: it.addressStreet,
+          addressQuartier: it.addressQuartier,
+          addressVille: it.addressVille,
+          addressPays: it.addressPays,
+          addressRepere: it.addressRepere,
+          addressLat: it.addressLat,
+          addressLon: it.addressLon,
+          addressIsApproximate: it.addressIsApproximate,
+          description: it.description,
+          apiStatus: it.apiStatus,
+          paymentType: it.paymentType,
+          mobileMoneyOperator: it.mobileMoneyOperator,
+          rating: it.rating,
+          clientMessage: it.clientMessage,
+          clientPhotos: it.clientPhotos,
+          disponibilitesClient: it.disponibilitesClient,
+          isUrgent: it.isUrgent,
+          prixPropose: it.prixPropose,
         ),
       ),
+    ).then((_) => _loadRequests());
+  }
+
+  Widget _buildCardTappable(_RequestItem it) {
+    return GestureDetector(
+      onTap: () => _openRequestDetail(it),
       child: _buildCard(it),
     );
   }
@@ -1372,6 +1376,24 @@ class _RequestsScreenState extends State<RequestsScreen> {
           ],
           if (it.status == 'completed') ...[
             const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: FilledButton.icon(
+                onPressed: () => _openRequestDetail(it),
+                icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                label: const Text(
+                  'Voir le détail',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: BabifixDesign.cyan,
+                  foregroundColor: const Color(0xFF0B1B34),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               height: 44,
