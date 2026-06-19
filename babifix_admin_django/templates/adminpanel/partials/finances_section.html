@@ -83,6 +83,46 @@
     </table>
   </article>
 
+  <!-- Remboursements à traiter ------------------------------------------------->
+  <article class="card card-elevate" style="margin-top:18px;">
+    <h3>Remboursements clients à traiter</h3>
+    <p class="section-help" style="margin-bottom:8px;">Dossiers issus d'un litige tranché en faveur du client ou d'une annulation. « Verser » déclenche le virement Mobile Money ; « Marquer payé » sert quand vous réglez hors ligne.</p>
+    <table class="data-table">
+      <thead><tr><th>Réservation</th><th>Client</th><th style="text-align:right;">Montant</th><th>État</th><th style="text-align:right;">Action</th></tr></thead>
+      <tbody>
+        {% for r in finance_refunds %}
+        <tr>
+          <td>{{ r.reference }}</td>
+          <td>{{ r.client|default:"—" }}</td>
+          <td style="text-align:right;font-weight:700;color:#ef4444;">{{ r.refund_owed_fcfa|floatformat:0 }} FCFA</td>
+          <td>
+            {% if r.refund_status == "processing" %}<span class="pill" style="padding:4px 10px;">En cours</span>
+            {% elif r.refund_status == "failed" %}<span class="pill" style="padding:4px 10px;color:#dc2626;">Échoué</span>
+            {% elif r.refund_status == "manual" %}<span class="pill" style="padding:4px 10px;color:#f59e0b;">Manuel requis</span>
+            {% else %}<span class="pill" style="padding:4px 10px;">À traiter</span>{% endif %}
+          </td>
+          <td style="text-align:right;white-space:nowrap;">
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="refund_process">
+              <input type="hidden" name="reference" value="{{ r.reference }}">
+              <button type="submit" class="btn btn-sm" style="background:#0b1b34;color:#fff;padding:6px 12px;border-radius:8px;">Verser</button>
+            </form>
+            <form method="post" style="display:inline;" onsubmit="return confirm('Marquer ce remboursement comme payé ?');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="refund_mark_paid">
+              <input type="hidden" name="reference" value="{{ r.reference }}">
+              <button type="submit" class="btn btn-sm" style="background:#22c55e;color:#fff;padding:6px 12px;border-radius:8px;">Marquer payé</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="empty-state">Aucun remboursement en attente. 🎉</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
   <!-- Revenus par source ------------------------------------------------------->
   <article class="card card-elevate" style="margin-top:18px;">
     <h3>Revenus plateforme par source</h3>

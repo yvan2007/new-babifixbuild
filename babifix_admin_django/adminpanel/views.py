@@ -979,6 +979,13 @@ def _dashboard_forms_context(request, section):
     elif section == "finances":
         # Vue financière complète (commissions, versements, soldes, remboursements).
         ctx["finance"] = _finance_overview()
+        # Dossiers de remboursement à traiter (litige tranché en faveur du client,
+        # annulation…) : l'admin peut déclencher le virement ou marquer payé.
+        ctx["finance_refunds"] = list(
+            Reservation.objects.filter(refund_owed_fcfa__gt=0)
+            .exclude(refund_status="paid")
+            .order_by("-id")[:100]
+        )
     return ctx
 
 
@@ -1565,8 +1572,81 @@ def dashboard(request):
             decision = request.POST.get("decision", "")
             dispute = Dispute.objects.filter(reference=litige_id).first()
             if dispute:
-                dispute.decision = decision
-                dispute.save(update_fields=["decision"])
+                # L'UI envoie les codes anglais (REFUND/RELEASE/SPLIT/OPEN). On
+                # normalise vers le libellé canonique français de l'enum pour que
+                # le badge s'affiche bien et que la donnée reste cohérente.
+                _norm = (decision or "").strip().upper()
+                _canon = {
+                    "REFUND": Dispute.Decision.REFUND,
+                    "REMBOURSER CLIENT": Dispute.Decision.REFUND,
+                    "RELEASE": Dispute.Decision.RELEASE,
+                    "LIBERER PAIEMENT": Dispute.Decision.RELEASE,
+                    "LIBÉRER PAIEMENT": Dispute.Decision.RELEASE,
+                    "SPLIT": Dispute.Decision.SPLIT,
+                    "PARTAGE PARTIEL": Dispute.Decision.SPLIT,
+                    "PARTAGE": Dispute.Decision.SPLIT,
+                    "OPEN": Dispute.Decision.OPEN,
+                    "EN COURS": Dispute.Decision.OPEN,
+                }.get(_norm, decision)
+                dispute.decision = _canon
+                dispute.decided_at = timezone.now()
+                if getattr(request, "user", None) and request.user.is_authenticated:
+                    dispute.decided_by = request.user
+                dispute.save(update_fields=["decision", "decided_at", "decided_by"])
+                # Applique RÉELLEMENT l'issue financière (libération / remboursement
+                # / partage). Sans cet appel, la décision n'était qu'une étiquette :
+                # aucun fond ne bougeait, aucune dette de remboursement n'était créée.
+                actionable = _canon in (
+                    Dispute.Decision.REFUND,
+                    Dispute.Decision.RELEASE,
+                    Dispute.Decision.SPLIT,
+                )
+                if dispute.reservation_id and actionable:
+                    try:
+                        from .services.escrow_service import EscrowService
+
+                        res = EscrowService.resolve_dispute(
+                            dispute.reservation, decision
+                        )
+                        if res.get("error"):
+                            messages.error(
+                                request,
+                                f"Litige {litige_id} : décision enregistrée mais "
+                                f"non appliquée ({res['error']}).",
+                            )
+                        else:
+                            act = res.get("action", "")
+                            if act == "release":
+                                messages.success(
+                                    request,
+                                    f"Litige {litige_id} : fonds libérés au prestataire.",
+                                )
+                            elif act == "refund":
+                                messages.success(
+                                    request,
+                                    f"Litige {litige_id} : remboursement de "
+                                    f"{int(res.get('refund_owed', 0))} F CFA dû au client "
+                                    f"(à verser depuis Finances).",
+                                )
+                            elif act == "split":
+                                messages.success(
+                                    request,
+                                    f"Litige {litige_id} : partage appliqué — "
+                                    f"{int(res.get('to_provider', 0))} F CFA au prestataire, "
+                                    f"{int(res.get('refund_owed', 0))} F CFA dû au client.",
+                                )
+                    except Exception as _disp_err:  # noqa: BLE001
+                        messages.error(
+                            request,
+                            f"Litige {litige_id} : erreur lors de l'application "
+                            f"de la décision ({_disp_err}).",
+                        )
+                elif actionable and not dispute.reservation_id:
+                    messages.warning(
+                        request,
+                        f"Litige {litige_id} : aucune réservation liée — "
+                        f"décision enregistrée mais à traiter manuellement.",
+                    )
             Notification.objects.create(
                 title=f"Decision litige {litige_id}: {decision}"
             )
@@ -1805,6 +1885,49 @@ def dashboard(request):
                         pass
             messages.success(request, "Retrait rejeté et solde recrédité.")
             section = "payouts"
+        elif action == "refund_process":
+            # Admin déclenche le virement de remboursement au client (payout MM).
+            ref = (request.POST.get("reference") or "").strip()
+            res = Reservation.objects.filter(reference=ref).first()
+            if not res:
+                messages.error(request, "Réservation introuvable.")
+            else:
+                try:
+                    from .services.escrow_service import EscrowService
+
+                    out = EscrowService.process_client_refund(res)
+                    if out.get("error"):
+                        messages.warning(
+                            request,
+                            f"Remboursement {ref} : {out['error']}. "
+                            f"{'À traiter manuellement.' if out.get('manual') else ''}",
+                        )
+                    elif out.get("skip"):
+                        messages.info(request, f"Remboursement {ref} : {out['skip']}.")
+                    else:
+                        messages.success(
+                            request,
+                            f"Remboursement {ref} : virement déclenché vers le client.",
+                        )
+                except Exception as _ref_err:  # noqa: BLE001
+                    messages.error(
+                        request, f"Remboursement {ref} : erreur ({_ref_err})."
+                    )
+            section = "finances"
+        elif action == "refund_mark_paid":
+            # Admin confirme un remboursement réglé hors ligne (cash / virement manuel).
+            ref = (request.POST.get("reference") or "").strip()
+            res = Reservation.objects.filter(reference=ref).first()
+            if res:
+                res.refund_status = "paid"
+                res.refund_paid_at = timezone.now()
+                res.save(update_fields=["refund_status", "refund_paid_at"])
+                messages.success(
+                    request, f"Remboursement {ref} marqué comme payé."
+                )
+            else:
+                messages.error(request, "Réservation introuvable.")
+            section = "finances"
         return redirect(f"/?section={section}")
 
     search_q = request.GET.get("q", "").strip()
