@@ -58,7 +58,9 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
         return;
       }
       final j = jsonDecode(r.body);
-      final list = (j['requests'] as List? ?? const []);
+      // L'endpoint renvoie la liste sous la clé « items » (et non « requests ») :
+      // lire la mauvaise clé donnait une liste vide → escrow toujours à 0.
+      final list = (j['items'] as List? ?? j['requests'] as List? ?? const []);
       double escrow = 0;
       double cash = 0;
       int n = 0;

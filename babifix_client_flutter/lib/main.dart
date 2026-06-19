@@ -4795,15 +4795,23 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildProfile() {
-    final activeCount =
-        reservations.where((r) => r.status == 'En cours').length;
-    final completedCount =
-        reservations.where((r) => r.status == 'Terminée' || r.status == 'Terminee').length;
+    // « En cours » = réservation engagée mais pas encore terminée/annulée
+    // (le statut brut n'est jamais littéralement « En cours » : c'est
+    // INTERVENTION_EN_COURS, En attente client, Confirmee, DEVIS_ACCEPTE…).
+    const _terminal = {'Terminée', 'Terminee', 'DONE', 'Annulee', 'Annulée'};
+    const _devisPhase = {'DEMANDE_ENVOYEE', 'DEVIS_EN_COURS', 'DEVIS_ENVOYE'};
+    final activeCount = reservations
+        .where((r) =>
+            !_terminal.contains(r.status) && !_devisPhase.contains(r.status))
+        .length;
+    final completedCount = reservations
+        .where((r) => r.status == 'Terminée' || r.status == 'Terminee')
+        .length;
+    // « Bloqué » = somme des montants réellement séquestrés (payés en ligne,
+    // pas encore libérés au prestataire).
     final totalEscrow = reservations
-        .where((r) => r.status == 'En cours')
-        .map(
-          (e) => (double.tryParse(e.amount) ?? 0).round(),
-        )
+        .where((r) => !r.fundsReleased && r.montantVerse > 0)
+        .map((r) => r.montantVerse.round())
         .fold<int>(0, (sum, value) => sum + value);
 
     final hasCompleteProfile = sessionLoggedIn &&
@@ -5878,6 +5886,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
               prestationTermineeAt: DateTime.tryParse(
                       '${item['prestation_terminee_at'] ?? ''}')
                   ?.toLocal(),
+              montantVerse: jsonDoubleNullable(item['montant_verse']) ?? 0,
+              fundsReleased: item['funds_released'] == true,
             ),
           )
           .toList();

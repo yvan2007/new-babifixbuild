@@ -2102,6 +2102,10 @@ def api_client_home(request):
                 "payment_type": item.payment_type,
                 "mobile_money_operator": item.mobile_money_operator or "",
                 "cash_flow_status": item.cash_flow_status,
+                # Montant réellement en séquestre (payé en ligne, pas encore
+                # libéré) → permet d'afficher « Bloqué » exact côté client.
+                "montant_verse": float(item.montant_verse or 0),
+                "funds_released": bool(item.funds_released_at),
                 "can_rate": can_rate,
                 "rated": has_rating,
                 "client_message": (item.client_message or "")[:500],

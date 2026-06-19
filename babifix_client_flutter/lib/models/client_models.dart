@@ -146,6 +146,8 @@ class ClientReservation {
     this.statusLabel = '',
     this.interventionStartedAt,
     this.prestationTermineeAt,
+    this.montantVerse = 0,
+    this.fundsReleased = false,
   });
 
   final String title;
@@ -188,6 +190,10 @@ class ClientReservation {
   /// Chrono de la prestation : début + fin (preuve horodatée de la durée).
   final DateTime? interventionStartedAt;
   final DateTime? prestationTermineeAt;
+
+  /// Montant payé en ligne et séquestré (escrow), + si déjà libéré au presta.
+  final double montantVerse;
+  final bool fundsReleased;
 }
 
 class ClientActualiteItem {
