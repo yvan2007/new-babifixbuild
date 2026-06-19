@@ -637,6 +637,43 @@ class _RequestsScreenState extends State<RequestsScreen> {
     return _buildCardInner(it);
   }
 
+  /// Message d'encouragement comparant la durée de CETTE prestation à la
+  /// précédente terminée du prestataire. Null s'il n'y a pas d'historique.
+  String? _encouragementFor(_RequestItem it) {
+    final start = it.interventionStartedAt;
+    final end = it.prestationTermineeAt;
+    if (start == null || end == null) return null;
+    final current = end.difference(start);
+    if (current <= Duration.zero) return null;
+
+    // Prestation terminée la plus récente AVANT celle-ci (avec chrono complet).
+    Duration? prev;
+    DateTime? prevEnd;
+    for (final o in items) {
+      if (identical(o, it)) continue;
+      final s = o.interventionStartedAt;
+      final e = o.prestationTermineeAt;
+      if (s == null || e == null) continue;
+      if (!e.isBefore(end)) continue; // seulement les antérieures
+      final d = e.difference(s);
+      if (d <= Duration.zero) continue;
+      if (prevEnd == null || e.isAfter(prevEnd)) {
+        prevEnd = e;
+        prev = d;
+      }
+    }
+    if (prev == null) return null;
+
+    final deltaMin = (prev.inSeconds - current.inSeconds) ~/ 60;
+    if (deltaMin >= 1) {
+      return 'Excellent ! $deltaMin min de moins qu\'à votre dernière prestation.';
+    }
+    if (deltaMin <= -1) {
+      return '${-deltaMin} min de plus qu\'à la dernière fois — chaque chantier est différent.';
+    }
+    return 'Rythme constant avec votre dernière prestation. 👌';
+  }
+
   Widget _buildCardInner(_RequestItem it) {
     final tagText = _labelStatut(it.apiStatus);
     final hasClientMsg = it.clientMessage.isNotEmpty;
@@ -1143,6 +1180,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             BabifixPrestationTimer(
               startedAt: it.interventionStartedAt,
               endedAt: it.prestationTermineeAt,
+              encouragement: _encouragementFor(it),
             ),
           ],
 

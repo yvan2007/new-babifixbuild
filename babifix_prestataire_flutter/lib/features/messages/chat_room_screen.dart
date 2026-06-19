@@ -549,6 +549,10 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
         _input.clear();
         setState(() => _replyingTo = null);
         await _reloadMessages();
+      } else if (res.statusCode == 403 &&
+          res.body.contains('prestation_terminee') &&
+          mounted) {
+        _showChatClosedDialog(apiErrorMessage(res.body));
       } else if (mounted) {
         showBabifixToast(
         context,
@@ -567,6 +571,66 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
       );
       }
     }
+  }
+
+  /// Dialog soigné quand la messagerie est clôturée (prestation terminée).
+  void _showChatClosedDialog(String? detail) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 26, 22, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: const BoxDecoration(
+                  color: Color(0x1A4CC9F0),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.verified_rounded,
+                    size: 42, color: Color(0xFF0EA5E9)),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Prestation terminée',
+                style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0B1B34)),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                detail ??
+                    'La prestation est terminée : la messagerie est clôturée. '
+                        'En cas de souci, utilisez « Signaler un problème ».',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 13.5, height: 1.45, color: Color(0xFF475569)),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0EA5E9),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13)),
+                  ),
+                  child: const Text('Compris',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _sendCallSignal(String type, {String? roomName, bool? isVideo, String? callerName}) {

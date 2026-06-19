@@ -25,6 +25,7 @@ import '../../models/client_models.dart';
 import '../../services/call_service.dart';
 import '../../shared/widgets/auth_required_dialog.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 import '../../user_store.dart';
 import '../booking/booking_flow_screen.dart';
 import '../chat/chat_room_screen.dart';
@@ -1027,8 +1028,15 @@ class _ProviderProfilePremiumScreenState
               icon: Icons.chat_bubble_outline,
               color: BabifixDesign.cyan,
               onTap: () {
-                final uid = p['user_id'] as int?;
-                if (uid == null) return;
+                final uid = (p['user_id'] as num?)?.toInt();
+                if (uid == null) {
+                  showBabifixToast(
+                    context,
+                    type: BabifixToastType.info,
+                    message: "Ce prestataire n'a pas encore de messagerie active.",
+                  );
+                  return;
+                }
                 Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => ChatRoomScreen(
                     name: name,
@@ -1043,8 +1051,15 @@ class _ProviderProfilePremiumScreenState
               icon: Icons.call_outlined,
               color: BabifixDesign.ciGreen,
               onTap: () {
-                final uid = p['user_id'] as int?;
-                if (uid == null) return;
+                final uid = (p['user_id'] as num?)?.toInt();
+                if (uid == null) {
+                  showBabifixToast(
+                    context,
+                    type: BabifixToastType.info,
+                    message: "Ce prestataire n'a pas encore d'appel activé.",
+                  );
+                  return;
+                }
                 // Pas de réservation encore créée, on initie depuis le profil
                 CallService.startOutgoing(
                   context: context,

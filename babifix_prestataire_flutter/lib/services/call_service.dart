@@ -46,11 +46,25 @@ class CallService {
       } catch (_) {}
     } on BabifixApiException catch (e) {
       if (!context.mounted) return;
-      showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Impossible de démarrer l\'appel : ${e.message}',
-      );
+      // Règle métier (prestation terminée / contact pas encore ouvert) : dialog
+      // soigné plutôt qu'un toast d'erreur technique.
+      final low = '${e.code} ${e.message}'.toLowerCase();
+      final isBusinessRule = low.contains('prestation_terminee') ||
+          low.contains('contact_not_allowed') ||
+          low.contains('reservation_not_found');
+      if (isBusinessRule) {
+        _showCallBlockedDialog(
+          context,
+          terminee: low.contains('prestation_terminee'),
+          message: e.message,
+        );
+      } else {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Impossible de démarrer l\'appel : ${e.message}',
+        );
+      }
     } catch (e) {
       if (!context.mounted) return;
       showBabifixToast(
@@ -59,6 +73,75 @@ class CallService {
         message: 'Erreur appel : $e',
       );
     }
+  }
+
+  /// Dialog soigné quand un appel est bloqué par une règle métier
+  /// (prestation terminée, ou contact pas encore autorisé).
+  static void _showCallBlockedDialog(
+    BuildContext context, {
+    required bool terminee,
+    required String message,
+  }) {
+    final accent =
+        terminee ? const Color(0xFF0EA5E9) : const Color(0xFFF59E0B);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 26, 22, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  terminee ? Icons.verified_rounded : Icons.lock_clock_rounded,
+                  size: 42,
+                  color: accent,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                terminee ? 'Prestation terminée' : 'Appel pas encore disponible',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0B1B34)),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 13.5, height: 1.45, color: Color(0xFF475569)),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accent,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13)),
+                  ),
+                  child: const Text('Compris',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// À appeler quand un FCM data `type=call.incoming` arrive. Affiche

@@ -14,6 +14,7 @@ class BabifixPrestationTimer extends StatefulWidget {
     required this.startedAt,
     this.endedAt,
     this.compact = false,
+    this.encouragement,
   });
 
   final DateTime? startedAt;
@@ -21,6 +22,10 @@ class BabifixPrestationTimer extends StatefulWidget {
 
   /// Version réduite (une seule ligne) pour les cartes denses.
   final bool compact;
+
+  /// Message d'encouragement affiché une fois terminé (ex. « Excellent ! 12 min
+  /// de moins que votre dernière prestation »). Optionnel.
+  final String? encouragement;
 
   @override
   State<BabifixPrestationTimer> createState() => _BabifixPrestationTimerState();
@@ -73,9 +78,10 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
     if (d.isNegative) d = Duration.zero;
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
+    // On n'affiche QUE heures et minutes (pas de secondes) une fois terminé.
     if (h > 0) return '$h h ${m.toString().padLeft(2, '0')} min';
     if (m > 0) return '$m min';
-    return '${d.inSeconds} s';
+    return 'moins d\'1 min';
   }
 
   String _fmtTime(DateTime t) =>
@@ -164,18 +170,41 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
                   ],
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  running
-                      ? _fmtDuration(elapsed)
-                      : _fmtDurationLong(elapsed),
-                  style: TextStyle(
-                    fontSize: running ? 26 : 22,
-                    fontWeight: FontWeight.w900,
-                    color: accent,
-                    letterSpacing: 0.5,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
+                // Une fois terminé, la durée apparaît avec une petite animation
+                // d'entrée (scale + fade) — sensation de « résultat » satisfaisant.
+                running
+                    ? Text(
+                        _fmtDuration(elapsed),
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: accent,
+                          letterSpacing: 0.5,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      )
+                    : TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 520),
+                        curve: Curves.easeOutBack,
+                        tween: Tween(begin: 0, end: 1),
+                        builder: (_, v, child) => Opacity(
+                          opacity: v.clamp(0.0, 1.0),
+                          child: Transform.scale(
+                            scale: 0.85 + 0.15 * v.clamp(0.0, 1.0),
+                            alignment: Alignment.centerLeft,
+                            child: child,
+                          ),
+                        ),
+                        child: Text(
+                          _fmtDurationLong(elapsed),
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: accent,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
                 const SizedBox(height: 2),
                 Text(
                   ended == null
@@ -186,6 +215,49 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
                     color: Color(0xFF64748B),
                   ),
                 ),
+                // Encouragement (comparaison à la dernière prestation).
+                if (!running &&
+                    widget.encouragement != null &&
+                    widget.encouragement!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  TweenAnimationBuilder<double>(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeOut,
+                    tween: Tween(begin: 0, end: 1),
+                    builder: (_, v, child) => Opacity(
+                      opacity: v.clamp(0.0, 1.0),
+                      child: child,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: const Color(0xFF22C55E)
+                                .withValues(alpha: 0.30)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text('🎉', style: TextStyle(fontSize: 14)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              widget.encouragement!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF16A34A),
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

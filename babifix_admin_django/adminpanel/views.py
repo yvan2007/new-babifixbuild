@@ -3041,6 +3041,9 @@ def api_client_prestataire_detail(request, pk):
     return JsonResponse(
         {
             "id": p.id,
+            # Compte utilisateur lié : indispensable pour que les boutons
+            # « Message » et « Appel » de la fiche fonctionnent (sinon no-op).
+            "user_id": p.user_id,
             "nom": p.nom,
             "specialite": p.specialite,
             "ville": p.ville,

@@ -216,6 +216,23 @@ def api_call_initiate(request):
             status=403,
         )
 
+    # Après la prestation terminée, plus d'appel (voix comme vidéo) — sauf litige
+    # ouvert. En cas de souci, on passe par « Signaler un problème ».
+    if (
+        res.statut in ("Terminee", "DONE")
+        and not getattr(res, "dispute_ouverte", False)
+    ):
+        return JsonResponse(
+            {
+                "error": "prestation_terminee",
+                "detail": (
+                    "La prestation est terminée : les appels sont clôturés. "
+                    "En cas de problème, utilisez « Signaler un problème »."
+                ),
+            },
+            status=403,
+        )
+
     callee_id = (
         res.assigned_provider.user_id
         if is_client

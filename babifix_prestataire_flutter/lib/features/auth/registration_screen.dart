@@ -113,8 +113,12 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
       }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
+      if (perm == LocationPermission.deniedForever) {
+        _snack('Accès position bloqué. Activez-le dans les réglages.');
+        await Geolocator.openAppSettings();
+        return;
+      }
+      if (perm == LocationPermission.denied) {
         _snack('Autorisez l\'accès à la position pour vous localiser.');
         return;
       }
@@ -139,7 +143,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         }
       } catch (_) {/* la ville reste à saisir, le GPS est déjà capté */}
       _snack('Position captée ✓');
-    } on Exception catch (_) {
+    } catch (_) {
       _snack('Localisation indisponible ici. Saisissez votre ville manuellement.');
     } finally {
       if (mounted) setState(() => _locating = false);
