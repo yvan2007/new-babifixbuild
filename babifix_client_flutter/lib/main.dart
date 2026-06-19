@@ -1481,10 +1481,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 icon: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Icon(
-                      Icons.chat_bubble_outline_rounded,
+                    const Icon(
+                      Icons.chat_bubble_rounded,
                       size: 22,
-                      color: iconColor,
+                      color: BabifixDesign.cyan,
                     ),
                     if (_unreadChatTotal > 0)
                       Positioned(

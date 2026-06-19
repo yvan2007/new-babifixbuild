@@ -618,6 +618,15 @@
       <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/permission_handler_windows/example/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/permission_handler_windows/example/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/permission_handler_windows/example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_client_flutter/linux/flutter/ephemeral/.plugin_symlinks/audioplayers_linux/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_client_flutter/linux/flutter/ephemeral/.plugin_symlinks/audioplayers_linux/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_client_flutter/linux/flutter/ephemeral/.plugin_symlinks/audioplayers_linux/build" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_client_flutter/windows/flutter/ephemeral/.plugin_symlinks/audioplayers_windows/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_client_flutter/windows/flutter/ephemeral/.plugin_symlinks/audioplayers_windows/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_client_flutter/windows/flutter/ephemeral/.plugin_symlinks/audioplayers_windows/build" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/audioplayers_windows/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/audioplayers_windows/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/babifix_prestataire_flutter/windows/flutter/ephemeral/.plugin_symlinks/audioplayers_windows/build" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Dart SDK" level="project" />

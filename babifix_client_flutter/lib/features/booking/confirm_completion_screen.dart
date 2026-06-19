@@ -157,58 +157,119 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
   }
 
   void _showSuccess(double released, Map escrow) {
+    const navy = Color(0xFF0B1B34);
+    const green = Color(0xFF22C55E);
+    const purple = Color(0xFF7C3AED);
+    final msg = released > 0
+        ? 'Vous avez libéré ${fmtMoney(released)} au prestataire.'
+        : 'Réglez maintenant le prestataire en espèces, puis revenez confirmer '
+            'le paiement (glisser) pour finaliser.';
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        icon: const AnimatedCheckCircle(size: 60),
-        title: const Text('Travaux confirmés'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              released > 0
-                  ? 'Vous avez libéré ${fmtMoney(released)} au prestataire.'
-                  : 'Travaux confirmés ! Réglez maintenant le prestataire en espèces, '
-                      'puis revenez confirmer le paiement (glisser) pour finaliser.',
-              style: const TextStyle(fontSize: 14, height: 1.4),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Vous pouvez maintenant noter le prestataire et télécharger votre reçu.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context, true);
-            },
-            child: const Text('Plus tard'),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF7C3AED),
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.star_outline_rounded, size: 18),
-            label: const Text('Noter le prestataire'),
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context, true);
-              Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  builder: (_) => RateProviderScreen(
-                    reservationReference: widget.reservationReference,
-                  ),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Pastille verte + check animé (taille maîtrisée)
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: green.withValues(alpha: 0.12),
                 ),
-              );
-            },
+                alignment: Alignment.center,
+                child: const AnimatedCheckCircle(size: 56),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Travaux confirmés',
+                style: TextStyle(
+                    fontSize: 21, fontWeight: FontWeight.w900, color: navy),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                msg,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 14, height: 1.45, color: Color(0xFF475569)),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.receipt_long_rounded, size: 16, color: navy),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Vous pouvez noter le prestataire et télécharger votre reçu.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.pop(context, true);
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        foregroundColor: const Color(0xFF64748B),
+                      ),
+                      child: const Text('Plus tard',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: purple,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13)),
+                      ),
+                      icon: const Icon(Icons.star_rounded, size: 18),
+                      label: const Text('Noter',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.pop(context, true);
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => RateProviderScreen(
+                              reservationReference: widget.reservationReference,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

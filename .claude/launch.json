@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vitrine",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["babifix_vitrine_django/manage.py", "runserver", "8001"],
+      "port": 8001
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["babifix_admin_django/manage.py", "runserver", "8002"],
+      "port": 8002
+    }
+  ]
+}

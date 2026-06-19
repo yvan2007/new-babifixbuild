@@ -1424,26 +1424,43 @@ class _RequestsScreenState extends State<RequestsScreen> {
             SizedBox(
               width: double.infinity,
               height: 44,
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push<void>(
-                  babifixRoute(
-                    (_) => RateClientScreen(
-                      reservationRef: it.reference,
-                      clientName: it.client,
+              child: it.clientRated
+                  ? OutlinedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.check_circle_rounded, size: 18),
+                      label: const Text('Client déjà évalué',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      style: OutlinedButton.styleFrom(
+                        disabledForegroundColor: BabifixDesign.ciGreen,
+                        side: BorderSide(
+                            color: BabifixDesign.ciGreen.withValues(alpha: 0.35)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: () async {
+                        await Navigator.of(context).push<void>(
+                          babifixRoute(
+                            (_) => RateClientScreen(
+                              reservationRef: it.reference,
+                              clientName: it.client,
+                            ),
+                          ),
+                        );
+                        if (mounted) _loadRequests(); // rafraîchit le flag
+                      },
+                      icon: const Icon(Icons.star_border_rounded, size: 18),
+                      label: const Text('Évaluer le client',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                            color: BabifixDesign.warning.withValues(alpha: 0.3)),
+                        foregroundColor: BabifixDesign.warning,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                ),
-                icon: const Icon(Icons.star_border_rounded, size: 18),
-                label: const Text(
-                  'Évaluer le client',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: BabifixDesign.warning.withValues(alpha: 0.3)),
-                  foregroundColor: BabifixDesign.warning,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
             ),
           ],
         ],
@@ -1535,6 +1552,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             paymentType: pay,
             mobileMoneyOperator: mmOp,
             cashFlowStatus: cash,
+            clientRated: e['client_rated'] == true,
             clientMessage: '${e['client_message'] ?? ''}',
             clientPhotos: photos,
             bookingId: (e['id'] as num?)?.toInt(),
@@ -1870,6 +1888,9 @@ class _RequestItem {
   late String mobileMoneyOperator;
   late String cashFlowStatus;
 
+  /// Le prestataire a déjà noté le client pour cette réservation.
+  final bool clientRated;
+
   /// Message du client décrivant le problème
   final String clientMessage;
 
@@ -1912,6 +1933,7 @@ class _RequestItem {
     this.paymentType = '',
     this.mobileMoneyOperator = '',
     this.cashFlowStatus = '',
+    this.clientRated = false,
     this.clientMessage = '',
     this.clientPhotos = const [],
     this.bookingId,

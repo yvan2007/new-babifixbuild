@@ -203,6 +203,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   }
 
   Future<void> _loadPublicCategories() async {
+    if (mounted) setState(() => _loadingCategories = true);
     try {
       // ?all=1 → le prestataire voit TOUTES les catégories (même vides) pour
       // choisir son métier. Le client, lui, ne voit que les catégories remplies.
@@ -210,7 +211,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       debugPrint(
         'BABIFIX PRESTATAIRE REGISTRATION: Loading categories from $url',
       );
-      final res = await http.get(Uri.parse(url));
+      // Timeout : sur cold start serveur, sans borne, la liste reste vide.
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 25));
       debugPrint(
         'BABIFIX PRESTATAIRE REGISTRATION: Response status ${res.statusCode}',
       );
@@ -844,6 +846,34 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                     color: _kCyan,
                     backgroundColor: Colors.white12,
                   ),
+                ),
+              )
+            else if (_publicCategories.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_off_rounded,
+                        color: Colors.white54, size: 20),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Spécialités non chargées (connexion lente).',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _loadPublicCategories,
+                      icon: const Icon(Icons.refresh_rounded, size: 18, color: _kCyan),
+                      label: const Text('Actualiser',
+                          style: TextStyle(color: _kCyan, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
                 ),
               )
             else

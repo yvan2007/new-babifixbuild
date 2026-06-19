@@ -3882,6 +3882,15 @@ def api_prestataire_requests(request):
     # Tri récent d'abord pour que les dernières demandes soient toujours visibles.
     queryset = queryset.order_by("-id")
 
+    # Pré-fetch des réservations déjà notées par le prestataire (évite N+1) →
+    # permet à l'app de masquer « Évaluer le client » une fois la note posée.
+    from .models import ClientRating as _ClientRating
+
+    _rated_ids = set(
+        _ClientRating.objects.filter(reservation__in=queryset[:100]).values_list(
+            "reservation_id", flat=True
+        )
+    )
     data = []
     for item in queryset[:100]:
         prov_obj = item.assigned_provider
@@ -3968,6 +3977,7 @@ def api_prestataire_requests(request):
                 "mobile_money_operator": item.mobile_money_operator or "",
                 "cash_flow_status": item.cash_flow_status,
                 "rating": ravg,
+                "client_rated": item.id in _rated_ids,
                 "prix_propose": float(item.prix_propose) if item.prix_propose else None,
                 "bookingId": item.id,
             }
