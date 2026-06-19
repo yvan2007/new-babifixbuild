@@ -3272,6 +3272,25 @@ def _api_messages_send(request):
                 },
                 status=403,
             )
+        # Après la prestation terminée, la messagerie est clôturée — SAUF si un
+        # litige est ouvert (pour échanger sur le problème). Pour signaler un
+        # souci, on passe par « Signaler un problème » (avec preuves).
+        if (
+            res_link
+            and normalize_reservation_status(res_link.statut) == "Terminee"
+            and not getattr(res_link, "dispute_ouverte", False)
+        ):
+            return JsonResponse(
+                {
+                    "error": "prestation_terminee",
+                    "detail": (
+                        "La prestation est terminée : la messagerie est clôturée. "
+                        "En cas de problème, utilisez « Signaler un problème » "
+                        "(avec photos à l'appui)."
+                    ),
+                },
+                status=403,
+            )
 
     msg = Message(
         conversation=conv,

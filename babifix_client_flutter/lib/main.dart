@@ -27,6 +27,7 @@ import 'user_store.dart';
 import 'models/client_models.dart';
 import 'shared/geo_utils.dart';
 import 'shared/widgets/babifix_distance_chip.dart';
+import 'shared/widgets/babifix_slide_to_confirm.dart';
 import 'shared/in_app_notifications.dart';
 import 'shared/offline_cache.dart';
 import 'services/notification_sound_service.dart';
@@ -6379,53 +6380,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
               ),
               const SizedBox(height: 24),
-              SizedBox(
-                height: 52,
-                child: Dismissible(
-                  key: ValueKey('cash_confirm_${r.reference}'),
-                  direction: DismissDirection.startToEnd,
-                  confirmDismiss: (_) async {
-                    Navigator.pop(ctx);
-                    await _declareCashPayment(r);
-                    return false;
-                  },
-                  background: Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
-                        SizedBox(width: 8),
-                        Text('Lâcher pour confirmer',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.4)),
-                      color: const Color(0xFF22C55E).withValues(alpha: 0.06),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.swipe_rounded, color: Color(0xFF22C55E), size: 22),
-                        SizedBox(width: 8),
-                        Text('Glissez → pour confirmer',
-                          style: TextStyle(color: Color(0xFF22C55E), fontWeight: FontWeight.w800, fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              BabifixSlideToConfirm(
+                label: 'Glissez → j\'ai payé en espèces',
+                color: const Color(0xFF22C55E),
+                icon: Icons.money_rounded,
+                onConfirmed: () async {
+                  Navigator.pop(ctx);
+                  await _declareCashPayment(r);
+                },
               ),
             ],
           ),
