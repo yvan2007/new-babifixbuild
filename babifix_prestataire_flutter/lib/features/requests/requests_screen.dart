@@ -112,9 +112,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   bool _canConfirmCash(_RequestItem it) {
+    // « Le presta suffit » : dès que les travaux sont confirmés (Terminee), le
+    // prestataire peut confirmer la réception des espèces — sans attendre que le
+    // client déclare. On masque seulement une fois validé.
     return it.paymentType == 'ESPECES' &&
-        it.cashFlowStatus == 'pending_prestataire' &&
-        (it.apiStatus == 'Terminee');
+        (it.apiStatus == 'Terminee' || it.apiStatus == 'DONE') &&
+        it.cashFlowStatus != 'validated';
   }
 
   @override
@@ -1373,33 +1376,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   ],
                 ),
               ),
-          ],
-          // Espèces : le client a confirmé la prestation mais n'a pas encore
-          // déclaré avoir payé → le presta attend le règlement.
-          if (it.status == 'completed' &&
-              it.paymentType == 'ESPECES' &&
-              it.cashFlowStatus.isEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-              decoration: BoxDecoration(
-                color: BabifixDesign.warning.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.payments_outlined, size: 16, color: Color(0xFFF59E0B)),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'En attente du règlement espèces du client. Vous confirmerez la réception ici.',
-                      style: TextStyle(fontSize: 12.5, color: Color(0xFFB45309), fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
           if (it.status == 'completed' && _canConfirmCash(it)) ...[
             const SizedBox(height: 10),

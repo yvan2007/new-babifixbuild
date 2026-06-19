@@ -2119,19 +2119,13 @@ def api_client_home(request):
                 if item.client_confirme_prestation_at
                 else None,
                 "dispute_ouverte": bool(item.dispute_ouverte),
+                # ORDRE MÉTIER : le client CONFIRME les travaux D'ABORD (il vérifie
+                # que c'est bien fait), PUIS il paie le solde. « Confirmer » apparaît
+                # donc dès que le presta a terminé, tant que le client n'a pas encore
+                # confirmé — y compris si un solde Mobile Money reste dû.
                 "can_confirm_service": item.statut in ("En attente client", "Terminee")
                 and item.client_user_id == uid
-                # Une fois la prestation confirmée par le client, on n'affiche
-                # plus « Confirmer » (sinon doublon avec le paiement espèces).
-                and not item.client_confirme_prestation_at
-                # Mobile Money : on ne peut confirmer (et libérer) qu'une fois le
-                # solde (70 %) payé. Tant qu'il reste un solde, on n'affiche que
-                # « Payer le solde ».
-                and not (
-                    item.payment_type == "MOBILE_MONEY"
-                    and item.acompte_valide
-                    and (item.montant_restant or 0) > 0
-                ),
+                and not item.client_confirme_prestation_at,
                 "can_pay": item.statut == "Terminee"
                 and bool(item.client_confirme_prestation_at)
                 and not Payment.objects.filter(
@@ -2144,13 +2138,12 @@ def api_client_home(request):
                 "can_pay_deposit": item.statut == "DEVIS_ACCEPTE"
                 and item.client_user_id == uid
                 and not item.acompte_valide,
-                # MM : dès que le presta a terminé (« En attente client »), le
-                # client doit pouvoir régler le solde 70 % AVANT de confirmer.
-                # Le statut ne passe à « Terminee » qu'APRÈS la confirmation, donc
-                # filtrer sur « Terminee » seul bloquait le client (ni payer le
-                # solde, ni confirmer car solde > 0).
+                # MM : le solde 70 % se paie APRÈS la confirmation des travaux
+                # (ordre métier : vérifier puis payer). Le paiement du solde
+                # déclenche la libération des fonds au prestataire.
                 "can_pay_remainder": item.statut in ("En attente client", "Terminee")
                 and item.client_user_id == uid
+                and bool(item.client_confirme_prestation_at)
                 and item.acompte_valide
                 and not item.solde_valide
                 and (item.montant_restant or 0) > 0
@@ -5322,13 +5315,25 @@ def api_prestataire_confirm_cash(request, reference):
         if not prov or res.assigned_provider_id != prov.id:
             if res.prestataire_user_id != uid:
                 return JsonResponse({"error": "forbidden"}, status=403)
-    if not res.cash_client_declared_at:
-        return JsonResponse({"error": "client_not_declared"}, status=400)
+    # « Le presta suffit » : le prestataire peut confirmer la réception des
+    # espèces directement (dès que les travaux sont confirmés Terminee), sans
+    # attendre que le client déclare. On exige juste que la prestation soit
+    # confirmée par le client (statut Terminee) pour éviter un cash prématuré.
+    if res.statut not in ("Terminee", "DONE") or not res.client_confirme_prestation_at:
+        return JsonResponse(
+            {
+                "error": "prestation_not_confirmed",
+                "message": "La prestation doit d'abord être confirmée terminée.",
+            },
+            status=400,
+        )
     if res.cash_prestataire_confirmed_at:
         return JsonResponse({"error": "already_confirmed"}, status=400)
-    # Les deux parties (client + prestataire) ont confirmé le paiement espèces
-    # → auto-validation sans admin
+    # Auto-validation sans admin. Si le client n'a pas formellement déclaré,
+    # on l'enregistre maintenant (la confirmation du presta fait foi).
     with transaction.atomic():
+        if not res.cash_client_declared_at:
+            res.cash_client_declared_at = timezone.now()
         res.cash_prestataire_confirmed_at = timezone.now()
         res.cash_admin_validated_at = timezone.now()
         res.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
@@ -5352,6 +5357,7 @@ def api_prestataire_confirm_cash(request, reference):
             payment.valide_par_admin = True
             payment.save(update_fields=["etat", "valide_par_admin"])
         res.save(update_fields=[
+            "cash_client_declared_at",
             "cash_prestataire_confirmed_at", "cash_admin_validated_at",
             "cash_flow_status", "solde_valide", "commission",
         ])
@@ -6151,8 +6157,32 @@ def api_client_confirmer_travaux(request, reference):
     if res.client_user_id != uid and request.api_role != "admin":
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    # Le client confirme les travaux → « Terminee » (PAS « Confirmee », sinon le
-    # prestataire reverrait « Démarrer la prestation »).
+    # ORDRE MÉTIER : le client confirme les travaux AVANT de payer le solde.
+    # Mobile Money avec un solde encore dû → on enregistre juste la confirmation
+    # et on RESTE « En attente client » : le bouton « Payer le solde » apparaît
+    # ensuite, et c'est le paiement du solde qui libère les fonds + passe Terminee.
+    montant_restant = Decimal(str(res.montant_restant or 0))
+    solde_du_mm = (
+        res.payment_type != Reservation.PaymentType.ESPECES
+        and res.acompte_valide
+        and montant_restant > 0
+        and not res.solde_valide
+    )
+
+    if solde_du_mm:
+        res.client_confirme_prestation_at = timezone.now()
+        res.save(update_fields=["client_confirme_prestation_at"])
+        return JsonResponse(
+            {
+                "ok": True,
+                "statut": res.statut,
+                "solde_du": True,
+                "montant_restant": float(montant_restant),
+                "payment_type": res.payment_type,
+            }
+        )
+
+    # Sinon (espèces, ou MM déjà soldé) → on passe « Terminee ».
     target_status = Reservation.Status.DONE
     is_valid, allowed = validate_reservation_transition(res.statut, target_status)
     if not is_valid:
@@ -6165,7 +6195,7 @@ def api_client_confirmer_travaux(request, reference):
     res.statut = target_status
     res.save(update_fields=["client_confirme_prestation_at", "statut"])
 
-    # Mobile Money : la confirmation libère les fonds bloqués en escrow.
+    # Mobile Money déjà soldé : la confirmation libère les fonds bloqués en escrow.
     # ESPÈCES : on NE libère RIEN ici — c'est le handshake qui s'applique
     # (le client déclare « j'ai payé en espèces », PUIS le prestataire confirme
     # « j'ai reçu » → seulement là la commission est reconnue).

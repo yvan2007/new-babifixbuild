@@ -13,6 +13,7 @@ import '../../services/babifix_api.dart';
 import '../../shared/widgets/animated_check_circle.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../reservations/rate_provider_screen.dart';
+import 'escrow_quote_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -60,6 +61,13 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
     try {
       final r = await EscrowApi.confirmCompletion(widget.reservationReference);
       if (!mounted) return;
+      // ORDRE MÉTIER (Mobile Money) : on confirme les travaux D'ABORD, puis on
+      // paie le solde 70 %. Si le backend signale qu'un solde reste dû, on
+      // enchaîne directement sur l'écran de paiement du solde.
+      if (r['solde_du'] == true) {
+        await _routeToSoldePayment();
+        return;
+      }
       final escrow = (r['escrow'] as Map?) ?? const {};
       final released =
           (escrow['released_to_provider'] as num?)?.toDouble() ?? 0;
@@ -154,6 +162,61 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Travaux confirmés mais solde Mobile Money encore dû → on informe puis on
+  /// ouvre l'écran de paiement du solde (qui libère ensuite les fonds).
+  Future<void> _routeToSoldePayment() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: Container(
+          width: 72,
+          height: 72,
+          decoration: const BoxDecoration(
+            color: Color(0x1A22C55E),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.verified_rounded,
+              size: 40, color: Color(0xFF22C55E)),
+        ),
+        title: const Text('Travaux confirmés ✓',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19)),
+        content: const Text(
+          'Dernière étape : réglez le solde pour finaliser. '
+          'Le prestataire sera payé une fois le solde reçu.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx),
+              icon: const Icon(Icons.payments_rounded, size: 18),
+              label: const Text('Payer le solde'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF22C55E),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            EscrowQuoteScreen(reservationReference: widget.reservationReference),
+      ),
+    );
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   void _showSuccess(double released, Map escrow) {
@@ -293,6 +356,8 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
   Widget _body() {
     final q = _quote;
     final isMobile = q != null && q.isMobile;
+    // Solde Mobile Money encore dû → la confirmation précède le paiement.
+    final soldeDu = isMobile && q.amountDueOnline > 0;
     return Column(
       children: [
         Expanded(
@@ -314,11 +379,14 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        isMobile
-                            ? "En confirmant, vous libérez ${q != null ? fmtMoney(q.netPrestataire) : ''} au prestataire. "
-                                "Cette action est définitive."
-                            : "En confirmant, vous validez que le règlement cash est en règle. "
-                                "Aucun fonds n'est libéré (la commission est déjà encaissée).",
+                        soldeDu
+                            ? "En confirmant, vous validez que les travaux sont bien faits. "
+                                "Vous réglerez ensuite le solde de ${fmtMoney(q.amountDueOnline)} pour finaliser."
+                            : isMobile
+                                ? "En confirmant, vous libérez ${q != null ? fmtMoney(q.netPrestataire) : ''} au prestataire. "
+                                    "Cette action est définitive."
+                                : "En confirmant, vous validez que le règlement cash est en règle. "
+                                    "Aucun fonds n'est libéré (la commission est déjà encaissée).",
                         style: const TextStyle(fontSize: 13, height: 1.4),
                       ),
                     ),
@@ -383,7 +451,7 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                             height: 16,
                             child: BabifixRingLoader.cyan(size: 28))
                         : const Icon(Icons.check_circle, size: 18),
-                    label: const Text('Confirmer & libérer'),
+                    label: Text(soldeDu ? 'Confirmer les travaux' : 'Confirmer & libérer'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: BabifixDesign.ciGreen,
                       foregroundColor: Colors.white,

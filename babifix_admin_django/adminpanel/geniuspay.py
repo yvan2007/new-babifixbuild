@@ -95,10 +95,28 @@ def _apply_payment_phase(reservation, payment) -> str:
     reservation.montant_verse = new_verse
     reservation.montant_restant = max(Decimal("0"), total - new_verse)
     fields = ["montant_verse", "montant_restant"]
-    if reservation.montant_restant <= 0:
+    solde_complet = reservation.montant_restant <= 0
+    if solde_complet:
         reservation.solde_valide = True
         fields.append("solde_valide")
+    # ORDRE MÉTIER (Mobile Money) : le client confirme les travaux AVANT de payer
+    # le solde. Si la confirmation est déjà faite et que le solde vient d'être
+    # complété, on finalise ICI : passage « Terminee » + libération des fonds au
+    # prestataire. (Si pas encore confirmé, on attend la confirmation.)
+    if (
+        solde_complet
+        and reservation.client_confirme_prestation_at
+        and reservation.statut not in ("Terminee", "Annulee")
+    ):
+        reservation.statut = Reservation.Status.DONE
+        fields.append("statut")
     reservation.save(update_fields=fields)
+    if solde_complet and reservation.client_confirme_prestation_at:
+        try:
+            from .services.escrow_service import EscrowService
+            EscrowService.release_funds(reservation)
+        except Exception:
+            pass
     return "solde"
 
 
