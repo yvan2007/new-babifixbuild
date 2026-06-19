@@ -741,16 +741,15 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                         strokeCap: StrokeCap.round,
                       ),
                     ),
+                    // Pastille blanche + vrai logo de l'opérateur (Orange Money,
+                    // MTN MoMo, Wave, Moov) — plus parlant que l'icône générique.
                     Container(
                       width: 96,
                       height: 96,
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [op.color, op.color.withValues(alpha: 0.7)],
-                        ),
+                        color: Colors.white,
                         boxShadow: [
                           BoxShadow(
                             color: op.color.withValues(alpha: 0.45),
@@ -759,8 +758,10 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.smartphone_rounded,
-                          color: Colors.white, size: 42),
+                      child: BabifixPaymentMethodLogo(
+                        methodId: op.id,
+                        height: 56,
+                      ),
                     ),
                   ],
                 ),

@@ -252,7 +252,12 @@ EscrowStrategy escrowStrategyFromString(String s) {
   switch (s.toUpperCase()) {
     case 'CASH_COMMISSION_ONLY':
       return EscrowStrategy.cashCommissionOnly;
+    // MOBILE_DEPOSIT (acompte 30 %) + MOBILE_REMAINDER (solde 70 %) sont la même
+    // stratégie Mobile Money que l'ancien MOBILE_FULL. Sans les mapper, isMobile
+    // restait faux → montant en escrow affiché à 0 côté prestataire.
     case 'MOBILE_FULL':
+    case 'MOBILE_DEPOSIT':
+    case 'MOBILE_REMAINDER':
       return EscrowStrategy.mobileFull;
     default:
       return EscrowStrategy.unknown;

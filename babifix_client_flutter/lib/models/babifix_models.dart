@@ -258,7 +258,13 @@ EscrowStrategy escrowStrategyFromString(String s) {
   switch (s.toUpperCase()) {
     case 'CASH_COMMISSION_ONLY':
       return EscrowStrategy.cashCommissionOnly;
+    // Mobile Money est versé en deux temps : le backend renvoie MOBILE_DEPOSIT
+    // (phase acompte 30 %) puis MOBILE_REMAINDER (phase solde 70 %). Les deux —
+    // ainsi que l'ancien MOBILE_FULL — sont la stratégie "Mobile Money". Sans
+    // ça, isMobile restait toujours faux → escrow affiché à 0, mauvais libellés.
     case 'MOBILE_FULL':
+    case 'MOBILE_DEPOSIT':
+    case 'MOBILE_REMAINDER':
       return EscrowStrategy.mobileFull;
     default:
       return EscrowStrategy.unknown;

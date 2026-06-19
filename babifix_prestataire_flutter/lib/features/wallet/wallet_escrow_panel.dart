@@ -47,8 +47,11 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
     setState(() => _loading = true);
     try {
       // Liste des demandes actives du presta
+      // « En attente client » = travaux terminés, en attente de confirmation/
+      // solde du client : l'argent est toujours en escrow et DOIT apparaître ici
+      // (sinon le montant en escrow retombe à 0 dès que le presta termine).
       final r = await BabifixUserStore.authGet(
-        '/api/prestataire/requests/?statut_in=DEVIS_ACCEPTE,INTERVENTION_EN_COURS,Terminee',
+        '/api/prestataire/requests/?statut_in=DEVIS_ACCEPTE,INTERVENTION_EN_COURS,En attente client,Terminee',
       );
       if (r.statusCode >= 400) {
         setState(() => _loading = false);

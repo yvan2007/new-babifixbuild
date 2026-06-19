@@ -2014,13 +2014,18 @@ def api_client_home(request):
                 "can_pay_deposit": item.statut == "DEVIS_ACCEPTE"
                 and item.client_user_id == uid
                 and not item.acompte_valide,
-                "can_pay_remainder": item.statut == "Terminee"
+                # MM : dès que le presta a terminé (« En attente client »), le
+                # client doit pouvoir régler le solde 70 % AVANT de confirmer.
+                # Le statut ne passe à « Terminee » qu'APRÈS la confirmation, donc
+                # filtrer sur « Terminee » seul bloquait le client (ni payer le
+                # solde, ni confirmer car solde > 0).
+                "can_pay_remainder": item.statut in ("En attente client", "Terminee")
                 and item.client_user_id == uid
                 and item.acompte_valide
                 and not item.solde_valide
                 and (item.montant_restant or 0) > 0
                 and item.payment_type == "MOBILE_MONEY",
-                "need_cash_remainder": item.statut == "Terminee"
+                "need_cash_remainder": item.statut in ("En attente client", "Terminee")
                 and item.client_user_id == uid
                 and item.acompte_valide
                 and not item.solde_valide
