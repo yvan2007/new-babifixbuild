@@ -144,6 +144,8 @@ class ClientReservation {
     this.addressRepere = '',
     this.addressIsApproximate = false,
     this.statusLabel = '',
+    this.interventionStartedAt,
+    this.prestationTermineeAt,
   });
 
   final String title;
@@ -182,6 +184,10 @@ class ClientReservation {
   final String addressPays;
   final String addressRepere;
   final bool addressIsApproximate;
+
+  /// Chrono de la prestation : début + fin (preuve horodatée de la durée).
+  final DateTime? interventionStartedAt;
+  final DateTime? prestationTermineeAt;
 }
 
 class ClientActualiteItem {

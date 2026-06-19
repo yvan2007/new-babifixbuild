@@ -656,6 +656,9 @@ class Reservation(models.Model):
     # Programme de fidélité : points déjà attribués au client pour cette prestation ?
     fidelite_awarded = models.BooleanField(default=False)
     # Flux paiement après prestation (UML + plan BABIFIX)
+    # Horodatage du DÉBUT d'intervention (presta « Démarrer ») : permet de
+    # chronométrer la prestation et d'afficher sa durée (preuve horodatée).
+    intervention_started_at = models.DateTimeField(null=True, blank=True)
     prestation_terminee_at = models.DateTimeField(null=True, blank=True)
     client_confirme_prestation_at = models.DateTimeField(null=True, blank=True)
     preuve_photos = models.JSONField(default=list, blank=True)

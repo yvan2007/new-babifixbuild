@@ -9,6 +9,7 @@ import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_slide_to_confirm.dart';
+import '../../shared/widgets/babifix_prestation_timer.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import 'devis_kanban_editor_screen.dart';
 import 'client_journal_viewer.dart';
@@ -1135,6 +1136,16 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ),
 
+          // ── Chrono de la prestation (preuve horodatée) ────────────────
+          // Live pendant l'intervention, durée figée une fois terminé.
+          if (it.interventionStartedAt != null) ...[
+            const SizedBox(height: 10),
+            BabifixPrestationTimer(
+              startedAt: it.interventionStartedAt,
+              endedAt: it.prestationTermineeAt,
+            ),
+          ],
+
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1522,6 +1533,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
             isUrgent: e['is_urgent'] == true,
             prixPropose: (e['prix_propose'] as num?)?.toDouble(),
             devisRefusMotif: '${e['devis_refus_motif'] ?? ''}',
+            interventionStartedAt:
+                DateTime.tryParse('${e['intervention_started_at'] ?? ''}')?.toLocal(),
+            prestationTermineeAt:
+                DateTime.tryParse('${e['prestation_terminee_at'] ?? ''}')?.toLocal(),
           );
         }).toList();
         // Les demandes urgentes remontent en tête, sinon tri par date décroissante.
@@ -1870,6 +1885,11 @@ class _RequestItem {
   /// Motif fourni par le client s'il a refusé le devis précédent.
   final String devisRefusMotif;
 
+  /// Chrono de la prestation : début (Démarrer) et fin (Terminé). Sert à
+  /// afficher la durée — preuve horodatée.
+  final DateTime? interventionStartedAt;
+  final DateTime? prestationTermineeAt;
+
   /// Adresse structurée pro (chacun affiché avec son icône colorée).
   final String addressStreet;
   final String addressQuartier;
@@ -1903,6 +1923,8 @@ class _RequestItem {
     this.isUrgent = false,
     this.prixPropose,
     this.devisRefusMotif = '',
+    this.interventionStartedAt,
+    this.prestationTermineeAt,
     this.addressStreet = '',
     this.addressQuartier = '',
     this.addressVille = '',

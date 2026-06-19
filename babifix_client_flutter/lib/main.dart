@@ -28,6 +28,7 @@ import 'models/client_models.dart';
 import 'shared/geo_utils.dart';
 import 'shared/widgets/babifix_distance_chip.dart';
 import 'shared/widgets/babifix_slide_to_confirm.dart';
+import 'shared/widgets/babifix_prestation_timer.dart';
 import 'shared/in_app_notifications.dart';
 import 'shared/offline_cache.dart';
 import 'services/notification_sound_service.dart';
@@ -4299,6 +4300,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 ),
               ),
             ],
+            // Chrono de la prestation : live pendant l'intervention, durée
+            // figée (preuve horodatée) une fois les travaux terminés.
+            if (r.interventionStartedAt != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: BabifixPrestationTimer(
+                  startedAt: r.interventionStartedAt,
+                  endedAt: r.prestationTermineeAt,
+                ),
+              ),
+            ],
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
               child: Row(
@@ -5860,6 +5872,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
               addressPays: '${item['address_pays'] ?? ''}'.trim(),
               addressRepere: '${item['address_repere'] ?? ''}'.trim(),
               addressIsApproximate: item['address_is_approximate'] == true,
+              interventionStartedAt: DateTime.tryParse(
+                      '${item['intervention_started_at'] ?? ''}')
+                  ?.toLocal(),
+              prestationTermineeAt: DateTime.tryParse(
+                      '${item['prestation_terminee_at'] ?? ''}')
+                  ?.toLocal(),
             ),
           )
           .toList();

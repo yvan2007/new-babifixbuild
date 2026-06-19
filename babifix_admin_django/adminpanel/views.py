@@ -2105,6 +2105,9 @@ def api_client_home(request):
                 "can_rate": can_rate,
                 "rated": has_rating,
                 "client_message": (item.client_message or "")[:500],
+                "intervention_started_at": item.intervention_started_at.isoformat()
+                if item.intervention_started_at
+                else None,
                 "prestation_terminee_at": item.prestation_terminee_at.isoformat()
                 if item.prestation_terminee_at
                 else None,
@@ -4126,6 +4129,14 @@ def api_prestataire_requests(request):
                 "rating": ravg,
                 "client_rated": item.id in _rated_ids,
                 "prix_propose": float(item.prix_propose) if item.prix_propose else None,
+                # Chrono de la prestation : début (Démarrer) + fin (Terminé).
+                # Permet d'afficher la durée — preuve horodatée côté presta/client.
+                "intervention_started_at": item.intervention_started_at.isoformat()
+                if item.intervention_started_at
+                else None,
+                "prestation_terminee_at": item.prestation_terminee_at.isoformat()
+                if item.prestation_terminee_at
+                else None,
                 "bookingId": item.id,
             }
         )
@@ -6001,7 +6012,13 @@ def api_prestataire_demarrer_intervention(request, reference):
         )
 
     res.statut = Reservation.Status.INTERVENTION_EN_COURS
-    res.save(update_fields=["statut"])
+    _start_fields = ["statut"]
+    # Démarre le chrono une seule fois (un éventuel redémarrage ne réinitialise
+    # pas l'heure de début — la durée affichée reste fidèle à la réalité).
+    if not res.intervention_started_at:
+        res.intervention_started_at = timezone.now()
+        _start_fields.append("intervention_started_at")
+    res.save(update_fields=_start_fields)
 
     _schedule(
         [res.client_user_id] if res.client_user_id else [],
