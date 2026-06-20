@@ -5315,25 +5315,22 @@ def api_prestataire_confirm_cash(request, reference):
         if not prov or res.assigned_provider_id != prov.id:
             if res.prestataire_user_id != uid:
                 return JsonResponse({"error": "forbidden"}, status=403)
-    # « Le presta suffit » : le prestataire peut confirmer la réception des
-    # espèces directement (dès que les travaux sont confirmés Terminee), sans
-    # attendre que le client déclare. On exige juste que la prestation soit
-    # confirmée par le client (statut Terminee) pour éviter un cash prématuré.
-    if res.statut not in ("Terminee", "DONE") or not res.client_confirme_prestation_at:
+    # HANDSHAKE : le client déclare « j'ai remis l'argent » D'ABORD, puis le
+    # prestataire confirme « j'ai reçu » → c'est seulement là que la commission
+    # est reconnue et les fonds libérés. Le presta attend donc la déclaration.
+    if not res.cash_client_declared_at:
         return JsonResponse(
             {
-                "error": "prestation_not_confirmed",
-                "message": "La prestation doit d'abord être confirmée terminée.",
+                "error": "client_not_declared",
+                "message": "En attente : le client doit d'abord confirmer avoir remis l'argent.",
             },
             status=400,
         )
     if res.cash_prestataire_confirmed_at:
         return JsonResponse({"error": "already_confirmed"}, status=400)
-    # Auto-validation sans admin. Si le client n'a pas formellement déclaré,
-    # on l'enregistre maintenant (la confirmation du presta fait foi).
+    # Les deux parties ont confirmé (client a remis, presta a reçu) → auto-
+    # validation sans admin.
     with transaction.atomic():
-        if not res.cash_client_declared_at:
-            res.cash_client_declared_at = timezone.now()
         res.cash_prestataire_confirmed_at = timezone.now()
         res.cash_admin_validated_at = timezone.now()
         res.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
@@ -5357,7 +5354,6 @@ def api_prestataire_confirm_cash(request, reference):
             payment.valide_par_admin = True
             payment.save(update_fields=["etat", "valide_par_admin"])
         res.save(update_fields=[
-            "cash_client_declared_at",
             "cash_prestataire_confirmed_at", "cash_admin_validated_at",
             "cash_flow_status", "solde_valide", "commission",
         ])

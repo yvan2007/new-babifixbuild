@@ -6312,7 +6312,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
   bool _canDeclareCash(ClientReservation r) {
     if (r.status.trim() != 'Terminee') return false;
     if (r.paymentType != 'ESPECES') return false;
-    return r.cashFlowStatus.isEmpty;
+    // Le client peut déclarer « j'ai remis l'argent » tant qu'il ne l'a pas
+    // encore fait. Après paiement de la commission (acompte), cash_flow_status
+    // vaut « pending_admin » — il ne faut donc PAS exiger une valeur vide
+    // (c'était le bug : le slide n'apparaissait jamais). On bloque seulement une
+    // fois que le presta attend (pending_prestataire), validé ou refusé.
+    final s = r.cashFlowStatus.trim();
+    return s != 'pending_prestataire' && s != 'validated' && s != 'refused';
   }
 
   /// Retourne un message utilisateur lisible selon le code HTTP.
