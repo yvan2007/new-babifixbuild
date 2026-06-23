@@ -3728,13 +3728,13 @@ def api_client_create_reservation(request):
         # Bascule à False dans api_prestataire_decide_request (action ACCEPT).
         address_is_approximate=True,
       )
-    except Exception as _create_err:  # DIAGNOSTIC : révèle la vraie cause du 500
+    except Exception:  # Filet de sécurité : on logue la vraie cause, message neutre côté client.
         import traceback as _tb
         logger.error("create_reservation FAILED:\n%s", _tb.format_exc())
         return JsonResponse(
             {
                 "error": "create_failed",
-                "detail": (type(_create_err).__name__ + ": " + str(_create_err))[:400],
+                "message": "La création de la réservation a échoué. Réessayez.",
             },
             status=500,
         )
