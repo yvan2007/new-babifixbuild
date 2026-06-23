@@ -11,7 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../babifix_api_config.dart';
 
 /// Version installée de l'app — à incrémenter à chaque release.
-const String kAppVersion = '1.0.0';
+const String kAppVersion = '1.0.1';
 
 int _cmpVersion(String a, String b) {
   List<int> parse(String s) =>

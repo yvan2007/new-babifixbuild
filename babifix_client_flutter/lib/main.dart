@@ -434,8 +434,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
     _restoreClientNotifsThenInit();
     // Chargement immediat des categories (sans authentification)
     _loadPublicCategories();
-    // Synchronisation temps reel toutes les 3 secondes (auto-refresh)
-    RealTimeSyncService.instance.startSync(intervalSeconds: 3);
+    // Synchronisation temps réel (WebSocket + fallback polling 30 s).
+    RealTimeSyncService.instance.startSync();
     RealTimeSyncService.instance.categoriesStream.listen((_) {
       if (mounted) {
         // Auto-refresh sans afficher de banniere
