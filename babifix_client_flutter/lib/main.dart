@@ -382,6 +382,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
   /// Donnees 100 % issues de l'API — aucune liste locale fictive.
   List<ClientService> services = <ClientService>[];
 
+  /// Nombre de tentatives de chargement (retry auto si serveur froid au boot).
+  int _remoteLoadAttempts = 0;
+
   /// Moyens de paiement (logos) — home + fallback public.
   List<PaymentMethodOption> paymentMethodsRemote = <PaymentMethodOption>[];
 
@@ -5520,6 +5523,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
         Future.delayed(const Duration(milliseconds: 600), () {
           if (mounted) setState(() => _showEmptyAfterDelay = true);
         });
+        // COLD START : si rien n'a chargé (serveur Render endormi → tous les
+        // appels ont timeout au 1er essai), on retente automatiquement quelques
+        // fois. Le serveur se réveille en ~10-50 s ; sans ce retry l'app restait
+        // « vide » jusqu'à ce que l'utilisateur tire pour rafraîchir.
+        _remoteLoadAttempts++;
+        final rienCharge = services.isEmpty && categoryTabs.length <= 1;
+        if (rienCharge && _remoteLoadAttempts < 4) {
+          final delay = Duration(seconds: 3 * _remoteLoadAttempts);
+          debugPrint('BABIFIX: rien chargé (essai $_remoteLoadAttempts) → retry dans ${delay.inSeconds}s');
+          Future.delayed(delay, () {
+            if (mounted) _loadRemoteData();
+          });
+        } else if (!rienCharge) {
+          _remoteLoadAttempts = 0; // reset une fois des données obtenues
+        }
       }
     }
   }
