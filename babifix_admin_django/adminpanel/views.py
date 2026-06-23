@@ -3693,7 +3693,8 @@ def api_client_create_reservation(request):
         urgence_surcharge_pct = 20
         amount_numeric = round(amount_numeric * 1.20, 2)
 
-    res_obj = Reservation.objects.create(
+    try:
+      res_obj = Reservation.objects.create(
         reference=reference,
         title=title or "Demande de service",
         client=client_label,
@@ -3726,7 +3727,17 @@ def api_client_create_reservation(request):
         # Privacy : adresse fine masquée tant qu'aucun prestataire n'a accepté.
         # Bascule à False dans api_prestataire_decide_request (action ACCEPT).
         address_is_approximate=True,
-    )
+      )
+    except Exception as _create_err:  # DIAGNOSTIC : révèle la vraie cause du 500
+        import traceback as _tb
+        logger.error("create_reservation FAILED:\n%s", _tb.format_exc())
+        return JsonResponse(
+            {
+                "error": "create_failed",
+                "detail": (type(_create_err).__name__ + ": " + str(_create_err))[:400],
+            },
+            status=500,
+        )
     if res_obj.client_user_id and res_obj.prestataire_user_id:
         Conversation.objects.get_or_create(
             reservation=res_obj,
