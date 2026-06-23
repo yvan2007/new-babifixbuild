@@ -28,6 +28,21 @@ def add_missing(apps, schema_editor, model_name, fields):
     for attr_name, field in fields:
         f = field.clone()
         f.set_attributes_from_name(attr_name)
+        # Les FK vers un modèle référencé par chaîne (ex. settings.AUTH_USER_MODEL
+        # = 'auth.User') ne se résolvent pas toujours sur une base NEUVE
+        # (« Related model 'auth.user' cannot be resolved »). On pointe la cible
+        # sur le modèle historique de l'état de migration → résolution fiable.
+        rf = getattr(f, "remote_field", None)
+        if rf is not None and isinstance(getattr(rf, "model", None), str):
+            try:
+                target = apps.get_model(rf.model)
+                rf.model = target
+                # Sans field_name, schema_editor cherche un champ « None » sur la
+                # cible → on pointe sur sa clé primaire (généralement « id »).
+                if not getattr(rf, "field_name", None):
+                    rf.field_name = target._meta.pk.name
+            except Exception:
+                pass
         if f.column in existing:
             continue
         schema_editor.add_field(model, f)
