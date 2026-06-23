@@ -4951,14 +4951,27 @@ def api_auth_register(request):
                 "Email de vérification non envoyé pour %s: %s", user.email, e
             )
 
-    # Email de bienvenue
-    try:
-        from .views_extra import email_welcome
+    # Email de bienvenue — EN ARRIÈRE-PLAN (thread daemon). Sur Render, le SMTP
+    # peut être lent/bloqué : un envoi synchrone faisait traîner la réponse
+    # jusqu'à ce que l'app coupe (timeout 45 s) → CancelledError + inscription
+    # qui « n'aboutit pas ». Le compte est déjà créé : l'email ne doit JAMAIS
+    # bloquer ni faire échouer l'inscription.
+    def _send_welcome_async(u, r):
+        try:
+            from .views_extra import email_welcome
 
-        email_welcome(user, role)
-        print(f"[OK] Email bienvenue appele pour {user.email}")
-    except Exception as e:
-        print(f"[ERROR] Erreur email_welcome: {e}")
+            email_welcome(u, r)
+        except Exception as _e:  # noqa: BLE001
+            logger.warning("email_welcome échoué pour %s: %s", getattr(u, "email", "?"), _e)
+
+    try:
+        import threading
+
+        threading.Thread(
+            target=_send_welcome_async, args=(user, role), daemon=True
+        ).start()
+    except Exception:
+        pass
 
     # Synchroniser le Client dans la table admin dès l'inscription
     if role == UserProfile.Role.CLIENT:

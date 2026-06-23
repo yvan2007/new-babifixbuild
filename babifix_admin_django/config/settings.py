@@ -381,6 +381,9 @@ EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in {"1", "true", "yes
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.ci>")
+# Timeout SMTP : empêche une connexion mail lente/bloquée (fréquent sur Render)
+# de figer une requête. 10 s max, puis l'envoi échoue proprement.
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "10"))
 
 # =============================================================================
 # SOCIAL AUTH (Google & Apple Sign-In)
