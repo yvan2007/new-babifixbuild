@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
+import '../auth/auth_screen.dart';
 import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
 import '../../shared/widgets/gps_location_card.dart';
@@ -529,7 +530,24 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       // on crée la réservation DIRECTEMENT via l'API. Avant, cette branche
       // simulait un faux succès → la demande n'arrivait jamais au presta.
       try {
-        final token = await BabifixUserStore.getApiToken();
+        var token = await BabifixUserStore.getApiToken();
+        if ((token == null || token.isEmpty) && mounted) {
+          // Pas connecté → on ouvre l'écran d'auth ; au retour (connecté), on
+          // RELANCE automatiquement la création (avant : erreur sèche, le client
+          // devait tout recommencer sa réservation).
+          bool loggedIn = false;
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => AuthScreen(
+                onAuthSuccess: () {
+                  loggedIn = true;
+                  Navigator.of(context).maybePop();
+                },
+              ),
+            ),
+          );
+          if (loggedIn) token = await BabifixUserStore.getApiToken();
+        }
         if (token == null || token.isEmpty) {
           errorMsg = 'Connectez-vous pour réserver';
         } else {

@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+﻿import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -35,16 +36,23 @@ class _RequestsScreenState extends State<RequestsScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
   String? _selectedBucket;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     items = <_RequestItem>[];
     _initSession();
+    // Auto-refresh : le presta voit les nouvelles demandes / mises à jour
+    // d'exigences sans avoir à tirer pour rafraîchir. 20 s = bon compromis.
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted && !loading) _loadRequests();
+    });
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }

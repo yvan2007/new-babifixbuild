@@ -121,8 +121,10 @@ def _reservation_prestataire_user_ids(r) -> list[int | None]:
 def on_reservation_change(
     instance, created: bool, update_fields: frozenset[str] | None
 ) -> None:
-    watch = {"statut", "cash_flow_status", "montant", "title", "prestataire", "client"}
-    if not created and update_fields is not None and not (set(update_fields) & watch):
+    # On ne notifie QUE sur un vrai changement de STATUT (pas sur les mises à
+    # jour internes : cash_flow_status, montant_restant, etc.) → bien moins de
+    # messages, plus professionnel.
+    if not created and (update_fields is not None and "statut" not in update_fields):
         return
 
     if created:
@@ -141,33 +143,46 @@ def on_reservation_change(
         )
         return
 
-    uids = [instance.client_user_id, instance.prestataire_user_id]
-    uids.extend(_reservation_prestataire_user_ids(instance))
-
-    # Message spécifique selon l'action (statut) — plus clair pour l'utilisateur.
     ref = instance.reference
-    messages = {
-        "DEMANDE_ENVOYEE": ("BABIFIX — Demande envoyée", f"Votre demande {ref} a bien été envoyée."),
-        "DEVIS_EN_COURS": ("BABIFIX — Devis en préparation", f"Le prestataire prépare votre devis ({ref})."),
-        "DEVIS_ENVOYE": ("BABIFIX — Devis reçu", f"Vous avez reçu un devis pour {ref}."),
-        "DEVIS_ACCEPTE": ("BABIFIX — Devis accepté", f"Le devis de {ref} a été accepté."),
-        "INTERVENTION_EN_COURS": ("BABIFIX — Intervention démarrée", f"L'intervention pour {ref} a commencé."),
-        "En attente client": ("BABIFIX — Prestation terminée", f"Confirmez la prestation {ref} pour finaliser."),
-        "Terminee": ("BABIFIX — Réservation terminée", f"Prestation {ref} terminée. Pensez à noter votre prestataire !"),
-        "Annulee": ("BABIFIX — Réservation annulée", f"La réservation {ref} a été annulée."),
+    client_uid = instance.client_user_id
+    presta_uids = [
+        u
+        for u in ([instance.prestataire_user_id] + _reservation_prestataire_user_ids(instance))
+        if u
+    ]
+
+    # (titre, corps, destinataire). On prévient SEULEMENT la partie concernée —
+    # en général celle qui N'A PAS déclenché le changement — pour ne pas envoyer
+    # deux notifications redondantes. Les étapes mineures (demande envoyée, devis
+    # en préparation) ne déclenchent AUCUNE notification.
+    spec = {
+        "DEVIS_ENVOYE": ("BABIFIX — Devis reçu", f"Vous avez reçu un devis pour {ref}.", "client"),
+        "DEVIS_ACCEPTE": ("BABIFIX — Devis accepté", f"Le client a accepté le devis ({ref}).", "presta"),
+        "INTERVENTION_EN_COURS": ("BABIFIX — Intervention démarrée", f"L'intervention pour {ref} a commencé.", "client"),
+        "En attente client": ("BABIFIX — Prestation terminée", f"Confirmez la prestation {ref} pour finaliser.", "client"),
+        "Terminee": ("BABIFIX — Prestation confirmée", f"Le client a confirmé {ref}. Place au paiement.", "presta"),
+        "Annulee": ("BABIFIX — Réservation annulée", f"La réservation {ref} a été annulée.", "both"),
     }
-    title, body = messages.get(
-        instance.statut, ("BABIFIX — Réservation", f"{ref} — {instance.statut}")
-    )
+    entry = spec.get(instance.statut)
+    if not entry:
+        return  # statut non notifiable → silence (réduit le bruit)
+    title, body, who = entry
+    if who == "client":
+        targets = [client_uid] if client_uid else []
+    elif who == "presta":
+        targets = presta_uids
+    else:
+        targets = ([client_uid] if client_uid else []) + presta_uids
+    if not targets:
+        return
     _schedule(
-        uids,
+        targets,
         title,
         body,
         {
             "type": "reservation.updated",
             "reference": instance.reference,
             "statut": instance.statut,
-            "cash_flow": instance.cash_flow_status or "",
             "route": f"/reservation/{instance.reference}",
         },
     )
