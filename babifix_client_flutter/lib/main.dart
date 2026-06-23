@@ -455,8 +455,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Future<void> _restoreClientNotifsThenInit() async {
-    final list = await loadInAppNotifList(BabifixInAppNotifStorageKeys.client);
-    if (mounted) _clientInAppNotifs.value = list;
+    // La restauration des notifications NE DOIT JAMAIS bloquer le démarrage :
+    // si le stockage local est corrompu et que ça lève une exception, on
+    // n'appellerait jamais _initSession() → l'app resterait VIDE (ni catégories,
+    // ni prestataires, ni actualités, ni prompt GPS). On isole donc cette étape.
+    try {
+      final list = await loadInAppNotifList(BabifixInAppNotifStorageKeys.client);
+      if (mounted) _clientInAppNotifs.value = list;
+    } catch (e) {
+      debugPrint('BABIFIX: restore notifs échoué (ignoré): $e');
+    }
     if (!mounted) return;
     _loadProfile();
     _initSession();
