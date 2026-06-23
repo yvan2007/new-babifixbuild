@@ -32,7 +32,10 @@ class RealTimeSyncService {
   bool _isInitialized = false;
   bool _wsConnected = false;
 
-  void startSync({int intervalSeconds = 3, bool preferWebSocket = true}) {
+  // Fallback de polling à 30 s (et non 3 s) : c'est un filet de sécurité quand
+  // le WebSocket n'est pas connecté, pas la voie principale. 3 s martelait le
+  // serveur (un GET /categories + /providers toutes les 3 s, en continu).
+  void startSync({int intervalSeconds = 30, bool preferWebSocket = true}) {
     if (_isInitialized) return;
     _isInitialized = true;
 
@@ -102,6 +105,9 @@ class RealTimeSyncService {
   void _startPollingFallback(int intervalSeconds) {
     debugPrint('RealTimeSync: Polling fallback (${intervalSeconds}s)');
     _syncTimer = Timer.periodic(Duration(seconds: intervalSeconds), (_) {
+      // Si le WebSocket est connecté, il pousse déjà les mises à jour en temps
+      // réel → inutile de poller (on évite le double trafic).
+      if (_wsConnected) return;
       _checkForUpdates();
     });
   }

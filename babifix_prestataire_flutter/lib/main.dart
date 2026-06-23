@@ -308,7 +308,9 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
   }
 
   void _startCategoryPolling() {
-    _categorySyncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    // Les catégories changent très rarement (ajout admin ponctuel) : inutile de
+    // poller toutes les 5 s — ça martelait le serveur en continu. 60 s suffit.
+    _categorySyncTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _checkCategoriesUpdate();
     });
   }
