@@ -328,19 +328,24 @@ class BabifixUserStore {
     if (key.isEmpty || password.isEmpty) return 'Email et mot de passe requis.';
     final uri = Uri.parse('${babifixApiBaseUrl()}/api/auth/register');
     try {
-      final res = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': key,
-          'email': key, // Ajouter le champ email
-          'name': name.trim(), // Nom complet → persiste côté serveur
-          'password': password,
-          'role': 'client',
-          'phone_e164': phone.trim(),
-          'country_code': countryCode,
-        }),
-      );
+      // Timeout borné (cold start serveur). Sans ça, l'inscription pouvait
+      // « traîner » puis tomber en fallback local silencieux → compte jamais
+      // créé en base (donc invisible dans l'admin) et reconnexion impossible.
+      final res = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'username': key,
+              'email': key, // Ajouter le champ email
+              'name': name.trim(), // Nom complet → persiste côté serveur
+              'password': password,
+              'role': 'client',
+              'phone_e164': phone.trim(),
+              'country_code': countryCode,
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final token = data['token'] as String?;
@@ -352,18 +357,29 @@ class BabifixUserStore {
             phone: phone.trim(),
           );
           await _setSession(true);
-          await BabifixFcm.registerTokenWithBackend(token);
+          BabifixFcm.registerTokenWithBackend(token).catchError((_) {});
           return null;
         }
       }
+      // Messages serveur lisibles (compte déjà existant, etc.).
       try {
         final err = jsonDecode(res.body) as Map<String, dynamic>;
-        return '${err['error'] ?? 'Erreur inscription'}';
+        final code = '${err['error'] ?? ''}';
+        if (code == 'username_exists') {
+          return 'Un compte existe déjà avec cet email. Connectez-vous.';
+        }
+        if (code == 'password_too_short') {
+          return 'Mot de passe trop court (6 caractères minimum).';
+        }
+        return code.isNotEmpty ? code : 'Inscription impossible (HTTP ${res.statusCode}).';
       } catch (_) {
         return 'Inscription impossible (HTTP ${res.statusCode}).';
       }
     } catch (e) {
-      return _registerLocalFallback(email, password, name, phone);
+      // Réseau / serveur indisponible : on NE crée PAS un compte local trompeur
+      // (il ne serait pas en base). On demande de réessayer — le 2e essai marche
+      // une fois le serveur réveillé.
+      return 'Connexion au serveur impossible. Vérifiez votre réseau et réessayez.';
     }
   }
 
@@ -426,11 +442,9 @@ class BabifixUserStore {
           return null;
         }
       }
-      // Identifiants refusés par le serveur (401/400) → message clair, pas de
-      // repli local trompeur qui dirait « incorrect » après un long timeout.
-      if (res.statusCode == 401 || res.statusCode == 400) {
-        return 'Email ou mot de passe incorrect.';
-      }
+      // NB : on ne court-circuite PAS ici sur un 401/400 — on laisse la main au
+      // repli local ci-dessous (comptes créés hors-ligne avant une connexion).
+      // Si le compte n'existe pas non plus en local → « incorrect ».
     } catch (_) {
       // fallback local
     }
