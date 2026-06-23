@@ -5497,18 +5497,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
     // try/finally : quoi qu'il arrive (timeout, erreur réseau, cold start),
     // on éteint TOUJOURS le loader → l'app ne reste jamais figée sur l'écran vide.
     try {
-      // Catégories publiques (sans authentification)
-      await _loadPublicCategories();
-
-      // Prestataires publics (force pour refresh)
-      await _loadPublicProviders(forceUpdate: true);
-
-      // Données utilisateur (si connecté)
+      // Chargements EN PARALLÈLE : chaque bloc a son propre try/catch + timeout.
+      // Avant, c'était séquentiel → la demande de permission GPS (dans
+      // _loadPublicProviders) bloquait le chargement des actualités/catégories
+      // tant que l'utilisateur n'avait pas répondu au dialogue. En parallèle,
+      // les catégories et actualités s'affichent même si le GPS est en attente.
+      final futures = <Future<void>>[
+        _loadPublicCategories(),
+        _loadPublicProviders(forceUpdate: true),
+      ];
       if (authToken != null) {
-        await _loadClientHomeData();
+        futures.add(_loadClientHomeData());
       } else {
-        await _loadPublicActualites();
+        futures.add(_loadPublicActualites());
       }
+      await Future.wait(futures);
     } catch (e) {
       debugPrint('BABIFIX: _loadRemoteData error: $e');
     } finally {
