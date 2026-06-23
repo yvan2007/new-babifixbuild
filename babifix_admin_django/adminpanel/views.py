@@ -3671,13 +3671,17 @@ def api_client_create_reservation(request):
         else Reservation.Status.PENDING
     )
 
-    with transaction.atomic():
-        existing_count = Reservation.objects.select_for_update().count() + 1
-        while Reservation.objects.filter(
-            reference=f"RES-{existing_count:03d}"
-        ).exists():
-            existing_count += 1
-        reference = f"RES-{existing_count:03d}"
+    # Génération de la référence. ATTENTION : ne PAS utiliser
+    # `select_for_update().count()` → PostgreSQL interdit FOR UPDATE avec une
+    # fonction d'agrégat (COUNT) → « FOR UPDATE is not allowed with aggregate
+    # functions » → 500 à CHAQUE création de réservation. On compte simplement
+    # et la boucle `while` règle les collisions de référence.
+    existing_count = Reservation.objects.count() + 1
+    while Reservation.objects.filter(
+        reference=f"RES-{existing_count:03d}"
+    ).exists():
+        existing_count += 1
+    reference = f"RES-{existing_count:03d}"
 
     # Générer clé d'idempotence pour éviter double paiement
     idem_key = str(uuid.uuid4())
@@ -6714,6 +6718,26 @@ def api_client_refuse_devis(request, reference):
 
 
 def error_500(request):
+    # Logue la traceback complète de l'exception non gérée (sinon les 500 sont
+    # opaques côté Render — on ne voit que « server_error »). Indispensable pour
+    # diagnostiquer (ex. crash de création de réservation).
+    import sys
+    import traceback as _tb
+
+    exc = sys.exc_info()
+    try:
+        if exc and exc[0] is not None:
+            logger.error(
+                "HTTP 500 sur %s %s\n%s",
+                request.method,
+                request.get_full_path(),
+                "".join(_tb.format_exception(*exc)),
+            )
+        else:
+            logger.error("HTTP 500 sur %s %s (exception indisponible)",
+                         request.method, request.get_full_path())
+    except Exception:
+        pass
     return JsonResponse({"error": "server_error"}, status=500)
 
 
