@@ -722,14 +722,21 @@ class Reservation(models.Model):
                 # Priorité au devis ACCEPTÉ (un seul possible) ; sinon dernier
                 # ENVOYÉ ; sinon fallback historique 18 %. Empêche qu'un nouveau
                 # ENVOYÉ posté après acceptation écrase la commission négociée.
-                devis = (
-                    self.devis_set.filter(statut="ACCEPTE")
-                    .order_by("-created_at")
-                    .first()
-                    or self.devis_set.filter(statut="ENVOYE")
-                    .order_by("-created_at")
-                    .first()
-                )
+                # IMPORTANT : `devis_set` est une relation inverse → elle exige
+                # que la réservation ait DÉJÀ un PK. À la CRÉATION (pas encore
+                # d'ID), y accéder lève « instance needs to have a primary key
+                # value before this relationship can be used » → 500. On ne la
+                # consulte donc que pour une réservation déjà enregistrée.
+                devis = None
+                if self.pk:
+                    devis = (
+                        self.devis_set.filter(statut="ACCEPTE")
+                        .order_by("-created_at")
+                        .first()
+                        or self.devis_set.filter(statut="ENVOYE")
+                        .order_by("-created_at")
+                        .first()
+                    )
                 if devis and devis.commission_montant:
                     self.commission = Decimal(str(devis.commission_montant))
                 else:
