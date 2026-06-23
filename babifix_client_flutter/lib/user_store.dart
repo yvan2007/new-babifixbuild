@@ -398,17 +398,20 @@ class BabifixUserStore {
     final key = email.trim().toLowerCase();
     final uri = Uri.parse('${babifixApiBaseUrl()}/api/auth/login');
     try {
-      final res = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': key, 'password': password}),
-      );
+      // Timeout borné : sans ça, un cold start Render (serveur endormi) faisait
+      // « tourner » le login à l'infini. 45 s = marge pour le réveil serveur.
+      final res = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'username': key, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 45));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         // Support both {"token": "..."} and {"access": "...", "refresh": "..."} formats
         final token = (data['token'] ?? data['access']) as String?;
         final refreshToken = data['refresh'] as String?;
-        final username = data['username'] as String? ?? key;
         if (token != null) {
           await _saveApiToken(token);
           if (refreshToken != null) await _saveRefreshToken(refreshToken);
@@ -417,9 +420,16 @@ class BabifixUserStore {
           await saveProfile(email: email.trim());
           await hydrateProfileFromServer();
           await _setSession(true);
-          await BabifixFcm.registerTokenWithBackend(token);
+          // FCM en arrière-plan : ne JAMAIS bloquer le retour du login
+          // (si l'enregistrement du token traîne, l'utilisateur entre quand même).
+          BabifixFcm.registerTokenWithBackend(token).catchError((_) {});
           return null;
         }
+      }
+      // Identifiants refusés par le serveur (401/400) → message clair, pas de
+      // repli local trompeur qui dirait « incorrect » après un long timeout.
+      if (res.statusCode == 401 || res.statusCode == 400) {
+        return 'Email ou mot de passe incorrect.';
       }
     } catch (_) {
       // fallback local
