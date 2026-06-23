@@ -25,10 +25,24 @@ class BabifixSlideToConfirm extends StatefulWidget {
   State<BabifixSlideToConfirm> createState() => _BabifixSlideToConfirmState();
 }
 
-class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm> {
+class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
+    with SingleTickerProviderStateMixin {
   double _dx = 0; // position du curseur (0 → max)
   bool _busy = false;
   bool _done = false;
+
+  // Animation d'indice : des chevrons défilent vers la droite pour montrer
+  // clairement qu'il faut GLISSER (sinon le bouton n'est pas évident).
+  late final AnimationController _hintCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _hintCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +109,41 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm> {
                   ),
                 ),
               ),
+              // Chevrons d'indice « ››› » : montrent clairement qu'il faut
+              // glisser vers la droite. Ils s'estompent au fur et à mesure.
+              if (!_busy && !_done)
+                Positioned(
+                  right: 18,
+                  child: Opacity(
+                    opacity: (1 - progress * 2).clamp(0.0, 1.0),
+                    child: AnimatedBuilder(
+                      animation: _hintCtrl,
+                      builder: (_, __) {
+                        final t = _hintCtrl.value;
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(3, (i) {
+                            final phase = ((t - i * 0.18) % 1.0);
+                            final op = (phase < 0.5
+                                    ? phase * 2
+                                    : (1 - phase) * 2)
+                                .clamp(0.25, 1.0);
+                            return Opacity(
+                              opacity: op,
+                              child: Icon(
+                                Icons.chevron_right_rounded,
+                                color: progress > 0.45
+                                    ? Colors.white
+                                    : widget.color,
+                                size: 20,
+                              ),
+                            );
+                          }),
+                        );
+                      },
+                    ),
+                  ),
+                ),
               // Curseur draggable.
               Positioned(
                 left: 4 + _dx,

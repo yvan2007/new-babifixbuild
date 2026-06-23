@@ -524,10 +524,15 @@ List<ReservationStep> buildReservationTimeline({
 
   // Étape "acompte versé" est virtuelle : positionnée après DEVIS_ACCEPTE
   // si acompteValide=true.
-  return order.map((code) {
+  final steps = order.map((code) {
     bool reached;
     DateTime? at;
     switch (code) {
+      case 'DEVIS_ACCEPTE':
+        // Si l'acompte est versé, le devis a FORCÉMENT été accepté avant →
+        // ne jamais laisser cette étape grise alors que la suivante est verte.
+        reached = order.indexOf(code) <= currentIdx || acompteValide;
+        break;
       case 'ACOMPTE_VERSE':
         reached = acompteValide || currentIdx >= order.indexOf('INTERVENTION_EN_COURS');
         break;
@@ -560,4 +565,24 @@ List<ReservationStep> buildReservationTimeline({
       at: at,
     );
   }).toList();
+
+  // MONOTONICITÉ : une étape atteinte implique que TOUTES les précédentes le
+  // sont. Évite tout maillon grisé au milieu (ex. « Devis accepté » gris alors
+  // que « Acompte versé » est vert).
+  int lastReached = -1;
+  for (int i = 0; i < steps.length; i++) {
+    if (steps[i].reached) lastReached = i;
+  }
+  for (int i = 0; i < lastReached; i++) {
+    if (!steps[i].reached) {
+      steps[i] = ReservationStep(
+        code: steps[i].code,
+        label: steps[i].label,
+        reached: true,
+        active: steps[i].active,
+        at: steps[i].at,
+      );
+    }
+  }
+  return steps;
 }

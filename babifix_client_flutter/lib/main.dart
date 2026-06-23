@@ -4250,6 +4250,25 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ),
                           ],
                         ),
+                        if (r.serviceTitle.isNotEmpty ||
+                            r.providerName.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            [
+                              if (r.serviceTitle.isNotEmpty) r.serviceTitle,
+                              if (r.providerName.isNotEmpty) r.providerName,
+                            ].join('  ·  '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
+                              color: isPending || isActive
+                                  ? Colors.white.withValues(alpha: 0.82)
+                                  : _textPrimary,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(
                           r.whenLabel,
@@ -5917,6 +5936,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ?.toLocal(),
               montantVerse: jsonDoubleNullable(item['montant_verse']) ?? 0,
               fundsReleased: item['funds_released'] == true,
+              serviceTitle: '${item['service_title'] ?? ''}'.trim(),
+              providerName: '${item['provider_name'] ?? ''}'.trim(),
             ),
           )
           .toList();

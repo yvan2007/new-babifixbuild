@@ -122,7 +122,7 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -130,14 +130,14 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
             accent.withValues(alpha: 0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accent.withValues(alpha: 0.30)),
       ),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.16),
               shape: BoxShape.circle,
@@ -145,10 +145,10 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
             child: Icon(
               running ? Icons.timer_outlined : Icons.verified_rounded,
               color: accent,
-              size: 24,
+              size: 18,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +158,7 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
                     Text(
                       running ? 'Prestation en cours' : 'Durée de la prestation',
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF94A3B8),
                       ),
@@ -169,14 +169,14 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
                     ],
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 1),
                 // Une fois terminé, la durée apparaît avec une petite animation
                 // d'entrée (scale + fade) — sensation de « résultat » satisfaisant.
                 running
                     ? Text(
                         _fmtDuration(elapsed),
                         style: TextStyle(
-                          fontSize: 26,
+                          fontSize: 20,
                           fontWeight: FontWeight.w900,
                           color: accent,
                           letterSpacing: 0.5,
@@ -198,20 +198,20 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
                         child: Text(
                           _fmtDurationLong(elapsed),
                           style: TextStyle(
-                            fontSize: 22,
+                            fontSize: 16,
                             fontWeight: FontWeight.w900,
                             color: accent,
                             letterSpacing: 0.5,
                           ),
                         ),
                       ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
                   ended == null
                       ? 'Démarrée à ${_fmtTime(start)}'
                       : 'De ${_fmtTime(start)} à ${_fmtTime(ended)} · preuve horodatée',
                   style: const TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 10.5,
                     color: Color(0xFF64748B),
                   ),
                 ),

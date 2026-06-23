@@ -2096,6 +2096,14 @@ def api_client_home(request):
                 "id": int(item.id),
                 "reference": item.reference,
                 "title": item.reference,
+                # Vrai intitulé de la prestation + nom du prestataire affecté →
+                # affichés sur la carte client (avant on ne voyait que la réf).
+                "service_title": (item.title or "").strip(),
+                "provider_name": (
+                    (item.assigned_provider.nom if item.assigned_provider else None)
+                    or item.prestataire
+                    or ""
+                ),
                 "when_label": _when_label,
                 "amount": item.montant,
                 "status": item.statut,

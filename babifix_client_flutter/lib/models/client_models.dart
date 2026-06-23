@@ -148,6 +148,8 @@ class ClientReservation {
     this.prestationTermineeAt,
     this.montantVerse = 0,
     this.fundsReleased = false,
+    this.serviceTitle = '',
+    this.providerName = '',
   });
 
   final String title;
@@ -194,6 +196,10 @@ class ClientReservation {
   /// Montant payé en ligne et séquestré (escrow), + si déjà libéré au presta.
   final double montantVerse;
   final bool fundsReleased;
+
+  /// Intitulé de la prestation + nom du prestataire (affichés sur la carte).
+  final String serviceTitle;
+  final String providerName;
 }
 
 class ClientActualiteItem {
