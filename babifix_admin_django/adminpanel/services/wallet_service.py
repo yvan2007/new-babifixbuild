@@ -529,8 +529,25 @@ class WalletService:
             return {"error": "provider_not_found"}
 
         txs = WalletTransaction.objects.filter(provider=prov).order_by("-created_at")[:50]
+
+        # Numéro de carte BABIFIX : UNIQUE et STABLE par prestataire, jamais
+        # réattribué (dérivé de l'ID provider qui n'est jamais réutilisé).
+        # Déterministe (toujours le même pour ce presta) + bien réparti (le
+        # last4 diffère d'un presta à l'autre, contrairement à l'ancien « 5432 »
+        # qui était identique pour tout le monde).
+        import hashlib as _hl
+
+        _seed = int(
+            _hl.sha256(f"BABIFIX-WALLET-CARD-{prov.pk}".encode()).hexdigest(), 16
+        )
+        _digits12 = f"{_seed % (10 ** 12):012d}"
+        card_number = "5039" + _digits12  # 16 chiffres
         return {
             "solde_fcfa": float(prov.solde_fcfa or 0),
+            # Titulaire + numéro de carte (affichés sur la carte wallet).
+            "prestataire_nom": prov.nom or "",
+            "card_number": card_number,
+            "card_last4": card_number[-4:],
             "wallet_phone": prov.wallet_phone,
             "wallet_operator": prov.wallet_operator,
             "wallet_phone_2": prov.wallet_phone_2,

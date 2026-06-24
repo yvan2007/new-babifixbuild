@@ -46,7 +46,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
     // Auto-refresh : le presta voit les nouvelles demandes / mises à jour
     // d'exigences sans avoir à tirer pour rafraîchir. 20 s = bon compromis.
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (mounted && !loading) _loadRequests();
+      if (mounted && !loading) _loadRequests(silent: true);
     });
   }
 
@@ -1525,9 +1525,17 @@ class _RequestsScreenState extends State<RequestsScreen> {
     await _loadRequests();
   }
 
-  Future<void> _loadRequests() async {
+  /// Signature compacte de la liste → détecte si quelque chose a VRAIMENT
+  /// changé (évite de reconstruire l'UI inutilement lors d'un refresh silencieux).
+  String _sig(List<_RequestItem> list) => list
+      .map((e) => '${e.reference}|${e.apiStatus}|${e.cashFlowStatus}|${e.clientRated}')
+      .join(';');
+
+  Future<void> _loadRequests({bool silent = false}) async {
     if (authToken == null) return;
-    setState(() => loading = true);
+    // silent=true (auto-refresh 20 s) : pas de spinner, pas de clignotement,
+    // pas d'écrasement de la liste en cas d'erreur réseau.
+    if (!silent) setState(() => loading = true);
     try {
       final url = '${babifixApiBaseUrl()}/api/prestataire/requests';
       debugPrint('📥 PRESTATAIRE LOAD REQUESTS — URL: $url');
@@ -1599,16 +1607,22 @@ class _RequestsScreenState extends State<RequestsScreen> {
           if (da != null && db != null) return db.compareTo(da);
           return 0;
         });
-        setState(() => items = remote);
+        // On ne reconstruit l'UI que si la liste a réellement changé →
+        // l'auto-refresh ne fait plus « clignoter » l'écran sans raison.
+        if (mounted && _sig(remote) != _sig(items)) {
+          setState(() => items = remote);
+        }
         debugPrint('✅ LOADED ${remote.length} requests');
       } else {
         debugPrint('❌ LOAD FAILED — status: ${res.statusCode}');
       }
     } catch (e) {
       debugPrint('❌ LOAD ERROR: $e');
-      if (mounted) setState(() => items = []);
+      // On NE vide PLUS la liste sur erreur réseau (un cold start vidait tout) :
+      // on garde les dernières données connues, sauf premier chargement explicite.
+      if (!silent && items.isEmpty && mounted) setState(() => items = []);
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (!silent && mounted) setState(() => loading = false);
     }
   }
 

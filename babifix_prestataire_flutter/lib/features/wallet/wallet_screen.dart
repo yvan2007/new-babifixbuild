@@ -130,6 +130,7 @@ class _WalletScreenState extends State<WalletScreen>
   String _lastPhone = '';
   String _lastOperator = '';
   String _prestataireName = '';
+  String _cardLast4 = ''; // 4 derniers chiffres du numéro de carte unique presta
   List<Map<String, dynamic>> _transactions = [];
 
   late AnimationController _fadeCtrl;
@@ -174,6 +175,7 @@ class _WalletScreenState extends State<WalletScreen>
           _lastPhone = data['wallet_last_phone'] as String? ?? '';
           _lastOperator = data['wallet_last_operator'] as String? ?? '';
           _prestataireName = data['prestataire_nom'] as String? ?? 'PRESTATAIRE';
+          _cardLast4 = (data['card_last4'] as String?) ?? '';
           _transactions = List<Map<String, dynamic>>.from(
             (data['transactions'] as List?) ?? [],
           );
@@ -348,11 +350,17 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   String _getMaskedCardNumber() {
-    if (_walletPhone.length >= 4) {
-      final last4 = _walletPhone.substring(_walletPhone.length - 4);
-      return '**** **** **** $last4';
+    // Numéro de carte UNIQUE par prestataire (fourni par le backend, dérivé de
+    // son ID → jamais partagé avec un autre presta). On masque tout sauf les 4
+    // derniers chiffres.
+    if (_cardLast4.length == 4) {
+      return '**** **** **** $_cardLast4';
     }
-    return '**** **** **** 5432';
+    // Repli : 4 derniers chiffres du numéro de retrait enregistré (sinon vide).
+    if (_walletPhone.length >= 4) {
+      return '**** **** **** ${_walletPhone.substring(_walletPhone.length - 4)}';
+    }
+    return '**** **** **** ****';
   }
 
   @override
