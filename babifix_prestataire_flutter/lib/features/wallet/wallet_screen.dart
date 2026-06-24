@@ -131,6 +131,7 @@ class _WalletScreenState extends State<WalletScreen>
   String _lastOperator = '';
   String _prestataireName = '';
   String _cardLast4 = ''; // 4 derniers chiffres du numéro de carte unique presta
+  String _cardTier = 'standard'; // abonnement → finition de la carte
   List<Map<String, dynamic>> _transactions = [];
 
   late AnimationController _fadeCtrl;
@@ -176,6 +177,7 @@ class _WalletScreenState extends State<WalletScreen>
           _lastOperator = data['wallet_last_operator'] as String? ?? '';
           _prestataireName = data['prestataire_nom'] as String? ?? 'PRESTATAIRE';
           _cardLast4 = (data['card_last4'] as String?) ?? '';
+          _cardTier = (data['premium_tier'] as String?) ?? 'standard';
           _transactions = List<Map<String, dynamic>>.from(
             (data['transactions'] as List?) ?? [],
           );
@@ -442,6 +444,7 @@ class _WalletScreenState extends State<WalletScreen>
                             operator: _walletOperator,
                             prestataireName: _prestataireName,
                             maskedCardNumber: _getMaskedCardNumber(),
+                            premiumTier: _cardTier,
                             onWithdraw: _solde >= 1000 ? _openWithdrawSheet : null,
                           ),
                           const SizedBox(height: 16),
@@ -500,6 +503,7 @@ class _BalanceCard extends StatelessWidget {
     required this.operator,
     required this.prestataireName,
     required this.maskedCardNumber,
+    this.premiumTier = 'standard',
     this.onWithdraw,
   });
 
@@ -509,17 +513,47 @@ class _BalanceCard extends StatelessWidget {
   final String operator;
   final String prestataireName;
   final String maskedCardNumber;
+  final String premiumTier;
   final VoidCallback? onWithdraw;
+
+  // Finition de la carte selon l'abonnement : Standard (navy/cyan),
+  // Silver (gris métal), Gold (noir + or). Différencie visuellement les tiers.
+  ({List<Color> gradient, Color border, Color glow, String label}) get _theme {
+    switch (premiumTier.toLowerCase()) {
+      case 'gold':
+        return (
+          gradient: const [Color(0xFF2A2410), Color(0xFF0E0B02), Color(0xFF2A2410)],
+          border: const Color(0xFFE7C463),
+          glow: const Color(0xFFE7C463),
+          label: 'GOLD',
+        );
+      case 'silver':
+        return (
+          gradient: const [Color(0xFF3A3F4A), Color(0xFF1A1D24), Color(0xFF3A3F4A)],
+          border: const Color(0xFFC0C6D0),
+          glow: const Color(0xFFC0C6D0),
+          label: 'SILVER',
+        );
+      default:
+        return (
+          gradient: const [Color(0xFF1A1F3A), Color(0xFF0A0E27), Color(0xFF1A1F3A)],
+          border: const Color(0xFF4CC9F0),
+          glow: const Color(0xFF4CC9F0),
+          label: 'STANDARD',
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final opColor = _operatorColors[operator] ?? BabifixDesign.cyan;
+    final th = _theme;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: _premiumGold.withValues(alpha: 0.15),
+            color: th.glow.withValues(alpha: 0.18),
             blurRadius: 30,
             offset: const Offset(0, 12),
             spreadRadius: 2,
@@ -541,19 +575,15 @@ class _BalanceCard extends StatelessWidget {
             height: cardHeight,
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF1A1F3A),
-                    Color(0xFF0A0E27),
-                    Color(0xFF1A1F3A),
-                  ],
-                  stops: [0.0, 0.5, 1.0],
+                  colors: th.gradient,
+                  stops: const [0.0, 0.5, 1.0],
                 ),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: _premiumGold.withValues(alpha: 0.3),
+                  color: th.border.withValues(alpha: 0.45),
                   width: 1.5,
                 ),
               ),
@@ -610,34 +640,34 @@ class _BalanceCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            // BABIFIX PREMIUM branding
+                            // BABIFIX <TIER> branding (couleur = abonnement)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: _premiumGold.withValues(alpha: 0.15),
+                                color: th.border.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: _premiumGold.withValues(alpha: 0.4),
+                                  color: th.border.withValues(alpha: 0.45),
                                   width: 1,
                                 ),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
                                     'BABIFIX',
                                     style: TextStyle(
-                                      color: _premiumGold,
+                                      color: th.border,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w900,
                                       letterSpacing: 1.0,
                                     ),
                                   ),
-                                  SizedBox(width: 3),
+                                  const SizedBox(width: 3),
                                   Text(
-                                    'PREMIUM',
+                                    th.label,
                                     style: TextStyle(
-                                      color: Color(0xFFFFF4B0),
+                                      color: th.border.withValues(alpha: 0.85),
                                       fontSize: 9,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 0.6,

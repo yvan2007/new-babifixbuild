@@ -548,6 +548,9 @@ class WalletService:
             "prestataire_nom": prov.nom or "",
             "card_number": card_number,
             "card_last4": card_number[-4:],
+            # Abonnement → la carte change de couleur/finition selon le tier.
+            "premium_tier": (prov.premium_tier or "standard") if prov.is_premium else "standard",
+            "is_premium": bool(prov.is_premium),
             "wallet_phone": prov.wallet_phone,
             "wallet_operator": prov.wallet_operator,
             "wallet_phone_2": prov.wallet_phone_2,
