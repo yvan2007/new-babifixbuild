@@ -241,9 +241,13 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
               TileLayer(
                 // CartoDB Voyager : libre, CDN multi-sous-domaines, beaucoup
                 // plus fiable que tile.openstreetmap.org direct (qui rate-limite).
+                // {r} = tuiles HD/Retina (@2x) → rendu NET sur les écrans haute
+                // densité (la plupart des téléphones) = beaucoup plus pro, gratuit.
                 urlTemplate:
-                    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
+                retinaMode: RetinaMode.isHighDensity(context),
+                tileProvider: NetworkTileProvider(),
                 userAgentPackageName: 'app.babifix.client',
               ),
               // Cercle de rayon statique + radar pulsant (3 ondes décalées qui
@@ -282,26 +286,52 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                 ),
               // Prestataires (sous le marqueur de position)
               MarkerLayer(
-                markers: _providers.map((p) => Marker(
+                markers: _providers.map((p) {
+                  final sel = _selected?.id == p.id;
+                  final pinColor = sel
+                      ? BabifixDesign.ciOrange
+                      : _distanceColor(p.distanceKm);
+                  return Marker(
                   point: LatLng(p.lat, p.lon),
-                  width: 44,
-                  height: 44,
+                  width: 50,
+                  height: 50,
                   child: GestureDetector(
                     onTap: () => setState(() => _selected = p),
-                    child: AnimatedContainer(
+                    child: AnimatedScale(
                       duration: const Duration(milliseconds: 200),
-                      decoration: BoxDecoration(
-                        color: _selected?.id == p.id
-                            ? BabifixDesign.ciOrange
-                            : _distanceColor(p.distanceKm),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [const BoxShadow(blurRadius: 8, color: Colors.black26)],
+                      curve: Curves.easeOutBack,
+                      scale: sel ? 1.18 : 1.0,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              pinColor,
+                              Color.lerp(pinColor, Colors.black, 0.18)!,
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2.5),
+                          boxShadow: [
+                            BoxShadow(
+                              blurRadius: 10,
+                              spreadRadius: sel ? 2 : 0,
+                              color: pinColor.withValues(alpha: 0.45),
+                              offset: const Offset(0, 3),
+                            ),
+                            const BoxShadow(blurRadius: 6, color: Colors.black26),
+                          ],
+                        ),
+                        child: const Icon(Icons.handyman_rounded,
+                            color: Colors.white, size: 20),
                       ),
-                      child: const Icon(Icons.handyman_rounded, color: Colors.white, size: 22),
                     ),
                   ),
-                )).toList(),
+                  );
+                }).toList(),
               ),
               // Ma position — halo "radar" pulsant, TOUJOURS au-dessus des pins
               // pour rester visible même quand des prestataires sont au même endroit.
