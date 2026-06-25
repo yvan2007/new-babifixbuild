@@ -595,7 +595,14 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
           });
         }
       } else {
-        if (mounted) setState(() => current = 'pending');
+        // Statut « En attente » : on propose d'abord la charte/contrat si elle
+        // n'a jamais été signée (dès la création du compte), sinon l'écran
+        // d'attente de validation.
+        final contratSigne = prov['contrat_signe'] == true;
+        if (mounted) {
+          setState(
+              () => current = contratSigne ? 'pending' : 'contrat_mandatory');
+        }
       }
       _attachRealtime(t);
     } catch (_) {
@@ -952,7 +959,9 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       child = RegistrationScreen(
         credentialLock: false,
         onBack: () => setState(() => current = 'landing'),
-        onSubmit: () => setState(() => current = 'pending'),
+        // Après création du compte, on recharge la session : le prestataire
+        // est automatiquement dirigé vers la charte/contrat à signer.
+        onSubmit: () => _bootstrapSession(),
         onAuthReady: _registerRealtimeAfterAuth,
         preloadedCategories: _publicCategories,
       );
@@ -966,7 +975,9 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       child = RegistrationScreen(
         credentialLock: true,
         onBack: () => setState(() => current = 'refused'),
-        onSubmit: () => setState(() => current = 'pending'),
+        // Idem après une nouvelle soumission : la session décide (charte si pas
+        // encore signée, sinon écran d'attente).
+        onSubmit: () => _bootstrapSession(),
         onAuthReady: _registerRealtimeAfterAuth,
         preloadedCategories: _publicCategories,
       );
