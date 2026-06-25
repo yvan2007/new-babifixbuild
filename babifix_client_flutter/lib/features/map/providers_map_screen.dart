@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -51,6 +53,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
   bool _loading = true;
   String? _error;
   double _radiusKm = 25;
+  double _zoom = 12; // zoom courant (pour le clustering)
   _Provider? _selected;
 
   // Animation "radar" (halo pulsant autour de ma position).
@@ -84,6 +87,87 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     if (km <= 5) return 'Très proche';
     if (km <= 15) return 'À proximité';
     return 'Éloigné';
+  }
+
+  /// Regroupe (clustering) les prestataires proches selon le zoom courant :
+  /// 1 presta → pin goutte avec photo ; plusieurs → badge avec le compte
+  /// (tap = zoom sur le groupe). Évite que les pins se chevauchent.
+  List<Marker> _buildClusteredMarkers() {
+    if (_providers.isEmpty) return const [];
+    // Taille de cellule (degrés) selon le zoom : plus on zoome, plus c'est fin.
+    final cell = (90.0 / math.pow(2, _zoom)).clamp(0.0004, 6.0);
+    final buckets = <String, List<_Provider>>{};
+    for (final p in _providers) {
+      final key = '${(p.lat / cell).floor()}_${(p.lon / cell).floor()}';
+      (buckets[key] ??= <_Provider>[]).add(p);
+    }
+    final markers = <Marker>[];
+    buckets.forEach((_, group) {
+      if (group.length == 1) {
+        markers.add(_providerPin(group.first));
+      } else {
+        final lat = group.map((e) => e.lat).reduce((a, b) => a + b) / group.length;
+        final lon = group.map((e) => e.lon).reduce((a, b) => a + b) / group.length;
+        markers.add(_clusterBadge(LatLng(lat, lon), group.length));
+      }
+    });
+    return markers;
+  }
+
+  Marker _providerPin(_Provider p) {
+    final sel = _selected?.id == p.id;
+    final color = sel ? BabifixDesign.ciOrange : _distanceColor(p.distanceKm);
+    return Marker(
+      point: LatLng(p.lat, p.lon),
+      width: 54,
+      height: 66,
+      alignment: Alignment.bottomCenter, // la pointe (bas) touche la position
+      child: GestureDetector(
+        onTap: () => setState(() => _selected = p),
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          scale: sel ? 1.15 : 1.0,
+          child: _TeardropPin(color: color, photoUrl: p.photoUrl),
+        ),
+      ),
+    );
+  }
+
+  Marker _clusterBadge(LatLng center, int count) {
+    return Marker(
+      point: center,
+      width: 52,
+      height: 52,
+      child: GestureDetector(
+        onTap: () => _mapCtrl.move(center, (_zoom + 2).clamp(3.0, 18.0)),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [BabifixDesign.cyan, BabifixDesign.ciBlue],
+            ),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                blurRadius: 12,
+                spreadRadius: 1,
+                color: BabifixDesign.cyan.withValues(alpha: 0.5),
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            count > 99 ? '99+' : '$count',
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _locate({bool forceFresh = false}) async {
@@ -236,6 +320,13 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
               initialCenter: _myPosition ?? const LatLng(5.345, -4.008), // Abidjan
               initialZoom: 12,
               onTap: (_, __) => setState(() => _selected = null),
+              // Suivi du zoom → recalcul du clustering (regroupement des pins
+              // proches). On ne rebuild que si le zoom change notablement.
+              onPositionChanged: (camera, hasGesture) {
+                if ((camera.zoom - _zoom).abs() > 0.3) {
+                  setState(() => _zoom = camera.zoom);
+                }
+              },
             ),
             children: [
               TileLayer(
@@ -286,52 +377,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                 ),
               // Prestataires (sous le marqueur de position)
               MarkerLayer(
-                markers: _providers.map((p) {
-                  final sel = _selected?.id == p.id;
-                  final pinColor = sel
-                      ? BabifixDesign.ciOrange
-                      : _distanceColor(p.distanceKm);
-                  return Marker(
-                  point: LatLng(p.lat, p.lon),
-                  width: 50,
-                  height: 50,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selected = p),
-                    child: AnimatedScale(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOutBack,
-                      scale: sel ? 1.18 : 1.0,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.all(9),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              pinColor,
-                              Color.lerp(pinColor, Colors.black, 0.18)!,
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2.5),
-                          boxShadow: [
-                            BoxShadow(
-                              blurRadius: 10,
-                              spreadRadius: sel ? 2 : 0,
-                              color: pinColor.withValues(alpha: 0.45),
-                              offset: const Offset(0, 3),
-                            ),
-                            const BoxShadow(blurRadius: 6, color: Colors.black26),
-                          ],
-                        ),
-                        child: const Icon(Icons.handyman_rounded,
-                            color: Colors.white, size: 20),
-                      ),
-                    ),
-                  ),
-                  );
-                }).toList(),
+                markers: _buildClusteredMarkers(),
               ),
               // Ma position — halo "radar" pulsant, TOUJOURS au-dessus des pins
               // pour rester visible même quand des prestataires sont au même endroit.
@@ -539,4 +585,76 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
       ),
     );
   }
+}
+
+/// Pin « goutte » : avatar rond (photo du prestataire) + pointe vers le bas.
+class _TeardropPin extends StatelessWidget {
+  const _TeardropPin({required this.color, required this.photoUrl});
+  final Color color;
+  final String photoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                blurRadius: 8,
+                color: color.withValues(alpha: 0.45),
+                offset: const Offset(0, 3),
+              ),
+              const BoxShadow(blurRadius: 5, color: Colors.black26),
+            ],
+          ),
+          child: CircleAvatar(
+            radius: 16,
+            backgroundColor: Colors.white,
+            backgroundImage:
+                photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+            child: photoUrl.isEmpty
+                ? Icon(Icons.handyman_rounded, color: color, size: 17)
+                : null,
+          ),
+        ),
+        // Pointe (triangle) qui désigne l'emplacement exact.
+        Transform.translate(
+          offset: const Offset(0, -2),
+          child: CustomPaint(size: const Size(14, 9), painter: _PinTip(color)),
+        ),
+      ],
+    );
+  }
+}
+
+class _PinTip extends CustomPainter {
+  _PinTip(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = ui.Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    // Bordure blanche pour rester net sur la carte.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5,
+    );
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_PinTip old) => old.color != color;
 }
