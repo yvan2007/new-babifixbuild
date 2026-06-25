@@ -272,6 +272,11 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
           m['service_longitude'] ?? m['longitude'] ?? m['lon'],
         );
         if (lat == null || lon == null) continue;
+        // Garde-fou : on n'affiche QUE les prestataires dont les coordonnées
+        // sont en Côte d'Ivoire. Une mauvaise capture GPS à l'inscription
+        // (ex. position par défaut d'un émulateur → Shanghai) ne place plus un
+        // pin à l'autre bout du monde et ne fausse plus la carte.
+        if (!isInCotedIvoire(lat, lon)) continue;
         providers.add(_Provider(
           id: jsonInt(m['id'] ?? m['user']),
           name: '${m['user_display'] ?? m['nom'] ?? m['username'] ?? 'Prestataire'}',
