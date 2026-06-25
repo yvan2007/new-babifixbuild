@@ -963,6 +963,42 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                 ),
               ),
             ),
+          // R\u00e9ponses rapides prestataire : tap = remplit le message.
+          if (_input.text.trim().isEmpty)
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                children: [
+                  for (final q in const [
+                    'Bonjour \ud83d\udc4b',
+                    'Je suis disponible',
+                    'Je suis en route',
+                    'J\'arrive dans 10 min',
+                    'C\'est not\u00e9',
+                    'Merci !',
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ActionChip(
+                        label: Text(q, style: const TextStyle(fontSize: 12.5)),
+                        backgroundColor:
+                            BabifixDesign.cyan.withValues(alpha: 0.10),
+                        side: BorderSide(
+                            color: BabifixDesign.cyan.withValues(alpha: 0.3)),
+                        onPressed: () {
+                          _input.text = q;
+                          _input.selection = TextSelection.fromPosition(
+                              TextPosition(offset: q.length));
+                          _onInputChanged(q);
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(6, 4, 6, 10),
             child: Row(

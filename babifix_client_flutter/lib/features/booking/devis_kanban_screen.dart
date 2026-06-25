@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 
 import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_suggestion_chips.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
@@ -104,12 +105,31 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Refuser ce devis'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Motif (facultatif)',
-            border: OutlineInputBorder(),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Motif (facultatif)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              BabifixSuggestionChips(
+                controller: controller,
+                accent: BabifixDesign.error,
+                suggestions: const [
+                  'Prix trop élevé',
+                  'Délai trop long',
+                  'J\'ai trouvé moins cher',
+                  'Détails à revoir',
+                  'Je ne suis plus intéressé',
+                ],
+              ),
+            ],
           ),
         ),
         actions: [

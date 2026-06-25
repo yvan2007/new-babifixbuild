@@ -11,6 +11,7 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../auth/auth_screen.dart';
+import '../../shared/widgets/babifix_suggestion_chips.dart';
 import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
 import '../../shared/widgets/gps_location_card.dart';
@@ -1028,6 +1029,22 @@ class _StepProbleme extends StatelessWidget {
                   contentPadding: const EdgeInsets.all(16),
                 ),
               ),
+            ),
+            const SizedBox(height: 10),
+            // Bulles : types de problème courants à ajouter en 1 tap.
+            BabifixSuggestionChips(
+              controller: problemeCtrl,
+              accent: _kBlue,
+              title: 'Ajout rapide',
+              suggestions: const [
+                'Ça ne fonctionne plus',
+                'Fuite d\'eau',
+                'Panne électrique',
+                'Installation à faire',
+                'Réparation',
+                'Entretien / nettoyage',
+                'C\'est urgent',
+              ],
             ),
             const SizedBox(height: 16),
             GestureDetector(
