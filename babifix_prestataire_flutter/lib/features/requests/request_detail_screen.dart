@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../babifix_design_system.dart';
 import '../../services/call_service.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../../shared/widgets/babifix_mini_map.dart';
 import '../call/call_history_screen.dart';
 import 'client_journal_viewer.dart';
 import 'execution_actions_widget.dart';
@@ -162,6 +163,17 @@ class RequestDetailScreen extends StatelessWidget {
                   lon: addressLon,
                   isApproximate: addressIsApproximate,
                 ),
+                // Carte moderne : emplacement du client (pin goutte).
+                if (addressLat != null && addressLon != null) ...[
+                  const SizedBox(height: 12),
+                  BabifixMiniMap(
+                    lat: addressLat!,
+                    lon: addressLon!,
+                    height: 170,
+                    pinColor: const Color(0xFF4CC9F0),
+                    pinIcon: Icons.person_pin_circle_rounded,
+                  ),
+                ],
                 const SizedBox(height: 16),
 
                 // Urgency & requirements

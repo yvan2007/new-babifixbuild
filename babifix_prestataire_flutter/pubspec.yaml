@@ -43,6 +43,7 @@ dependencies:
   firebase_auth: ^5.4.1
   web_socket_channel: ^3.0.1
   fl_chart: ^0.70.2
+  flutter_map: ^7.0.2
   latlong2: ^0.9.1
   livekit_client: ^2.7.0
   geolocator: ^13.0.2

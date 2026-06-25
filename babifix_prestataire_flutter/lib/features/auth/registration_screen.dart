@@ -17,6 +17,7 @@ import '../../json_utils.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/services/nominatim_geocode.dart';
 import '../../shared/widgets/address_search_field.dart';
+import '../../shared/widgets/babifix_mini_map.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -1100,6 +1101,15 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Carte moderne : aperçu de la zone du prestataire.
+                    BabifixMiniMap(
+                      lat: _villePin!.latitude,
+                      lon: _villePin!.longitude,
+                      height: 160,
+                      pinColor: _kGreen,
+                      pinIcon: Icons.home_work_rounded,
                     ),
                   ],
                 ],
