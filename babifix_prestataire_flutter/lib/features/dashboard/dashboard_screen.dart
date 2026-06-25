@@ -11,6 +11,16 @@ import '../../shared/in_app_notifications.dart';
 import 'floating_nav_bar.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_prestation_timer.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+/// Salutation selon l'heure (petite touche personnalisée).
+String babifixGreeting() {
+  final h = DateTime.now().hour;
+  if (h < 5) return 'Bonne nuit';
+  if (h < 12) return 'Bonjour';
+  if (h < 18) return 'Bon après-midi';
+  return 'Bonsoir';
+}
 
 class PrestataireDashboardScreen extends StatefulWidget {
   const PrestataireDashboardScreen({
@@ -315,7 +325,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   }
 
   Future<void> _refreshAll() async {
-    await Future.wait([_loadMe(), _loadRevenueChart()]);
+    await Future.wait([_loadMe(), _loadRevenueChart(), _loadActiveIntervention()]);
   }
 
   @override
@@ -419,7 +429,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Bonjour, $_greetingName',
+                                    '${babifixGreeting()}, $_greetingName',
                                     style: const TextStyle(color: Color(0xFFB4C2D9), fontSize: 15),
                                   ),
                                 ],
@@ -701,7 +711,7 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Bonjour, $greetingName',
+                      '${babifixGreeting()}, $greetingName',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
@@ -1198,6 +1208,9 @@ class _AppointmentCard extends StatelessWidget {
     final ended =
         DateTime.tryParse('${it['prestation_terminee_at'] ?? ''}')?.toLocal();
     final isUrgent = it['is_urgent'] == true;
+    final clat = (it['address_lat'] as num?)?.toDouble();
+    final clon = (it['address_lon'] as num?)?.toDouble();
+    final hasItinerary = clat != null && clon != null;
 
     return Material(
       color: Colors.transparent,
@@ -1280,26 +1293,56 @@ class _AppointmentCard extends StatelessWidget {
                 BabifixPrestationTimer(startedAt: started, endedAt: ended),
               ],
               const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: onOpen,
-                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                  label: const Text('Ouvrir la demande'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: meta.color,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+              Row(
+                children: [
+                  // Surprise utile : itinéraire GPS vers le client en 1 tap.
+                  if (hasItinerary) ...[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _openItinerary(clat, clon),
+                        icon: const Icon(Icons.directions_rounded, size: 18),
+                        label: const Text('Itinéraire'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: meta.color,
+                          side: BorderSide(color: meta.color.withValues(alpha: 0.5)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    flex: hasItinerary ? 1 : 2,
+                    child: FilledButton.icon(
+                      onPressed: onOpen,
+                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                      label: const Text('Ouvrir'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: meta.color,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _openItinerary(double lat, double lon) async {
+    final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lon');
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
   }
 
   Widget _line(IconData icon, Color color, String text) {
