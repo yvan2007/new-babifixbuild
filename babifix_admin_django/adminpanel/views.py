@@ -5831,7 +5831,21 @@ def api_client_pay_deposit(request, reference):
             status=400,
         )
 
-    pct = Decimal("0.18") if overall == "ESPECES" else Decimal("0.30")
+    # Acompte = part payée en ligne. Pour ESPECES, l'acompte EST la commission
+    # BABIFIX : il doit donc suivre le taux EFFECTIF du prestataire (réductions
+    # premium / abonnement incluses), jamais un 18% figé — sinon un prestataire
+    # premium serait surfacturé. Pour MOBILE_MONEY, l'acompte reste 30% (séquestre).
+    if overall == "ESPECES":
+        pct = Decimal("0.18")
+        prov_for_rate = res.assigned_provider
+        if prov_for_rate is not None:
+            try:
+                from .services.wallet_service import _get_effective_commission_rate
+                pct = _get_effective_commission_rate(prov_for_rate)
+            except Exception:
+                pct = Decimal("0.18")
+    else:
+        pct = Decimal("0.30")
     acompte = (montant_total * pct).quantize(Decimal("1"))
     if acompte < Decimal("500"):
         acompte = Decimal("500")
