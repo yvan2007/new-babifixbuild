@@ -17,3 +17,11 @@ String formatFcfa(num? value) {
   if (value == null) return 'N/A';
   return '${_spacedThousands(value.round())} FCFA';
 }
+
+/// Formate un montant fourni sous forme de chaîne (ex. « 12500.0 »).
+/// Renvoie la chaîne d'origine si elle n'est pas un nombre ou vaut 0.
+String formatFcfaFromString(String raw) {
+  final n = double.tryParse(raw);
+  if (n == null || n == 0) return raw;
+  return formatFcfa(n.round());
+}

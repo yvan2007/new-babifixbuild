@@ -986,6 +986,30 @@ def _dashboard_forms_context(request, section):
             .exclude(refund_status="paid")
             .order_by("-id")[:100]
         )
+        # Détail horodaté des derniers paiements encaissés (brut / commission /
+        # net) — pour tracer chaque transaction avec sa date et son heure.
+        finance_payments = []
+        for p in Payment.objects.order_by("-created_at")[:50]:
+            brut = _safe_decimal(p.montant)
+            comm = _safe_decimal(p.commission)
+            finance_payments.append({
+                "reference": p.reference,
+                "client": p.client,
+                "prestataire": p.prestataire,
+                "brut": brut,
+                "commission": comm,
+                "net": brut - comm,
+                "type_paiement": p.type_paiement,
+                "etat": p.etat,
+                "created_at": p.created_at,
+            })
+        ctx["finance_payments"] = finance_payments
+        # Détail horodaté des versements (retraits) prestataires.
+        ctx["finance_versements"] = list(
+            WalletTransaction.objects.filter(tx_type="debit")
+            .select_related("provider")
+            .order_by("-created_at")[:50]
+        )
     return ctx
 
 
@@ -4149,6 +4173,9 @@ def api_prestataire_requests(request):
                 "payment_type": item.payment_type,
                 "mobile_money_operator": item.mobile_money_operator or "",
                 "cash_flow_status": item.cash_flow_status,
+                # Acompte versé par le client ? Permet de griser le bouton
+                # « Démarrer » tant que l'acompte n'est pas reçu.
+                "acompte_valide": bool(item.acompte_valide),
                 "rating": ravg,
                 "client_rated": item.id in _rated_ids,
                 "prix_propose": float(item.prix_propose) if item.prix_propose else None,
@@ -4733,9 +4760,12 @@ def api_prestataire_me(request):
     monthly_payments = Payment.objects.filter(
         prestataire=prov.nom, created_at__gte=month_ago
     )
+    # « Gains » = ce que le prestataire touche réellement = NET (brut − commission
+    # BABIFIX). Doit correspondre EXACTEMENT au net de l'écran « Mes gains » et au
+    # wallet (sinon les chiffres ne coïncident pas).
     pay_sum = Decimal("0")
     for pay in monthly_payments:
-        pay_sum += _safe_decimal(pay.montant)
+        pay_sum += _safe_decimal(pay.montant) - _safe_decimal(pay.commission)
     cat = prov.category
     return JsonResponse(
         {
@@ -5514,7 +5544,7 @@ def api_admin_validate_cash(request, reference):
                 from django.contrib.auth.models import User as DjUser
                 prest_user = DjUser.objects.filter(pk=res.assigned_provider.user_id).first()
                 if prest_user:
-                    net = float(payment.montant) * 0.85
+                    net = float(payment.montant) - float(payment.commission or 0)
                     notify_user_if_opted_in(
                         prest_user,
                         message="",

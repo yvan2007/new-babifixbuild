@@ -4346,7 +4346,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               child: Row(
                 children: [
                   Text(
-                    r.amount,
+                    _formatAmountLabel(r.amount),
                     style: TextStyle(
                       color: isPending
                           ? const Color(0xFFF59E0B)

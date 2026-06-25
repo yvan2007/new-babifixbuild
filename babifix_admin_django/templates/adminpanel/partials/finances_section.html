@@ -141,4 +141,56 @@
       </tbody>
     </table>
   </article>
+
+  <!-- Détail horodaté des paiements encaissés ---------------------------------->
+  <article class="card card-elevate" style="margin-top:18px;">
+    <h3>Derniers paiements encaissés</h3>
+    <p class="section-help" style="margin-bottom:8px;">Chaque transaction avec sa date et son heure. Brut = payé par le client · Commission = revenu BABIFIX · Net = versé au prestataire.</p>
+    <table class="data-table">
+      <thead><tr><th>Date / heure</th><th>Réservation</th><th>Client</th><th>Prestataire</th><th style="text-align:right;">Brut</th><th style="text-align:right;">Commission</th><th style="text-align:right;">Net presta</th><th>Type</th><th>État</th></tr></thead>
+      <tbody>
+        {% for p in finance_payments %}
+        <tr>
+          <td style="white-space:nowrap;">{{ p.created_at|date:"d/m/Y H:i" }}</td>
+          <td>{{ p.reference }}</td>
+          <td>{{ p.client|default:"—" }}</td>
+          <td>{{ p.prestataire|default:"—" }}</td>
+          <td style="text-align:right;font-weight:700;">{{ p.brut|floatformat:0 }} FCFA</td>
+          <td style="text-align:right;color:#7C3AED;font-weight:700;">{{ p.commission|floatformat:0 }} FCFA</td>
+          <td style="text-align:right;color:#16a34a;font-weight:700;">{{ p.net|floatformat:0 }} FCFA</td>
+          <td>{{ p.type_paiement|default:"—" }}</td>
+          <td>{{ p.etat|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="empty-state">Aucun paiement encaissé pour le moment.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
+  <!-- Détail horodaté des versements (retraits) prestataires ------------------->
+  <article class="card card-elevate" style="margin-top:18px;">
+    <h3>Versements prestataires (retraits)</h3>
+    <p class="section-help" style="margin-bottom:8px;">Historique horodaté des retraits du wallet : versé, en cours, ou échoué.</p>
+    <table class="data-table">
+      <thead><tr><th>Date / heure</th><th>Prestataire</th><th style="text-align:right;">Montant</th><th>Statut</th></tr></thead>
+      <tbody>
+        {% for w in finance_versements %}
+        <tr>
+          <td style="white-space:nowrap;">{{ w.created_at|date:"d/m/Y H:i" }}</td>
+          <td>{{ w.provider.nom|default:"—" }}</td>
+          <td style="text-align:right;font-weight:700;">{{ w.amount_fcfa|floatformat:0 }} FCFA</td>
+          <td>
+            {% if w.status == "success" %}<span class="pill pill-ok" style="padding:4px 10px;">Versé</span>
+            {% elif w.status == "pending" %}<span class="pill" style="padding:4px 10px;color:#f59e0b;">En cours</span>
+            {% elif w.status == "failed" %}<span class="pill" style="padding:4px 10px;color:#dc2626;">Échoué</span>
+            {% else %}<span class="pill" style="padding:4px 10px;">{{ w.status }}</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="empty-state">Aucun versement enregistré pour le moment.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
 </div>

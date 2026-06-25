@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
+import '../../babifix_money.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_slide_to_confirm.dart';
@@ -611,7 +612,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           service: it.service,
           date: it.date,
           hour: it.hour,
-          amount: it.amount,
+          amount: formatFcfaFromString(it.amount),
           address: it.address,
           addressStreet: it.addressStreet,
           addressQuartier: it.addressQuartier,
@@ -1215,7 +1216,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  it.amount,
+                  formatFcfaFromString(it.amount),
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
@@ -1329,16 +1330,34 @@ class _RequestsScreenState extends State<RequestsScreen> {
               SizedBox(
                 width: double.infinity,
                 height: 48,
+                // Tant que l'acompte n'est pas versé : bouton grisé + message au
+                // clic. Une fois l'acompte reçu : bouton orange actif normal.
                 child: FilledButton.icon(
-                  onPressed: () => _demarrerIntervention(it),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                  label: const Text(
-                    'Démarrer la prestation',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  onPressed: it.acompteValide
+                      ? () => _demarrerIntervention(it)
+                      : () => _showAcompteEnAttente(),
+                  icon: Icon(
+                    it.acompteValide
+                        ? Icons.play_arrow_rounded
+                        : Icons.lock_outline_rounded,
+                    size: 20,
+                  ),
+                  label: Text(
+                    it.acompteValide
+                        ? 'Démarrer la prestation'
+                        : 'En attente de l\'acompte',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: BabifixDesign.ciOrange,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: it.acompteValide
+                        ? BabifixDesign.ciOrange
+                        : const Color(0xFFCBD5E1),
+                    foregroundColor: it.acompteValide
+                        ? Colors.white
+                        : const Color(0xFF64748B),
+                    disabledBackgroundColor: const Color(0xFFCBD5E1),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -1582,6 +1601,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             paymentType: pay,
             mobileMoneyOperator: mmOp,
             cashFlowStatus: cash,
+            acompteValide: e['acompte_valide'] == true,
             clientRated: e['client_rated'] == true,
             clientMessage: '${e['client_message'] ?? ''}',
             clientPhotos: photos,
@@ -1721,6 +1741,35 @@ class _RequestsScreenState extends State<RequestsScreen> {
     }
   }
 
+  /// Message affiché quand le presta tape sur « Démarrer » alors que le client
+  /// n'a pas encore versé l'acompte (le bouton est grisé dans ce cas).
+  Future<void> _showAcompteEnAttente() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        icon: Icon(Icons.hourglass_top_rounded,
+            color: BabifixDesign.ciOrange, size: 52),
+        title: const Text('En attente de l\'acompte'),
+        content: const Text(
+          "Le client n'a pas encore versé l'acompte.\n\n"
+          "Le bouton « Démarrer la prestation » s'activera automatiquement "
+          "dès que l'acompte sera reçu.",
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: FilledButton.styleFrom(
+                backgroundColor: BabifixDesign.ciOrange),
+            child: const Text('Compris'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _demarrerIntervention(_RequestItem item) async {
     if (authToken == null) return;
     try {
@@ -1735,7 +1784,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
         body: '{}',
       );
       if (res.statusCode == 200 && mounted) {
-        setState(() => _applyStatusFromApi(item, 'INTERVENTION_EN_COURS'));
+        setState(() {
+          _applyStatusFromApi(item, 'INTERVENTION_EN_COURS');
+          // Affiche le chrono immédiatement (sans attendre le rechargement).
+          item.interventionStartedAt ??= DateTime.now();
+        });
         showBabifixToast(
         context,
         type: BabifixToastType.success,
@@ -1948,9 +2001,14 @@ class _RequestItem {
   /// Motif fourni par le client s'il a refusé le devis précédent.
   final String devisRefusMotif;
 
+  /// Acompte versé par le client ? Tant que c'est faux, le bouton
+  /// « Démarrer la prestation » reste grisé.
+  final bool acompteValide;
+
   /// Chrono de la prestation : début (Démarrer) et fin (Terminé). Sert à
-  /// afficher la durée — preuve horodatée.
-  final DateTime? interventionStartedAt;
+  /// afficher la durée — preuve horodatée. Mutable pour afficher le chrono
+  /// instantanément dès que le presta démarre (sans attendre le rechargement).
+  DateTime? interventionStartedAt;
   final DateTime? prestationTermineeAt;
 
   /// Adresse structurée pro (chacun affiché avec son icône colorée).
@@ -1978,6 +2036,7 @@ class _RequestItem {
     this.paymentType = '',
     this.mobileMoneyOperator = '',
     this.cashFlowStatus = '',
+    this.acompteValide = false,
     this.clientRated = false,
     this.clientMessage = '',
     this.clientPhotos = const [],

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
+import '../../babifix_money.dart';
 import '../../shared/widgets/babifix_suggestion_chips.dart';
 import '../disputes/dispute_open_screen.dart';
 
@@ -806,7 +807,8 @@ class _PremiumReservationCard extends StatelessWidget {
                   ),
                 _InfoRow(
                   icon: Icons.payments_rounded,
-                  text: '${reservation.montant} • ${reservation.paymentType}',
+                  text:
+                      '${formatFcfaFromString('${reservation.montant}')} • ${reservation.paymentType}',
                   iconColor: _kGreen,
                 ),
 
