@@ -30,6 +30,13 @@ class BabifixMiniMap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final point = LatLng(lat, lon);
+    // Mode sombre : si le téléphone est en thème sombre → fond CartoDB Dark
+    // Matter ; sinon Voyager clair. {r} = tuiles HD/Retina.
+    final dark =
+        MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final tilesUrl = dark
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
@@ -48,8 +55,7 @@ class BabifixMiniMap extends StatelessWidget {
           ),
           children: [
             TileLayer(
-              urlTemplate:
-                  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+              urlTemplate: tilesUrl,
               subdomains: const ['a', 'b', 'c', 'd'],
               retinaMode: RetinaMode.isHighDensity(context),
               tileProvider: NetworkTileProvider(),

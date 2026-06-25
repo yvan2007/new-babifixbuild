@@ -334,8 +334,12 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                 // plus fiable que tile.openstreetmap.org direct (qui rate-limite).
                 // {r} = tuiles HD/Retina (@2x) → rendu NET sur les écrans haute
                 // densité (la plupart des téléphones) = beaucoup plus pro, gratuit.
-                urlTemplate:
-                    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                // Mode sombre auto : Dark Matter si le téléphone est en thème
+                // sombre, sinon Voyager clair.
+                urlTemplate: MediaQuery.platformBrightnessOf(context) ==
+                        Brightness.dark
+                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
                 retinaMode: RetinaMode.isHighDensity(context),
                 tileProvider: NetworkTileProvider(),
