@@ -11,6 +11,7 @@ import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/babifix_suggestion_chips.dart';
 
 /// Catégories de litige proposées au client.
 /// Doivent rester alignées avec `Dispute.Category` côté backend.
@@ -500,27 +501,50 @@ class _DisputeOpenScreenState extends State<DisputeOpenScreen> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
-      child: TextField(
-        controller: _motifCtrl,
-        maxLines: 5,
-        maxLength: 500,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
-        onChanged: (_) => setState(() {}),
-        decoration: InputDecoration(
-          hintText:
-              'Soyez précis : dates, faits, conséquences. Plus c\'est détaillé, plus on tranche vite.',
-          hintStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.35),
-            fontSize: 13,
-            height: 1.5,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _motifCtrl,
+            maxLines: 5,
+            maxLength: 500,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText:
+                  'Soyez précis : dates, faits, conséquences. Plus c\'est détaillé, plus on tranche vite.',
+              hintStyle: TextStyle(
+                color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 13,
+                height: 1.5,
+              ),
+              border: InputBorder.none,
+              counterStyle: TextStyle(
+                color: Colors.white.withValues(alpha: 0.4),
+                fontSize: 11,
+              ),
+              contentPadding: const EdgeInsets.all(14),
+            ),
           ),
-          border: InputBorder.none,
-          counterStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.4),
-            fontSize: 11,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+            child: BabifixSuggestionChips(
+              controller: _motifCtrl,
+              accent: const Color(0xFF4CC9F0),
+              title: 'Problèmes fréquents',
+              onChanged: () => setState(() {}),
+              suggestions: const [
+                'Travail non terminé',
+                'Travail mal fait',
+                'Prestataire absent',
+                'Retard important',
+                'Prix non conforme au devis',
+                'Dégâts causés',
+                'Comportement inapproprié',
+              ],
+            ),
           ),
-          contentPadding: const EdgeInsets.all(14),
-        ),
+        ],
       ),
     );
   }

@@ -10,6 +10,7 @@ import '../../shared/auth_utils.dart';
 import '../../shared/services/nominatim_geocode.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/babifix_suggestion_chips.dart';
 
 class EditProfilePrestataireScreen extends StatefulWidget {
   final String? apiBase;
@@ -461,12 +462,35 @@ class _EditProfilePrestataireScreenState
             title: 'A propos de vous',
             subtitle: 'Decrirez votre experience',
             color: BabifixDesign.ciOrange,
-            child: _PremiumTextField(
-              controller: _bioCtrl,
-              label: 'Biographie / Description',
-              hint: 'Decrirez votre experience, vos competences...',
-              maxLines: 4,
-              maxLength: 500,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _PremiumTextField(
+                  controller: _bioCtrl,
+                  label: 'Biographie / Description',
+                  hint: 'Decrirez votre experience, vos competences...',
+                  maxLines: 4,
+                  maxLength: 500,
+                ),
+                const SizedBox(height: 12),
+                // Bulles : on tape pour ajouter une phrase utile à la description.
+                BabifixSuggestionChips(
+                  controller: _bioCtrl,
+                  accent: BabifixDesign.ciOrange,
+                  separator: '. ',
+                  title: 'Phrases utiles',
+                  suggestions: const [
+                    'Plusieurs années d\'expérience',
+                    'Travail soigné et garanti',
+                    'Devis gratuit',
+                    'Disponible 7j/7',
+                    'Intervention rapide',
+                    'Matériel professionnel fourni',
+                    'Tarifs honnêtes',
+                    'Ponctuel et fiable',
+                  ],
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),

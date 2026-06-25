@@ -8,6 +8,7 @@ import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/babifix_suggestion_chips.dart';
 
 /// Écran de notation du prestataire après prestation terminée.
 /// Appelé via : Navigator.push(context, MaterialPageRoute(
@@ -253,6 +254,23 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
                     color: BabifixDesign.ciOrange, width: 2),
               ),
             ),
+          ),
+          const SizedBox(height: 10),
+          // Bulles de suggestion : on tape pour ajouter au commentaire.
+          BabifixSuggestionChips(
+            controller: _commentCtrl,
+            accent: BabifixDesign.ciOrange,
+            title: 'Ajout rapide',
+            suggestions: const [
+              'Travail soigné',
+              'Ponctuel',
+              'Professionnel',
+              'Aimable',
+              'Rapide et efficace',
+              'Bon rapport qualité-prix',
+              'Chantier laissé propre',
+              'Je recommande',
+            ],
           ),
           const SizedBox(height: 24),
           // ── Photos preuve (optionnel) ─────────────────────────────────
