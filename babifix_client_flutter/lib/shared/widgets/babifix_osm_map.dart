@@ -106,11 +106,14 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
                   ),
                   children: [
                     TileLayer(
-                      // CartoDB Voyager : libre, sans clé, CDN multi-sous-domaines
-                      // (a/b/c/d) bien plus fiable que tile.openstreetmap.org direct.
-                      urlTemplate:
-                          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                      // CartoDB HD + mode sombre auto (Dark Matter si téléphone
+                      // en thème sombre), sinon Voyager clair. {r} = Retina/HD.
+                      urlTemplate: MediaQuery.platformBrightnessOf(context) ==
+                              Brightness.dark
+                          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                          : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                       subdomains: const ['a', 'b', 'c', 'd'],
+                      retinaMode: RetinaMode.isHighDensity(context),
                       userAgentPackageName: 'com.babifix.client',
                     ),
                     MarkerLayer(
@@ -262,9 +265,12 @@ class BabifixOsmStaticPreview extends StatelessWidget {
           ),
           children: [
             TileLayer(
-              urlTemplate:
-                  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+              urlTemplate: MediaQuery.platformBrightnessOf(context) ==
+                      Brightness.dark
+                  ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                  : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
               subdomains: const ['a', 'b', 'c', 'd'],
+              retinaMode: RetinaMode.isHighDensity(context),
               userAgentPackageName: 'com.babifix.client',
             ),
             MarkerLayer(

@@ -311,9 +311,12 @@ class _SmartAddressPickerState extends State<SmartAddressPicker> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                  urlTemplate: MediaQuery.platformBrightnessOf(context) ==
+                          Brightness.dark
+                      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                   subdomains: const ['a', 'b', 'c', 'd'],
+                  retinaMode: RetinaMode.isHighDensity(context),
                   userAgentPackageName: 'ci.babifix.client',
                   maxZoom: 19,
                 ),

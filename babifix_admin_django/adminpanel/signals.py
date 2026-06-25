@@ -112,6 +112,16 @@ def on_provider_saved(sender, instance, created, **kwargs):
     # Broadcast to client apps for real-time provider list sync
     realtime.broadcast_client_event('providers.updated', {})
     realtime.invalidate_providers_cache()
+    # Invalide AUSSI le cache des catégories : la vue client ne montre que les
+    # catégories ayant ≥1 presta validé. Sans ça, après validation d'un presta
+    # dans une nouvelle catégorie, le presta s'affichait mais PAS sa catégorie
+    # (liste catégories figée ~5 min par le cache Redis).
+    try:
+        from django.core.cache import cache
+        cache.delete('babifix:public:categories:client')
+        cache.delete('babifix:public:categories:all')
+    except Exception:
+        pass
     push_dispatch.on_provider_change(instance, created, _update_fields_frozen(**kwargs))
 
     # ── Emails transactionnels sur changement de statut ──────────────────────
