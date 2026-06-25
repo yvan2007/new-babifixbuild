@@ -26,11 +26,19 @@ class BabifixSecurityHeadersMiddleware:
     # - le tableau de bord admin (inline styles autorisés via 'unsafe-inline').
     _CSP = (
         "default-src 'self'; "
-        "img-src 'self' data: https://babifix.ci https://*.babifix.ci https://fonts.gstatic.com; "
+        # Images : statiques BABIFIX + photos/CNI hébergées sur Cloudinary.
+        "img-src 'self' data: blob: "
+        "https://babifix.ci https://*.babifix.ci https://fonts.gstatic.com "
+        "https://res.cloudinary.com https://*.cloudinary.com; "
         "font-src 'self' data: https://fonts.gstatic.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "script-src 'self' 'unsafe-inline'; "
-        "connect-src 'self' https://babifix.ci https://*.babifix.ci wss: https:; "
+        # Scripts : librairies du tableau de bord chargées via CDN
+        # (Alpine.js, Chart.js, htmx). 'unsafe-eval' + blob: requis par Alpine.
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: "
+        "https://cdn.jsdelivr.net https://unpkg.com; "
+        "worker-src 'self' blob:; "
+        "connect-src 'self' https://babifix.ci https://*.babifix.ci "
+        "https://res.cloudinary.com https://*.cloudinary.com wss: https:; "
         "frame-ancestors 'none'; "
         "form-action 'self'; "
         "base-uri 'self'; "
