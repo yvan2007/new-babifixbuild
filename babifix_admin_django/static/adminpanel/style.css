@@ -1031,8 +1031,17 @@ body.app-shell {
 
 .section-help { color: var(--muted); font-size: 13px; margin: 0 0 16px; line-height: 1.45; }
 .data-table { font-size: 13px; }
-.thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 10px; border: 1px solid #e2e8f0; }
+.thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 10px; border: 1px solid #e2e8f0; display: block; }
 .td-thumb { vertical-align: middle; }
+/* Vignettes documents : chaque doc = vignette + label centré dessous, alignés
+   en ligne aérée (évite l'effet « penché/décalé » dû aux <a> inline). */
+.provider-docs { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.doc-link { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; width: 48px; text-decoration: none; transition: transform .15s var(--ease, ease); }
+.doc-link:hover { transform: translateY(-2px); }
+.doc-link .thumb { width: 48px; height: 48px; }
+.doc-label { font-size: 11px; font-weight: 600; color: var(--muted, #64748b); text-align: center; white-space: nowrap; line-height: 1.1; }
+.doc-link--cni .thumb { object-fit: cover; }
+.doc-missing { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted, #94a3b8); }
 .refusal-msg { font-size: 11px; color: #b91c1c; margin-top: 4px; max-width: 220px; }
 .td-actions { vertical-align: top; min-width: 200px; }
 .refuse-form { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
