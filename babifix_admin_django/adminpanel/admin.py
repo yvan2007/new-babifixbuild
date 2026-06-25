@@ -115,6 +115,7 @@ class ReservationAdmin(admin.ModelAdmin):
         "cash_flow_status",
         "solde_valide",
         "funds_released_at",
+        "cancellation_reason",
     )
     list_filter = (
         "statut",
@@ -123,7 +124,14 @@ class ReservationAdmin(admin.ModelAdmin):
         "cash_flow_status",
         "solde_valide",
     )
-    search_fields = ("reference", "client", "prestataire", "title", "address_label")
+    search_fields = (
+        "reference",
+        "client",
+        "prestataire",
+        "title",
+        "address_label",
+        "cancellation_reason",
+    )
     raw_id_fields = ("client_user", "prestataire_user", "assigned_provider")
 
 

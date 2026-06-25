@@ -305,13 +305,25 @@ def api_client_cancel_reservation(request, reference):
         return JsonResponse(
             {"error": "cannot_cancel", "statut": res.statut}, status=400
         )
+    # Motif d'annulation (optionnel) saisi par le client.
+    motif = ""
+    try:
+        payload = json.loads(request.body or b"{}")
+        motif = str(payload.get("motif", "") or "").strip()[:255]
+    except (json.JSONDecodeError, TypeError):
+        pass
     with transaction.atomic():
         res.statut = Reservation.Status.CANCELLED
-        res.save(update_fields=["statut"])
+        fields = ["statut"]
+        if motif:
+            res.cancellation_reason = motif
+            fields.append("cancellation_reason")
+        res.save(update_fields=fields)
         # Notifier le prestataire
         if res.prestataire_user_id:
             Notification.objects.create(
-                title=f"Réservation {reference} annulée par le client",
+                title=f"Réservation {reference} annulée par le client"
+                + (f" — {motif}" if motif else ""),
                 user_id=res.prestataire_user_id,
             )
     if res.prestataire_user_id:

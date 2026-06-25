@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_suggestion_chips.dart';
 import '../disputes/dispute_open_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -243,15 +244,55 @@ class _ReservationsHistoryScreenState extends State<ReservationsHistoryScreen>
   }
 
   Future<void> _cancel(_Reservation r) async {
+    final motifCtrl = TextEditingController();
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => _PremiumDialog(
-        title: 'Annuler la réservation ?',
-        body: 'Annuler "${r.title}" définitivement ?',
-        confirmLabel: 'Annuler la réservation',
-        confirmColor: _kRed,
-        onConfirm: () => Navigator.pop(ctx, true),
-        onCancel: () => Navigator.pop(ctx, false),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Annuler la réservation ?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Annuler "${r.title}" ? Indiquez un motif (optionnel) :',
+                  style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: motifCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  hintText: 'Motif…',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              BabifixSuggestionChips(
+                controller: motifCtrl,
+                accent: _kRed,
+                suggestions: const [
+                  'Je n\'ai plus besoin',
+                  'Erreur de réservation',
+                  'Trouvé ailleurs',
+                  'Délai trop long',
+                  'Changement de date',
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Retour'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _kRed, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Annuler la réservation'),
+          ),
+        ],
       ),
     );
     if (confirm != true) return;
@@ -259,7 +300,11 @@ class _ReservationsHistoryScreenState extends State<ReservationsHistoryScreen>
     try {
       final res = await http.post(
         Uri.parse('$_base/api/client/reservations/${r.reference}/cancel'),
-        headers: {'Authorization': 'Bearer $token'},
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'motif': motifCtrl.text.trim()}),
       );
       if (res.statusCode == 200) {
         _load();
