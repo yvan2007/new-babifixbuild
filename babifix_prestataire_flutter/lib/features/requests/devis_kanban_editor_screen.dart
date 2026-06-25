@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../babifix_design_system.dart';
@@ -1085,6 +1086,11 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                   width: 140,
                   child: TextField(
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    // Saisie numérique uniquement : on bloque toute lettre/texte
+                    // dans les champs de montant (chiffres + séparateur décimal).
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
                     textAlign: TextAlign.end,
                     decoration: InputDecoration(
                       hintText: '0',
@@ -1462,6 +1468,11 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
                   child: TextField(
                     controller: _qty,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    // Saisie numérique uniquement : on bloque toute lettre/texte
+                    // dans les champs de montant (chiffres + séparateur décimal).
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
                     onChanged: (_) => _emit(),
                     decoration: InputDecoration(
                       labelText: isLabour ? 'Heures' : 'Qté',
@@ -1485,6 +1496,11 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
                   child: TextField(
                     controller: _prix,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    // Saisie numérique uniquement : on bloque toute lettre/texte
+                    // dans les champs de montant (chiffres + séparateur décimal).
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
                     onChanged: (_) => _emit(),
                     decoration: InputDecoration(
                       labelText: isLabour ? 'Taux horaire' : 'Prix unitaire',

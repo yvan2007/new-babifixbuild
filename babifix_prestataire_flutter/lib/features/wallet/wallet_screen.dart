@@ -1337,6 +1337,8 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
                   style: const TextStyle(color: Colors.white),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: false),
+                  // Montant = chiffres uniquement (aucune lettre/texte).
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: InputDecoration(
                     labelText: 'Montant (FCFA)',
                     labelStyle: const TextStyle(color: Colors.white60),

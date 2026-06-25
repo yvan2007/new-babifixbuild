@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -86,14 +88,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
       final data = jsonDecode(resp.body);
       if (resp.statusCode == 200 && data['ok'] == true) {
         if (!mounted) return;
-        final label = billingPeriod == 'trial'
-            ? 'Essai gratuit 7 jours activé'
-            : 'Abonnement ${tier.toUpperCase()} activé';
-        showBabifixToast(
-        context,
-        type: BabifixToastType.info,
-        message: label,
-      );
+        await _showPremiumActivatedAnimation(
+          tier,
+          trial: billingPeriod == 'trial',
+        );
         await _load();
       } else if (resp.statusCode == 402) {
         if (!mounted) return;
@@ -123,6 +121,29 @@ class _PremiumScreenState extends State<PremiumScreen> {
     } finally {
       if (mounted) setState(() { _subscribing = false; });
     }
+  }
+
+  /// Animation premium « pro » jouée à l'activation d'un abonnement : médaille
+  /// dorée qui apparaît avec un halo, étincelles, et message de bienvenue.
+  /// Fluide (scale + fade) et auto-fermée.
+  Future<void> _showPremiumActivatedAnimation(String tier, {bool trial = false}) async {
+    if (!mounted) return;
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'premium',
+      barrierColor: Colors.black.withValues(alpha: 0.62),
+      transitionDuration: const Duration(milliseconds: 420),
+      pageBuilder: (_, __, ___) =>
+          _PremiumActivatedOverlay(tier: tier, trial: trial),
+      transitionBuilder: (_, anim, __, child) {
+        final c = Curves.easeOutBack.transform(anim.value.clamp(0.0, 1.0));
+        return Opacity(
+          opacity: anim.value.clamp(0.0, 1.0),
+          child: Transform.scale(scale: 0.8 + 0.2 * c, child: child),
+        );
+      },
+    );
   }
 
   void _showInsufficientFundsDialog(Map data) {
@@ -255,11 +276,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       // Activation immédiate (simulation / sandbox / auto-validation).
       if (j['ok'] == true) {
         if (!mounted) return;
-        showBabifixToast(
-          context,
-          type: BabifixToastType.info,
-          message: 'Abonnement ${tier.toUpperCase()} activé',
-        );
+        await _showPremiumActivatedAnimation(tier);
         await _load();
         return;
       }
@@ -1099,6 +1116,179 @@ class _PremiumScreenState extends State<PremiumScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Overlay d'activation premium : médaille dorée avec halo pulsant, étincelles
+/// qui jaillissent, et message de bienvenue. Se ferme tout seul après ~2,4 s.
+class _PremiumActivatedOverlay extends StatefulWidget {
+  const _PremiumActivatedOverlay({required this.tier, this.trial = false});
+  final String tier;
+  final bool trial;
+
+  @override
+  State<_PremiumActivatedOverlay> createState() =>
+      _PremiumActivatedOverlayState();
+}
+
+class _PremiumActivatedOverlayState extends State<_PremiumActivatedOverlay>
+    with TickerProviderStateMixin {
+  late final AnimationController _intro = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..forward();
+  late final AnimationController _halo = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  )..repeat(reverse: true);
+  Timer? _auto;
+
+  static const _gold = Color(0xFFF5B301);
+
+  @override
+  void initState() {
+    super.initState();
+    _auto = Timer(const Duration(milliseconds: 2400), () {
+      if (mounted) Navigator.of(context).maybePop();
+    });
+  }
+
+  @override
+  void dispose() {
+    _auto?.cancel();
+    _intro.dispose();
+    _halo.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tierLabel = widget.tier.toUpperCase();
+    return GestureDetector(
+      onTap: () => Navigator.of(context).maybePop(),
+      behavior: HitTestBehavior.opaque,
+      child: Center(
+        child: Container(
+          width: 300,
+          padding: const EdgeInsets.fromLTRB(24, 30, 24, 26),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF14233D), Color(0xFF0B1B34)],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _gold.withValues(alpha: 0.5), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: _gold.withValues(alpha: 0.25),
+                blurRadius: 40,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Médaille + halo pulsant + étincelles.
+              SizedBox(
+                width: 130,
+                height: 130,
+                child: AnimatedBuilder(
+                  animation: Listenable.merge([_intro, _halo]),
+                  builder: (_, __) {
+                    final pop = Curves.easeOutBack
+                        .transform(_intro.value.clamp(0.0, 1.0));
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Halo
+                        Container(
+                          width: 96 + 18 * _halo.value,
+                          height: 96 + 18 * _halo.value,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(colors: [
+                              _gold.withValues(alpha: 0.35 * (1 - _halo.value)),
+                              _gold.withValues(alpha: 0.0),
+                            ]),
+                          ),
+                        ),
+                        // Étincelles
+                        ...List.generate(8, (i) {
+                          final ang = (i / 8) * 2 * math.pi;
+                          final d = 40 + 22 * pop;
+                          return Transform.translate(
+                            offset: Offset(
+                                math.cos(ang) * d, math.sin(ang) * d),
+                            child: Opacity(
+                              opacity: (pop).clamp(0.0, 1.0) *
+                                  (0.5 + 0.5 * _halo.value),
+                              child: Icon(Icons.star_rounded,
+                                  size: 12 + 4 * (i.isEven ? 1 : 0),
+                                  color: _gold),
+                            ),
+                          );
+                        }),
+                        // Médaille
+                        Transform.scale(
+                          scale: 0.5 + 0.5 * pop,
+                          child: Container(
+                            width: 78,
+                            height: 78,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFFFFD66B), _gold],
+                              ),
+                            ),
+                            child: const Icon(Icons.workspace_premium_rounded,
+                                color: Colors.white, size: 44),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                widget.trial
+                    ? 'Essai Premium activé 🎉'
+                    : 'Bienvenue en Premium 🎉',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 19,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.trial
+                    ? 'Essai gratuit 7 jours · formule $tierLabel'
+                    : 'Abonnement $tierLabel actif · commission réduite',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _gold,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: const Text('Continuer',
+                    style: TextStyle(
+                        color: Colors.white70, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

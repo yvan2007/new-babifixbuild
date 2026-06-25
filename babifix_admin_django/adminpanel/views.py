@@ -5402,13 +5402,20 @@ def api_prestataire_confirm_cash(request, reference):
         res.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
         res.solde_valide = True
         ref_pay = f"PAY-CASH-{res.reference}"
+        # Le presta a reçu en CASH le NET (= total − commission). La commission a
+        # déjà été encaissée en ligne via l'acompte espèces → ici commission = 0
+        # pour ne PAS la compter deux fois. montant = net réellement reçu.
+        commission_val = res.commission or Decimal("0")
+        net_cash = res.montant_restant if res.montant_restant else (
+            (res.montant or Decimal("0")) - commission_val
+        )
         payment, created = Payment.objects.get_or_create(
             reference=ref_pay,
             defaults={
                 "client": res.client,
                 "prestataire": res.prestataire,
-                "montant": res.montant,
-                "commission": res.commission or 0,
+                "montant": net_cash,
+                "commission": Decimal("0"),
                 "etat": Payment.State.COMPLETE,
                 "reservation": res,
                 "type_paiement": Payment.TypePaiement.ESPECES,
@@ -5430,7 +5437,28 @@ def api_prestataire_confirm_cash(request, reference):
             EscrowService.release_funds(res)
         except Exception as exc:
             logger.exception("release_funds auto-cash %s: %s", res.reference, exc)
-    return JsonResponse({"ok": True, "cash_flow_status": res.cash_flow_status})
+    # Reçu détaillé au prestataire : preuve + traçabilité (montant total,
+    # commission BABIFIX déjà prélevée en ligne, net reçu en espèces).
+    _schedule(
+        [res.prestataire_user_id] if res.prestataire_user_id else [],
+        "BABIFIX — Paiement espèces confirmé",
+        f"Net reçu {net_cash:.0f} FCFA · commission BABIFIX {commission_val:.0f} FCFA "
+        f"(prélevée en ligne) · total {(res.montant or 0):.0f} FCFA — {res.reference}.",
+        {
+            "type": "cash.confirmed",
+            "reference": res.reference,
+            "gross": str(res.montant or 0),
+            "commission": str(commission_val),
+            "net": str(net_cash),
+        },
+    )
+    return JsonResponse({
+        "ok": True,
+        "cash_flow_status": res.cash_flow_status,
+        "gross": str(res.montant or 0),
+        "commission": str(commission_val),
+        "net": str(net_cash),
+    })
 
 
 @csrf_exempt
@@ -5499,65 +5527,18 @@ def api_admin_validate_cash(request, reference):
         return JsonResponse({"error": "invalid_json"}, status=400)
     action = str(payload.get("action", "validate")).strip().lower()
     if action == "validate":
-        with transaction.atomic():
-            res.cash_admin_validated_at = timezone.now()
-            res.cash_flow_status = Reservation.CashFlowStatus.VALIDATED
-            res.solde_valide = True
-            res.save(update_fields=[
-                "cash_admin_validated_at", "cash_flow_status", "solde_valide",
-                "commission",
-            ])
-            ref_pay = f"PAY-CASH-{res.reference}"
-            payment, created = Payment.objects.get_or_create(
-                reference=ref_pay,
-                defaults={
-                    "client": res.client,
-                    "prestataire": res.prestataire,
-                    "montant": res.montant,
-                    "commission": res.commission or 0,
-                    "etat": Payment.State.COMPLETE,
-                    "reservation": res,
-                    "type_paiement": Payment.TypePaiement.ESPECES,
-                    "valide_par_admin": True,
-                },
-            )
-            if not created:
-                payment.etat = Payment.State.COMPLETE
-                payment.valide_par_admin = True
-                payment.save(update_fields=["etat", "valide_par_admin"])
-            # Enregistrer la commission dans PlatformRevenue (release_funds
-            # n'est pas appelé ici car client peut ne pas avoir confirmé)
-            from .models import PlatformRevenue
-            commission_due = res.commission or 0
-            PlatformRevenue.objects.create(
-                amount_fcfa=commission_due,
-                source=PlatformRevenue.Source.COMMISSION,
-                reference=res.reference,
-                description=f"Commission admin-validate-cash — {res.reference}",
-                payment=payment,
-            )
-
-        # WhatsApp prestataire
-        try:
-            from adminpanel.services.whatsapp_service import notify_user_if_opted_in, send_payment_received
-            if res.assigned_provider and res.assigned_provider.user_id:
-                from django.contrib.auth.models import User as DjUser
-                prest_user = DjUser.objects.filter(pk=res.assigned_provider.user_id).first()
-                if prest_user:
-                    net = float(payment.montant) - float(payment.commission or 0)
-                    notify_user_if_opted_in(
-                        prest_user,
-                        message="",
-                        template_fn=send_payment_received,
-                        nom_prestataire=res.assigned_provider.nom,
-                        reference=res.reference,
-                        montant_net=net,
-                    )
-        except Exception:
-            pass
-
-        Notification.objects.create(title=f"Paiement especes valide admin: {reference}")
-        return JsonResponse({"ok": True, "cash_flow_status": res.cash_flow_status})
+        # DÉSACTIVÉ : l'admin ne valide plus le cash. La validation est
+        # automatique via la poignée de main (client « j'ai remis » →
+        # prestataire « j'ai reçu ») qui libère les fonds sans intervention
+        # admin. On bloque cette voie pour éviter tout double comptage.
+        return JsonResponse(
+            {
+                "error": "deprecated",
+                "message": "La validation du cash est automatique (poignée de main "
+                           "client/prestataire). L'admin n'a pas à valider.",
+            },
+            status=410,
+        )
     if action == "refuse":
         motif = str(payload.get("motif", "") or "")[:500]
         res.cash_flow_status = Reservation.CashFlowStatus.REFUSED
@@ -5863,12 +5844,19 @@ def api_client_pay_deposit(request, reference):
             "montant_verse", "montant_restant", "acompte_valide",
             "mobile_money_operator",
         ])
+        # Pour ESPECES, l'acompte payé en ligne EST la commission BABIFIX : on
+        # l'enregistre comme telle (commission = montant ⇒ net 0 pour le presta).
+        # Ainsi les gains du presta ne comptent PAS l'acompte (pas de double
+        # comptage), et la commission est comptée une seule fois.
+        # Pour MOBILE_MONEY, l'acompte fait partie du séquestre destiné au
+        # prestataire → commission = 0.
+        acompte_commission = acompte if overall == "ESPECES" else Decimal("0")
         Payment.objects.create(
             reference=f"ACOMPTE-{res.reference}-{int(timezone.now().timestamp())}",
             client=res.client,
             prestataire=res.prestataire,
             montant=acompte,
-            commission=Decimal("0"),
+            commission=acompte_commission,
             etat=Payment.State.COMPLETE,
             reservation=res,
             type_paiement=Payment.TypePaiement.MOBILE_MONEY,
