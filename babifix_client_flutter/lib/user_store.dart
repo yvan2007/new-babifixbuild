@@ -434,8 +434,10 @@ class BabifixUserStore {
           // Email d'abord, puis on récupère nom/téléphone réels du serveur
           // (ne PAS mettre name=username : ce serait l'email).
           await saveProfile(email: email.trim());
-          await hydrateProfileFromServer();
           await _setSession(true);
+          // Hydratation du profil EN ARRIÈRE-PLAN : ne pas bloquer l'entrée dans
+          // l'app (sinon ~12 s d'attente supplémentaires après l'auth réussie).
+          hydrateProfileFromServer().catchError((_) {});
           // FCM en arrière-plan : ne JAMAIS bloquer le retour du login
           // (si l'enregistrement du token traîne, l'utilisateur entre quand même).
           BabifixFcm.registerTokenWithBackend(token).catchError((_) {});
