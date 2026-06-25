@@ -10,6 +10,7 @@ import '../../shared/auth_utils.dart';
 import '../../shared/in_app_notifications.dart';
 import 'floating_nav_bar.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_prestation_timer.dart';
 
 class PrestataireDashboardScreen extends StatefulWidget {
   const PrestataireDashboardScreen({
@@ -54,6 +55,10 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   List<double> _revenueByMonth = [0, 0, 0, 0, 0, 0];
   List<String> _revenueMonthLabels = ['M-5', 'M-4', 'M-3', 'M-2', 'M-1', 'Ce mois'];
 
+  // Intervention en cours / prochaine (carte « Prochaine intervention »).
+  Map<String, dynamic>? _activeIntervention;
+  bool _loadingActive = true;
+
   bool get _isLight => widget.paletteMode != AppPaletteMode.blue;
 
   @override
@@ -61,6 +66,60 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
     super.initState();
     _loadMe();
     _loadRevenueChart();
+    _loadActiveIntervention();
+  }
+
+  /// Charge la VRAIE intervention en cours / prochaine (au lieu du placeholder).
+  /// Priorité : en cours > terminée en attente client > confirmée/acceptée.
+  Future<void> _loadActiveIntervention() async {
+    try {
+      final tok = await readStoredApiToken();
+      if (tok == null || tok.isEmpty) {
+        if (mounted) setState(() => _loadingActive = false);
+        return;
+      }
+      final res = await http.get(
+        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests'),
+        headers: {'Authorization': 'Bearer $tok'},
+      ).timeout(const Duration(seconds: 30));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final items = (data['items'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        int rank(String s) {
+          switch (s) {
+            case 'INTERVENTION_EN_COURS':
+              return 0;
+            case 'En attente client':
+              return 1;
+            case 'Confirmee':
+            case 'DEVIS_ACCEPTE':
+              return 2;
+            default:
+              return 99;
+          }
+        }
+        Map<String, dynamic>? best;
+        int bestRank = 99;
+        for (final it in items) {
+          final r = rank('${it['status'] ?? ''}');
+          if (r < bestRank) {
+            bestRank = r;
+            best = it;
+          }
+        }
+        if (mounted) {
+          setState(() {
+            _activeIntervention = bestRank < 99 ? best : null;
+            _loadingActive = false;
+          });
+        }
+        return;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loadingActive = false);
   }
 
   Future<void> _loadMe() async {
@@ -420,7 +479,12 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 10),
-                _AppointmentCard(ville: providerVille),
+                _AppointmentCard(
+                  intervention: _activeIntervention,
+                  loading: _loadingActive,
+                  fallbackVille: providerVille,
+                  onOpen: () => widget.onNavigate('requests'),
+                ),
                 const SizedBox(height: 16),
                 _AvailabilityToggleCard(
                   isAvailable: _isAvailable,
@@ -1027,114 +1091,229 @@ class _Stat extends StatelessWidget {
   }
 }
 
+/// Carte « Prochaine intervention » premium, branchée sur la VRAIE intervention
+/// en cours / à venir (plus de placeholder). Affiche statut, client, service,
+/// adresse, paiement, chrono live si en cours, et un bouton d'ouverture.
 class _AppointmentCard extends StatelessWidget {
-  const _AppointmentCard({required this.ville});
+  const _AppointmentCard({
+    required this.intervention,
+    required this.loading,
+    required this.fallbackVille,
+    required this.onOpen,
+  });
 
-  final String ville;
+  final Map<String, dynamic>? intervention;
+  final bool loading;
+  final String fallbackVille;
+  final VoidCallback onOpen;
 
-  static const _accent = Color(0xFF0084D1);
+  ({Color color, String label, IconData icon}) _statusMeta(String s) {
+    switch (s) {
+      case 'INTERVENTION_EN_COURS':
+        return (color: const Color(0xFF7C3AED), label: 'En cours', icon: Icons.bolt_rounded);
+      case 'En attente client':
+        return (color: const Color(0xFFF59E0B), label: 'À confirmer (client)', icon: Icons.hourglass_top_rounded);
+      case 'Confirmee':
+        return (color: const Color(0xFF0084D1), label: 'Confirmée', icon: Icons.event_available_rounded);
+      case 'DEVIS_ACCEPTE':
+        return (color: const Color(0xFF0084D1), label: 'Devis accepté', icon: Icons.description_rounded);
+      default:
+        return (color: const Color(0xFF64748B), label: s, icon: Icons.event_rounded);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: RichText(
-                  text: const TextSpan(
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: _accent,
-                    ),
-                    children: [
-                      TextSpan(text: 'Aujourd\'hui'),
-                      TextSpan(text: '  \u00b7  ', style: TextStyle(color: Color(0xFF94A3B8))),
-                      TextSpan(text: '10:00'),
-                    ],
-                  ),
-                ),
+    final card = BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.06),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    );
+
+    if (loading) {
+      return Container(
+        height: 120,
+        decoration: card,
+        child: const Center(child: BabifixRingLoader.dark(size: 60)),
+      );
+    }
+
+    final it = intervention;
+    if (it == null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: card,
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: const BoxDecoration(
+                color: Color(0xFFEFF6FF),
+                shape: BoxShape.circle,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0F2FE),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Confirm\u00e9',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _accent,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.person_outline_rounded, color: _accent, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Client BABIFIX',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 28),
-            child: Text(
-              'Plomberie \u2014 Fuite robinet',
-              style: TextStyle(
-                color: Colors.blueGrey.shade700,
-                fontSize: 14,
+              child: const Icon(Icons.event_busy_rounded, color: Color(0xFF94A3B8)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text('Aucune intervention en cours',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF0B1B34))),
+                  SizedBox(height: 3),
+                  Text('Vos demandes acceptées apparaîtront ici.',
+                      style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
+                ],
               ),
             ),
+          ],
+        ),
+      );
+    }
+
+    final status = '${it['status'] ?? ''}';
+    final meta = _statusMeta(status);
+    final client = '${it['client'] ?? 'Client BABIFIX'}'.trim();
+    final service = '${it['service'] ?? 'Intervention'}'.trim();
+    final addr = '${it['address'] ?? ''}'.trim();
+    final ville = addr.isNotEmpty
+        ? addr
+        : (fallbackVille.isNotEmpty ? fallbackVille : 'Côte d\'Ivoire');
+    final date = '${it['date'] ?? ''}'.trim();
+    final hour = '${it['hour'] ?? ''}'.trim();
+    final whenLabel =
+        [date, if (hour.isNotEmpty) 'à $hour'].where((e) => e.isNotEmpty).join(' ');
+    final pay = '${it['payment_type'] ?? ''}'.trim();
+    final mmOp = '${it['mobile_money_operator'] ?? ''}'.trim();
+    final started =
+        DateTime.tryParse('${it['intervention_started_at'] ?? ''}')?.toLocal();
+    final ended =
+        DateTime.tryParse('${it['prestation_terminee_at'] ?? ''}')?.toLocal();
+    final isUrgent = it['is_urgent'] == true;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: card.copyWith(
+            border: Border.all(color: meta.color.withValues(alpha: 0.25)),
           ),
-          const SizedBox(height: 10),
-          Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.location_on_outlined, color: _accent, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  ville.isNotEmpty ? ville : 'Côte d\'Ivoire',
-                  style: TextStyle(
-                    color: Colors.blueGrey.shade800,
-                    fontSize: 14,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: meta.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(meta.icon, size: 14, color: meta.color),
+                        const SizedBox(width: 5),
+                        Text(meta.label,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: meta.color)),
+                      ],
+                    ),
+                  ),
+                  if (isUrgent) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text('URGENT',
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFEF4444))),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (whenLabel.isNotEmpty)
+                    Text(whenLabel,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w600)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(service,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0B1B34))),
+              const SizedBox(height: 10),
+              _line(Icons.person_outline_rounded, meta.color, client),
+              const SizedBox(height: 6),
+              _line(Icons.location_on_outlined, meta.color, ville),
+              if (pay.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                _line(
+                  pay == 'ESPECES' ? Icons.payments_outlined : Icons.smartphone_rounded,
+                  meta.color,
+                  pay == 'ESPECES'
+                      ? 'Paiement : Espèces'
+                      : 'Paiement : Mobile Money${mmOp.isNotEmpty ? ' ($mmOp)' : ''}',
+                ),
+              ],
+              if (started != null) ...[
+                const SizedBox(height: 12),
+                BabifixPrestationTimer(startedAt: started, endedAt: ended),
+              ],
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  label: const Text('Ouvrir la demande'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: meta.color,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _line(IconData icon, Color color, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 19),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text,
+              style: const TextStyle(
+                  fontSize: 14, color: Color(0xFF334155), fontWeight: FontWeight.w600)),
+        ),
+      ],
     );
   }
 }
