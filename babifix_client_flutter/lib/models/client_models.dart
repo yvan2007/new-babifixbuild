@@ -159,12 +159,16 @@ class ClientReservation {
     this.fundsReleased = false,
     this.serviceTitle = '',
     this.providerName = '',
+    this.scheduledDate = '',
   });
 
   final String title;
   final String whenLabel;
   final String amount;
   final String status;
+
+  /// Date prévue choisie par le client (ISO yyyy-mm-dd) — affichée sur la carte.
+  final String scheduledDate;
   final String reference;
   final int id;
   final bool canRate;

@@ -2129,6 +2129,12 @@ def api_client_home(request):
                     or ""
                 ),
                 "when_label": _when_label,
+                # Date prévue choisie par le client (affichée sur la carte).
+                "scheduled_date": (
+                    item.scheduled_date.isoformat()
+                    if item.scheduled_date
+                    else None
+                ),
                 "amount": item.montant,
                 "status": item.statut,
                 "payment_type": item.payment_type,

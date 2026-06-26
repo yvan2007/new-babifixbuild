@@ -4329,6 +4329,31 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             fontSize: 12,
                           ),
                         ),
+                        // Date prévue choisie par le client (bien visible).
+                        if (r.scheduledDate.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.event_rounded,
+                                  size: 13,
+                                  color: isPending || isActive
+                                      ? const Color(0xFF7EC8E3)
+                                      : const Color(0xFF0084D1)),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Prévu le ${r.scheduledDate.split('-').reversed.join('/')}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: isPending || isActive
+                                      ? const Color(0xFF7EC8E3)
+                                      : const Color(0xFF0084D1),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -5949,6 +5974,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             (item) => ClientReservation(
               title: '${item['title'] ?? ''}',
               whenLabel: '${item['when_label'] ?? ''}',
+              scheduledDate: '${item['scheduled_date'] ?? ''}',
               amount: '${item['amount'] ?? ''}',
               status: '${item['status'] ?? ''}',
               reference: '${item['reference'] ?? item['title'] ?? ''}',

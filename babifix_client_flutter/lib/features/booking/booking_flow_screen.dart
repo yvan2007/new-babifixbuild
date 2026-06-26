@@ -3229,8 +3229,9 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
               color: selected
                   ? _kCyan
                   : (available
-                      ? _kCyan.withValues(alpha: 0.25)
+                      ? const Color(0xFF22C55E).withValues(alpha: 0.45)
                       : Colors.white.withValues(alpha: 0.06)),
+              width: available && !selected ? 1.3 : 1,
             ),
           ),
           child: Column(
@@ -3256,19 +3257,17 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
                 ),
               ),
               const SizedBox(height: 5),
+              // Indicateur d'état clair : ✓ vert = disponible · ✕ gris =
+              // indisponible · cadenas = congé bloqué.
               if (blocked)
-                const Icon(Icons.lock_rounded, size: 12, color: Colors.white24)
+                const Icon(Icons.lock_rounded, size: 13, color: Color(0xFFEF4444))
+              else if (available)
+                Icon(Icons.check_circle_rounded,
+                    size: 13,
+                    color: selected ? _kNavy : const Color(0xFF22C55E))
               else
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: available
-                        ? (selected ? _kNavy : _kCyan)
-                        : Colors.transparent,
-                  ),
-                ),
+                const Icon(Icons.cancel_rounded,
+                    size: 13, color: Colors.white24),
             ],
           ),
         ),
