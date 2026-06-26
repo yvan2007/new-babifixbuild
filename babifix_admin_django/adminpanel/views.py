@@ -4567,9 +4567,53 @@ def api_client_check_provider_availability(request):
         except ValueError:
             pass
 
+    # Avis de conflit NON BLOQUANT (#9) : si le presta a déjà une intervention
+    # prévue ce jour-là, on le signale et on propose les prochains jours libres.
+    # Le client reste libre de réserver quand même (optionnel).
+    _TERMINAL = ("Terminee", "Annulee", "CANCELLED")
+    busy_count = (
+        Reservation.objects.filter(assigned_provider=prov, scheduled_date=check_date)
+        .exclude(statut__in=_TERMINAL)
+        .count()
+    )
+    suggested = []
+    notice = ""
+    if busy_count > 0:
+        from datetime import timedelta as _td
+        work_days = set(
+            PrestataireAvailabilitySlot.objects.filter(provider=prov, actif=True)
+            .values_list("jour_semaine", flat=True)
+        )
+        d = check_date
+        for _ in range(45):
+            d = d + _td(days=1)
+            if work_days and d.weekday() not in work_days:
+                continue
+            if PrestataireUnavailability.objects.filter(
+                provider=prov, date_debut__lte=d, date_fin__gte=d
+            ).exists():
+                continue
+            taken = (
+                Reservation.objects.filter(assigned_provider=prov, scheduled_date=d)
+                .exclude(statut__in=_TERMINAL)
+                .exists()
+            )
+            if taken:
+                continue
+            suggested.append(d.isoformat())
+            if len(suggested) >= 3:
+                break
+        notice = (
+            "Ce prestataire a déjà une intervention prévue ce jour-là. "
+            "Vous pouvez réserver quand même, ou choisir un autre jour."
+        )
+
     return JsonResponse(
         {
             "available": True,
+            "busy_that_day": busy_count > 0,
+            "notice": notice,
+            "suggested_dates": suggested,
             "provider": {
                 "id": prov.id,
                 "nom": prov.nom,

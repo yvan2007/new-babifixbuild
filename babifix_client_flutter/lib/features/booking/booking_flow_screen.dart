@@ -377,7 +377,21 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         setState(() {
           _providerAvailable = data['available'] as bool?;
           if (data['available'] == true) {
-            _availabilityMessage = 'Prestataire disponible!';
+            // Avis NON bloquant : si le presta a déjà une intervention ce
+            // jour-là, on le signale + on propose d'autres jours (optionnel).
+            if (data['busy_that_day'] == true) {
+              final sugg = (data['suggested_dates'] as List?)
+                      ?.map((e) => '$e')
+                      .toList() ??
+                  const [];
+              final notice = (data['notice'] as String?) ??
+                  'Ce prestataire a déjà une intervention ce jour-là.';
+              _availabilityMessage = sugg.isNotEmpty
+                  ? '$notice\nJours libres : ${sugg.join(' · ')}'
+                  : notice;
+            } else {
+              _availabilityMessage = 'Prestataire disponible !';
+            }
             _availableCreneaux =
                 (data['creneaux'] as List?)
                     ?.map((c) => c as Map<String, dynamic>)
