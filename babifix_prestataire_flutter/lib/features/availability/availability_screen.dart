@@ -338,6 +338,249 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     }
   }
 
+  // Sélecteur d'heure thémé (réutilisé par la saisie rapide).
+  Future<TimeOfDay?> _pickTimeThemed(TimeOfDay initial, String help) {
+    return showTimePicker(
+      context: context,
+      initialTime: initial,
+      helpText: help,
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          timePickerTheme: TimePickerThemeData(
+            backgroundColor: _charcoal,
+            hourMinuteTextColor: Colors.white,
+            hourMinuteColor: _premiumGold.withValues(alpha: 0.2),
+            dayPeriodTextColor: Colors.white,
+            dayPeriodColor: _premiumGold.withValues(alpha: 0.2),
+            dialHandColor: _premiumGold,
+            dialBackgroundColor: _cardBg,
+            entryModeIconColor: _premiumGold,
+          ),
+          colorScheme: const ColorScheme.dark(
+            primary: _premiumGold,
+            surface: _charcoal,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+  }
+
+  /// Saisie RAPIDE : choisir plusieurs jours (+ presets) et UNE plage horaire,
+  /// appliquée à tous les jours sélectionnés en un seul geste.
+  Future<void> _addSlotsBulk() async {
+    final selected = <int>{};
+    TimeOfDay start = const TimeOfDay(hour: 8, minute: 0);
+    TimeOfDay end = const TimeOfDay(hour: 17, minute: 0);
+    String fmt(TimeOfDay t) =>
+        '${t.hour.toString().padLeft(2, '0')}h${t.minute.toString().padLeft(2, '0')}';
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => Dialog(
+          backgroundColor: _charcoal,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: _premiumGold.withValues(alpha: 0.3)),
+          ),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Saisie rapide',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text('Choisissez les jours et une plage horaire.',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 12.5)),
+                  const SizedBox(height: 14),
+                  // Presets rapides
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      _preset('Lun–Ven', () {
+                        setLocal(() {
+                          selected
+                            ..clear()
+                            ..addAll([0, 1, 2, 3, 4]);
+                        });
+                      }),
+                      _preset('Week-end', () {
+                        setLocal(() {
+                          selected
+                            ..clear()
+                            ..addAll([5, 6]);
+                        });
+                      }),
+                      _preset('Tous', () {
+                        setLocal(() {
+                          selected
+                            ..clear()
+                            ..addAll([0, 1, 2, 3, 4, 5, 6]);
+                        });
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Chips jours (multi-sélection)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(7, (i) {
+                      final sel = selected.contains(i);
+                      return GestureDetector(
+                        onTap: () => setLocal(() {
+                          if (sel) {
+                            selected.remove(i);
+                          } else {
+                            selected.add(i);
+                          }
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? _premiumGold.withValues(alpha: 0.22)
+                                : Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _premiumGold.withValues(
+                                  alpha: sel ? 0.8 : 0.2),
+                              width: sel ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Text(_weekdays[i],
+                              style: TextStyle(
+                                  color: sel ? _premiumGold : Colors.white70,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13)),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  // Plage horaire
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final t = await _pickTimeThemed(start, 'Heure de début');
+                            if (t != null) setLocal(() => start = t);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: BorderSide(
+                                color: _premiumGold.withValues(alpha: 0.4)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: Text('Début : ${fmt(start)}'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final t = await _pickTimeThemed(end, 'Heure de fin');
+                            if (t != null) setLocal(() => end = t);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: BorderSide(
+                                color: _premiumGold.withValues(alpha: 0.4)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: Text('Fin : ${fmt(end)}'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _premiumGold,
+                        foregroundColor: _deepNavy,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        textStyle:
+                            const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      child: const Text('Appliquer'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (ok != true || !mounted) return;
+    if (selected.isEmpty) {
+      _showError('Sélectionnez au moins un jour.');
+      return;
+    }
+    if (end.hour < start.hour ||
+        (end.hour == start.hour && end.minute <= start.minute)) {
+      _showError('L\'heure de fin doit être après l\'heure de début.');
+      return;
+    }
+
+    final tok = await _token();
+    int added = 0;
+    for (final d in selected) {
+      final slot = _Slot(weekday: d, start: start, end: end);
+      try {
+        final res = await http.post(
+          Uri.parse('$_base/api/prestataire/availability/slots/'),
+          headers: {
+            'Authorization': 'Bearer $tok',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(slot.toJson()),
+        );
+        if (res.statusCode == 200 || res.statusCode == 201) added++;
+      } catch (_) {}
+    }
+    if (mounted) {
+      await _loadAll();
+      _showError('$added créneau${added > 1 ? 'x' : ''} ajouté${added > 1 ? 's' : ''}.');
+    }
+  }
+
+  Widget _preset(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: _premiumGold.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _premiumGold.withValues(alpha: 0.3)),
+        ),
+        child: Text(label,
+            style: const TextStyle(
+                color: _premiumGold,
+                fontSize: 12,
+                fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+
   Future<void> _deleteSlot(_Slot slot) async {
     if (slot.id == null) return;
     final confirmed = await showDialog<bool>(
@@ -588,6 +831,58 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     }
   }
 
+  /// Indispos par DATES PRÉCISES : le presta coche plusieurs jours distincts
+  /// (ex. 20, 22, 30) sur un calendrier jusqu'à 2 mois. Chaque date cochée
+  /// devient une indisponibilité d'un jour.
+  Future<void> _addUnavailabilityDates() async {
+    final selected = <DateTime>{};
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: _charcoal,
+        insetPadding: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: const Color(0xFFFF6B6B).withValues(alpha: 0.3)),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 560),
+          child: _MultiMonthCalendar(
+            selected: selected,
+            onConfirm: () => Navigator.pop(ctx, true),
+            onCancel: () => Navigator.pop(ctx, false),
+          ),
+        ),
+      ),
+    );
+    if (result != true || !mounted) return;
+    if (selected.isEmpty) {
+      _showError('Sélectionnez au moins une date.');
+      return;
+    }
+    final tok = await _token();
+    int added = 0;
+    for (final d in selected) {
+      final iso =
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      try {
+        final res = await http.post(
+          Uri.parse('$_base/api/prestataire/availability/unavailability/'),
+          headers: {
+            'Authorization': 'Bearer $tok',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'date_from': iso, 'date_to': iso, 'reason': ''}),
+        );
+        if (res.statusCode == 200 || res.statusCode == 201) added++;
+      } catch (_) {}
+    }
+    if (mounted) {
+      await _loadAll();
+      _showError('$added date${added > 1 ? 's' : ''} bloquée${added > 1 ? 's' : ''}.');
+    }
+  }
+
   Future<void> _deleteUnavailability(_Unavailability u) async {
     if (u.id == null) return;
     final confirmed = await showDialog<bool>(
@@ -717,12 +1012,14 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
                   _SlotsTab(
                     slots: _slots,
                     onAdd: _addSlot,
+                    onBulkAdd: _addSlotsBulk,
                     onDelete: _deleteSlot,
                     onRefresh: _loadAll,
                   ),
                   _UnavailabilityTab(
                     unavailabilities: _unavailabilities,
                     onAdd: _addUnavailability,
+                    onAddDates: _addUnavailabilityDates,
                     onDelete: _deleteUnavailability,
                     onRefresh: _loadAll,
                   ),
@@ -738,12 +1035,14 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
 class _SlotsTab extends StatelessWidget {
   final List<_Slot> slots;
   final VoidCallback onAdd;
+  final VoidCallback onBulkAdd;
   final void Function(_Slot) onDelete;
   final Future<void> Function() onRefresh;
 
   const _SlotsTab({
     required this.slots,
     required this.onAdd,
+    required this.onBulkAdd,
     required this.onDelete,
     required this.onRefresh,
   });
@@ -787,22 +1086,44 @@ class _SlotsTab extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Ajouter un créneau'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _premiumGold,
-                foregroundColor: _deepNavy,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 4,
-                shadowColor: _premiumGold.withValues(alpha: 0.4),
-                textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+          child: Row(
+            children: [
+              // Saisie rapide (multi-jours en un geste) — mise en avant.
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onBulkAdd,
+                  icon: const Icon(Icons.bolt_rounded, size: 20),
+                  label: const Text('Saisie rapide'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _premiumGold,
+                    foregroundColor: _deepNavy,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    elevation: 4,
+                    shadowColor: _premiumGold.withValues(alpha: 0.4),
+                    textStyle: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 14),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              // Ajout d'un seul créneau (mode détaillé).
+              OutlinedButton.icon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text('Un'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _premiumGold,
+                  side: BorderSide(color: _premiumGold.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  textStyle:
+                      const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -1025,12 +1346,14 @@ class _EmptyStateSlots extends StatelessWidget {
 class _UnavailabilityTab extends StatelessWidget {
   final List<_Unavailability> unavailabilities;
   final VoidCallback onAdd;
+  final VoidCallback onAddDates;
   final void Function(_Unavailability) onDelete;
   final Future<void> Function() onRefresh;
 
   const _UnavailabilityTab({
     required this.unavailabilities,
     required this.onAdd,
+    required this.onAddDates,
     required this.onDelete,
     required this.onRefresh,
   });
@@ -1064,22 +1387,46 @@ class _UnavailabilityTab extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Bloquer une période'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6B6B),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 4,
-                shadowColor: const Color(0xFFFF6B6B).withValues(alpha: 0.4),
-                textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+          child: Row(
+            children: [
+              // Dates précises (multi-sélection sur calendrier) — mise en avant.
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onAddDates,
+                  icon: const Icon(Icons.calendar_month_rounded, size: 20),
+                  label: const Text('Dates précises'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B6B),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    elevation: 4,
+                    shadowColor: const Color(0xFFFF6B6B).withValues(alpha: 0.4),
+                    textStyle: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 14),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              // Bloquer une période continue (plage de dates).
+              OutlinedButton.icon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.date_range_rounded, size: 18),
+                label: const Text('Période'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFFF6B6B),
+                  side: BorderSide(
+                      color: const Color(0xFFFF6B6B).withValues(alpha: 0.5)),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  textStyle:
+                      const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -1215,6 +1562,196 @@ class _UnavailabilityCard extends StatelessWidget {
           onPressed: onDelete,
         ),
       ),
+    );
+  }
+}
+
+// ─── Calendrier multi-sélection (jusqu'à ~2 mois) ────────────────────────────
+
+class _MultiMonthCalendar extends StatefulWidget {
+  final Set<DateTime> selected;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  const _MultiMonthCalendar({
+    required this.selected,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  @override
+  State<_MultiMonthCalendar> createState() => _MultiMonthCalendarState();
+}
+
+class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
+  static const _red = Color(0xFFFF6B6B);
+  static const _moisFr = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+  ];
+  late final DateTime _today;
+
+  @override
+  void initState() {
+    super.initState();
+    final n = DateTime.now();
+    _today = DateTime(n.year, n.month, n.day);
+  }
+
+  bool _isSel(DateTime d) => widget.selected
+      .any((s) => s.year == d.year && s.month == d.month && s.day == d.day);
+
+  void _toggle(DateTime d) {
+    setState(() {
+      final match = widget.selected
+          .where((s) => s.year == d.year && s.month == d.month && s.day == d.day)
+          .toList();
+      if (match.isNotEmpty) {
+        widget.selected.remove(match.first);
+      } else {
+        widget.selected.add(d);
+      }
+    });
+  }
+
+  List<DateTime> _months() {
+    final base = DateTime(_today.year, _today.month, 1);
+    return [
+      base,
+      DateTime(base.year, base.month + 1, 1),
+      DateTime(base.year, base.month + 2, 1),
+    ];
+  }
+
+  Widget _monthGrid(DateTime month) {
+    final firstWeekday = DateTime(month.year, month.month, 1).weekday; // 1=Lun
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final cells = <Widget>[];
+    for (var i = 1; i < firstWeekday; i++) {
+      cells.add(const SizedBox());
+    }
+    for (var day = 1; day <= daysInMonth; day++) {
+      final d = DateTime(month.year, month.month, day);
+      final past = d.isBefore(_today);
+      final sel = _isSel(d);
+      cells.add(GestureDetector(
+        onTap: past ? null : () => _toggle(d),
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: sel ? _red : Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(8),
+            border: sel
+                ? null
+                : Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '$day',
+            style: TextStyle(
+              color: past
+                  ? Colors.white24
+                  : (sel ? Colors.white : Colors.white70),
+              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 6),
+          child: Text(
+            '${_moisFr[month.month - 1]} ${month.year}',
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14),
+          ),
+        ),
+        GridView.count(
+          crossAxisCount: 7,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 1.1,
+          children: cells,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text('Cochez les jours à bloquer',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: const ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+                .map((d) => Expanded(
+                      child: Center(
+                        child: Text(d,
+                            style: TextStyle(
+                                color: _red,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12)),
+                      ),
+                    ))
+                .toList(),
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(children: _months().map(_monthGrid).toList()),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: widget.onCancel,
+                  style: TextButton.styleFrom(foregroundColor: Colors.white70),
+                  child: const Text('Annuler'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: FilledButton(
+                  onPressed: widget.onConfirm,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _red,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    widget.selected.isEmpty
+                        ? 'Confirmer'
+                        : 'Bloquer ${widget.selected.length} date${widget.selected.length > 1 ? 's' : ''}',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
