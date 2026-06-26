@@ -2447,22 +2447,43 @@ def api_public_provider_reviews(request, pk):
     qs = (
         Rating.objects.filter(provider_id=pk)
         .select_related("client")
-        .order_by("-created_at")[:50]
+        .order_by("-created_at")[:150]
     )
+    # Nombre total d'avis par client (pour indiquer « a noté N prestations »
+    # sans répéter le même commentaire en boucle).
+    from collections import defaultdict
+    client_counts = defaultdict(int)
+    for r in qs:
+        client_counts[r.client_id] += 1
+
+    # Déduplication : on saute les DOUBLONS EXACTS (même client + même texte) —
+    # typiquement quand le presta est revenu plusieurs fois. On garde les
+    # commentaires DIFFÉRENTS du même client (prestations différentes).
+    seen = set()
     reviews = []
     for r in qs:
         u = r.client
         author = ""
         if u:
             author = (u.first_name or "").strip() or u.username
+        text = (r.commentaire or "").strip()
+        key = (r.client_id, text.lower())
+        if key in seen:
+            continue
+        seen.add(key)
         reviews.append(
             {
                 "author": author or "Client",
                 "rate": int(r.note or 0),
-                "text": r.commentaire or "",
+                "text": text,
                 "date": r.created_at.isoformat() if r.created_at else "",
+                # Combien de prestations ce client a notées chez ce presta
+                # (> 1 ⇒ l'app peut afficher « client fidèle · N avis »).
+                "client_reviews": client_counts.get(r.client_id, 1),
             }
         )
+        if len(reviews) >= 50:
+            break
     return JsonResponse({"reviews": reviews, "count": len(reviews)})
 
 

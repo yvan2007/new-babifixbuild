@@ -896,12 +896,30 @@ class _ProviderProfilePremiumScreenState
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  author,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0B1B34),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      author,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0B1B34),
+                      ),
+                    ),
+                    // Indique qu'un même client a noté plusieurs prestations
+                    // (au lieu d'afficher des doublons en boucle).
+                    if (((r['client_reviews'] ?? 1) as num) > 1) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Client fidèle · ${r['client_reviews']} prestations',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: BabifixDesign.cyan,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               Row(

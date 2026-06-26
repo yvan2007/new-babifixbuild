@@ -3715,6 +3715,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
         !completed.contains(r) &&
         !active.contains(r)).toList();
 
+    // Tri : le plus RÉCENT en haut dans CHAQUE section. On s'appuie sur le
+    // numéro de référence (RES-005 > RES-004 …), qui est séquentiel.
+    int seq(ClientReservation r) {
+      final m = RegExp(r'(\d+)\s*$').firstMatch(r.reference);
+      return m != null ? (int.tryParse(m.group(1)!) ?? 0) : 0;
+    }
+    for (final list in [active, completed, pending, cancelled]) {
+      list.sort((a, b) => seq(b).compareTo(seq(a)));
+    }
+
     return Column(
       children: [
         _buildTopBar('Rendez-vous'),
