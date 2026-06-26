@@ -56,6 +56,28 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
   double _zoom = 12; // zoom courant (pour le clustering)
   _Provider? _selected;
 
+  // Style de carte choisi par l'utilisateur ('' = auto selon le thème système,
+  // sinon 'light' / 'dark' / 'satellite'). Permet un vrai mode nuit manuel.
+  String _mapStyle = '';
+
+  String _effectiveStyle() {
+    if (_mapStyle.isNotEmpty) return _mapStyle;
+    return MediaQuery.platformBrightnessOf(context) == Brightness.dark
+        ? 'dark'
+        : 'light';
+  }
+
+  String _tileUrl() {
+    switch (_effectiveStyle()) {
+      case 'dark':
+        return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      case 'satellite':
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+      default:
+        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    }
+  }
+
   // Animation "radar" (halo pulsant autour de ma position).
   late final AnimationController _pulse;
 
@@ -309,6 +331,35 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
         backgroundColor: BabifixDesign.darkNavy,
         foregroundColor: Colors.white,
         actions: [
+          // Sélecteur de style de carte (Clair / Sombre / Satellite).
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.layers_rounded),
+            tooltip: 'Style de carte',
+            onSelected: (v) => setState(() => _mapStyle = v),
+            itemBuilder: (ctx) => [
+              CheckedPopupMenuItem(
+                value: 'light',
+                checked: _mapStyle == 'light',
+                child: const Text('Clair'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'dark',
+                checked: _mapStyle == 'dark',
+                child: const Text('Sombre (nuit)'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'satellite',
+                checked: _mapStyle == 'satellite',
+                child: const Text('Satellite'),
+              ),
+              const PopupMenuDivider(),
+              CheckedPopupMenuItem(
+                value: '',
+                checked: _mapStyle == '',
+                child: const Text('Auto (système)'),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.my_location_rounded),
             onPressed: () => _locate(forceFresh: true),
@@ -335,18 +386,13 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
             ),
             children: [
               TileLayer(
-                // CartoDB Voyager : libre, CDN multi-sous-domaines, beaucoup
-                // plus fiable que tile.openstreetmap.org direct (qui rate-limite).
-                // {r} = tuiles HD/Retina (@2x) → rendu NET sur les écrans haute
-                // densité (la plupart des téléphones) = beaucoup plus pro, gratuit.
-                // Mode sombre auto : Dark Matter si le téléphone est en thème
-                // sombre, sinon Voyager clair.
-                urlTemplate: MediaQuery.platformBrightnessOf(context) ==
-                        Brightness.dark
-                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                // Style choisi par l'utilisateur (Clair / Sombre / Satellite),
+                // sinon auto selon le thème système. {r} = tuiles HD/Retina.
+                urlTemplate: _tileUrl(),
                 subdomains: const ['a', 'b', 'c', 'd'],
-                retinaMode: RetinaMode.isHighDensity(context),
+                retinaMode: _effectiveStyle() == 'satellite'
+                    ? false
+                    : RetinaMode.isHighDensity(context),
                 tileProvider: NetworkTileProvider(),
                 userAgentPackageName: 'app.babifix.client',
               ),
