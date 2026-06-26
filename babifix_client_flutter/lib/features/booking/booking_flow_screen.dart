@@ -360,7 +360,13 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         '?provider_id=${widget.providerId}'
         '&date=${date.toIso8601String().split('T')[0]}',
       );
-      final resp = await http.get(uri).timeout(const Duration(seconds: 10));
+      // L'endpoint exige un token client → on l'envoie (sinon 401 + l'écran
+      // de dispo restait vide).
+      final token = await BabifixUserStore.getApiToken();
+      final resp = await http.get(
+        uri,
+        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+      ).timeout(const Duration(seconds: 10));
 
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);

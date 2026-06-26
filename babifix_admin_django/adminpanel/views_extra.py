@@ -497,14 +497,22 @@ def api_prestataire_availability_crud(request, id=None):
         except ValueError:
             return JsonResponse({"error": "invalid_time_format"}, status=400)
 
-        slot = PrestataireAvailabilitySlot.objects.create(
+        # get_or_create sur la clé unique (provider, jour_semaine, heure_debut)
+        # pour éviter le crash IntegrityError si le créneau existe déjà : on le
+        # réactive simplement et on met à jour l'heure de fin.
+        slot, created = PrestataireAvailabilitySlot.objects.get_or_create(
             provider=provider,
             jour_semaine=int(jour),
             heure_debut=debut_t,
-            heure_fin=fin_t,
-            actif=True,
+            defaults={"heure_fin": fin_t, "actif": True},
         )
-        return JsonResponse({"id": slot.id, "ok": True}, status=201)
+        if not created:
+            slot.heure_fin = fin_t
+            slot.actif = True
+            slot.save(update_fields=["heure_fin", "actif"])
+        return JsonResponse(
+            {"id": slot.id, "ok": True, "created": created}, status=201
+        )
 
     elif request.method == "DELETE":
         slot_id = id or request.GET.get("id")

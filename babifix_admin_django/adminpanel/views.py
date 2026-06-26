@@ -3507,36 +3507,12 @@ def api_client_create_reservation(request):
             status=400,
         )
 
-    # Prestataire marqué indisponible manuellement (bouton dispo OFF) : on
-    # refuse la réservation côté serveur (défense en profondeur, même si l'UI
-    # désactive déjà le bouton « Réserver »).
-    if prov and not prov.disponible:
-        return JsonResponse(
-            {
-                "error": "provider_unavailable",
-                "message": "Ce prestataire est actuellement indisponible.",
-            },
-            status=400,
-        )
-
-    # Vérifier les périodes d'indisponibilité du prestataire
-    if prov:
-        from datetime import date
-
-        today = date.today()
-        unavail = PrestataireUnavailability.objects.filter(
-            provider=prov,
-            date_debut__lte=today,
-            date_fin__gte=today,
-        ).exists()
-        if unavail:
-            return JsonResponse(
-                {
-                    "error": "provider_unavailable",
-                    "message": "Ce prestataire est indisponible aujourd'hui.",
-                },
-                status=400,
-            )
+    # NOTE : on NE bloque PAS la réservation selon les indisponibilités « du
+    # jour ». Une réservation est une DEMANDE dont la date réelle est négociée
+    # ensuite (devis + créneau choisi). Bloquer sur la date du jour empêchait à
+    # tort toute réservation (même pour une date future) → « impossible
+    # aujourd'hui ». La disponibilité par date est gérée via le calendrier de
+    # créneaux (le client choisit un créneau réellement libre).
 
     # Règle métier : un client ne peut pas avoir 2 réservations EN COURS avec le
     # même prestataire. Tant qu'une n'est pas « Terminee » ou « Annulee », on
@@ -6076,6 +6052,30 @@ def api_prestataire_demarrer_intervention(request, reference):
         return JsonResponse(
             {"error": "acompte_requis", "detail": "Le client n'a pas encore payé l'acompte."},
             status=400,
+        )
+
+    # On ne peut pas démarrer DEUX prestations en même temps : si une autre est
+    # déjà INTERVENTION_EN_COURS pour ce prestataire, on refuse (message clair).
+    other_active = (
+        Reservation.objects.filter(
+            assigned_provider_id=provider.id,
+            statut=Reservation.Status.INTERVENTION_EN_COURS,
+        )
+        .exclude(pk=res.pk)
+        .first()
+    )
+    if other_active:
+        return JsonResponse(
+            {
+                "error": "another_in_progress",
+                "message": (
+                    "Vous avez déjà une prestation en cours "
+                    f"({other_active.reference}). Terminez-la avant d'en "
+                    "démarrer une autre."
+                ),
+                "reference": other_active.reference,
+            },
+            status=409,
         )
 
     # Validation transition de statut

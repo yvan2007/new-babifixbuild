@@ -1796,22 +1796,24 @@ class _RequestsScreenState extends State<RequestsScreen> {
       );
         _loadRequests();
       } else if (res.statusCode == 409 && mounted) {
+        // 409 = une autre prestation est déjà en cours (on ne peut pas en
+        // démarrer deux à la fois). On affiche le message clair du serveur.
         final body = jsonDecode(res.body);
-        final amount = (body['amount_due_online'] as num?)?.toInt() ?? 0;
+        final msg = (body['message'] as String?) ??
+            "Vous avez déjà une prestation en cours. Terminez-la avant d'en démarrer une autre.";
         await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            icon: Icon(Icons.lock_outline, color: BabifixDesign.error, size: 56),
-            title: const Text('Acompte non versé'),
-            content: Text(
-              "Le client n'a pas encore versé l'acompte. "
-              "Vous ne pouvez pas démarrer l'intervention.\n\n"
-              "Montant attendu : $amount F CFA",
-            ),
+            icon: Icon(Icons.warning_amber_rounded,
+                color: BabifixDesign.ciOrange, size: 52),
+            title: const Text('Prestation déjà en cours'),
+            content: Text(msg, textAlign: TextAlign.center),
             actions: [
-              TextButton(
+              FilledButton(
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('OK'),
+                style: FilledButton.styleFrom(
+                    backgroundColor: BabifixDesign.ciOrange),
+                child: const Text('Compris'),
               ),
             ],
           ),
