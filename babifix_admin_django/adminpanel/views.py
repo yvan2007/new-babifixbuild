@@ -4808,6 +4808,17 @@ def api_messages_unread_total(request):
     return JsonResponse({"total": _unread_messages_total_for_user(uid)})
 
 
+def _commission_rate_pct_for(provider) -> int:
+    """Taux de commission EFFECTIF en % (entier) pour un prestataire, en
+    déléguant à la même source que le devis (_get_effective_commission_rate)."""
+    try:
+        from .services.wallet_service import _get_effective_commission_rate
+        frac = _get_effective_commission_rate(provider)
+        return int((Decimal(str(frac)) * Decimal("100")).quantize(Decimal("1")))
+    except Exception:
+        return 18
+
+
 @require_GET
 @require_api_auth(["prestataire", "admin"])
 def api_prestataire_me(request):
@@ -4870,6 +4881,10 @@ def api_prestataire_me(request):
                 "premium_tier": prov.premium_tier or "standard",
                 "is_premium": bool(prov.is_premium),
                 "is_premium_annual": bool(getattr(prov, "is_premium_annual", False)),
+                # Taux de commission EFFECTIF (réduction premium incluse) — le
+                # même que celui réellement appliqué au devis → l'éditeur de
+                # devis l'affiche au lieu d'un 18% figé.
+                "commission_rate_effective": _commission_rate_pct_for(prov),
             },
             "stats": {
                 "reservations_total": qs.count(),

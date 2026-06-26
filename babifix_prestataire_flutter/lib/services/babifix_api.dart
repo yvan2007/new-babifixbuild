@@ -54,6 +54,25 @@ class EscrowApi {
 }
 
 // ---------------------------------------------------------------------------
+// Provider API (infos prestataire)
+// ---------------------------------------------------------------------------
+class ProviderApi {
+  /// Taux de commission EFFECTIF (%) du prestataire (réduction premium
+  /// incluse). Repli 18% si indisponible.
+  static Future<int> effectiveCommissionRate() async {
+    try {
+      final r = await BabifixUserStore.authGet('/api/prestataire/me');
+      if (r.statusCode != 200) return 18;
+      final prov = (_decode(r)['provider'] as Map<String, dynamic>?) ?? {};
+      final v = prov['commission_rate_effective'];
+      return v is num ? v.toInt() : 18;
+    } catch (_) {
+      return 18;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Devis API (prestataire-side : création + consultation)
 // ---------------------------------------------------------------------------
 class DevisApi {

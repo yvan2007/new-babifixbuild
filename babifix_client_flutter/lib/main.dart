@@ -2030,6 +2030,44 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                               compact: true,
                                             ),
                                           ],
+                                          // Badge abonnement (visible sur la card,
+                                          // pas seulement sur le détail).
+                                          if (p.isPremium) ...[
+                                            const SizedBox(height: 4),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                gradient: const LinearGradient(
+                                                    colors: [
+                                                      Color(0xFFFFD700),
+                                                      Color(0xFFFFA000)
+                                                    ]),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(
+                                                      Icons.workspace_premium_rounded,
+                                                      size: 12,
+                                                      color: Colors.white),
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    p.premiumBadge.isNotEmpty
+                                                        ? p.premiumBadge
+                                                        : 'Premium',
+                                                    style: const TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: Colors.white),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                           if (!p.disponible) ...[
                                             const SizedBox(height: 4),
                                             Container(
@@ -5680,6 +5718,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
             tarif: null,
             disponible: x['disponible'] != false,
             distanceKm: dk,
+            premiumTier: '${x['premium_tier'] ?? 'standard'}',
+            premiumBadge: '${x['premium_badge'] ?? ''}',
           );
         }).toList();
 
@@ -6008,6 +6048,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
           tarif: null,
           disponible: x['disponible'] != false,
           distanceKm: jsonDoubleNullable(x['distance_km']),
+          premiumTier: '${x['premium_tier'] ?? 'standard'}',
+          premiumBadge: '${x['premium_badge'] ?? ''}',
         );
       }).toList();
       final adminMail = '${data['contact_admin_email'] ?? ''}'.trim();

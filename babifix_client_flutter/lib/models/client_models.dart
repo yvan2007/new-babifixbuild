@@ -39,6 +39,8 @@ class RecentProviderCard {
     this.tarif,
     this.disponible = true,
     this.distanceKm,
+    this.premiumTier = 'standard',
+    this.premiumBadge = '',
   });
 
   final int id;
@@ -48,6 +50,11 @@ class RecentProviderCard {
   final String imageUrl;
   final double? tarif;
   final bool disponible;
+
+  /// Abonnement premium ('standard'|'bronze'|'silver'|'gold') + libellé badge.
+  final String premiumTier;
+  final String premiumBadge;
+  bool get isPremium => premiumTier != 'standard' && premiumTier.isNotEmpty;
 
   /// Distance (km) entre le client et ce prestataire — fournie par l'API
   /// `/api/public/providers/?lat=&lon=` (champ `distance_km`).
@@ -62,6 +69,8 @@ class RecentProviderCard {
     tarif: tarif,
     disponible: disponible ?? this.disponible,
     distanceKm: distanceKm,
+    premiumTier: premiumTier,
+    premiumBadge: premiumBadge,
   );
 }
 

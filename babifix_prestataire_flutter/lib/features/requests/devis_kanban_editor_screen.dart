@@ -57,7 +57,9 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     return b < 0 ? 0 : b;
   }
 
-  int get _commissionRate => 18;
+  // Taux de commission EFFECTIF du presta (réduction premium incluse), chargé
+  // depuis le serveur. 18 par défaut tant que non chargé.
+  int _commissionRate = 18;
   double get _commission => _baseTotal * _commissionRate / 100;
   double get _net => _baseTotal - _commission;
 
@@ -86,6 +88,12 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     super.initState();
     _loadCatalogue();
     _loadDraft();
+    _loadCommissionRate();
+  }
+
+  Future<void> _loadCommissionRate() async {
+    final rate = await ProviderApi.effectiveCommissionRate();
+    if (mounted) setState(() => _commissionRate = rate);
   }
 
   TimeOfDay? _parseTime(String? s) {
@@ -725,50 +733,8 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                   borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _pickerTile(
-                  icon: Icons.event_rounded,
-                  label: _dateProposee == null
-                      ? 'Date proposée'
-                      : '${_dateProposee!.day}/${_dateProposee!.month}/${_dateProposee!.year}',
-                  onTap: () async {
-                    final d = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                      initialDate: DateTime.now(),
-                    );
-                    if (d != null) setState(() => _dateProposee = d);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _pickerTile(
-                  icon: Icons.schedule_rounded,
-                  label: _heureDebut == null ? 'Début' : _heureDebut!.format(context),
-                  onTap: () async {
-                    final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                    if (t != null) setState(() => _heureDebut = t);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _pickerTile(
-                  icon: Icons.schedule_outlined,
-                  label: _heureFin == null ? 'Fin' : _heureFin!.format(context),
-                  onTap: () async {
-                    final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                    if (t != null) setState(() => _heureFin = t);
-                  },
-                ),
-              ),
-            ],
-          ),
+          // Date proposée / Début / Fin retirés : la planification se fait via
+          // le créneau choisi par le client, pas dans le devis.
           const SizedBox(height: 12),
           Row(
             children: [
@@ -1342,10 +1308,15 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
     final desc = (_type == DevisLineType.mainOeuvre && _desc.text.trim().isEmpty)
         ? 'Main-d\'œuvre'
         : _desc.text;
+    // Main-d'œuvre : quantité forcée à 1 (le prix saisi EST le total de la
+    // ligne) ; sinon Qté × Prix unitaire.
+    final qte = _type == DevisLineType.mainOeuvre
+        ? 1.0
+        : (double.tryParse(_qty.text.replaceAll(',', '.')) ?? 1);
     widget.onChange(widget.ligne.copyWith(
       typeLigne: _type,
       description: desc,
-      quantite: double.tryParse(_qty.text.replaceAll(',', '.')) ?? 1,
+      quantite: qte,
       prixUnitaire: double.tryParse(_prix.text.replaceAll(',', '.')) ?? 0,
     ));
   }
@@ -1471,35 +1442,37 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                SizedBox(
-                  width: 80,
-                  child: TextField(
-                    controller: _qty,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    // Saisie numérique uniquement : on bloque toute lettre/texte
-                    // dans les champs de montant (chiffres + séparateur décimal).
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                    ],
-                    onChanged: (_) => _emit(),
-                    decoration: InputDecoration(
-                      labelText: isLabour ? 'Heures' : 'Qté',
-                      labelStyle: const TextStyle(fontSize: 12),
-                      isDense: true,
-                      filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                // Main-d'œuvre = un SEUL prix (pas Heures × Taux) : on masque la
+                // quantité et le « × ».
+                if (!isLabour) ...[
+                  SizedBox(
+                    width: 80,
+                    child: TextField(
+                      controller: _qty,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                      ],
+                      onChanged: (_) => _emit(),
+                      decoration: InputDecoration(
+                        labelText: 'Qté',
+                        labelStyle: const TextStyle(fontSize: 12),
+                        isDense: true,
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                     ),
                   ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('×', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 18, fontWeight: FontWeight.w300)),
-                ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('×', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 18, fontWeight: FontWeight.w300)),
+                  ),
+                ],
                 Expanded(
                   child: TextField(
                     controller: _prix,
@@ -1511,7 +1484,7 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
                     ],
                     onChanged: (_) => _emit(),
                     decoration: InputDecoration(
-                      labelText: isLabour ? 'Taux horaire' : 'Prix unitaire',
+                      labelText: isLabour ? 'Prix (main-d\'œuvre)' : 'Prix unitaire',
                       labelStyle: const TextStyle(fontSize: 12),
                       suffixText: 'FCFA',
                       suffixStyle: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
