@@ -72,7 +72,14 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
           final q = await EscrowApi.quote(ref);
           if (q.fundsReleasedAt != null) continue;
           if (q.isMobile && q.acompteValide) {
-            escrow += q.netPrestataire;
+            // VRAI montant détenu : on ne compte que la part DÉJÀ versée
+            // (acompte seul, ou acompte + solde), nette de commission — pas le
+            // net complet supposé (qui surestimait l'escrow).
+            final base = q.montantTotal > 0 ? q.montantTotal : q.totalDevis;
+            final held = base > 0
+                ? q.netPrestataire * (q.montantVerse / base)
+                : q.netPrestataire;
+            escrow += held.clamp(0, q.netPrestataire);
           }
           if (q.isCash && q.acompteValide) {
             cash += q.cashRemainderDueToProvider;
@@ -253,17 +260,18 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
               ? Text(
                   '•••• F CFA',
                   style: TextStyle(
-                      fontSize: wide ? 17 : 16,
+                      fontSize: wide ? 18 : 17,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1,
-                      color: Colors.grey.shade900),
+                      color: const Color(0xFF0B1B34)),
                 )
               : AnimatedMoney(
                   value: _parseMoney(value),
+                  // Couleur vive (accent du tile) + plus grande → bien lisible.
                   style: TextStyle(
-                      fontSize: wide ? 17 : 16,
+                      fontSize: wide ? 18 : 17,
                       fontWeight: FontWeight.w900,
-                      color: Colors.grey.shade900),
+                      color: color),
                 ),
           const SizedBox(height: 2),
           Text(helper,

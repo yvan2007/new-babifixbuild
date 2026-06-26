@@ -36,7 +36,8 @@ DateTime? _asDate(dynamic v) {
 enum DevisLineType {
   fourniture('FOURNITURE', 'Fourniture'),
   mainOeuvre('MAIN_OEUVRE', "Main d'œuvre"),
-  deplacement('DEPLACEMENT', 'Déplacement'),
+  // Déplacement compris dans la main-d'œuvre → libellé « Main d'œuvre ».
+  deplacement('DEPLACEMENT', "Main d'œuvre"),
   autre('AUTRE', 'Autre');
 
   final String code;
@@ -278,6 +279,9 @@ class EscrowQuote {
   final double cashRemainderDueToProvider;
   final bool acompteValide;
   final DateTime? fundsReleasedAt;
+  // Montant réellement versé en escrow à ce stade + total → vrai montant détenu.
+  final double montantVerse;
+  final double montantTotal;
 
   const EscrowQuote({
     required this.reference,
@@ -293,6 +297,8 @@ class EscrowQuote {
     required this.cashRemainderDueToProvider,
     required this.acompteValide,
     this.fundsReleasedAt,
+    this.montantVerse = 0,
+    this.montantTotal = 0,
   });
 
   factory EscrowQuote.fromJson(Map<String, dynamic> j) => EscrowQuote(
@@ -311,6 +317,8 @@ class EscrowQuote {
             _asDouble(j['cash_remainder_due_to_provider']),
         acompteValide: j['acompte_valide'] == true,
         fundsReleasedAt: _asDate(j['funds_released_at']),
+        montantVerse: _asDouble(j['montant_verse']),
+        montantTotal: _asDouble(j['montant_total']),
       );
 
   bool get isCash => strategy == EscrowStrategy.cashCommissionOnly;

@@ -1033,6 +1033,11 @@ def api_payment_quote(request, reference):
         "amount_due_online": float(quote.amount_due),
         "cash_remainder_due_to_provider": float(quote.cash_remainder),
         "acompte_valide": res.acompte_valide,
+        # Montant RÉELLEMENT versé en escrow à ce stade (acompte seul, ou
+        # acompte + solde) → permet d'afficher le VRAI montant détenu, pas le
+        # net complet supposé.
+        "montant_verse": float(res.montant_verse or 0),
+        "montant_total": float(res.montant or 0),
         # Opérateur Mobile Money choisi à la réservation → pré-rempli à l'écran
         # de paiement (plus de double sélection).
         "mobile_money_operator": res.mobile_money_operator or "",

@@ -36,7 +36,9 @@ DateTime? _asDate(dynamic v) {
 enum DevisLineType {
   fourniture('FOURNITURE', 'Fourniture'),
   mainOeuvre('MAIN_OEUVRE', "Main d'œuvre"),
-  deplacement('DEPLACEMENT', 'Déplacement'),
+  // Le déplacement est compris dans la main-d'œuvre : on n'affiche plus
+  // « Déplacement » (anciennes lignes incluses) → libellé « Main d'œuvre ».
+  deplacement('DEPLACEMENT', "Main d'œuvre"),
   autre('AUTRE', 'Autre');
 
   final String code;

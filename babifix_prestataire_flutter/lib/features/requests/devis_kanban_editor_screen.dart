@@ -1055,7 +1055,7 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
             children: [
               _addTypeChip(DevisLineType.fourniture, 'Fourniture', Icons.inventory_2_rounded),
               _addTypeChip(DevisLineType.mainOeuvre, 'Main-d\'œuvre', Icons.engineering_rounded),
-              _addTypeChip(DevisLineType.deplacement, 'Déplacement', Icons.directions_car_rounded),
+              // Déplacement retiré : il est compris dans la main-d'œuvre.
               _addTypeChip(DevisLineType.autre, 'Autre', Icons.add_circle_outline_rounded),
             ],
           ),
@@ -1295,7 +1295,7 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
   static const List<DevisLineType> _selectableTypes = [
     DevisLineType.fourniture,
     DevisLineType.mainOeuvre,
-    DevisLineType.deplacement,
+    // Déplacement retiré des choix : compris dans la main-d'œuvre.
     DevisLineType.autre,
   ];
 
@@ -1304,9 +1304,10 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
       case DevisLineType.fourniture:
         return 'Fourniture';
       case DevisLineType.mainOeuvre:
-        return 'Main-d\'œuvre & déplacement';
+        return 'Main-d\'œuvre';
       case DevisLineType.deplacement:
-        return 'Déplacement';
+        // Ancien type (devis existants) : on l'affiche comme main-d'œuvre.
+        return 'Main-d\'œuvre';
       case DevisLineType.autre:
         return 'Autre';
     }
@@ -1336,9 +1337,14 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
   }
 
   void _emit() {
+    // Main-d'œuvre : pas de champ description (on sait déjà ce que c'est) → on
+    // met un libellé par défaut pour que le devis/reçu reste lisible.
+    final desc = (_type == DevisLineType.mainOeuvre && _desc.text.trim().isEmpty)
+        ? 'Main-d\'œuvre'
+        : _desc.text;
     widget.onChange(widget.ligne.copyWith(
       typeLigne: _type,
-      description: _desc.text,
+      description: desc,
       quantite: double.tryParse(_qty.text.replaceAll(',', '.')) ?? 1,
       prixUnitaire: double.tryParse(_prix.text.replaceAll(',', '.')) ?? 0,
     ));
@@ -1432,7 +1438,8 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
               ],
             ),
             const SizedBox(height: 10),
-            // Description
+            // Description — masquée pour la main-d'œuvre (on sait déjà ce que c'est).
+            if (!isLabour) ...[
             TextField(
               controller: _desc,
               onChanged: (_) => _emit(),
@@ -1459,6 +1466,7 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
               ),
             ),
             const SizedBox(height: 12),
+            ],
             // Qté × Price
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
