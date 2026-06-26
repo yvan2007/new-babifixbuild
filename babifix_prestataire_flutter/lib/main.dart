@@ -33,6 +33,7 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/pending_screen.dart';
 import 'features/auth/refused_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/dashboard/floating_nav_bar.dart' show babifixNewRequestsCount;
 import 'features/requests/requests_screen.dart';
 import 'features/messages/messages_screen.dart';
 import 'features/profile/contrat_screen.dart';
@@ -722,6 +723,8 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
           actionRoute: 'messages',
         );
       } else if (babifixEventTypeIsBookingRequest(ty)) {
+        // Badge sur l'onglet Exigences (compteur de nouvelles demandes).
+        babifixNewRequestsCount.value = babifixNewRequestsCount.value + 1;
         _pushPrestataireNotif(
           category: 'demande',
           title: 'Nouvelle demande',
@@ -1000,6 +1003,13 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         },
       );
     } else if (current == 'requests') {
+      // Ouverture de l'onglet Exigences → on efface le badge « nouvelles
+      // demandes » (post-frame pour ne pas notifier pendant le build).
+      if (babifixNewRequestsCount.value != 0) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => babifixNewRequestsCount.value = 0,
+        );
+      }
       child = RequestsScreen(
         onBack: () => setState(() => current = 'dashboard'),
       );

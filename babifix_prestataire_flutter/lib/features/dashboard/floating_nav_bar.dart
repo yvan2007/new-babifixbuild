@@ -2,16 +2,26 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+/// Compteur global de NOUVELLES demandes (exigences) — alimenté par main.dart
+/// (FCM + chargement) et remis à 0 quand l'onglet Exigences est ouvert. Lu
+/// directement par la nav bar → pas besoin de le câbler dans chaque écran.
+final ValueNotifier<int> babifixNewRequestsCount = ValueNotifier<int>(0);
+
 class MessagesNavBadge extends StatelessWidget {
-  const MessagesNavBadge({super.key, this.notifier});
+  const MessagesNavBadge({
+    super.key,
+    this.notifier,
+    this.icon = Icons.chat_bubble_outline_rounded,
+  });
 
   final ValueNotifier<int>? notifier;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final n = notifier;
     if (n == null) {
-      return const Icon(Icons.chat_bubble_outline_rounded);
+      return Icon(icon);
     }
     return ValueListenableBuilder<int>(
       valueListenable: n,
@@ -20,7 +30,7 @@ class MessagesNavBadge extends StatelessWidget {
           clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: [
-            const Icon(Icons.chat_bubble_outline_rounded),
+            Icon(icon),
             if (count > 0)
               Positioned(
                 right: -6,
@@ -108,6 +118,11 @@ class PrestataireFloatingNavBar extends StatelessWidget {
                   icon: Icons.calendar_month_rounded,
                   label: 'Exigences',
                   onTap: () => onSelect(1),
+                  // Badge « nouvelles demandes » (comme Messages).
+                  iconOverride: MessagesNavBadge(
+                    notifier: babifixNewRequestsCount,
+                    icon: Icons.calendar_month_rounded,
+                  ),
                 ),
                 _PrestataireFloatingNavItem(
                   selected: selectedIndex == 2,

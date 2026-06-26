@@ -2998,8 +2998,10 @@ def api_client_prestataires(request):
 @require_api_auth(["client", "admin"])
 def api_client_conversations(request):
     uid = request.api_user_id
-    convs = Conversation.objects.filter(client_id=uid).select_related(
-        "prestataire", "reservation"
+    convs = (
+        Conversation.objects.filter(client_id=uid)
+        .select_related("prestataire", "reservation")
+        .order_by("-updated_at")  # plus récentes d'abord
     )
     data = []
     for c in convs:
@@ -3021,6 +3023,8 @@ def api_client_conversations(request):
                 "prestataire_id": int(c.prestataire_id),
                 "last_message": preview,
                 "updated_at": c.updated_at.isoformat(),
+                # Alias lu par l'app (affichage de l'horodatage).
+                "last_date": c.updated_at.isoformat(),
                 "unread_count": _conversation_unread_for_user(c, uid),
                 "reservation_reference": res.reference if res else "",
                 "conversation_title": (
@@ -5288,8 +5292,10 @@ def api_auth_apple(request):
 @require_api_auth(["prestataire", "admin"])
 def api_prestataire_conversations(request):
     uid = request.api_user_id
-    convs = Conversation.objects.filter(prestataire_id=uid).select_related(
-        "client", "reservation"
+    convs = (
+        Conversation.objects.filter(prestataire_id=uid)
+        .select_related("client", "reservation")
+        .order_by("-updated_at")  # plus récentes d'abord
     )
     data = []
     for c in convs:
@@ -5308,6 +5314,8 @@ def api_prestataire_conversations(request):
                 "client_id": int(c.client_id),
                 "last_message": preview,
                 "updated_at": c.updated_at.isoformat(),
+                # Alias lu par l'app (affichage de l'horodatage).
+                "last_date": c.updated_at.isoformat(),
                 "unread_count": _conversation_unread_for_user(c, uid),
                 "reservation_reference": res.reference if res else "",
                 "conversation_title": (

@@ -82,9 +82,16 @@ class _MessagesScreenState extends State<MessagesScreen> {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final list = (data['conversations'] as List<dynamic>? ?? [])
             .cast<Map<String, dynamic>>();
+        // Non lus EN HAUT (le backend renvoie du plus récent au plus ancien).
+        int unread(Map<String, dynamic> r) =>
+            (r['unread_count'] as num?)?.toInt() ?? 0;
+        final sorted = [
+          ...list.where((r) => unread(r) > 0),
+          ...list.where((r) => unread(r) == 0),
+        ];
         if (mounted) {
           setState(() {
-            rows = list;
+            rows = sorted;
             _applyFilter();
           });
         }
