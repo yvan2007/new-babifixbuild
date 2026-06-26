@@ -1796,17 +1796,22 @@ class _RequestsScreenState extends State<RequestsScreen> {
       );
         _loadRequests();
       } else if (res.statusCode == 409 && mounted) {
-        // 409 = une autre prestation est déjà en cours (on ne peut pas en
-        // démarrer deux à la fois). On affiche le message clair du serveur.
+        // 409 = action impossible : soit une autre prestation est déjà en
+        // cours, soit ce n'est pas encore le jour prévu. Message du serveur.
         final body = jsonDecode(res.body);
         final msg = (body['message'] as String?) ??
-            "Vous avez déjà une prestation en cours. Terminez-la avant d'en démarrer une autre.";
+            "Action impossible pour le moment.";
+        final tooEarly = body['error'] == 'too_early';
         await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            icon: Icon(Icons.warning_amber_rounded,
-                color: BabifixDesign.ciOrange, size: 52),
-            title: const Text('Prestation déjà en cours'),
+            icon: Icon(
+                tooEarly
+                    ? Icons.event_busy_rounded
+                    : Icons.warning_amber_rounded,
+                color: BabifixDesign.ciOrange,
+                size: 52),
+            title: Text(tooEarly ? 'Trop tôt' : 'Action impossible'),
             content: Text(msg, textAlign: TextAlign.center),
             actions: [
               FilledButton(

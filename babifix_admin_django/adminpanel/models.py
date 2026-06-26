@@ -663,6 +663,10 @@ class Reservation(models.Model):
     client_confirme_prestation_at = models.DateTimeField(null=True, blank=True)
     # Motif d'annulation saisi par le client (stats admin + info presta).
     cancellation_reason = models.CharField(max_length=255, blank=True, default="")
+    # Date prévue de l'intervention (choisie par le client au moment de la
+    # réservation). Sert à empêcher de démarrer avant le jour prévu et à
+    # détecter les conflits d'agenda du prestataire.
+    scheduled_date = models.DateField(null=True, blank=True)
     preuve_photos = models.JSONField(default=list, blank=True)
     dispute_ouverte = models.BooleanField(default=False, db_index=True)
     payment_client_note = models.TextField(

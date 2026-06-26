@@ -69,6 +69,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   bool _checkingAvailability = false;
   bool? _providerAvailable;
   String _availabilityMessage = '';
+  // Date prévue choisie par le client (envoyée comme scheduled_date) → sert à
+  // empêcher le presta de démarrer avant le jour prévu.
+  DateTime? _selectedDate;
   List<Map<String, dynamic>> _availableCreneaux = [];
   String _reservationReference = '';
 
@@ -349,6 +352,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     if (widget.providerId == null) return;
 
     setState(() {
+      _selectedDate = date;
       _checkingAvailability = true;
       _providerAvailable = null;
       _availabilityMessage = '';
@@ -495,6 +499,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       'address_repere': _repereCtrl.text.trim(),
       'client_message': _msgCtrl.text.trim(),
       'disponibilites_client': _disponibilites,
+      if (_selectedDate != null)
+        'scheduled_date':
+            _selectedDate!.toIso8601String().split('T')[0],
       'is_urgent': _isUrgent,
       'payment_type': _paymentType,
       // NB : on n'envoie PAS l'opérateur Mobile Money ici. Le client le

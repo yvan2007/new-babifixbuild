@@ -3722,8 +3722,19 @@ def api_client_create_reservation(request):
         urgence_surcharge_pct = 20
         amount_numeric = round(amount_numeric * 1.20, 2)
 
+    # Date prévue de l'intervention choisie par le client (ISO yyyy-mm-dd).
+    scheduled_date_val = None
+    _sd_raw = str(payload.get("scheduled_date", "") or "").strip()
+    if _sd_raw:
+        try:
+            from datetime import date as _date
+            scheduled_date_val = _date.fromisoformat(_sd_raw[:10])
+        except ValueError:
+            scheduled_date_val = None
+
     try:
       res_obj = Reservation.objects.create(
+        scheduled_date=scheduled_date_val,
         reference=reference,
         title=title or "Demande de service",
         client=client_label,
@@ -6108,6 +6119,21 @@ def api_prestataire_demarrer_intervention(request, reference):
                     "démarrer une autre."
                 ),
                 "reference": other_active.reference,
+            },
+            status=409,
+        )
+
+    # On ne peut pas démarrer AVANT le jour prévu de l'intervention.
+    if res.scheduled_date and res.scheduled_date > timezone.localdate():
+        return JsonResponse(
+            {
+                "error": "too_early",
+                "message": (
+                    "Cette prestation est prévue le "
+                    f"{res.scheduled_date.strftime('%d/%m/%Y')}. Vous pourrez la "
+                    "démarrer le jour même, pas avant."
+                ),
+                "scheduled_date": res.scheduled_date.isoformat(),
             },
             status=409,
         )
