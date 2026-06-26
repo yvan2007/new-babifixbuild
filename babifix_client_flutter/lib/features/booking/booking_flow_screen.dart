@@ -869,6 +869,60 @@ class _StepIndicator extends StatelessWidget {
 
 // ── Step 0 : Problème ─────────────────────────────────────────────────────────
 
+/// Suggestions d'« ajout rapide » adaptées à la catégorie/spécialité du
+/// prestataire (déduites par mots-clés). Repli générique si non reconnu.
+List<String> babifixCategorySuggestions(String? specialite) {
+  final s = (specialite ?? '').toLowerCase();
+  bool has(List<String> kws) => kws.any((k) => s.contains(k));
+  if (has(['plomb', 'fuite', 'sanitaire', 'eau'])) {
+    return ['Fuite d\'eau', 'Robinet qui goutte', 'WC bouché',
+      'Chauffe-eau en panne', 'Installation sanitaire', 'C\'est urgent'];
+  }
+  if (has(['élect', 'elect', 'courant'])) {
+    return ['Panne de courant', 'Prise défectueuse', 'Court-circuit',
+      'Installation de prise', 'Tableau électrique', 'C\'est urgent'];
+  }
+  if (has(['ménage', 'menage', 'nettoy', 'propret'])) {
+    return ['Ménage complet', 'Nettoyage après travaux', 'Vitres',
+      'Repassage', 'Grand ménage', 'Entretien régulier'];
+  }
+  if (has(['menuis', 'parquet', 'meuble', 'bois'])) {
+    return ['Meuble à réparer', 'Porte qui coince', 'Pose de parquet',
+      'Étagère à monter', 'Sur-mesure', 'Réparation'];
+  }
+  if (has(['déménag', 'demenag', 'manuten', 'transport'])) {
+    return ['Déménagement appartement', 'Quelques cartons', 'Meubles lourds',
+      'Besoin d\'un camion', 'Étage sans ascenseur', 'C\'est urgent'];
+  }
+  if (has(['peint', 'enduit'])) {
+    return ['Peinture d\'une pièce', 'Tout l\'appartement', 'Reprise de fissures',
+      'Plafond', 'Extérieur', 'Demander un devis'];
+  }
+  if (has(['clim', 'froid', 'réfrig', 'refrig'])) {
+    return ['Clim ne refroidit plus', 'Installation de clim', 'Entretien / recharge',
+      'Bruit anormal', 'Fuite', 'C\'est urgent'];
+  }
+  if (has(['jardin', 'espace vert', 'gazon', 'tonte', 'élagage'])) {
+    return ['Tonte de pelouse', 'Taille de haie', 'Débroussaillage',
+      'Élagage', 'Entretien régulier', 'Nettoyage jardin'];
+  }
+  if (has(['coiff', 'beaut', 'esthét', 'esthet', 'maquill'])) {
+    return ['À domicile', 'Coupe', 'Coiffure événement', 'Soins',
+      'Pour femme', 'Pour homme'];
+  }
+  if (has(['mécan', 'mecan', 'auto', 'voiture', 'garage'])) {
+    return ['Panne moteur', 'Vidange', 'Freins', 'Batterie',
+      'Diagnostic', 'Dépannage sur place'];
+  }
+  if (has(['électroménager', 'electromenager', 'frigo', 'machine'])) {
+    return ['Appareil en panne', 'Ne s\'allume plus', 'Bruit anormal',
+      'Diagnostic', 'Pièce à changer', 'C\'est urgent'];
+  }
+  // Repli générique
+  return ['Ça ne fonctionne plus', 'Réparation', 'Installation à faire',
+    'Entretien', 'Diagnostic', 'C\'est urgent'];
+}
+
 class _StepProbleme extends StatelessWidget {
   const _StepProbleme({
     required this.textColor,
@@ -1037,20 +1091,12 @@ class _StepProbleme extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            // Bulles : types de problème courants à ajouter en 1 tap.
+            // Bulles : suggestions ADAPTÉES à la catégorie du prestataire.
             BabifixSuggestionChips(
               controller: problemeCtrl,
               accent: _kBlue,
               title: 'Ajout rapide',
-              suggestions: const [
-                'Ça ne fonctionne plus',
-                'Fuite d\'eau',
-                'Panne électrique',
-                'Installation à faire',
-                'Réparation',
-                'Entretien / nettoyage',
-                'C\'est urgent',
-              ],
+              suggestions: babifixCategorySuggestions(providerSpecialite),
             ),
             const SizedBox(height: 16),
             GestureDetector(

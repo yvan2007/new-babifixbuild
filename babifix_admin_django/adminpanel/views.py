@@ -4104,7 +4104,20 @@ def api_prestataire_requests(request):
         # Privacy : tant que le prestataire n'a pas accepté la demande, on
         # cache la rue, le repère et on dégrade lat/lon à ~1 km (2 décimales).
         # Le quartier/ville/pays restent visibles pour qu'il puisse décider.
-        approx = bool(item.address_is_approximate)
+        # On révèle l'adresse EXACTE dès que la demande est ACCEPTÉE (devis
+        # accepté ou au-delà) : le prestataire doit pouvoir s'y rendre. Avant
+        # l'acceptation, on masque (rue/repère cachés, lat/lon dégradés ~1 km)
+        # pour la vie privée du client.
+        _ACCEPTED_STATUSES = {
+            "DEVIS_ACCEPTE",
+            "Confirmee",
+            "INTERVENTION_EN_COURS",
+            "En attente client",
+            "Terminee",
+            "DONE",
+        }
+        accepted = item.statut in _ACCEPTED_STATUSES
+        approx = bool(item.address_is_approximate) and not accepted
         if approx:
             street_out = ""
             repere_out = ""
