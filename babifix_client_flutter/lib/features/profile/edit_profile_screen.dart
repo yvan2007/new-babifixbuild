@@ -93,6 +93,37 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         vsync: this, duration: const Duration(milliseconds: 600));
     _fadeIn = CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic);
     _anim.forward();
+
+    // Auto-réparation : après une reconnexion, les valeurs passées peuvent être
+    // vides (hydratation pas encore terminée). On récupère le profil serveur et
+    // on pré-remplit les champs vides → plus besoin de re-saisir ses infos.
+    _prefillFromServer();
+  }
+
+  Future<void> _prefillFromServer() async {
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      if (token == null) return;
+      final res = await http.get(
+        Uri.parse('${babifixApiBaseUrl()}/api/auth/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200 || !mounted) return;
+      final d = jsonDecode(res.body) as Map<String, dynamic>;
+      final name = '${d['name'] ?? ''}'.trim();
+      final email = '${d['email'] ?? ''}'.trim();
+      final phone = '${d['phone_e164'] ?? ''}'.trim();
+      setState(() {
+        if (nameCtrl.text.trim().isEmpty && name.isNotEmpty) nameCtrl.text = name;
+        if (emailCtrl.text.trim().isEmpty && email.isNotEmpty) emailCtrl.text = email;
+        if (phoneCtrl.text.trim().isEmpty && phone.isNotEmpty) phoneCtrl.text = phone;
+      });
+      // Persiste localement pour les prochaines ouvertures (et le reste de l'app).
+      await BabifixUserStore.saveProfile(
+        name: name.isNotEmpty ? name : null,
+        phone: phone.isNotEmpty ? phone : null,
+      );
+    } catch (_) {}
   }
 
   void _onFieldChange() {
