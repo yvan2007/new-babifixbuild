@@ -72,14 +72,11 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
           final q = await EscrowApi.quote(ref);
           if (q.fundsReleasedAt != null) continue;
           if (q.isMobile && q.acompteValide) {
-            // VRAI montant détenu : on ne compte que la part DÉJÀ versée
-            // (acompte seul, ou acompte + solde), nette de commission — pas le
-            // net complet supposé (qui surestimait l'escrow).
-            final base = q.montantTotal > 0 ? q.montantTotal : q.totalDevis;
-            final held = base > 0
-                ? q.netPrestataire * (q.montantVerse / base)
-                : q.netPrestataire;
-            escrow += held.clamp(0, q.netPrestataire);
+            // VRAI montant bloqué en escrow = ce que le client a RÉELLEMENT
+            // versé (acompte seul, ou acompte + solde). C'est le montant
+            // littéralement détenu en séquestre. Repli sur le net si l'info
+            // n'est pas dispo (ancien backend non redéployé).
+            escrow += q.montantVerse > 0 ? q.montantVerse : q.netPrestataire;
           }
           if (q.isCash && q.acompteValide) {
             cash += q.cashRemainderDueToProvider;
@@ -155,11 +152,11 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
               const SizedBox(width: 8),
               Expanded(
                 child: _tile(
-                  label: 'En escrow',
+                  label: 'Bloqué en escrow',
                   value: fmtMoney(_escrowPending),
                   color: BabifixDesign.ciBlue,
                   icon: Icons.lock_outline,
-                  helper: 'libéré à la confirmation',
+                  helper: 'versé (net) à la confirmation',
                   masked: widget.hidden,
                 ),
               ),
