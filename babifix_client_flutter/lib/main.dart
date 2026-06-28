@@ -5614,6 +5614,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
       } else {
         futures.add(_loadPublicActualites());
       }
+      // Demande de localisation EN ARRIÈRE-PLAN (le dialogue système apparaît)
+      // SANS bloquer l'affichage des prestataires. Une fois accordée, on
+      // recharge la liste avec les distances.
+      _requestLocationInBackground();
       await Future.wait(futures);
     } catch (e) {
       debugPrint('BABIFIX: _loadRemoteData error: $e');
@@ -5645,6 +5649,28 @@ class _ClientHomePageState extends State<ClientHomePage> {
   /// Charge les prestataires publics sans authentification.
   /// Si la permission GPS est déjà accordée, filtre par position en temps réel.
   /// Si [forceUpdate] est true, met à jour services même si déjà chargés.
+  // Demande la permission de localisation EN ARRIÈRE-PLAN (le dialogue système
+  // apparaît) sans bloquer l'affichage. Si l'utilisateur accorde, on recharge
+  // les prestataires pour renseigner les distances. Ne JAMAIS attendre ceci
+  // dans le chemin critique d'affichage.
+  bool _locationAsked = false;
+  Future<void> _requestLocationInBackground() async {
+    if (_locationAsked) return;
+    _locationAsked = true;
+    try {
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission(); // ← dialogue système
+      }
+      final ok = perm == LocationPermission.always ||
+          perm == LocationPermission.whileInUse;
+      if (ok && mounted) {
+        // Position accordée → on recharge avec les distances.
+        await _loadPublicProviders(forceUpdate: true);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadPublicProviders({int? categoryId, bool forceUpdate = false}) async {
     try {
       final base = babifixApiBaseUrl();
