@@ -130,6 +130,18 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
       ).timeout(const Duration(seconds: 12));
       if (!mounted) return;
+      // BABIFIX opère en Côte d'Ivoire : on REFUSE toute position hors CIV
+      // (ex. GPS d'émulateur à Shanghai) — sinon le prestataire se retrouve sur
+      // la carte au mauvais endroit. L'utilisateur saisit alors sa commune.
+      const latMin = 4.0, latMax = 11.0, lonMin = -9.0, lonMax = -2.0;
+      final inCiv = pos!.latitude >= latMin &&
+          pos.latitude <= latMax &&
+          pos.longitude >= lonMin &&
+          pos.longitude <= lonMax;
+      if (!inCiv) {
+        _snack('Position hors Côte d\'Ivoire — saisissez votre commune manuellement.');
+        return;
+      }
       // On pose le pin GPS TOUT DE SUITE (même si le reverse-geocoding échoue).
       setState(() => _villePin = LatLng(pos!.latitude, pos.longitude));
       // Reverse-geocoding best-effort pour pré-remplir la ville.
