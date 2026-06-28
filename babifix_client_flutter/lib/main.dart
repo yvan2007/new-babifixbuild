@@ -5661,13 +5661,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
       // ROM Android où les deux plugins peuvent désynchroniser leur état.
       try {
         debugPrint('BABIFIX-GPS: STEP 1 checkPermission()');
-        var gperm = await Geolocator.checkPermission();
+        final gperm = await Geolocator.checkPermission();
         debugPrint('BABIFIX-GPS: STEP 1 result = $gperm');
-        if (gperm == LocationPermission.denied) {
-          debugPrint('BABIFIX-GPS: STEP 2 requesting...');
-          gperm = await Geolocator.requestPermission();
-          debugPrint('BABIFIX-GPS: STEP 2 result = $gperm');
-        }
+        // IMPORTANT : on NE DEMANDE PAS la permission ici. Le dialogue système
+        // bloquait le chargement des prestataires tant que l'utilisateur n'avait
+        // pas répondu (→ catégories visibles mais prestataires absents). On
+        // utilise le GPS uniquement s'il est DÉJÀ accordé ; la demande se fait à
+        // l'ouverture de la carte « Prestataires près de moi ».
         final gpsOK = gperm == LocationPermission.always
             || gperm == LocationPermission.whileInUse;
         debugPrint('BABIFIX-GPS: STEP 3 gpsOK=$gpsOK');
