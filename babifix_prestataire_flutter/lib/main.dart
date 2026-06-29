@@ -983,6 +983,9 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
     } else if (current == 'login') {
       child = LoginScreen(
         onBack: () => setState(() => current = 'landing'),
+        // « Créer un compte » depuis le login → on va DIRECTEMENT à
+        // l'inscription (au lieu de repasser par l'écran d'accueil).
+        onCreateAccount: () => setState(() => current = 'registration'),
         onSuccess: () {
           _bootstrapSession();
         },

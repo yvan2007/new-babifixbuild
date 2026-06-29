@@ -533,6 +533,39 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           .toList();
     }
 
+    // Réserver = action authentifiée. Si le client N'EST PAS connecté, on ouvre
+    // l'écran d'auth ICI (avant tout appel onConfirm/API) puis on REPREND
+    // automatiquement la réservation en cours — il ne perd pas sa saisie et
+    // n'a pas à tout recommencer. Centralisé ici → vaut pour toutes les entrées.
+    var authTok = await BabifixUserStore.getApiToken();
+    if ((authTok == null || authTok.isEmpty) && mounted) {
+      bool loggedIn = false;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => AuthScreen(
+            onAuthSuccess: () {
+              loggedIn = true;
+              Navigator.of(context).maybePop();
+            },
+          ),
+        ),
+      );
+      if (loggedIn) authTok = await BabifixUserStore.getApiToken();
+      if (authTok == null || authTok.isEmpty) {
+        // Toujours pas connecté (auth annulée) → on arrête proprement.
+        if (mounted) {
+          setState(() => _submitting = false);
+          showBabifixToast(
+            context,
+            type: BabifixToastType.error,
+            title: 'Réservation',
+            message: 'Connectez-vous pour finaliser votre réservation',
+          );
+        }
+        return;
+      }
+    }
+
     debugPrint('📤 RESERVATION SUBMIT — data: ${jsonEncode(data)}');
     if (!mounted) return;
     showBabifixToast(

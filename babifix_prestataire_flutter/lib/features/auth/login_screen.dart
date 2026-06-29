@@ -12,10 +12,19 @@ import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.onBack, required this.onSuccess,});
+  const LoginScreen({
+    super.key,
+    required this.onBack,
+    required this.onSuccess,
+    this.onCreateAccount,
+  });
 
   final VoidCallback onBack;
   final VoidCallback onSuccess;
+
+  /// Aller DIRECTEMENT à l'inscription depuis le login (au lieu de revenir à
+  /// l'écran d'accueil). Repli sur onBack si non fourni.
+  final VoidCallback? onCreateAccount;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -387,7 +396,8 @@ class _LoginScreenState extends State<LoginScreen>
                                   const TextSpan(text: 'Pas encore inscrit ? '),
                                   WidgetSpan(
                                     child: GestureDetector(
-                                      onTap: widget.onBack,
+                                      onTap:
+                                          widget.onCreateAccount ?? widget.onBack,
                                       child: const Text(
                                         'Créer un compte',
                                         style: TextStyle(
