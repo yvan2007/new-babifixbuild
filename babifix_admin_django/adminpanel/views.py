@@ -4261,6 +4261,12 @@ def api_prestataire_location_update(request):
     # Bornes plausibles (évite d'enregistrer des coordonnées aberrantes).
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return JsonResponse({"error": "coordinates_out_of_range"}, status=400)
+    # Défense en profondeur : BABIFIX opère en Côte d'Ivoire. On REFUSE toute
+    # position hors CIV (ex. GPS d'émulateur à Shanghai) — sinon la position du
+    # prestataire serait écrasée par une localisation étrangère. On ignore
+    # silencieusement (ok=True) pour ne pas faire échouer l'app.
+    if not (4.0 <= lat <= 11.0 and -9.0 <= lon <= -2.0):
+        return JsonResponse({"ok": True, "ignored": "out_of_country"})
 
     fields = ["latitude", "longitude"]
     prov.latitude = lat

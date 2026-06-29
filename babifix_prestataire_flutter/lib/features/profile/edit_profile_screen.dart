@@ -125,6 +125,19 @@ class _EditProfilePrestataireScreenState
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       ).timeout(const Duration(seconds: 12));
+      // Garde-fou CIV : on refuse une position hors Côte d'Ivoire (émulateur).
+      const latMin = 4.0, latMax = 11.0, lonMin = -9.0, lonMax = -2.0;
+      if (pos.latitude < latMin ||
+          pos.latitude > latMax ||
+          pos.longitude < lonMin ||
+          pos.longitude > lonMax) {
+        if (mounted) {
+          showBabifixToast(context,
+              type: BabifixToastType.warning,
+              message: 'Position hors Côte d\'Ivoire — non enregistrée.');
+        }
+        return;
+      }
       // Ville (best-effort) via reverse geocoding.
       String ville = _villeCtrl.text.trim();
       try {

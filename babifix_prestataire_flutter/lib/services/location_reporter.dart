@@ -69,6 +69,17 @@ class LocationReporter with WidgetsBindingObserver {
         ),
       ).timeout(const Duration(seconds: 10));
 
+      // GARDE-FOU CÔTE D'IVOIRE : on ne rapporte JAMAIS une position hors CIV
+      // (ex. GPS d'émulateur à Shanghai) — sinon la position enregistrée du
+      // prestataire serait écrasée au login et il se retrouverait « en Chine ».
+      const latMin = 4.0, latMax = 11.0, lonMin = -9.0, lonMax = -2.0;
+      if (pos.latitude < latMin ||
+          pos.latitude > latMax ||
+          pos.longitude < lonMin ||
+          pos.longitude > lonMax) {
+        return;
+      }
+
       // Reverse geocoding facultatif pour récupérer la ville
       String? ville;
       try {
