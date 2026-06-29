@@ -4218,6 +4218,14 @@ def api_prestataire_requests(request):
                 # Acompte versé par le client ? Permet de griser le bouton
                 # « Démarrer » tant que l'acompte n'est pas reçu.
                 "acompte_valide": bool(item.acompte_valide),
+                # Date prévue choisie par le client (créneau). Sert à afficher
+                # « Disponible dans X jours » et à n'autoriser « Démarrer » que le
+                # jour J.
+                "scheduled_date": (
+                    item.scheduled_date.isoformat()
+                    if item.scheduled_date
+                    else None
+                ),
                 "rating": ravg,
                 "client_rated": item.id in _rated_ids,
                 "prix_propose": float(item.prix_propose) if item.prix_propose else None,

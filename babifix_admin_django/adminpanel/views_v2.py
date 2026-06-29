@@ -263,6 +263,11 @@ def _res_receipt_extras(res: Reservation) -> dict:
 
     return {
         "created_at": dt.isoformat(),
+        # Date PRÉVUE choisie par le client (créneau) → date « nécessaire » du
+        # reçu ; created_at reste la date de réservation, à titre indicatif.
+        "scheduled_date": (
+            res.scheduled_date.isoformat() if res.scheduled_date else None
+        ),
         "commission": str(res.commission or 0),
         "montant_verse": str(res.montant_verse or 0),
         "montant_restant": str(res.montant_restant or 0),

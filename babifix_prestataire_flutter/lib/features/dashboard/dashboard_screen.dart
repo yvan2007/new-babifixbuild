@@ -1208,6 +1208,21 @@ class _AppointmentCard extends StatelessWidget {
     final ended =
         DateTime.tryParse('${it['prestation_terminee_at'] ?? ''}')?.toLocal();
     final isUrgent = it['is_urgent'] == true;
+    // Date prévue (créneau choisi) → « Prévu le … · dans X jours ».
+    final schedIso = '${it['scheduled_date'] ?? ''}'.trim();
+    int schedDays = 0;
+    String schedLabel = '';
+    if (schedIso.isNotEmpty) {
+      final d = DateTime.tryParse(schedIso);
+      if (d != null) {
+        final now = DateTime.now();
+        schedDays = DateTime(d.year, d.month, d.day)
+            .difference(DateTime(now.year, now.month, now.day))
+            .inDays;
+        schedLabel =
+            '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+      }
+    }
     final clat = (it['address_lat'] as num?)?.toDouble();
     final clon = (it['address_lon'] as num?)?.toDouble();
     final hasItinerary = clat != null && clon != null;
@@ -1278,6 +1293,16 @@ class _AppointmentCard extends StatelessWidget {
               _line(Icons.person_outline_rounded, meta.color, client),
               const SizedBox(height: 6),
               _line(Icons.location_on_outlined, meta.color, ville),
+              if (schedLabel.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                _line(
+                  Icons.event_available_rounded,
+                  meta.color,
+                  schedDays > 0
+                      ? 'Prévu le $schedLabel · dans $schedDays jour${schedDays > 1 ? 's' : ''}'
+                      : 'Prévu aujourd\'hui ($schedLabel)',
+                ),
+              ],
               if (pay.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 _line(

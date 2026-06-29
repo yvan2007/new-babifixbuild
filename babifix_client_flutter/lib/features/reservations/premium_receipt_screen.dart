@@ -191,7 +191,12 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     final montant = (res['montant'] ?? 0).runtimeType == double
         ? (res['montant'] as double)
         : double.tryParse('${res['montant'] ?? 0}') ?? 0;
-    final dateStr = _safeDate(res['created_at']);
+    // Date NÉCESSAIRE sur le reçu = la date CHOISIE au créneau (scheduled_date)
+    // si elle existe ; sinon, à défaut, la date de réservation (created_at).
+    final scheduledRaw = '${res['scheduled_date'] ?? ''}'.trim();
+    final dateStr = scheduledRaw.isNotEmpty
+        ? _safeDate(scheduledRaw)
+        : _safeDate(res['created_at']);
     final timeStr = _safeTime(res['created_at']);
 
     return Column(
@@ -334,7 +339,17 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
   Widget _buildReservationInfo(Map<String, dynamic> res, String payType) {
     final items = [
       ('Référence', '${res['reference'] ?? '—'}', Icons.tag_rounded),
-      ('Date', _safeDate(res['created_at']), Icons.calendar_today_rounded),
+      // Date NÉCESSAIRE = celle choisie au créneau (scheduled_date) ; à défaut,
+      // la date de réservation.
+      (
+        'Date prévue',
+        ('${res['scheduled_date'] ?? ''}'.trim().isNotEmpty)
+            ? _safeDate('${res['scheduled_date']}')
+            : _safeDate(res['created_at']),
+        Icons.event_available_rounded,
+      ),
+      // On garde aussi la date de réservation, à titre indicatif.
+      ('Réservé le', _safeDate(res['created_at']), Icons.history_rounded),
       ('Paiement', _paymentLabel(payType), Icons.payment_rounded),
       ('Statut', _statusLabel('${res['statut'] ?? ''}'), Icons.info_outline_rounded),
     ];

@@ -1327,40 +1327,80 @@ class _RequestsScreenState extends State<RequestsScreen> {
             // Après paiement de l'acompte, le backend passe DEVIS_ACCEPTE → Confirmee.
             // Le bouton "Démarrer" doit rester disponible dans les deux statuts.
             if (it.apiStatus == 'DEVIS_ACCEPTE' || it.apiStatus == 'Confirmee')
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                // Tant que l'acompte n'est pas versé : bouton grisé + message au
-                // clic. Une fois l'acompte reçu : bouton orange actif normal.
-                child: FilledButton.icon(
-                  onPressed: it.acompteValide
-                      ? () => _demarrerIntervention(it)
-                      : () => _showAcompteEnAttente(),
-                  icon: Icon(
-                    it.acompteValide
-                        ? Icons.play_arrow_rounded
-                        : Icons.lock_outline_rounded,
-                    size: 20,
+              Builder(builder: (_) {
+                final days = _daysUntilScheduled(it.scheduledDate);
+                // Date prévue future → on n'affiche PAS « Démarrer » mais un
+                // badge « Disponible dans X jour(s) ». Le bouton « Démarrer »
+                // n'apparaît que le jour J (days <= 0).
+                if (days > 0) {
+                  final dt = DateTime.tryParse(it.scheduledDate);
+                  final dateLabel = dt != null
+                      ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}'
+                      : '';
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: BabifixDesign.ciBlue.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: BabifixDesign.ciBlue.withValues(alpha: 0.30)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.event_available_rounded,
+                            size: 18, color: BabifixDesign.ciBlue),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            days == 1
+                                ? 'Disponible demain${dateLabel.isNotEmpty ? ' ($dateLabel)' : ''} — démarrage le jour J'
+                                : 'Disponible dans $days jours${dateLabel.isNotEmpty ? ' ($dateLabel)' : ''} — démarrage le jour J',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: BabifixDesign.ciBlue),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                // Jour J (ou pas de date = aujourd'hui) → bouton Démarrer normal,
+                // grisé tant que l'acompte n'est pas versé.
+                return SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: it.acompteValide
+                        ? () => _demarrerIntervention(it)
+                        : () => _showAcompteEnAttente(),
+                    icon: Icon(
+                      it.acompteValide
+                          ? Icons.play_arrow_rounded
+                          : Icons.lock_outline_rounded,
+                      size: 20,
+                    ),
+                    label: Text(
+                      it.acompteValide
+                          ? 'Démarrer la prestation'
+                          : 'En attente de l\'acompte',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: it.acompteValide
+                          ? BabifixDesign.ciOrange
+                          : const Color(0xFFCBD5E1),
+                      foregroundColor: it.acompteValide
+                          ? Colors.white
+                          : const Color(0xFF64748B),
+                      disabledBackgroundColor: const Color(0xFFCBD5E1),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
-                  label: Text(
-                    it.acompteValide
-                        ? 'Démarrer la prestation'
-                        : 'En attente de l\'acompte',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: it.acompteValide
-                        ? BabifixDesign.ciOrange
-                        : const Color(0xFFCBD5E1),
-                    foregroundColor: it.acompteValide
-                        ? Colors.white
-                        : const Color(0xFF64748B),
-                    disabledBackgroundColor: const Color(0xFFCBD5E1),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
+                );
+              }),
             if (it.apiStatus == 'INTERVENTION_EN_COURS')
               SizedBox(
                 width: double.infinity,
@@ -1602,6 +1642,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             mobileMoneyOperator: mmOp,
             cashFlowStatus: cash,
             acompteValide: e['acompte_valide'] == true,
+            scheduledDate: '${e['scheduled_date'] ?? ''}',
             clientRated: e['client_rated'] == true,
             clientMessage: '${e['client_message'] ?? ''}',
             clientPhotos: photos,
@@ -1743,6 +1784,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   /// Message affiché quand le presta tape sur « Démarrer » alors que le client
   /// n'a pas encore versé l'acompte (le bouton est grisé dans ce cas).
+  /// Nombre de jours entre aujourd'hui et la date prévue (0 = aujourd'hui ou
+  /// passé / pas de date → démarrage autorisé ; >0 = encore à attendre).
+  int _daysUntilScheduled(String iso) {
+    if (iso.isEmpty) return 0;
+    final d = DateTime.tryParse(iso);
+    if (d == null) return 0;
+    final now = DateTime.now();
+    final t0 = DateTime(now.year, now.month, now.day);
+    final d0 = DateTime(d.year, d.month, d.day);
+    return d0.difference(t0).inDays;
+  }
+
   Future<void> _showAcompteEnAttente() async {
     await showDialog<void>(
       context: context,
@@ -2012,6 +2065,10 @@ class _RequestItem {
   /// « Démarrer la prestation » reste grisé.
   final bool acompteValide;
 
+  /// Date prévue (ISO yyyy-mm-dd) choisie par le client au créneau. Vide si le
+  /// client n'a pas choisi de date → la prestation est pour « aujourd'hui ».
+  final String scheduledDate;
+
   /// Chrono de la prestation : début (Démarrer) et fin (Terminé). Sert à
   /// afficher la durée — preuve horodatée. Mutable pour afficher le chrono
   /// instantanément dès que le presta démarre (sans attendre le rechargement).
@@ -2044,6 +2101,7 @@ class _RequestItem {
     this.mobileMoneyOperator = '',
     this.cashFlowStatus = '',
     this.acompteValide = false,
+    this.scheduledDate = '',
     this.clientRated = false,
     this.clientMessage = '',
     this.clientPhotos = const [],
