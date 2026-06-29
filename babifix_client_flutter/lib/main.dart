@@ -5665,8 +5665,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
       final ok = perm == LocationPermission.always ||
           perm == LocationPermission.whileInUse;
       if (ok && mounted) {
-        // Position accordée → on recharge avec les distances.
-        await _loadPublicProviders(forceUpdate: true);
+        // On récupère une position FRAÎCHE en arrière-plan (réchauffe le cache
+        // que lira ensuite _loadPublicProviders), sans bloquer l'affichage déjà
+        // fait. Puis on recharge pour renseigner les distances.
+        try {
+          await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+            ),
+          ).timeout(const Duration(seconds: 12));
+        } catch (_) {/* pas grave : la liste est déjà affichée */}
+        if (mounted) await _loadPublicProviders(forceUpdate: true);
       }
     } catch (_) {}
   }
@@ -5698,34 +5707,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
             || gperm == LocationPermission.whileInUse;
         debugPrint('BABIFIX-GPS: STEP 3 gpsOK=$gpsOK');
         if (gpsOK) {
-          debugPrint('BABIFIX-GPS: STEP 4a getLastKnownPosition...');
-          // Essai 1 : position cache (instantané), mais on rejette si trop vieille (>5 min).
-          Position? pos = await Geolocator.getLastKnownPosition();
-          if (pos != null && pos.timestamp != null) {
-            final age = DateTime.now().difference(pos.timestamp!);
-            if (age.inMinutes > 5) pos = null;
-          }
-          if (pos == null) {
-            // Essai 2 : position fraîche (12 s max, accuracy haute).
-            debugPrint('BABIFIX-GPS: STEP 4b getCurrentPosition...');
-            pos = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.high,
-              ),
-            ).timeout(
-              const Duration(seconds: 12),
-              onTimeout: () => throw TimeoutException('GPS timeout'),
-            );
-          }
-          debugPrint('BABIFIX-GPS: STEP 4 pos=${pos.latitude},${pos.longitude}');
-          // On n'utilise QUE la vraie position GPS si elle est en Côte d'Ivoire
-          // (pas de point fictif). Hors CI (ex. émulateur), on laisse le repli
-          // ci-dessous prendre l'adresse réelle enregistrée par le client.
-          if (isInCotedIvoire(pos.latitude, pos.longitude)) {
+          // IMPORTANT : ici on n'utilise QUE la position en CACHE (instantanée).
+          // On NE fait PLUS de getCurrentPosition (qui pouvait bloquer ~12 s sur
+          // émulateur) → les prestataires s'affichent TOUT DE SUITE. La position
+          // fraîche est récupérée séparément en arrière-plan
+          // (_requestLocationInBackground) puis la liste se recharge.
+          debugPrint('BABIFIX-GPS: STEP 4 getLastKnownPosition (cache only)...');
+          final Position? pos = await Geolocator.getLastKnownPosition();
+          // On n'utilise la position que si elle est en Côte d'Ivoire.
+          if (pos != null && isInCotedIvoire(pos.latitude, pos.longitude)) {
             params['lat'] = pos.latitude.toStringAsFixed(6);
             params['lon'] = pos.longitude.toStringAsFixed(6);
             params['radius'] = 'auto';
-            debugPrint('BABIFIX: position GPS réelle (${params['lat']}, ${params['lon']}) radius=auto');
+            debugPrint('BABIFIX: position GPS cache (${params['lat']}, ${params['lon']}) radius=auto');
           }
         }
       } catch (e) {
