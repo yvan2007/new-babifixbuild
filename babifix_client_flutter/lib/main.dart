@@ -6119,7 +6119,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
         news = remoteNews;
         actualites = remoteActualites;
         paymentMethodsRemote = pm;
-        recentProviders = rp;
+        // N'écraser les prestataires que si le home en renvoie (sinon on
+        // garderait ceux déjà chargés par _loadPublicProviders au lieu de vider).
+        if (rp.isNotEmpty) recentProviders = rp;
         contactAdminEmail = adminMail;
         _showEmptyAfterDelay = services.isNotEmpty;
       });
