@@ -125,23 +125,22 @@ class _EditProfilePrestataireScreenState
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       ).timeout(const Duration(seconds: 12));
-      // Garde-fou CIV : on refuse une position hors Côte d'Ivoire (émulateur).
+      // Garde-fou CIV : si le GPS est hors Côte d'Ivoire (émulateur), on retombe
+      // sur Abidjan — MÊME logique que l'inscription et les cartes client — au
+      // lieu de refuser. La mise à jour aboutit toujours, jamais de coords
+      // étrangères enregistrées.
       const latMin = 4.0, latMax = 11.0, lonMin = -9.0, lonMax = -2.0;
-      if (pos.latitude < latMin ||
+      final outOfCiv = pos.latitude < latMin ||
           pos.latitude > latMax ||
           pos.longitude < lonMin ||
-          pos.longitude > lonMax) {
-        if (mounted) {
-          showBabifixToast(context,
-              type: BabifixToastType.warning,
-              message: 'Position hors Côte d\'Ivoire — non enregistrée.');
-        }
-        return;
-      }
+          pos.longitude > lonMax;
+      final double lat = outOfCiv ? 5.345317 : pos.latitude;
+      final double lon = outOfCiv ? -4.024429 : pos.longitude;
       // Ville (best-effort) via reverse geocoding.
       String ville = _villeCtrl.text.trim();
+      if (outOfCiv && ville.isEmpty) ville = 'Abidjan';
       try {
-        final place = await nominatimReverse(pos.latitude, pos.longitude);
+        final place = await nominatimReverse(lat, lon);
         final label = (place?.displayName ?? '').trim();
         if (label.isNotEmpty) ville = label;
       } catch (_) {}
@@ -151,20 +150,22 @@ class _EditProfilePrestataireScreenState
         Uri.parse('$_base/api/prestataire/location/update'),
         headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
         body: jsonEncode({
-          'latitude': pos.latitude,
-          'longitude': pos.longitude,
+          'latitude': lat,
+          'longitude': lon,
           if (ville.isNotEmpty) 'ville': ville,
         }),
       ).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
         if (!mounted) return;
         setState(() {
-          _lat = pos.latitude;
-          _lon = pos.longitude;
+          _lat = lat;
+          _lon = lon;
           if (ville.isNotEmpty) _villeCtrl.text = ville;
         });
         showBabifixToast(context, type: BabifixToastType.info,
-            message: 'Position enregistrée — vous êtes visible sur la carte.');
+            message: outOfCiv
+                ? 'GPS hors Côte d\'Ivoire — position par défaut : Abidjan. Ajustez si besoin.'
+                : 'Position enregistrée — vous êtes visible sur la carte.');
       } else {
         if (mounted) showBabifixToast(context, type: BabifixToastType.error,
             message: 'Échec de l\'enregistrement (${res.statusCode}).');
