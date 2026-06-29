@@ -2611,25 +2611,40 @@ def api_public_providers(request):
         try:
             lat_f = float(lat)
             lon_f = float(lon)
-            radius_km = PUB_RADIUS_STEPS[-1] if pub_is_adaptive else float(radius)
-
-            lat_delta = radius_km / 111.0
-            lon_delta = radius_km / (111.0 * abs(math.cos(math.radians(lat_f))))
-
-            # Inclure les prestataires dans la zone GEO OU sans coordonnées
             from django.db.models import Q
-            qs = qs.filter(
-                Q(
-                    latitude__isnull=False,
-                    longitude__isnull=False,
-                    latitude__gte=lat_f - lat_delta,
-                    latitude__lte=lat_f + lat_delta,
-                    longitude__gte=lon_f - lon_delta,
-                    longitude__lte=lon_f + lon_delta,
+            if pub_is_adaptive:
+                # CATALOGUE (rayon « auto ») : BABIFIX est un marché NATIONAL à
+                # faible densité. On ne cache JAMAIS un prestataire à cause de la
+                # distance — on montre TOUS ceux de Côte d'Ivoire (triés par
+                # proximité ensuite). On exclut seulement l'étranger (coords hors
+                # CIV, ex. émulateur Shanghai) ; on garde ceux sans coordonnées.
+                qs = qs.filter(
+                    Q(latitude__isnull=True)
+                    | Q(longitude__isnull=True)
+                    | Q(
+                        latitude__gte=4.0,
+                        latitude__lte=11.0,
+                        longitude__gte=-9.0,
+                        longitude__lte=-2.0,
+                    )
                 )
-                | Q(latitude__isnull=True)
-                | Q(longitude__isnull=True)
-            )
+            else:
+                # Rayon explicite (carte « près de moi ») : on borne réellement.
+                radius_km = float(radius)
+                lat_delta = radius_km / 111.0
+                lon_delta = radius_km / (111.0 * abs(math.cos(math.radians(lat_f))))
+                qs = qs.filter(
+                    Q(
+                        latitude__isnull=False,
+                        longitude__isnull=False,
+                        latitude__gte=lat_f - lat_delta,
+                        latitude__lte=lat_f + lat_delta,
+                        longitude__gte=lon_f - lon_delta,
+                        longitude__lte=lon_f + lon_delta,
+                    )
+                    | Q(latitude__isnull=True)
+                    | Q(longitude__isnull=True)
+                )
         except (ValueError, TypeError):
             lat_f = lon_f = None
 
