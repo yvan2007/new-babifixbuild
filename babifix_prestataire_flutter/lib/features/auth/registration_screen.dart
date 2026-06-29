@@ -139,7 +139,14 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           pos.longitude >= lonMin &&
           pos.longitude <= lonMax;
       if (!inCiv) {
-        _snack('Position hors Côte d\'Ivoire — saisissez votre commune manuellement.');
+        // GPS hors CIV (ex. émulateur à Shanghai) : « Me localiser » aboutit
+        // quand même en retombant sur Abidjan (comme les cartes client) — on
+        // n'enregistre JAMAIS de coordonnées hors Côte d'Ivoire.
+        setState(() {
+          _villePin = const LatLng(5.345317, -4.024429); // Abidjan
+          if (_villeCtrl.text.trim().isEmpty) _villeCtrl.text = 'Abidjan';
+        });
+        _snack('GPS hors Côte d\'Ivoire — position par défaut : Abidjan. Ajustez si besoin.');
         return;
       }
       // On pose le pin GPS TOUT DE SUITE (même si le reverse-geocoding échoue).

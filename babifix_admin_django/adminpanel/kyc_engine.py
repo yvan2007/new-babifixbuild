@@ -598,11 +598,11 @@ def run_kyc_verification(
         score_contribution=10 if cni_ok else 0,
         label='Format CNI ivoirienne',
         detail='Format reconnu.' if cni_ok else cni_msg,
-        is_blocking=not cni_ok,
+        # NON bloquant : l'OCR est peu fiable, un numéro mal lu ne doit pas
+        # rejeter automatiquement une CNI lisible. L'admin tranche.
+        is_blocking=False,
     )
     result.checks.append(cni_check)
-    if not cni_ok:
-        blocking_failed = True
     score += cni_check.score_contribution
 
     # ── 2. Unicité des images ─────────────────────────────────────────────────
@@ -623,8 +623,9 @@ def run_kyc_verification(
             for c in checks:
                 result.checks.append(c)
                 score += c.score_contribution
-                if c.is_blocking and not c.passed:
-                    blocking_failed = True
+                # Qualité d'image NON bloquante : un flou léger / une petite
+                # résolution n'est pas une fraude → on n'auto-rejette pas,
+                # l'admin vérifie visuellement.
 
     # ── 4. Détection de visage (OpenCV) ──────────────────────────────────────
     if raw_selfie:
@@ -681,7 +682,10 @@ def run_kyc_verification(
     # ── Calcul score final ────────────────────────────────────────────────────
     result.score = min(100, max(0, score))
 
-    if blocking_failed or result.score < 40:
+    # On n'auto-REJETTE que sur un signal de fraude RÉEL (images identiques,
+    # vérification gouvernementale échouée). Un score faible (OCR/qualité
+    # imparfaits) part en révision manuelle, jamais en rejet automatique.
+    if blocking_failed:
         result.confidence = 'REJECTED'
         result.auto_decision = 'rejected'
     elif result.score >= 80:

@@ -1240,8 +1240,19 @@ def _filter_lists_for_section(section, search_q):
     # tout prestataire/client créé par les apps apparaît dans l'admin.
     _sync_missing_providers()
     _sync_missing_clients()
-    providers = Provider.objects.filter(is_deleted=False).select_related(
-        "user", "category"
+    from django.db.models import Case, When, Value, IntegerField
+    providers = (
+        Provider.objects.filter(is_deleted=False)
+        .select_related("user", "category")
+        # Nouveaux / en attente de validation EN HAUT, puis les plus récents.
+        .order_by(
+            Case(
+                When(statut="En attente", then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
+            "-id",
+        )
     )
     reservations = Reservation.objects.all()
     litiges = Dispute.objects.all()
