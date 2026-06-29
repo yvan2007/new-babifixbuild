@@ -2045,72 +2045,20 @@ class _StepDisponibilite extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             if (providerId != null) ...[
+              // Sélecteur UNIQUE de disponibilité : choisir un jour ici vérifie
+              // la dispo ET enregistre la date prévue (plus de second champ
+              // « Vérifier la disponibilité » redondant).
               _AvailabilityCalendar(
                 providerId: providerId!,
                 selectedLabel: disponibilites,
                 onPick: onDisponibilitesChanged,
+                onDateSelected: onCheckAvailability,
               ),
-              const SizedBox(height: 20),
-            ],
-            if (providerId != null && onCheckAvailability != null) ...[
-              const Text(
-                'Vérifier la disponibilité du prestataire',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () async {
-                  final now = DateTime.now();
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: now.add(const Duration(days: 1)),
-                    firstDate: now,
-                    lastDate: now.add(const Duration(days: 60)),
-                  );
-                  if (date != null) {
-                    onCheckAvailability?.call(date);
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0D1525),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        color: _kCyan.withValues(alpha: 0.8),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Vérifier disponibilité',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                      const Spacer(),
-                      if (checkingAvailability == true)
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: BabifixRingLoader.cyan(size: 28),
-                        )
-                      else if (providerAvailable == true)
-                        const Icon(Icons.check_circle, color: Colors.green)
-                      else if (providerAvailable == false)
-                        const Icon(Icons.cancel, color: Colors.red),
-                    ],
-                  ),
-                ),
-              ),
+              // Message de résultat (disponible / conflit + jours libres) affiché
+              // juste sous le calendrier après le choix d'un jour.
               if (availabilityMessage != null &&
                   availabilityMessage!.isNotEmpty) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -3050,11 +2998,17 @@ class _AvailabilityCalendar extends StatefulWidget {
     required this.providerId,
     required this.selectedLabel,
     required this.onPick,
+    this.onDateSelected,
   });
 
   final int providerId;
   final String selectedLabel;
   final ValueChanged<String> onPick;
+
+  /// Appelé avec la date choisie quand on tape un jour disponible — sert à
+  /// vérifier la dispo et à enregistrer la date prévue (plus besoin d'un second
+  /// sélecteur « Vérifier la disponibilité »).
+  final ValueChanged<DateTime>? onDateSelected;
 
   @override
   State<_AvailabilityCalendar> createState() => _AvailabilityCalendarState();
@@ -3212,8 +3166,15 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
       ),
       child: GestureDetector(
         onTap: available
-            ? () => setState(
-                () => _selectedDayIndex = selected ? -1 : index)
+            ? () {
+                final newIndex = selected ? -1 : index;
+                setState(() => _selectedDayIndex = newIndex);
+                if (newIndex >= 0) {
+                  // Date choisie → vérif dispo + enregistrement de la date prévue.
+                  final d = DateTime.tryParse('${day['date']}');
+                  if (d != null) widget.onDateSelected?.call(d);
+                }
+              }
             : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
