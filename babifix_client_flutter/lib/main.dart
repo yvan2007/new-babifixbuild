@@ -6275,8 +6275,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
         // Bascule sur l'onglet Profil + ouvre directement l'écran d'auth.
         setState(() => navIndex = 4);
         await _openAuth();
+        // Connexion réussie → on REPREND la réservation automatiquement
+        // (avant : on retournait false → le client devait tout recommencer).
+        final t2 = await BabifixUserStore.getApiToken();
+        if (mounted && t2 != null && t2.isNotEmpty) {
+          return _createReservation(service, flowData: flowData);
+        }
       }
-      // Sinon : on reste là où on était, le flow se ferme sans bruit.
+      // Sinon (connexion annulée) : on reste là où on était, sans bruit.
       return false;
     }
     authToken = freshToken;

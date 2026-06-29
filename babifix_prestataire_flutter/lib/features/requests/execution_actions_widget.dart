@@ -24,6 +24,11 @@ class ExecutionActionsWidget extends StatefulWidget {
   final List<String> photosApres;
   final VoidCallback? onChanged;
 
+  /// Date prévue (ISO yyyy-mm-dd) choisie par le client. Si elle est dans le
+  /// futur, on n'affiche PAS « Démarrer » mais « Disponible dans X jours » : le
+  /// démarrage n'est possible que le jour J. Vide = aujourd'hui.
+  final String scheduledDate;
+
   const ExecutionActionsWidget({
     super.key,
     required this.reservationReference,
@@ -31,6 +36,7 @@ class ExecutionActionsWidget extends StatefulWidget {
     this.photosAvant = const [],
     this.photosApres = const [],
     this.onChanged,
+    this.scheduledDate = '',
   });
 
   @override
@@ -165,6 +171,17 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
     }
   }
 
+  /// Jours entre aujourd'hui et la date prévue (0 = aujourd'hui/passé/sans date).
+  int _daysUntilScheduled(String iso) {
+    if (iso.isEmpty) return 0;
+    final d = DateTime.tryParse(iso);
+    if (d == null) return 0;
+    final now = DateTime.now();
+    return DateTime(d.year, d.month, d.day)
+        .difference(DateTime(now.year, now.month, now.day))
+        .inDays;
+  }
+
   void _snack(String s) {
     if (!mounted) return;
     showBabifixToast(
@@ -192,13 +209,22 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
     final canFinish = s == 'INTERVENTION_EN_COURS';
     final acompteEnAttente = s == 'DEVIS_ACCEPTE' &&
         !(_quote?.acompteValide ?? false);
+    // Date prévue future → on bloque l'affichage de « Démarrer » et on montre
+    // « Disponible dans X jours ». Le démarrage n'est offert que le jour J.
+    final waitDays = _daysUntilScheduled(widget.scheduledDate);
+    final notYet = canStart && waitDays > 0;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // Fond sombre cohérent avec l'écran détail (avant : carte blanche qui
+        // jurait avec le thème navy).
+        gradient: const LinearGradient(
+          colors: [Color(0xFF152A45), Color(0xFF1A3355)],
+        ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border:
+            Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.20)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -210,20 +236,20 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: Colors.orange.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.shade200),
+                border:
+                    Border.all(color: Colors.orange.withValues(alpha: 0.40)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.hourglass_top,
-                      color: Colors.orange),
+                  Icon(Icons.hourglass_top, color: Colors.orange.shade300),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'En attente du versement de l\'acompte par le client.',
                       style: TextStyle(
-                          color: Colors.orange.shade900, fontSize: 13),
+                          color: Colors.orange.shade200, fontSize: 13),
                     ),
                   ),
                 ],
@@ -231,7 +257,37 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
             ),
           ],
           const SizedBox(height: 12),
-          if (canStart)
+          // Date prévue future → badge d'attente au lieu du bouton « Démarrer ».
+          if (notYet)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF38BDF8).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: const Color(0xFF38BDF8).withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.event_available_rounded,
+                      size: 18, color: Color(0xFF38BDF8)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      waitDays == 1
+                          ? 'Disponible demain — le bouton « Démarrer » apparaîtra le jour J.'
+                          : 'Disponible dans $waitDays jours — le bouton « Démarrer » apparaîtra le jour J.',
+                      style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF7DD3FC)),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (canStart)
             ElevatedButton.icon(
               onPressed: _busy ? null : _demarrer,
               icon: const Icon(Icons.play_arrow),
@@ -286,7 +342,7 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
                       : s == 'Confirmee'
                           ? 'Travaux confirmés ✓'
                           : 'Étape : $s',
-                  style: TextStyle(color: Colors.grey.shade700),
+                  style: const TextStyle(color: Color(0xFF94A3B8)),
                 ),
               ),
             ),

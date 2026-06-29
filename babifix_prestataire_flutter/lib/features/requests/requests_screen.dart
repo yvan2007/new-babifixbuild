@@ -624,6 +624,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           addressIsApproximate: it.addressIsApproximate,
           description: it.description,
           apiStatus: it.apiStatus,
+          scheduledDate: it.scheduledDate,
           paymentType: it.paymentType,
           mobileMoneyOperator: it.mobileMoneyOperator,
           rating: it.rating,

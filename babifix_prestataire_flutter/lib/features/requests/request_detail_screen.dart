@@ -41,6 +41,7 @@ class RequestDetailScreen extends StatelessWidget {
     this.addressLat,
     this.addressLon,
     this.addressIsApproximate = true,
+    this.scheduledDate = '',
   });
 
   final String reference;
@@ -70,6 +71,10 @@ class RequestDetailScreen extends StatelessWidget {
   final double? addressLat;
   final double? addressLon;
   final bool addressIsApproximate;
+
+  /// Date prévue (ISO yyyy-mm-dd) choisie par le client — pour bloquer le
+  /// bouton « Démarrer » avant le jour J.
+  final String scheduledDate;
 
   @override
   Widget build(BuildContext context) {
@@ -332,6 +337,7 @@ class RequestDetailScreen extends StatelessWidget {
                 ExecutionActionsWidget(
                   reservationReference: reference,
                   statut: apiStatus,
+                  scheduledDate: scheduledDate,
                 ),
                 // Bouton "Voir le journal client" — utile dès que la
                 // prestation est terminée pour comparer ce que le presta a
