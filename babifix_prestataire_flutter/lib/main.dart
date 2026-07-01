@@ -535,7 +535,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       final res = await http.get(
         Uri.parse('${babifixApiBaseUrl()}/api/prestataire/me'),
         headers: {'Authorization': 'Bearer $t'},
-      );
+      ).timeout(const Duration(seconds: 60));
       if (res.statusCode == 404) {
         // L'utilisateur a un token (compte BABIFIX existant) mais pas
         // de profil prestataire. On l'envoie sur l'écran de choix
@@ -561,25 +561,13 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
            email: '${prov['email'] ?? ''}',
            id: provId,
          );
-
-         if (mounted) {
-           try {
-             debugPrint('[LiveKit Prestataire] Initializing for provId=$provId, provName=$provName');
-             await BabifixLiveKitService.init(
-               userId: provId,
-               userName: provName,
-               context: context,
-             );
-             debugPrint('[LiveKit Prestataire] INITIALIZED SUCCESS! isInitialized=${BabifixLiveKitService.isInitialized}');
-           } catch (e, stack) {
-             debugPrint('[LiveKit Prestataire] Init ERROR: $e');
-             debugPrint('[LiveKit Prestataire] Stack: $stack');
-           }
-         } else {
-           debugPrint('[LiveKit Prestataire] NOT mounted, skipping init');
-         }
        }
-      
+
+      // ── ROUTAGE D'ABORD ─────────────────────────────────────────────────
+      // On dirige vers le bon écran IMMÉDIATEMENT, avant toute init lourde.
+      // AVANT : l'init LiveKit était `await`ée ICI → si elle traînait/bloquait
+      // au 1er lancement (permissions/réseau), `current` n'était jamais mis à
+      // jour → ROUE QUI TOURNE À L'INFINI. On la lance donc en arrière-plan.
       final st = '${prov['statut'] ?? ''}';
       final unread = jsonInt(data['unread_chat_messages']);
       _unreadChat.value = unread;
@@ -604,6 +592,19 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         // Statut « En attente » : écran d'attente de validation. Le contrat
         // n'est proposé qu'une fois le compte ACCEPTÉ (voir branche « Valide »).
         if (mounted) setState(() => current = 'pending');
+      }
+
+      // ── Init LiveKit EN ARRIÈRE-PLAN (ne doit JAMAIS bloquer l'affichage) ──
+      if (provId != null && mounted) {
+        BabifixLiveKitService.init(
+          userId: provId,
+          userName: provName,
+          context: context,
+        ).then((_) {
+          debugPrint('[LiveKit Prestataire] init ok (arrière-plan)');
+        }).catchError((Object e) {
+          debugPrint('[LiveKit Prestataire] init échouée (ignorée): $e');
+        });
       }
       _attachRealtime(t);
     } catch (_) {
