@@ -406,7 +406,11 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
         children: [
           _SummaryRow(label: 'Sous-total', value: sousTotal),
           const SizedBox(height: 6),
-          _SummaryRow(label: 'Commission BABIFIX (18 %)', value: commission, color: BabifixDesign.warning),
+          _SummaryRow(
+              label:
+                  'Commission BABIFIX (${sousTotal > 0 ? (commission / sousTotal * 100).round() : 18} %)',
+              value: commission,
+              color: BabifixDesign.warning),
           const SizedBox(height: 6),
           _SummaryRow(label: 'Net prestataire', value: net, color: BabifixDesign.success),
           const Padding(

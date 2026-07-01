@@ -471,6 +471,10 @@ class EscrowService:
             prov.solde_fcfa = (prov.solde_fcfa or Decimal("0")) + net
             prov.save(update_fields=["solde_fcfa"])
 
+            # Taux RÉEL prélevé (reflète le tarif premium du prestataire, ex.
+            # 8 % en GOLD) au lieu d'un « 18 % » figé dans le libellé.
+            _gross = (net or Decimal("0")) + (commission or Decimal("0"))
+            _pct = int(round((commission / _gross) * 100)) if _gross else 18
             WalletTransaction.objects.create(
                 provider=prov,
                 tx_type="credit",
@@ -478,7 +482,7 @@ class EscrowService:
                 reference=reservation.reference,
                 description=(
                     f"Libération escrow — {reservation.reference} "
-                    f"(net après commission 18 %)"
+                    f"(net après commission {_pct} %)"
                 ),
                 status="success",
             )
@@ -488,7 +492,7 @@ class EscrowService:
                 amount_fcfa=commission,
                 reference=reservation.reference,
                 description=(
-                    f"Commission BABIFIX 18 % prélevée — {reservation.reference}"
+                    f"Commission BABIFIX {_pct} % prélevée — {reservation.reference}"
                 ),
                 status="success",
             )

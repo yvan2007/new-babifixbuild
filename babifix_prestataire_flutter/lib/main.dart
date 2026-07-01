@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -266,6 +267,9 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
 
   /// bootstrap → onboarding | landing | dashboard | pending | refused | registration | …
   String current = 'bootstrap';
+  // Anti-sortie accidentelle : mémorise le dernier appui « retour » sur le
+  // dashboard pour exiger un double appui avant de quitter l'app.
+  DateTime? _lastBackPress;
   String? _refusalReason;
   StreamSubscription<dynamic>? _wsSub;
   StreamSubscription<dynamic>? _clientEventsWsSub;
@@ -1078,12 +1082,52 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       );
     }
 
-    // Fond navy PERMANENT derrière le switcher : pendant le crossfade entre
-    // deux écrans, les deux sont brièvement semi-transparents ; sans ce fond,
-    // on voit le noir de l'app → « clignotement noir » à l'entrée d'un écran.
-    return ColoredBox(
-      color: BabifixDesign.navy,
-      child: AnimatedSwitcher(
+    // Interception du RETOUR système (Android) : sans ça, comme la navigation
+    // presta repose sur `current` (et non des routes empilées), le retour
+    // faisait SORTIR de l'app. On revient au dashboard depuis un sous-écran, et
+    // on exige un double appui pour quitter depuis le dashboard.
+    const authFlowScreens = {
+      'bootstrap',
+      'landing',
+      'login',
+      'registration',
+      'registration_resubmit',
+      'onboarding',
+      'pending',
+      'refused',
+      'contrat_mandatory',
+    };
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // Sous-écran de l'app connectée → revenir au dashboard (ne pas quitter).
+        if (current != 'dashboard' && !authFlowScreens.contains(current)) {
+          setState(() => current = 'dashboard');
+          return;
+        }
+        // Dashboard (ou écran d'accueil/auth) → double appui en < 2 s pour quitter.
+        final now = DateTime.now();
+        if (_lastBackPress != null &&
+            now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+          SystemNavigator.pop();
+        } else {
+          _lastBackPress = now;
+          showBabifixToast(
+            context,
+            message: 'Appuyez une seconde fois pour quitter',
+            type: BabifixToastType.info,
+            title: 'Quitter',
+            duration: const Duration(seconds: 2),
+          );
+        }
+      },
+      // Fond navy PERMANENT derrière le switcher : pendant le crossfade entre
+      // deux écrans, les deux sont brièvement semi-transparents ; sans ce fond,
+      // on voit le noir de l'app → « clignotement noir » à l'entrée d'un écran.
+      child: ColoredBox(
+        color: BabifixDesign.navy,
+        child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 420),
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
@@ -1098,6 +1142,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
           ),
         ),
         child: child,
+        ),
       ),
     );
   }

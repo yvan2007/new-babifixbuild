@@ -385,7 +385,11 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                 const SizedBox(height: 14),
                 MoneyBreakdownWidget(
                   sousTotal: q.totalDevis,
-                  commissionRate: 18,
+                  // Taux RÉEL déduit du montant (reflète le tarif premium du
+                  // prestataire, ex. 8 % en GOLD) au lieu d'un « 18 % » figé.
+                  commissionRate: q.totalDevis > 0
+                      ? (q.commissionMontant / q.totalDevis * 100).round()
+                      : 18,
                   commissionMontant: q.commissionMontant,
                   totalTtc: q.totalDevis,
                   netPrestataire: q.netPrestataire,

@@ -33,6 +33,37 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
   int _validiteJours = 7;
   bool _submitting = false;
 
+  // Taux de commission EFFECTIF du prestataire (fraction, ex. 0.08 en GOLD).
+  // Récupéré depuis /api/prestataire/me — sinon 18 % par défaut. Sert au calcul
+  // ET à l'affichage du bon pourcentage (avant : 18 % figé, faux pour premium).
+  double _commissionRate = 0.18;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCommissionRate();
+  }
+
+  Future<void> _loadCommissionRate() async {
+    try {
+      final token = await readStoredApiToken();
+      if (token == null || token.isEmpty) return;
+      final resp = await http.get(
+        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (resp.statusCode != 200) return;
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final prov = data['provider'] as Map<String, dynamic>? ?? data;
+      final pct = prov['commission_rate_effective'] ??
+          data['commission_rate_effective'];
+      final v = (pct is num) ? pct.toDouble() : double.tryParse('$pct');
+      if (v != null && v > 0 && mounted) {
+        setState(() => _commissionRate = v / 100.0);
+      }
+    } catch (_) {}
+  }
+
   final List<_LigneDevis> _lignes = [];
   // Photos jointes au devis (data:image base64) — visibles par le client.
   final List<String> _photos = [];
@@ -596,8 +627,9 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
     // Façon B : le client paie le prix annoncé (sous-total). La commission BABIFIX
     // (~18 %, taux indicatif) est déduite de la part du prestataire ; le net est
     // ce que le prestataire perçoit réellement après la prestation.
-    final commission = _sousTotal * 0.18;
+    final commission = _sousTotal * _commissionRate;
     final net = _sousTotal - commission;
+    final pct = (_commissionRate * 100).round();
 
     return Card(
       color: const Color(0xFF0A1628),
@@ -622,9 +654,9 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Commission BABIFIX (~18%)',
-                  style: TextStyle(color: Colors.white70),
+                Text(
+                  'Commission BABIFIX ($pct%)',
+                  style: const TextStyle(color: Colors.white70),
                 ),
                 Text(
                   '- ${commission.toStringAsFixed(0)} francs CFA',
