@@ -13,6 +13,7 @@ import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_slide_to_confirm.dart';
 import '../../shared/widgets/babifix_prestation_timer.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../dashboard/floating_nav_bar.dart' show babifixReservationsTick;
 import 'devis_kanban_editor_screen.dart';
 import 'client_journal_viewer.dart';
 import 'rate_client_screen.dart';
@@ -49,11 +50,20 @@ class _RequestsScreenState extends State<RequestsScreen> {
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (mounted && !loading) _loadRequests(silent: true);
     });
+    // Rafraîchissement INSTANTANÉ dès qu'un événement temps réel touche une
+    // réservation (statut/devis/acompte/démarrage/fin) — sans attendre le
+    // timer de 20 s ni tirer pour rafraîchir.
+    babifixReservationsTick.addListener(_onReservationsTick);
+  }
+
+  void _onReservationsTick() {
+    if (mounted && !loading) _loadRequests(silent: true);
   }
 
   @override
   void dispose() {
     _autoRefreshTimer?.cancel();
+    babifixReservationsTick.removeListener(_onReservationsTick);
     _searchCtrl.dispose();
     super.dispose();
   }

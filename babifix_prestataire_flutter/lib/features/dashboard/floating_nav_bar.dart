@@ -7,6 +7,12 @@ import 'package:flutter/material.dart';
 /// directement par la nav bar → pas besoin de le câbler dans chaque écran.
 final ValueNotifier<int> babifixNewRequestsCount = ValueNotifier<int>(0);
 
+/// « Tick » global de rafraîchissement des réservations. Incrémenté par main.dart
+/// à CHAQUE événement temps réel touchant une réservation (statut, devis,
+/// acompte, démarrage, fin…). Les écrans ouverts (Demandes, Dashboard) l'écoutent
+/// et rechargent leurs données → plus besoin de tirer pour rafraîchir.
+final ValueNotifier<int> babifixReservationsTick = ValueNotifier<int>(0);
+
 class MessagesNavBadge extends StatelessWidget {
   const MessagesNavBadge({
     super.key,

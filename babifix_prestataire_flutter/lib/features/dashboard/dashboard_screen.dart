@@ -77,6 +77,19 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
     _loadMe();
     _loadRevenueChart();
     _loadActiveIntervention();
+    // Rafraîchissement instantané de « Prochaine intervention » quand une
+    // réservation change en temps réel (statut/démarrage/fin…).
+    babifixReservationsTick.addListener(_onReservationsTick);
+  }
+
+  void _onReservationsTick() {
+    if (mounted) _loadActiveIntervention();
+  }
+
+  @override
+  void dispose() {
+    babifixReservationsTick.removeListener(_onReservationsTick);
+    super.dispose();
   }
 
   /// Charge la VRAIE intervention en cours / prochaine (au lieu du placeholder).

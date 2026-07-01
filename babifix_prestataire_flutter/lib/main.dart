@@ -33,7 +33,8 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/pending_screen.dart';
 import 'features/auth/refused_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
-import 'features/dashboard/floating_nav_bar.dart' show babifixNewRequestsCount;
+import 'features/dashboard/floating_nav_bar.dart'
+    show babifixNewRequestsCount, babifixReservationsTick;
 import 'features/requests/requests_screen.dart';
 import 'features/messages/messages_screen.dart';
 import 'features/profile/contrat_screen.dart';
@@ -864,6 +865,10 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
                 actionRoute: 'messages',
               );
             } else if (babifixEventTypeIsBookingRequest(t)) {
+              // Nouvelle demande → on recharge les écrans ouverts (Demandes/
+              // Dashboard) en plus de la notif, pour voir la demande apparaître
+              // SANS tirer pour rafraîchir.
+              babifixReservationsTick.value++;
               _pushPrestataireNotif(
                 category: 'demande',
                 title: 'Nouvelle demande',
@@ -874,6 +879,10 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
             } else if (t.contains('reservation') ||
                 t.contains('booking') ||
                 t == 'prestation.updated') {
+              // Statut d'une réservation qui évolue → rechargement automatique
+              // des écrans ouverts (avant : seule une notif, il fallait
+              // rafraîchir à la main pour voir l'étape suivante).
+              babifixReservationsTick.value++;
               _pushPrestataireNotif(
                 category: 'demande',
                 title: 'Mission mise à jour',

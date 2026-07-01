@@ -403,7 +403,7 @@ class MoneyBreakdownWidget extends StatelessWidget {
             _row(
               'Commission BABIFIX ($commissionRate%)',
               '− ${fmtMoney(commissionMontant)}',
-              color: Colors.grey.shade600,
+              color: const Color(0xFF94A3B8),
             ),
           ],
           const Divider(height: 14),
@@ -439,13 +439,15 @@ class MoneyBreakdownWidget extends StatelessWidget {
                   style: TextStyle(
                     fontSize: big ? 14 : 12,
                     fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-                    color: color ?? Colors.grey.shade800,
+                    // Fond sombre (écrans escrow/paiement) → texte clair lisible
+                    // (avant : grey.shade800 quasi noir → invisible).
+                    color: color ?? const Color(0xFFCBD5E1),
                   ))),
           Text(value,
               style: TextStyle(
                 fontSize: big ? 16 : 13,
                 fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-                color: color ?? Colors.grey.shade900,
+                color: color ?? Colors.white,
               )),
         ],
       ),
