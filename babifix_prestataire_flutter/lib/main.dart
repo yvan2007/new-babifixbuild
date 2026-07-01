@@ -1063,21 +1063,27 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       );
     }
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 420),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, anim) => FadeTransition(
-        opacity: anim,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 0.02),
-            end: Offset.zero,
-          ).animate(anim),
-          child: child,
+    // Fond navy PERMANENT derrière le switcher : pendant le crossfade entre
+    // deux écrans, les deux sont brièvement semi-transparents ; sans ce fond,
+    // on voit le noir de l'app → « clignotement noir » à l'entrée d'un écran.
+    return ColoredBox(
+      color: BabifixDesign.navy,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 420),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.02),
+              end: Offset.zero,
+            ).animate(anim),
+            child: child,
+          ),
         ),
+        child: child,
       ),
-      child: child,
     );
   }
 }
