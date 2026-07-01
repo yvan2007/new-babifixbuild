@@ -56,7 +56,7 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     final dir = await getTemporaryDirectory();
     final f = File('${dir.path}/recu_${widget.reservationReference}.pdf');
     await f.writeAsBytes(_pdfBytes!);
-    await Share.shareXFiles([XFile(f.path)], subject: 'Reçu BABIFIX — ${widget.reservationReference}');
+    await Share.shareXFiles([XFile(f.path)], subject: 'Reçu BABIFIX : ${widget.reservationReference}');
   }
 
   Color _statusColor(String s) {
@@ -317,7 +317,7 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
       children: [
         Expanded(child: _PartyCard(
           title: 'Client',
-          name: '${client['nom'] ?? client['username'] ?? client['name'] ?? '—'}',
+          name: '${client['nom'] ?? client['username'] ?? client['name'] ?? 'N/A'}',
           email: '${client['email'] ?? ''}',
           phone: '${client['phone'] ?? client['telephone'] ?? ''}',
           icon: Icons.person_outline_rounded,
@@ -326,7 +326,7 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
         const SizedBox(width: 12),
         Expanded(child: _PartyCard(
           title: 'Prestataire',
-          name: '${presta['nom'] ?? presta['name'] ?? presta['username'] ?? '—'}',
+          name: '${presta['nom'] ?? presta['name'] ?? presta['username'] ?? 'N/A'}',
           email: '${presta['email'] ?? ''}',
           phone: '${presta['phone'] ?? presta['telephone'] ?? ''}',
           icon: Icons.engineering_outlined,
@@ -338,7 +338,7 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
 
   Widget _buildReservationInfo(Map<String, dynamic> res, String payType) {
     final items = [
-      ('Référence', '${res['reference'] ?? '—'}', Icons.tag_rounded),
+      ('Référence', '${res['reference'] ?? 'N/A'}', Icons.tag_rounded),
       // Date NÉCESSAIRE = celle choisie au créneau (scheduled_date) ; à défaut,
       // la date de réservation.
       (

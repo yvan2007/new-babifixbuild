@@ -221,7 +221,7 @@ color: const Color(0xFF1565C0).withValues(alpha: 0.08),
                                      border: Border.all(color: const Color(0xFF1565C0).withValues(alpha: 0.3)),
                                   ),
                                   child: Text(
-                                    _code.isEmpty ? '—' : _code,
+                                    _code.isEmpty ? 'N/A' : _code,
                                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 4, color: Color(0xFF1565C0)),
                                   ),
                                 ),

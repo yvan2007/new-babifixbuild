@@ -440,7 +440,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       if (!mounted) return false;
       if (dupProvider != null) {
         await _showDuplicateProviderDialog(dupProvider);
-        return false; // blocage strict — on ne réserve pas
+        return false; // blocage strict : on ne réserve pas
       }
       if (dupCategory != null) {
         final proceed = await _showDuplicateCategoryDialog(dupCategory);

@@ -352,7 +352,7 @@ class _KYCScreenState extends State<KYCScreen> {
         ),
         const SizedBox(height: 32),
         _nextButton(
-          label: 'Suivant — Photo recto',
+          label: 'Suivant : Photo recto',
           icon: Icons.arrow_forward_rounded,
           enabled: true,
           onTap: () {
@@ -558,7 +558,7 @@ class _KYCScreenState extends State<KYCScreen> {
           'Expiration CNI',
           _expiryDate != null
               ? '${_expiryDate!.day.toString().padLeft(2,'0')}/${_expiryDate!.month.toString().padLeft(2,'0')}/${_expiryDate!.year}'
-              : '—',
+              : 'N/A',
         ),
         const SizedBox(height: 16),
         Row(

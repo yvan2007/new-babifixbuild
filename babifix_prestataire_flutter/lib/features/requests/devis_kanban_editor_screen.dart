@@ -1139,7 +1139,7 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Après acceptation, le client verse un acompte bloqué en séquestre. '
-                  'Tu es payé automatiquement à la fin de la mission — pas de risque d\'impayé.',
+                  'Tu es payé automatiquement à la fin de la mission : pas de risque d\'impayé.',
                   style: TextStyle(fontSize: 12, height: 1.4, color: BabifixDesign.iconOnLight),
                 ),
               ],

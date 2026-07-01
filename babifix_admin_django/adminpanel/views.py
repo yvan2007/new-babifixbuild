@@ -7122,7 +7122,7 @@ def api_public_metiers(request):
         if m.votes == MetierPropose.SEUIL:
             try:
                 Notification.objects.create(
-                    title=f"Métier « {m.nom} » a atteint {MetierPropose.SEUIL} demandes — à ajouter ?"
+                    title=f"Métier « {m.nom} » a atteint {MetierPropose.SEUIL} demandes : à ajouter ?"
                 )
             except Exception:
                 pass

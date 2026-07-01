@@ -65,7 +65,7 @@ class _BabifixAddressSearchFieldState extends State<BabifixAddressSearchField> {
           _suggestions = list;
           _loading = false;
           _error = null;
-          _emptyHint = list.isEmpty ? 'Aucun résultat — précisez ville ou quartier' : null;
+          _emptyHint = list.isEmpty ? 'Aucun résultat : précisez ville ou quartier' : null;
         });
       } catch (_) {
         if (!mounted) return;

@@ -94,7 +94,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
     final dur = c.durationSeconds;
     final durStr = dur > 0
         ? '${(dur ~/ 60).toString().padLeft(2, '0')}:${(dur % 60).toString().padLeft(2, '0')}'
-        : '—';
+        : 'N/A';
     final color = _statusColor(c.status);
     final f = DateFormat('dd/MM HH:mm');
     return ListTile(

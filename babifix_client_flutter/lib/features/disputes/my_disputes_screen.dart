@@ -305,7 +305,7 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  (d['reservation_title'] ?? '—').toString(),
+                  (d['reservation_title'] ?? 'N/A').toString(),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.65),
                     fontSize: 12.5,

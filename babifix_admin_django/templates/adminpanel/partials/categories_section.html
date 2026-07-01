@@ -15,7 +15,7 @@
   <div class="category-form-layout">
     <article class="card card-elevate crud-form-card category-form-panel">
       <h3>{% if edit_category_id %}Modifier{% else %}Ajouter{% endif %} une catégorie</h3>
-      <p class="section-help">Choisissez un pictogramme dans la bibliothèque (recherche ci‑contre). Fichiers <code>static/category-icons/*.svg</code> — jeu <strong>multicolore</strong> (style marketplace). Pour des packs type <a href="https://iconscout.com/" rel="noopener noreferrer" target="_blank">IconScout</a>, exportez en SVG sous licence, gardez le <strong>même nom de fichier</strong> (slug, ex. <code>goutte.svg</code>) et <code>viewBox="0 0 24 24"</code>.</p>
+      <p class="section-help">Choisissez un pictogramme dans la bibliothèque (recherche ci‑contre). Fichiers <code>static/category-icons/*.svg</code> : jeu <strong>multicolore</strong> (style marketplace). Pour des packs type <a href="https://iconscout.com/" rel="noopener noreferrer" target="_blank">IconScout</a>, exportez en SVG sous licence, gardez le <strong>même nom de fichier</strong> (slug, ex. <code>goutte.svg</code>) et <code>viewBox="0 0 24 24"</code>.</p>
       <form method="post" class="crud-form" id="category-form-babifix" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
         {% csrf_token %}
         <input type="hidden" name="action" value="category_save">
@@ -42,7 +42,7 @@
           role="option"
           x-show="(() => { const q = (searchIcon || '').trim().toLowerCase(); if (!q) return true; const s = ($el.dataset.slug || '').toLowerCase(); const l = ($el.dataset.label || '').toLowerCase(); return s.includes(q) || l.includes(q); })()"
           onclick="(function(s,u){var el=document.getElementById('id_icone_slug');if(el)el.value=s;var im=document.getElementById('cat-icon-preview');if(im)im.src=u;document.querySelectorAll('.category-icon-btn').forEach(function(b){b.classList.toggle('is-selected',b.dataset.slug===s);});})('{{ slug|escapejs }}','{% static icon_path %}')"
-          title="{{ label }} — {{ slug }}">
+          title="{{ label }} : {{ slug }}">
           <img src="{% static icon_path %}" alt="" width="40" height="40" loading="lazy">
           <span class="category-icon-label">{{ label }}</span>
         </button>
@@ -97,7 +97,7 @@
               {% if cat.icone_slug %}
               <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="36" height="36" class="category-row-thumb" loading="lazy">
               {% else %}
-              <span class="category-thumb-fallback">—</span>
+              <span class="category-thumb-fallback">-</span>
               {% endif %}
             </td>
             <td><strong>{{ cat.nom }}</strong><br><span class="slug-hint">{{ cat.icone_slug }}</span></td>
@@ -122,7 +122,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="7">Aucune catégorie — importez le catalogue ou ajoutez une ligne.</td></tr>
+          <tr><td colspan="7">Aucune catégorie : importez le catalogue ou ajoutez une ligne.</td></tr>
           {% endfor %}
         </tbody>
       </table>

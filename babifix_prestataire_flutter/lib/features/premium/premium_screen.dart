@@ -549,7 +549,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         showBabifixToast(
           context,
           type: BabifixToastType.info,
-          message: 'Abonnement résilié — retour en Standard.',
+          message: 'Abonnement résilié : retour en Standard.',
         );
         await _load();
       } else {
@@ -1036,7 +1036,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               final id = t['id']?.toString() ?? '';
               if (id == 'silver') return 'Argent';
               if (id == 'gold') return 'Or';
-              return '—';
+              return 'N/A';
             }).toList(),
           ),
         ],

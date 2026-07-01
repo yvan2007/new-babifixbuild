@@ -59,7 +59,7 @@ class Provider(models.Model):
     photo_portrait_url = models.TextField(
         blank=True,
         default="",
-        help_text="Photo de profil (URL) — visible après validation admin",
+        help_text="Photo de profil (URL) : visible après validation admin",
     )
     refusal_reason = models.TextField(
         blank=True,
@@ -92,11 +92,11 @@ class Provider(models.Model):
     is_approved = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Aligne sur statut Valide — visible apps client",
+        help_text="Aligne sur statut Valide : visible apps client",
     )
     is_certified = models.BooleanField(
         default=False,
-        help_text="Badge 'Prestataire Certifie' — validation apres review admin",
+        help_text="Badge 'Prestataire Certifie' : validation apres review admin",
     )
     certified_at = models.DateTimeField(
         null=True,
@@ -139,7 +139,7 @@ class Provider(models.Model):
     portfolio_photos = models.JSONField(
         default=list,
         blank=True,
-        help_text="Liste de {photo, caption, added_at} — max 12 entrées",
+        help_text="Liste de {photo, caption, added_at} : max 12 entrées",
     )
     # v2 — Photos avant/après intervention
     before_photos = models.JSONField(
@@ -525,7 +525,7 @@ class Reservation(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Prix proposé par le client (optionnel — si différent du tarif catalogue)",
+        help_text="Prix proposé par le client (optionnel : si différent du tarif catalogue)",
     )
     # Champs de gestion de paiement sécurisé (Acompte / Solde)
     montant_verse = models.DecimalField(
@@ -576,7 +576,7 @@ class Reservation(models.Model):
         max_length=12,
         blank=True,
         default="",
-        help_text="'' | processing | paid | failed | manual — état du remboursement client.",
+        help_text="'' | processing | paid | failed | manual : état du remboursement client.",
     )
     refund_reference = models.CharField(
         max_length=80,
@@ -1668,7 +1668,7 @@ class LigneDevis(models.Model):
         max_length=16,
         blank=True,
         default="",
-        help_text="Unité (u, m, m², m³, ml, kg, h, jour, forfait…) — affichage UI",
+        help_text="Unité (u, m, m², m³, ml, kg, h, jour, forfait…) : affichage UI",
     )
     marque = models.CharField(
         max_length=80,

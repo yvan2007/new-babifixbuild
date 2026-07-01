@@ -118,7 +118,7 @@ def _send_email_code(email: str, code: str) -> dict:
         from django.conf import settings
         from django.core.mail import send_mail
         send_mail(
-            subject="BABIFIX — Votre code de vérification",
+            subject="BABIFIX : Votre code de vérification",
             message=f"Votre code de vérification BABIFIX est : {code}\n\n"
                     f"Il expire dans 10 minutes. Ne le partagez avec personne.",
             from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),

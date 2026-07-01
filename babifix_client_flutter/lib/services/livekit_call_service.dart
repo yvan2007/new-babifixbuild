@@ -186,7 +186,7 @@ void _startCallFromChat({
     showBabifixToast(
         context,
         type: BabifixToastType.info,
-        message: 'Service d\'appel non initialisé — reconnectez-vous',
+        message: 'Service d\'appel non initialisé : reconnectez-vous',
       );
     return;
   }

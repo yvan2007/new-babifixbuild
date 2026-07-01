@@ -375,7 +375,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
                             SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                'Acompte payé — en attente de l\'intervention du prestataire.',
+                                'Acompte payé : en attente de l\'intervention du prestataire.',
                                 style: TextStyle(
                                     color: Color(0xFF16A34A),
                                     fontWeight: FontWeight.w700,

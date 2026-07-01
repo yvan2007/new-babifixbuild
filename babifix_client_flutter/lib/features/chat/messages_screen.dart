@@ -202,7 +202,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 const SizedBox(height: 8),
                 Text(
                   sessionLocal
-                      ? 'Session locale — reconnectez-vous avec le serveur actif.'
+                      ? 'Session locale : reconnectez-vous avec le serveur actif.'
                       : 'Connectez-vous pour voir vos conversations.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: textSecondary, height: 1.5),

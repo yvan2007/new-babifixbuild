@@ -311,7 +311,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
           icon: const Icon(Icons.share_rounded, color: Colors.white70),
           onPressed: () => Share.share(
             '🔧 Découvrez $name sur BABIFIX\n${babifixApiBaseUrl()}/prestataire/${widget.providerId}',
-            subject: 'Prestataire BABIFIX — $name',
+            subject: 'Prestataire BABIFIX : $name',
           ),
         ),
       ],
@@ -543,7 +543,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
       child: Row(
         children: [
           _StatCell(
-            value: note > 0 ? note.toStringAsFixed(1) : '—',
+            value: note > 0 ? note.toStringAsFixed(1) : 'N/A',
             label: '$nbAvis avis',
             icon: Icons.star_rounded,
             color: const Color(0xFFF59E0B),
@@ -557,14 +557,14 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
           ),
           _divider(),
           _StatCell(
-            value: tauxReussite > 0 ? '$tauxReussite%' : '—',
+            value: tauxReussite > 0 ? '$tauxReussite%' : 'N/A',
             label: 'Réussite',
             icon: Icons.thumb_up_rounded,
             color: const Color(0xFF22C55E),
           ),
           _divider(),
           _StatCell(
-            value: yearsExp > 0 ? '${yearsExp}an${yearsExp > 1 ? 's' : ''}' : '—',
+            value: yearsExp > 0 ? '${yearsExp}an${yearsExp > 1 ? 's' : ''}' : 'N/A',
             label: 'Expérience',
             icon: Icons.workspace_premium_rounded,
             color: const Color(0xFF7C3AED),
@@ -814,7 +814,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
                       icon: const Icon(Icons.calendar_month_rounded, size: 20),
                       label: Text(
                         disponible
-                            ? 'Réserver — devis sur mesure'
+                            ? 'Réserver : devis sur mesure'
                             : 'Indisponible',
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                       ),

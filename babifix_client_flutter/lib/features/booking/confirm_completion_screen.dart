@@ -1,4 +1,4 @@
-﻿/// Écran "Confirmer travaux" (Phase F — C6).
+﻿/// Écran "Confirmer travaux" (Phase F : C6).
 ///
 /// Le client vérifie photos avant/après + résumé devis, puis confirme.
 /// La confirmation déclenche EscrowService.release_funds côté backend.
@@ -526,7 +526,7 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                 child: Text(
                   q.isCash
                       ? "Aucun nouveau montant ne sera prélevé en ligne. Le total reste ${fmtMoney(q.totalDevis)}."
-                      : "Le total payé en ligne reste ${fmtMoney(q.totalDevis)} — rien n'est facturé deux fois.",
+                      : "Le total payé en ligne reste ${fmtMoney(q.totalDevis)} : rien n'est facturé deux fois.",
                   style: TextStyle(
                       fontSize: 11.5,
                       height: 1.35,

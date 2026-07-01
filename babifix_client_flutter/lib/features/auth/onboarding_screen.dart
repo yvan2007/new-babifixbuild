@@ -27,7 +27,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     (
       'assets/animations/providers.json',
       'Artisans vérifiés\nprès de chez vous',
-      'Plomberie, électricité, ménage, peinture — chaque prestataire est contrôlé par notre équipe avant d\'apparaître sur BABIFIX.',
+      'Plomberie, électricité, ménage, peinture : chaque prestataire est contrôlé par notre équipe avant d\'apparaître sur BABIFIX.',
     ),
     (
       'assets/animations/booking.json',
@@ -37,7 +37,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     (
       'assets/animations/payment.json',
       'Payez en francs CFA,\nsimplement',
-      'Orange Money, MTN, Wave ou espèces — payez comme vous voulez, en toute sécurité.',
+      'Orange Money, MTN, Wave ou espèces : payez comme vous voulez, en toute sécurité.',
     ),
   ];
 

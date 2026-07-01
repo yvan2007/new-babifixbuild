@@ -555,7 +555,7 @@ class _StatsCard extends StatelessWidget {
                 child: _MiniStat(
                   icon: Icons.star_rounded,
                   label: 'Note moyenne',
-                  value: rating > 0 ? rating.toStringAsFixed(1) : '—',
+                  value: rating > 0 ? rating.toStringAsFixed(1) : 'N/A',
                   color: _premiumGold,
                 ),
               ),
@@ -751,7 +751,7 @@ class _CommissionCard extends StatelessWidget {
               ),
             ),
             child: Text(
-              'Exemple : pour une prestation à 10 000 FCFA, BABIFIX prélève ${(10000 * rate / 100).round()} FCFA — vous recevez ${(10000 * (100 - rate) / 100).round()} FCFA net.',
+              'Exemple : pour une prestation à 10 000 FCFA, BABIFIX prélève ${(10000 * rate / 100).round()} FCFA : vous recevez ${(10000 * (100 - rate) / 100).round()} FCFA net.',
               style: const TextStyle(
                   fontSize: 12, color: Colors.white54, height: 1.5),
             ),

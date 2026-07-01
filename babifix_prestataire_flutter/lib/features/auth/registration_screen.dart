@@ -146,7 +146,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           _villePin = const LatLng(5.345317, -4.024429); // Abidjan
           if (_villeCtrl.text.trim().isEmpty) _villeCtrl.text = 'Abidjan';
         });
-        _snack('GPS hors Côte d\'Ivoire — position par défaut : Abidjan. Ajustez si besoin.');
+        _snack('GPS hors Côte d\'Ivoire : position par défaut : Abidjan. Ajustez si besoin.');
         return;
       }
       // On pose le pin GPS TOUT DE SUITE (même si le reverse-geocoding échoue).
@@ -830,7 +830,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
             const SizedBox(height: 28),
             _DarkGradientButton(
-              label: 'Suivant — Profil professionnel',
+              label: 'Suivant : Profil professionnel',
               icon: Icons.arrow_forward_rounded,
               onPressed: _nextStep,
             ),
@@ -1137,7 +1137,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
             const SizedBox(height: 28),
             _DarkGradientButton(
-              label: 'Suivant — Documents d\'identité',
+              label: 'Suivant : Documents d\'identité',
               icon: Icons.arrow_forward_rounded,
               onPressed: _nextStep,
             ),

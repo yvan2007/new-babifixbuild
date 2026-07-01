@@ -370,7 +370,7 @@ class MetierProposeAdmin(admin.ModelAdmin):
                 for em in (m.emails or []):
                     send_babifix_email_html(
                         to_email=em,
-                        subject=f"BABIFIX — Le metier « {m.nom} » est disponible !",
+                        subject=f"BABIFIX : Le metier « {m.nom} » est disponible !",
                         html_content=(
                             f"<p>Bonne nouvelle ! Le metier <b>{m.nom}</b> que vous "
                             f"avez demande est desormais disponible sur BABIFIX. "

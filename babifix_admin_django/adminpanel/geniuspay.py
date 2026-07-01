@@ -148,7 +148,7 @@ def _send_receipt_email(payment) -> None:
         )
         send_babifix_email_html(
             to_email=client_user.email,
-            subject=f"BABIFIX — Reçu de paiement {invoice_number}",
+            subject=f"BABIFIX : Reçu de paiement {invoice_number}",
             html_content=html_content,
             attachments=[(f"recu_{invoice_number}.pdf", pdf_bytes, "application/pdf")],
         )

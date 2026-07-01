@@ -630,7 +630,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      'Reservations, litiges, messages et actus — selon votre profil client.',
+                      'Reservations, litiges, messages et actus : selon votre profil client.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -952,7 +952,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         _pushClientNotif(
           category: 'litige',
           title: 'Litige',
-          body: 'Signalement en cours — consultez vos rendez-vous.',
+          body: 'Signalement en cours : consultez vos rendez-vous.',
           actionRoute: 'reservations',
           severity: BabifixNotifSeverity.urgent,
         );
@@ -1640,7 +1640,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         ),
         child: const Icon(Icons.home_work_rounded, color: Colors.white, size: 32),
       ),
-      applicationLegalese: '© 2026 BABIFIX SARL — Plateforme de services à '
+      applicationLegalese: '© 2026 BABIFIX SARL : Plateforme de services à '
           "domicile en Côte d'Ivoire.\nTous droits réservés.",
       children: const [
         SizedBox(height: 16),
@@ -2833,7 +2833,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           ? '${filtered.length} resultat(s) pour "$_searchQuery"'
                           : filtered.isEmpty
                           ? 'Aucun service dans cette categorie'
-                          : 'Reservez en un clic — ${filtered.length} prestation(s)',
+                          : 'Reservez en un clic : ${filtered.length} prestation(s)',
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.35,
@@ -3714,7 +3714,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
       case 'CARTE':
         return 'Carte';
       default:
-        return code.isEmpty ? '—' : code;
+        return code.isEmpty ? 'N/A' : code;
     }
   }
 
@@ -3798,7 +3798,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 ),
                 Text(
-                  '${reservations.length} element(s) — tirez pour actualiser',
+                  '${reservations.length} element(s) : tirez pour actualiser',
                   style: TextStyle(fontSize: 13, color: _textSecondary),
                 ),
               ],
@@ -5163,7 +5163,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      '${formatFcfa(totalEscrow)} bloqués en sécurité — '
+                                      '${formatFcfa(totalEscrow)} bloqués en sécurité : '
                                       'libérés au prestataire une fois la mission terminée.',
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -6458,7 +6458,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.error,
-        message: 'Erreur reseau — reessayez dans un instant.',
+        message: 'Erreur reseau : reessayez dans un instant.',
       );
       }
     }
@@ -6521,7 +6521,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.info,
-        message: 'Paiement especes declare — en attente du prestataire.',
+        message: 'Paiement especes declare : en attente du prestataire.',
       );
         await _loadRemoteData();
       } else {
@@ -6973,7 +6973,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Litige en cours — suivi avec BABIFIX',
+                          'Litige en cours : suivi avec BABIFIX',
                           style: TextStyle(
                             color: _textPrimary,
                             fontWeight: FontWeight.w600,
@@ -7323,7 +7323,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         showBabifixToast(
         context,
         type: BabifixToastType.success,
-        message: 'Prestation confirmee — vous pouvez choisir le mode de paiement.',
+        message: 'Prestation confirmee : vous pouvez choisir le mode de paiement.',
       );
         await _loadRemoteData();
       } else {
@@ -7383,7 +7383,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Paiement — ${r.reference}',
+                  'Paiement : ${r.reference}',
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 17,
@@ -7524,7 +7524,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final uri = Uri(
       scheme: 'mailto',
       path: e,
-      queryParameters: {'subject': 'BABIFIX — Support client'},
+      queryParameters: {'subject': 'BABIFIX : Support client'},
     );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);

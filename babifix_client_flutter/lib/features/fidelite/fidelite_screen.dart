@@ -589,7 +589,7 @@ class _ParrainageCardState extends State<_ParrainageCard> {
 
   @override
   Widget build(BuildContext context) {
-    final code = widget.data['referral_code'] as String? ?? '—';
+    final code = widget.data['referral_code'] as String? ?? 'N/A';
     final credits = widget.data['referral_credits'] as num? ?? 0;
     final filleuls = widget.data['filleuls_count'] as int? ?? 0;
     const purple = Color(0xFF7C3AED);

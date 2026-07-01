@@ -691,7 +691,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       return 'Excellent ! $deltaMin min de moins qu\'à votre dernière prestation.';
     }
     if (deltaMin <= -1) {
-      return '${-deltaMin} min de plus qu\'à la dernière fois — chaque chantier est différent.';
+      return '${-deltaMin} min de plus qu\'à la dernière fois : chaque chantier est différent.';
     }
     return 'Rythme constant avec votre dernière prestation. 👌';
   }
@@ -1365,8 +1365,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         Expanded(
                           child: Text(
                             days == 1
-                                ? 'Disponible demain${dateLabel.isNotEmpty ? ' ($dateLabel)' : ''} — démarrage le jour J'
-                                : 'Disponible dans $days jours${dateLabel.isNotEmpty ? ' ($dateLabel)' : ''} — démarrage le jour J',
+                                ? 'Disponible demain${dateLabel.isNotEmpty ? ' ($dateLabel)' : ''} : démarrage le jour J'
+                                : 'Disponible dans $days jours${dateLabel.isNotEmpty ? ' ($dateLabel)' : ''} : démarrage le jour J',
                             style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
@@ -1446,7 +1446,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Travaux terminés — en attente de confirmation du client.',
+                        'Travaux terminés : en attente de confirmation du client.',
                         style: TextStyle(fontSize: 12.5, color: BabifixDesign.ciBlue, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -1924,7 +1924,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         showBabifixToast(
         context,
         type: BabifixToastType.success,
-        message: 'Travaux terminés — en attente de confirmation du client.',
+        message: 'Travaux terminés : en attente de confirmation du client.',
       );
         _loadRequests(); // rafraîchit la liste (l'item passe au bon endroit)
       } else if (mounted) {
@@ -1965,7 +1965,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         showBabifixToast(
         context,
         type: BabifixToastType.success,
-        message: 'Espèces confirmées — paiement validé',
+        message: 'Espèces confirmées : paiement validé',
       );
       } else if (mounted) {
         showBabifixToast(

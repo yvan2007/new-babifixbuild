@@ -161,7 +161,7 @@ class _EarningsScreenState extends State<EarningsScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-            'Export CSV prêt — ouvrez l\'URL dans votre navigateur',
+            'Export CSV prêt : ouvrez l\'URL dans votre navigateur',
           ),
           action: SnackBarAction(label: 'OK', onPressed: () {}),
         ),

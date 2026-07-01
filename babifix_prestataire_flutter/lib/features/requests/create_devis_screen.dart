@@ -300,7 +300,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
               children: [
                 const Expanded(
                   child: Text(
-                    'Photos (optionnel) — visibles par le client',
+                    'Photos (optionnel) : visibles par le client',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),

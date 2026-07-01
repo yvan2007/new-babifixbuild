@@ -276,8 +276,8 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
                   Expanded(
                     child: Text(
                       waitDays == 1
-                          ? 'Disponible demain — le bouton « Démarrer » apparaîtra le jour J.'
-                          : 'Disponible dans $waitDays jours — le bouton « Démarrer » apparaîtra le jour J.',
+                          ? 'Disponible demain : le bouton « Démarrer » apparaîtra le jour J.'
+                          : 'Disponible dans $waitDays jours : le bouton « Démarrer » apparaîtra le jour J.',
                       style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,

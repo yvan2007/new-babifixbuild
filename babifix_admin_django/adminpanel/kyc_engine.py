@@ -183,20 +183,20 @@ def _pillow_checks(raw: bytes, label: str) -> list[CheckResult]:
         if w < 400 or h < 300:
             results.append(CheckResult(
                 passed=False, score_contribution=0,
-                label=f'{label} — résolution',
+                label=f'{label} : résolution',
                 detail=f'Image trop petite ({w}×{h}px). Minimum requis : 400×300.',
                 is_blocking=True,
             ))
         elif w < 640 or h < 480:
             results.append(CheckResult(
                 passed=True, score_contribution=3,
-                label=f'{label} — résolution',
+                label=f'{label} : résolution',
                 detail=f'Résolution acceptable ({w}×{h}px). Une image plus nette serait préférable.',
             ))
         else:
             results.append(CheckResult(
                 passed=True, score_contribution=7,
-                label=f'{label} — résolution',
+                label=f'{label} : résolution',
                 detail=f'Résolution correcte ({w}×{h}px).',
             ))
 
@@ -207,21 +207,21 @@ def _pillow_checks(raw: bytes, label: str) -> list[CheckResult]:
         if mean_bright < 40:
             results.append(CheckResult(
                 passed=False, score_contribution=0,
-                label=f'{label} — luminosité',
+                label=f'{label} : luminosité',
                 detail=f'Image trop sombre (luminosité {mean_bright:.0f}/255). Prenez la photo dans un endroit bien éclairé.',
                 is_blocking=False,
             ))
         elif mean_bright > 230:
             results.append(CheckResult(
                 passed=False, score_contribution=0,
-                label=f'{label} — luminosité',
+                label=f'{label} : luminosité',
                 detail=f'Image surexposée (luminosité {mean_bright:.0f}/255). Évitez la lumière directe sur le document.',
                 is_blocking=False,
             ))
         else:
             results.append(CheckResult(
                 passed=True, score_contribution=5,
-                label=f'{label} — luminosité',
+                label=f'{label} : luminosité',
                 detail=f'Luminosité correcte ({mean_bright:.0f}/255).',
             ))
 
@@ -234,20 +234,20 @@ def _pillow_checks(raw: bytes, label: str) -> list[CheckResult]:
             if variance < 200:
                 results.append(CheckResult(
                     passed=False, score_contribution=0,
-                    label=f'{label} — netteté',
+                    label=f'{label} : netteté',
                     detail=f'Image floue (variance {variance:.0f}). Stabilisez l\'appareil et refaites la photo.',
                     is_blocking=False,
                 ))
             elif variance < 500:
                 results.append(CheckResult(
                     passed=True, score_contribution=4,
-                    label=f'{label} — netteté',
+                    label=f'{label} : netteté',
                     detail=f'Netteté acceptable (variance {variance:.0f}).',
                 ))
             else:
                 results.append(CheckResult(
                     passed=True, score_contribution=8,
-                    label=f'{label} — netteté',
+                    label=f'{label} : netteté',
                     detail=f'Image nette (variance {variance:.0f}).',
                 ))
 
@@ -255,7 +255,7 @@ def _pillow_checks(raw: bytes, label: str) -> list[CheckResult]:
         logger.warning(f'Pillow check failed for {label}: {e}')
         results.append(CheckResult(
             passed=False, score_contribution=0,
-            label=f'{label} — lecture image',
+            label=f'{label} : lecture image',
             detail='Impossible de lire l\'image. Vérifiez le format (JPEG/PNG requis).',
             is_blocking=True,
         ))
@@ -291,7 +291,7 @@ def _opencv_face_check(raw_bytes: bytes, label: str) -> tuple[CheckResult, int]:
         if img is None:
             return CheckResult(
                 passed=False, score_contribution=0,
-                label=f'{label} — détection visage',
+                label=f'{label} : détection visage',
                 detail='Image illisible par le moteur de détection.',
             ), 0
 
@@ -306,33 +306,33 @@ def _opencv_face_check(raw_bytes: bytes, label: str) -> tuple[CheckResult, int]:
         if nb == 0:
             return CheckResult(
                 passed=False, score_contribution=0,
-                label=f'{label} — détection visage',
+                label=f'{label} : détection visage',
                 detail='Aucun visage détecté. Assurez-vous que votre visage / la photo sur la CNI est bien visible.',
             ), 0
         elif nb == 1:
             return CheckResult(
                 passed=True, score_contribution=15,
-                label=f'{label} — détection visage',
+                label=f'{label} : détection visage',
                 detail='Visage détecté avec succès.',
             ), 1
         else:
             return CheckResult(
                 passed=False, score_contribution=5,
-                label=f'{label} — détection visage',
+                label=f'{label} : détection visage',
                 detail=f'{nb} visages détectés. Un seul est attendu.',
             ), nb
 
     except ImportError:
         return CheckResult(
             passed=True, score_contribution=5,  # pas pénalisé si OpenCV absent
-            label=f'{label} — détection visage',
+            label=f'{label} : détection visage',
             detail='Détection OpenCV non disponible (non installé). Vérification manuelle requise.',
         ), -1
     except Exception as e:
         logger.warning(f'OpenCV face check error for {label}: {e}')
         return CheckResult(
             passed=True, score_contribution=0,
-            label=f'{label} — détection visage',
+            label=f'{label} : détection visage',
             detail=f'Erreur de détection : {e}',
         ), -1
 

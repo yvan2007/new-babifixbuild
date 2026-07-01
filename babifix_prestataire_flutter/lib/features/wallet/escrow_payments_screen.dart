@@ -1,4 +1,4 @@
-﻿/// Écran "Mes paiements en attente" — liste des montants bloqués en
+﻿/// Écran "Mes paiements en attente" : liste des montants bloqués en
 /// escrow + état (acompte reçu / intervention en cours / en attente de
 /// confirmation client) avec montant net à recevoir par réservation.
 ///
@@ -300,7 +300,7 @@ class _EscrowEntry {
     }
     if (quote.acompteValide) {
       return (
-        label: 'Acompte reçu — prêt à démarrer',
+        label: 'Acompte reçu : prêt à démarrer',
         color: BabifixDesign.ciGreen,
         icon: Icons.check_circle_outline,
         progress: 0.30,

@@ -24,8 +24,8 @@
         {% for client in clients %}
         <tr class="data-row">
           <td><span class="cell-name">{{ client.nom }}</span></td>
-          <td><span class="cell-sub">{{ client.email|default:"—" }}</span></td>
-          <td>{{ client.ville|default:"—" }}</td>
+          <td><span class="cell-sub">{{ client.email|default:"N/A" }}</span></td>
+          <td>{{ client.ville|default:"N/A" }}</td>
           <td><span class="count-badge">{{ client.reservations_count|default:0 }}</span></td>
           <td><strong>{{ client.depense|default:0|floatformat:0 }} FCFA</strong></td>
           <td><span class="cell-date">{{ client.created_at|date:"d/m/Y" }}</span></td>

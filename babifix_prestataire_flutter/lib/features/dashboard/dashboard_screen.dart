@@ -517,7 +517,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                 const SizedBox(height: 20),
                 // ── Graphique revenus ────────────────────────────────────────
                 Text(
-                  'Revenus — 6 derniers mois',
+                  'Revenus : 6 derniers mois',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 12),

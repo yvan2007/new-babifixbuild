@@ -378,7 +378,7 @@ def api_client_open_dispute(request, reference):
         )
         res.dispute_ouverte = True
         res.save(update_fields=["dispute_ouverte"])
-        Notification.objects.create(title=f"Nouveau litige {ref_litige} — {reference}")
+        Notification.objects.create(title=f"Nouveau litige {ref_litige} : {reference}")
     return JsonResponse({"ok": True, "litige_reference": ref_litige})
 
 

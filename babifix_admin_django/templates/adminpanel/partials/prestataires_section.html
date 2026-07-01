@@ -38,13 +38,13 @@
               {% endif %}
             </div>
           </td>
-          <td><span class="tag tag--category">{{ p.specialite|default:"—" }}</span></td>
-          <td>{{ p.ville|default:"—" }}</td>
+          <td><span class="tag tag--category">{{ p.specialite|default:"N/A" }}</span></td>
+          <td>{{ p.ville|default:"N/A" }}</td>
           <td>
             {% if p.note_moyenne %}
             <span class="rating-badge">★ {{ p.note_moyenne|floatformat:1 }}</span>
             {% else %}
-            <span class="text-muted">—</span>
+            <span class="text-muted">-</span>
             {% endif %}
           </td>
           <td>

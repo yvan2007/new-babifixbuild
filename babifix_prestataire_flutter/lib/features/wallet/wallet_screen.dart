@@ -92,7 +92,7 @@ IconData _txIcon(String type) {
   return switch (status) {
     'pending' => ('En attente', const Color(0xFFF59E0B)),
     'processing' => ('Versement en cours', const Color(0xFF4CC9F0)),
-    'failed' => ('Échoué — recrédité', const Color(0xFFEF4444)),
+    'failed' => ('Échoué : recrédité', const Color(0xFFEF4444)),
     _ => ('', Colors.grey),
   };
 }

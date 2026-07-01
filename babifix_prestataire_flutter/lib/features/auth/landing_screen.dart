@@ -172,7 +172,7 @@ class LandingScreen extends StatelessWidget {
                           color: const Color(0xFF059669),
                           title: 'Paiement sécurisé FCFA',
                           subtitle:
-                              'Orange Money, MTN, Wave, Moov — paiement après validation',
+                              'Orange Money, MTN, Wave, Moov : paiement après validation',
                         ),
                         const _Divider(),
                         _BenefitRow(

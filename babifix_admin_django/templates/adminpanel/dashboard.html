@@ -5,7 +5,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ page_heading }} — BABIFIX Admin</title>
+  <title>{{ page_heading }} : BABIFIX Admin</title>
   <link rel="icon" type="image/png" href="{% static 'adminpanel/logo_babifix.png' %}">
   <link rel="shortcut icon" type="image/png" href="{% static 'adminpanel/logo_babifix.png' %}">
   <link rel="apple-touch-icon" href="{% static 'adminpanel/logo_babifix.png' %}">
@@ -31,7 +31,7 @@
         <span class="brand-tag">Admin</span>
       </div>
     </div>
-    <p class="subtitle">Côte d'Ivoire · <strong>FCFA</strong> — pilotage, validation, paiements (sans accès au chat client ↔ prestataire)</p>
+    <p class="subtitle">Côte d'Ivoire · <strong>FCFA</strong> : pilotage, validation, paiements (sans accès au chat client ↔ prestataire)</p>
 
     <nav class="side-nav">
       <a href="/?section=dashboard{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" class="nav-link {% if section == 'dashboard' %}active{% endif %}">
@@ -96,7 +96,7 @@
 
     <div class="crud-panel crud-panel-inline">
       <p class="crud-panel-title">CRUD sur cette page</p>
-      <p class="crud-panel-desc">Ajouter, modifier, supprimer sans quitter le dashboard — connecté en tant que <strong>{{ request.user.username }}</strong>.</p>
+      <p class="crud-panel-desc">Ajouter, modifier, supprimer sans quitter le dashboard : connecté en tant que <strong>{{ request.user.username }}</strong>.</p>
     </div>
 
     <div class="sidebar-footer">
@@ -104,7 +104,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
         <span>API + WebSocket</span>
       </div>
-      <p class="sync-hint">Les apps utilisent l'API REST ; ce dashboard écoute aussi le flux WebSocket <code>/ws/admin/events/</code> — une action API ou un autre onglet admin déclenche toast + actualisation.</p>
+      <p class="sync-hint">Les apps utilisent l'API REST ; ce dashboard écoute aussi le flux WebSocket <code>/ws/admin/events/</code> : une action API ou un autre onglet admin déclenche toast + actualisation.</p>
       <p class="build-stamp" title="Si cette ligne est absente, vous n'êtes peut‑être pas sur le bon projet Django">Build panel · <strong>CI / FCFA</strong> · fév. 2026</p>
     </div>
   </aside>
@@ -149,7 +149,7 @@
         </button>
         <span class="region-badge" title="Devise et zone métier">🇨🇮 FCFA</span>
         <div id="htmx-stats-spinner" class="htmx-indicator htmx-spinner" title="Mise à jour KPI (HTMX)"></div>
-        <div id="live-feed-status" class="live-feed-status" title="WebSocket — mises à jour instantanées (API + ce dashboard)">
+        <div id="live-feed-status" class="live-feed-status" title="WebSocket : mises à jour instantanées (API + ce dashboard)">
           <span class="live-dot" aria-hidden="true"></span>
           <span class="live-feed-label">Temps réel</span>
         </div>
@@ -410,7 +410,7 @@
       <article class="card card-elevate">
         <div class="providers-section-header">
           <div>
-            <h3>Liste — vérification &amp; visibilité app</h3>
+            <h3>Liste : vérification &amp; visibilité app</h3>
             <p class="psh-sub">Tant que le statut n'est pas <strong>Valide</strong>, le profil n'apparaît pas côté client.</p>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
@@ -459,7 +459,7 @@
                 <div class="kanban-card-parties">
                   <div class="kanban-party">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    <span>{{ p.ville|default:"—" }}</span>
+                    <span>{{ p.ville|default:"N/A" }}</span>
                   </div>
                   {% if p.category %}
                   <div class="kanban-party kanban-party--provider">
@@ -594,7 +594,7 @@
               </td>
               <td>
                 <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start;">
-                  <span class="provider-specialty">{{ p.specialite|default:"—" }}</span>
+                  <span class="provider-specialty">{{ p.specialite|default:"N/A" }}</span>
                   {% if p.tarif_horaire %}
                   <span class="tarif-badge">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
@@ -608,7 +608,7 @@
               <td>
                 <span class="city-tag">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  {{ p.ville|default:"—" }}
+                  {{ p.ville|default:"N/A" }}
                 </span>
               </td>
               <td>
@@ -652,7 +652,7 @@
                   <span>{{ p.refusal_reason|truncatechars:180 }}</span>
                 </div>
                 {% else %}
-                <span class="muted">—</span>
+                <span class="muted">-</span>
                 {% endif %}
               </td>
               <td class="td-actions td-actions--column">
@@ -699,7 +699,7 @@
                     <input type="hidden" name="provider_id" value="{{ p.id }}">
                     <label class="refuse-label">Motif de refus</label>
                     <select class="refuse-preset input-reason" name="reason" required>
-                      <option value="">— Choisir un motif —</option>
+                      <option value="">Choisir un motif -</option>
                       <optgroup label="Motifs fréquents">
                         <option value="Documents d'identité (CNI) illisibles ou expirés">CNI illisible ou expirée</option>
                         <option value="Photo de profil non conforme (floue, non visible)">Photo de profil non conforme</option>
@@ -912,13 +912,13 @@
                       <div class="dossier-info-item">
                         <span class="dossier-info-label">Email</span>
                         <span class="dossier-info-value">
-                          <a href="mailto:{{ p.user.email|default:'' }}" style="color:inherit;">{{ p.user.email|default:"—" }}</a>
+                          <a href="mailto:{{ p.user.email|default:'' }}" style="color:inherit;">{{ p.user.email|default:"N/A" }}</a>
                         </span>
                       </div>
                       {% if p.user.profile.phone_e164|default:'' or p.phone_e164|default:'' %}
                       <div class="dossier-info-item">
                         <span class="dossier-info-label">Téléphone</span>
-                        <span class="dossier-info-value">{{ p.phone_e164|default:p.user.profile.phone_e164|default:"—" }}</span>
+                        <span class="dossier-info-value">{{ p.phone_e164|default:p.user.profile.phone_e164|default:"N/A" }}</span>
                       </div>
                       {% endif %}
                       <div class="dossier-info-item">
@@ -1634,7 +1634,7 @@
                 {% elif l.decision == 'SPLIT' or l.decision == 'Partage partiel' %}
                   <span class="status-badge status-badge--suspended"><span class="status-dot"></span>Partage partiel</span>
                 {% else %}
-                  <span class="muted">{{ l.decision|default:"—" }}</span>
+                  <span class="muted">{{ l.decision|default:"N/A" }}</span>
                 {% endif %}
               </td>
               <td>
@@ -1793,7 +1793,7 @@
             <tr>
               <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="client" value="{{ c.id }}" onchange="babifixBulkUpdate('client')"></td>
               <td>{{ c.nom }}</td>
-              <td title="Identifiant masqué (stats)">{% if c.email %}{% with e=c.email %}{{ e|slice:":2" }}•••@•••{% endwith %}{% else %}—{% endif %}</td>
+              <td title="Identifiant masqué (stats)">{% if c.email %}{% with e=c.email %}{{ e|slice:":2" }}•••@•••{% endwith %}{% else %}-{% endif %}</td>
               <td>{{ c.ville }}</td><td>{{ c.reservations }}</td><td>{{ c.depense }}</td>
               <td class="td-actions">
                 <a href="?section=clients&amp;edit_client={{ c.id }}" class="link-edit">Modifier</a>
@@ -2265,7 +2265,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="7">Aucune actualité — la liste commence vide.</td></tr>
+            <tr><td colspan="7">Aucune actualité : la liste commence vide.</td></tr>
             {% endfor %}
           </tbody>
         </table>

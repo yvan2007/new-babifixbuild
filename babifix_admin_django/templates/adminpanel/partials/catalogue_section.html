@@ -43,7 +43,7 @@
   {% if catalogue_selected %}
   <!-- Formulaire ajout / édition --------------------------------------------->
   <article class="card card-elevate crud-form-card">
-    <h3>{% if edit_catalogue_id %}Modifier la fourniture{% else %}Ajouter une fourniture{% endif %} — {{ catalogue_selected.nom }}</h3>
+    <h3>{% if edit_catalogue_id %}Modifier la fourniture{% else %}Ajouter une fourniture{% endif %} : {{ catalogue_selected.nom }}</h3>
     <p class="section-help">Type = section du devis. Le prix est <strong>indicatif</strong> : le prestataire pourra l'ajuster.</p>
     <form method="post" class="crud-form">
       {% csrf_token %}
@@ -90,9 +90,9 @@
               <strong>{{ it.nom }}</strong>
               {% if it.description %}<br><span class="slug-hint">{{ it.description|truncatechars:70 }}</span>{% endif %}
             </td>
-            <td>{{ it.unite|default:"—" }}</td>
+            <td>{{ it.unite|default:"N/A" }}</td>
             <td><strong>{{ it.prix_unitaire_indicatif|floatformat:0 }}</strong> FCFA</td>
-            <td>{{ it.marque|default:"—" }}</td>
+            <td>{{ it.marque|default:"N/A" }}</td>
             <td>{% if it.actif %}<span class="pill pill-ok">Actif</span>{% else %}<span class="pill">Inactif</span>{% endif %}</td>
             <td class="td-actions">
               <a href="?section=catalogue&cat_id={{ catalogue_selected.id }}&edit_catalogue={{ it.id }}" class="link-edit">Modifier</a>

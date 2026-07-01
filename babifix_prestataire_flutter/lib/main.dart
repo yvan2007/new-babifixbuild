@@ -821,7 +821,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
             _pushPrestataireNotif(
               category: 'litige',
               title: 'Litige',
-              body: 'Alerte litige — vérifiez la mission concernée.',
+              body: 'Alerte litige : vérifiez la mission concernée.',
               actionRoute: 'requests',
               severity: BabifixNotifSeverity.urgent,
             );

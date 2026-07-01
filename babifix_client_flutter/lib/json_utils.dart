@@ -27,7 +27,7 @@ String babifixFormatApiErrorBody(String body) {
           parts.add('$k: $v');
         }
       });
-      if (parts.isNotEmpty) return parts.join(' — ');
+      if (parts.isNotEmpty) return parts.join(' : ');
     }
     if (decoded is List && decoded.isNotEmpty) {
       return decoded.map((e) => '$e').join(' ');

@@ -127,7 +127,7 @@ def email_new_reservation(provider: Provider, reservation: Reservation) -> None:
         return
     send_babifix_email(
         to_email=provider.user.email,
-        subject=f"Nouvelle demande de service — {reservation.title or reservation.reference}",
+        subject=f"Nouvelle demande de service : {reservation.title or reservation.reference}",
         body=(
             f"Bonjour {provider.nom},\n\n"
             f"Vous avez reçu une nouvelle demande de service.\n\n"
@@ -148,7 +148,7 @@ def email_mission_completed(reservation: Reservation) -> None:
         return
     send_babifix_email(
         to_email=client_user.email,
-        subject="Votre mission BABIFIX est terminée — Évaluez votre prestataire",
+        subject="Votre mission BABIFIX est terminée : Évaluez votre prestataire",
         body=(
             f"Bonjour,\n\n"
             f'Votre mission "{reservation.title or reservation.reference}" '
@@ -988,7 +988,7 @@ def send_booking_done_email(reservation: "Reservation") -> None:
         except Exception:
             pass
 
-    subject = f"Mission terminée — {reservation.title or reservation.reference}"
+    subject = f"Mission terminée : {reservation.title or reservation.reference}"
     date_str = ""
     if hasattr(reservation, "date_mission") and reservation.date_mission:
         date_str = reservation.date_mission.strftime("%d/%m/%Y")
@@ -1019,7 +1019,7 @@ def send_dispute_opened_email(
     """Email à l'admin quand un litige est ouvert."""
     from django.conf import settings
 
-    subject = f"Litige ouvert — Réservation {reservation.reference}"
+    subject = f"Litige ouvert : Réservation {reservation.reference}"
     admin_url = f"https://{getattr(settings, 'ALLOWED_HOSTS', ['babifix.ci'])[0]}/admin/adminpanel/dispute/"
     html_content = _render_email_template(
         "dispute_opened.html",

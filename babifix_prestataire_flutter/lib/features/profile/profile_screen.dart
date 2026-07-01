@@ -1118,7 +1118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               applicationName: 'BABIFIX Prestataire',
                               applicationVersion: '1.0.0',
                               applicationIcon: const CircleAvatar(backgroundImage: AssetImage(_logoAsset)),
-                              children: const [Text('Application prestataire BABIFIX — missions, gains et messagerie.')],
+                              children: const [Text('Application prestataire BABIFIX : missions, gains et messagerie.')],
                             ),
                           ),
 
@@ -1518,7 +1518,7 @@ class _KycStatusTileState extends State<_KycStatusTile> {
   Widget build(BuildContext context) {
     final Map<String, _KycMeta> meta = {
       'loading':       _KycMeta(Icons.hourglass_empty_rounded, const Color(0xFF94A3B8), 'Vérification KYC', 'Chargement…'),
-      'not_submitted': _KycMeta(Icons.shield_outlined, const Color(0xFFF59E0B), 'Vérification KYC', 'Non soumis — requis pour activer votre profil'),
+      'not_submitted': _KycMeta(Icons.shield_outlined, const Color(0xFFF59E0B), 'Vérification KYC', 'Non soumis : requis pour activer votre profil'),
       'pending':       _KycMeta(Icons.hourglass_top_rounded, const Color(0xFF4CC9F0), 'KYC en attente', 'Votre dossier est en cours de vérification'),
       'under_review':  _KycMeta(Icons.manage_search_rounded, const Color(0xFFF59E0B), 'KYC en examen', 'Notre équipe examine votre dossier'),
       'approved':      _KycMeta(Icons.verified_rounded, const Color(0xFF22C55E), 'Identité vérifiée ✓', 'Votre KYC a été approuvé'),

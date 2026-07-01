@@ -268,7 +268,7 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
                       categorieLabel:
                           (d['categorie_label'] ?? 'Litige').toString(),
                       motif: (d['motif'] ?? '').toString(),
-                      clientName: (d['client_name'] ?? '—').toString(),
+                      clientName: (d['client_name'] ?? 'N/A').toString(),
                       reservationTitle:
                           (d['reservation_title'] ?? '').toString(),
                       priorite: priority,
@@ -349,7 +349,7 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Client : ${d['client_name'] ?? '—'}',
+                'Client : ${d['client_name'] ?? 'N/A'}',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.65),
                   fontSize: 12.5,

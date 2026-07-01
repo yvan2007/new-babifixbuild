@@ -56,7 +56,7 @@ class _ReceiptPdfScreenState extends State<ReceiptPdfScreen> {
       await f.writeAsBytes(_bytes!);
       await Share.shareXFiles([XFile(f.path)],
           subject:
-              'Reçu BABIFIX — ${widget.reservationReference}');
+              'Reçu BABIFIX : ${widget.reservationReference}');
     } catch (_) {}
   }
 

@@ -53,7 +53,7 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Pas de connexion — affichage des données en cache',
+                    'Pas de connexion : affichage des données en cache',
                     style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),

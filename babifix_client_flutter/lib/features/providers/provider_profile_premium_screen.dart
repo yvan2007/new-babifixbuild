@@ -1,4 +1,4 @@
-﻿/// ProviderProfilePremiumScreen — Refonte premium de la fiche prestataire.
+﻿/// ProviderProfilePremiumScreen : Refonte premium de la fiche prestataire.
 ///
 /// Sections (de haut en bas, dans un SliverList) :
 ///  1. Hero collapsing : photo de couverture + parallax + photo ronde
@@ -601,21 +601,21 @@ class _ProviderProfilePremiumScreenState
       child: Row(
         children: [
           _statCell(
-            value: note > 0 ? (note as num).toStringAsFixed(1) : '—',
+            value: note > 0 ? (note as num).toStringAsFixed(1) : 'N/A',
             label: '$nbAvis avis',
             icon: Icons.star_rounded,
             color: const Color(0xFFF59E0B),
           ),
           _statDivider(),
           _statCell(
-            value: nbMissions > 0 ? '$nbMissions' : '—',
+            value: nbMissions > 0 ? '$nbMissions' : 'N/A',
             label: 'missions',
             icon: Icons.check_circle_rounded,
             color: BabifixDesign.cyan,
           ),
           _statDivider(),
           _statCell(
-            value: yearsExp > 0 ? '$yearsExp an${yearsExp > 1 ? 's' : ''}' : '—',
+            value: yearsExp > 0 ? '$yearsExp an${yearsExp > 1 ? 's' : ''}' : 'N/A',
             label: 'expérience',
             icon: Icons.workspace_premium_rounded,
             color: const Color(0xFF7C3AED),

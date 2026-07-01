@@ -100,7 +100,7 @@ def _notify_provider_funds_received(reservation, net_amount: float) -> None:
         """
         send_babifix_email_html(
             to_email=presta.email,
-            subject=f"BABIFIX — Versement reçu ({montant_txt} FCFA)",
+            subject=f"BABIFIX : Versement reçu ({montant_txt} FCFA)",
             html_content=html,
         )
     except Exception:

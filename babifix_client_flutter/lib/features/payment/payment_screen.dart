@@ -528,7 +528,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                   _PaymentMethodTile(
                     id: 'ESPECES',
                     label: 'Espèces',
-                    sub: 'Règlement à la livraison — validé par l\'admin',
+                    sub: 'Règlement à la livraison : validé par l\'admin',
                     icon: Icons.payments_rounded,
                     iconColor: BabifixDesign.ciGreen,
                     selected: _method == 'ESPECES',

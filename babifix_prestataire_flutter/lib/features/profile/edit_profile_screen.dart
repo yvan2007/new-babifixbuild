@@ -164,8 +164,8 @@ class _EditProfilePrestataireScreenState
         });
         showBabifixToast(context, type: BabifixToastType.info,
             message: outOfCiv
-                ? 'GPS hors Côte d\'Ivoire — position par défaut : Abidjan. Ajustez si besoin.'
-                : 'Position enregistrée — vous êtes visible sur la carte.');
+                ? 'GPS hors Côte d\'Ivoire : position par défaut : Abidjan. Ajustez si besoin.'
+                : 'Position enregistrée : vous êtes visible sur la carte.');
       } else {
         if (mounted) showBabifixToast(context, type: BabifixToastType.error,
             message: 'Échec de l\'enregistrement (${res.statusCode}).');
@@ -430,8 +430,8 @@ class _EditProfilePrestataireScreenState
                       Expanded(
                         child: Text(
                           _lat != null && _lon != null
-                              ? 'Position partagée — vous apparaissez sur la carte des clients.'
-                              : 'Position non partagée — vous n\'apparaissez pas encore sur la carte.',
+                              ? 'Position partagée : vous apparaissez sur la carte des clients.'
+                              : 'Position non partagée : vous n\'apparaissez pas encore sur la carte.',
                           style: const TextStyle(fontSize: 12.5, height: 1.3),
                         ),
                       ),
