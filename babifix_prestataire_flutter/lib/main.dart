@@ -909,7 +909,13 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         severity: BabifixNotifSeverity.important,
       );
       if (!mounted) return;
-      setState(() => current = 'dashboard');
+      // Compte approuvé EN TEMPS RÉEL (alors que le presta est sur l'écran
+      // d'attente) : on NE va PAS directement au dashboard. On repasse par
+      // _bootstrapSession pour appliquer le MÊME gate que le login → la charte
+      // (contrat) est exigée AVANT toute navigation si elle n'a jamais été
+      // signée. Avant : on filait au dashboard, le contrat n'était demandé qu'à
+      // la reconnexion.
+      _bootstrapSession();
       _refreshUnreadChat();
       return;
     }
