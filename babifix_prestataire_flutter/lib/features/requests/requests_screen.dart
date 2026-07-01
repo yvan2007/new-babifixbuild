@@ -2143,6 +2143,11 @@ class _SafeImage extends StatelessWidget {
   Widget build(BuildContext context) {
     if (src.isEmpty) return _placeholder(size);
 
+    // Décodage à la taille d'AFFICHAGE (×3 pour la densité écran) au lieu de la
+    // pleine résolution : une CNI de plusieurs Mo décodée en entier sature la
+    // mémoire GPU au scroll → écran noir. cacheWidth/Height corrige ça.
+    final int decodePx = (size * 3).round();
+
     // Cas 1 : data URI base64
     if (src.startsWith('data:image/')) {
       try {
@@ -2152,6 +2157,8 @@ class _SafeImage extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
+          cacheWidth: decodePx,
+          cacheHeight: decodePx,
           errorBuilder: (_, __, ___) => _placeholder(size),
         );
       } catch (_) {
@@ -2166,6 +2173,8 @@ class _SafeImage extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
+        cacheWidth: decodePx,
+        cacheHeight: decodePx,
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : Container(
@@ -2192,6 +2201,8 @@ class _SafeImage extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
+          cacheWidth: decodePx,
+          cacheHeight: decodePx,
           errorBuilder: (_, __, ___) => _placeholder(size),
         );
       }
