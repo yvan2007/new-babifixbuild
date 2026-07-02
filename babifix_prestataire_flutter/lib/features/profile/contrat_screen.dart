@@ -85,6 +85,18 @@ class _ContratScreenState extends State<ContratScreen>
     }
   }
 
+  /// Débloque le bouton « J'accepte » quand le contenu TIENT À L'ÉCRAN (aucun
+  /// scroll possible). Sans ça, l'événement de scroll qui active le bouton ne
+  /// se déclenche jamais → le prestataire reste bloqué, ne peut pas accepter,
+  /// et le contrat n'est jamais signé (ni côté app, ni côté admin).
+  void _checkIfScrollNeeded() {
+    if (_scrolledToBottom || !mounted) return;
+    if (_scrollCtrl.hasClients &&
+        _scrollCtrl.position.maxScrollExtent <= 40) {
+      setState(() => _scrolledToBottom = true);
+    }
+  }
+
   @override
   void dispose() {
     _scrollCtrl.removeListener(_onScroll);
@@ -106,6 +118,12 @@ class _ContratScreenState extends State<ContratScreen>
         setState(() => _acceptedAt = serverDate);
         await prefs.setString(_kAcceptedKey, serverDate.toIso8601String());
       }
+    }
+    // Après le rendu du contenu : si tout tient à l'écran, on débloque le
+    // bouton « J'accepte » sans exiger un scroll impossible.
+    if (mounted) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _checkIfScrollNeeded());
     }
   }
 
