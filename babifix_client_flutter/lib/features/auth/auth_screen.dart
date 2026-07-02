@@ -42,6 +42,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   bool hidden = true;
   bool hidden2 = true;
   bool _loading = false;
+  // Consentement obligatoire à l'inscription (CGU + politique de confidentialité).
+  bool _acceptedTerms = false;
 
   bool _showBiometricLogin = false;
   bool _isLoading = true;
@@ -120,6 +122,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   Future<void> _doRegister() async {
     if (_loading) return;
     if (!(_registerFormKey.currentState?.validate() ?? false)) return;
+    // Consentement obligatoire : pas d'inscription sans acceptation.
+    if (!_acceptedTerms) {
+      _snack('Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialité pour continuer.');
+      return;
+    }
     setState(() => _loading = true);
     final err = await BabifixUserStore.register(
       email: emailCtrl.text.trim(),
@@ -709,21 +716,56 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
               return null;
             },
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          // Consentement obligatoire (case à cocher) avant la création du compte.
+          InkWell(
+            onTap: () => setState(() => _acceptedTerms = !_acceptedTerms),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: _acceptedTerms,
+                      onChanged: (v) =>
+                          setState(() => _acceptedTerms = v ?? false),
+                      activeColor: _blue,
+                      checkColor: Colors.white,
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text.rich(
+                        TextSpan(
+                          text:
+                              'J\'accepte les Conditions d\'utilisation et la Politique de confidentialité de BABIFIX.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.7),
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           _GradientButton(
             label: 'Créer mon compte',
             loading: _loading,
             onPressed: _doRegister,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'En créant un compte, vous acceptez nos Conditions d\'utilisation et notre Politique de confidentialité.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.white.withValues(alpha: 0.3),
-              height: 1.5,
-            ),
           ),
         ],
       ),
