@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
@@ -177,6 +179,22 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
   // ── Soumission ────────────────────────────────────────────────────────────
   bool _submitting = false;
+  // Consentement obligatoire (CGU + politique de confidentialité) avant l'envoi.
+  bool _acceptedTerms = false;
+  static const String _cguUrl = 'https://babifix.ci/cgu/';
+  static const String _privacyUrl = 'https://babifix.ci/confidentialite/';
+  final TapGestureRecognizer _cguTap = TapGestureRecognizer();
+  final TapGestureRecognizer _privacyTap = TapGestureRecognizer();
+
+  Future<void> _openLegal(String url) async {
+    try {
+      final ok = await launchUrl(Uri.parse(url),
+          mode: LaunchMode.externalApplication);
+      if (!ok) _snack('Impossible d\'ouvrir la page.');
+    } catch (_) {
+      _snack('Impossible d\'ouvrir la page.');
+    }
+  }
 
   final ImagePicker _picker = ImagePicker();
 
@@ -190,6 +208,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       vsync: this,
       duration: const Duration(milliseconds: 280),
     )..forward();
+    _cguTap.onTap = () => _openLegal(_cguUrl);
+    _privacyTap.onTap = () => _openLegal(_privacyUrl);
     _hydrateInitialProvider();
     // Toujours vérifier/charger les catégories — même si preloadedCategories est non-vide,
     // les catégories pré-chargées sont parfois arrivées après initState de main.dart.
@@ -352,6 +372,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     _pass2Ctrl.dispose();
     _villeCtrl.dispose();
     _bioCtrl.dispose();
+    _cguTap.dispose();
+    _privacyTap.dispose();
     super.dispose();
   }
 
@@ -396,6 +418,11 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         _snack('Importez votre CNI verso pour continuer.');
         return;
       }
+    }
+    // Consentement obligatoire.
+    if (!_acceptedTerms) {
+      _snack('Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialité pour continuer.');
+      return;
     }
     setState(() => _submitting = true);
     final result = await _submitRegistration();
@@ -1315,7 +1342,74 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                 '(ARTCI). Aucun document n\'est partagé avec un tiers sans votre consentement.',
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 18),
+
+          // Consentement obligatoire (case à cocher + liens cliquables).
+          InkWell(
+            onTap: () => setState(() => _acceptedTerms = !_acceptedTerms),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: _acceptedTerms,
+                      onChanged: (v) =>
+                          setState(() => _acceptedTerms = v ?? false),
+                      activeColor: _kCyan,
+                      checkColor: const Color(0xFF0B1B34),
+                      side: const BorderSide(color: Colors.white38, width: 1.5),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text.rich(
+                        TextSpan(
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white70,
+                            height: 1.45,
+                          ),
+                          children: [
+                            const TextSpan(text: 'J\'accepte les '),
+                            TextSpan(
+                              text: 'Conditions d\'utilisation',
+                              recognizer: _cguTap,
+                              style: const TextStyle(
+                                color: _kCyan,
+                                fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            const TextSpan(text: ' et la '),
+                            TextSpan(
+                              text: 'Politique de confidentialité',
+                              recognizer: _privacyTap,
+                              style: const TextStyle(
+                                color: _kCyan,
+                                fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            const TextSpan(text: ' de BABIFIX.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
 
           // Bouton soumettre
           GestureDetector(

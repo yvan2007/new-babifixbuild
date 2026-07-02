@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:ui';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../babifix_api_config.dart';
 import '../../services/zego_call_service.dart';
@@ -44,6 +46,11 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   bool _loading = false;
   // Consentement obligatoire à l'inscription (CGU + politique de confidentialité).
   bool _acceptedTerms = false;
+  // Pages légales du site vitrine (domaine canonique babifix.ci).
+  static const String _cguUrl = 'https://babifix.ci/cgu/';
+  static const String _privacyUrl = 'https://babifix.ci/confidentialite/';
+  final TapGestureRecognizer _cguTap = TapGestureRecognizer();
+  final TapGestureRecognizer _privacyTap = TapGestureRecognizer();
 
   bool _showBiometricLogin = false;
   bool _isLoading = true;
@@ -66,7 +73,19 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     _tab.addListener(() {
       if (mounted) setState(() {});
     });
+    _cguTap.onTap = () => _openLegal(_cguUrl);
+    _privacyTap.onTap = () => _openLegal(_privacyUrl);
     _checkBiometricLogin();
+  }
+
+  Future<void> _openLegal(String url) async {
+    try {
+      final ok = await launchUrl(Uri.parse(url),
+          mode: LaunchMode.externalApplication);
+      if (!ok && mounted) _snack('Impossible d\'ouvrir la page.');
+    } catch (_) {
+      if (mounted) _snack('Impossible d\'ouvrir la page.');
+    }
   }
 
   Future<void> _checkBiometricLogin() async {
@@ -99,6 +118,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     pass2Ctrl.dispose();
     nameCtrl.dispose();
     phoneCtrl.dispose();
+    _cguTap.dispose();
+    _privacyTap.dispose();
     super.dispose();
   }
 
@@ -746,13 +767,34 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text.rich(
                         TextSpan(
-                          text:
-                              'J\'accepte les Conditions d\'utilisation et la Politique de confidentialité de BABIFIX.',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.white.withValues(alpha: 0.7),
                             height: 1.45,
                           ),
+                          children: [
+                            const TextSpan(text: 'J\'accepte les '),
+                            TextSpan(
+                              text: 'Conditions d\'utilisation',
+                              recognizer: _cguTap,
+                              style: const TextStyle(
+                                color: _blue,
+                                fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            const TextSpan(text: ' et la '),
+                            TextSpan(
+                              text: 'Politique de confidentialité',
+                              recognizer: _privacyTap,
+                              style: const TextStyle(
+                                color: _blue,
+                                fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            const TextSpan(text: ' de BABIFIX.'),
+                          ],
                         ),
                       ),
                     ),
