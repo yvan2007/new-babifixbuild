@@ -1257,7 +1257,9 @@ def _filter_lists_for_section(section, search_q):
     reservations = Reservation.objects.all()
     litiges = Dispute.objects.all()
     clients = Client.objects.all()
-    paiements = Payment.objects.all()
+    # select_related('reservation') : on affiche l'opérateur Mobile Money
+    # (Orange/MTN/Wave/Moov) + son logo dans le tableau des paiements.
+    paiements = Payment.objects.select_related("reservation").all()
     categories = Category.objects.all()
     notifications = Notification.objects.all()[:20]
 
@@ -1989,7 +1991,7 @@ def dashboard(request):
     _headings = {
         "dashboard": (
             "Tableau de bord",
-            "Vue d'ensemble — montants en FCFA (Côte d'Ivoire). Les comptes clients/prestataires viennent des apps ; vous validez et pilotez.",
+            "Vue d'ensemble : montants en FCFA (Côte d'Ivoire). Les comptes clients/prestataires viennent des apps ; vous validez et pilotez.",
         ),
         "prestataires": (
             "Prestataires",
@@ -2001,12 +2003,12 @@ def dashboard(request):
         ),
         "kanban": (
             "Kanban Réservations",
-            "Vue drag & drop du pipeline de réservations — glissez pour changer le statut.",
+            "Vue drag & drop du pipeline de réservations : glissez pour changer le statut.",
         ),
         "litiges": ("Litiges", "Médiation et décisions enregistrées côté plateforme."),
         "clients": (
             "Clients",
-            "Lecture / suivi des fiches issues de l'activité — pas de saisie manuelle des noms comme sur un guichet.",
+            "Lecture / suivi des fiches issues de l'activité : pas de saisie manuelle des noms comme sur un guichet.",
         ),
         "paiements": (
             "Paiements",
@@ -2019,11 +2021,11 @@ def dashboard(request):
         "notifications": ("Notifications", "Alertes internes équipe admin."),
         "actualites": (
             "Actualités",
-            "Annonces publiques pour les apps client et prestataire — publication instantanée (WebSocket + push).",
+            "Annonces publiques pour les apps client et prestataire : publication instantanée (WebSocket + push).",
         ),
         "parametres": (
             "Paramètres",
-            "Commission, maintenance — impacte le comportement des apps connectées.",
+            "Commission, maintenance : impacte le comportement des apps connectées.",
         ),
         "audit": (
             "Journal d'audit",

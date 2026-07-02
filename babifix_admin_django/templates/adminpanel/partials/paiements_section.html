@@ -1,3 +1,4 @@
+{% load static %}
 {% load babifix_tags %}
 
 <section class="data-section">
@@ -18,7 +19,7 @@
           <th>Montant</th>
           <th>Commission</th>
           <th>Net Prestataire</th>
-          <th>Type</th>
+          <th>Moyen de paiement</th>
           <th>Etat</th>
           <th>Date</th>
         </tr>
@@ -32,7 +33,26 @@
           <td><strong>{{ paiement.montant|floatformat:0 }} FCFA</strong></td>
           <td><span class="text-amber">{{ paiement.commission|floatformat:0 }} FCFA</span></td>
           <td><span class="text-green">{{ paiement.net_prestataire|floatformat:0 }} FCFA</span></td>
-          <td><span class="payment-badge payment-badge--{{ paiement.type_paiement|lower }}">{{ paiement.get_type_paiement_display }}</span></td>
+          <td>
+            {# Moyen de paiement détaillé : type + opérateur Mobile Money (logo + nom). #}
+            <div class="pay-cell">
+              <span class="payment-badge payment-badge--{{ paiement.type_paiement|lower }}">{{ paiement.get_type_paiement_display }}</span>
+              {% if paiement.type_paiement == 'MOBILE_MONEY' and paiement.reservation and paiement.reservation.mobile_money_operator %}
+              {% with op=paiement.reservation.mobile_money_operator %}
+              <span class="mm-operator" title="{{ paiement.reservation.get_mobile_money_operator_display }}">
+                {% if op == 'ORANGE_MONEY' %}<img src="{% static 'payment-logos/orange-money.svg' %}" alt="Orange Money" class="mm-logo">
+                {% elif op == 'MTN_MOMO' %}<img src="{% static 'payment-logos/mtn-momo.svg' %}" alt="MTN Mobile Money" class="mm-logo">
+                {% elif op == 'WAVE' %}<img src="{% static 'payment-logos/wave.svg' %}" alt="Wave" class="mm-logo">
+                {% elif op == 'MOOV' %}<img src="{% static 'payment-logos/moov-money.svg' %}" alt="Moov Money" class="mm-logo">
+                {% endif %}
+                <span class="mm-name">{{ paiement.reservation.get_mobile_money_operator_display }}</span>
+              </span>
+              {% endwith %}
+              {% elif paiement.reference_externe %}
+              <span class="mm-ref" title="Reference externe">Ref : {{ paiement.reference_externe|truncatechars:18 }}</span>
+              {% endif %}
+            </div>
+          </td>
           <td><span class="status-badge status-badge--{{ paiement.etat|lower|slugify }}">{{ paiement.get_etat_display }}</span></td>
           <td><span class="cell-date">{{ paiement.created_at|date:"d/m/Y H:i" }}</span></td>
         </tr>
@@ -43,3 +63,15 @@
     </table>
   </div>
 </section>
+
+<style>
+  /* Cellule « moyen de paiement » : badge type + opérateur (logo + nom). */
+  .pay-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .mm-operator { display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.25); }
+  .mm-logo { width: 18px; height: 18px; object-fit: contain; border-radius: 4px; display: block; }
+  .mm-name { font-size: 12px; font-weight: 600; }
+  .mm-ref { font-size: 11px; color: #94a3b8; }
+</style>
