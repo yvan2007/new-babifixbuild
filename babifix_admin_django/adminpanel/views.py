@@ -2210,6 +2210,75 @@ def dashboard(request):
             "depense": clients.aggregate(s=Sum("depense"))["s"] or 0,
         }
 
+    # ── Catégories : filtre (actif) + mini-stats ──────────────────────────
+    category_stats = None
+    category_filters = {}
+    if section == "categories":
+        cat_actif = (request.GET.get("actif") or "").strip()
+        category_filters = {"actif": cat_actif}
+        if cat_actif == "1":
+            categories = categories.filter(actif=True)
+        elif cat_actif == "0":
+            categories = categories.filter(actif=False)
+        category_stats = {
+            "count": categories.count(),
+            "actives": categories.filter(actif=True).count(),
+            "services": categories.aggregate(s=Sum("services"))["s"] or 0,
+            "reservations": categories.aggregate(s=Sum("reservations"))["s"] or 0,
+        }
+
+    # ── Actualités : filtres (publié, cible, date) + mini-stats ────────────
+    actualite_stats = None
+    actualite_filters = {}
+    if section == "actualites":
+        from django.utils.dateparse import parse_date as _pd
+
+        a_pub = (request.GET.get("publie") or "").strip()
+        a_cible = (request.GET.get("cible") or "").strip()
+        a_ds = (request.GET.get("date_start") or "").strip()
+        a_de = (request.GET.get("date_end") or "").strip()
+        actualite_filters = {
+            "publie": a_pub, "cible": a_cible,
+            "date_start": a_ds, "date_end": a_de,
+        }
+        if a_pub == "1":
+            actualites = actualites.filter(publie=True)
+        elif a_pub == "0":
+            actualites = actualites.filter(publie=False)
+        if a_cible:
+            actualites = actualites.filter(cible=a_cible)
+        if a_ds and _pd(a_ds):
+            actualites = actualites.filter(date_publication__date__gte=_pd(a_ds))
+        if a_de and _pd(a_de):
+            actualites = actualites.filter(date_publication__date__lte=_pd(a_de))
+        actualite_stats = {
+            "count": actualites.count(),
+            "publiees": actualites.filter(publie=True).count(),
+            "brouillons": actualites.filter(publie=False).count(),
+        }
+
+    # ── Notifications : filtres (type, lu) + mini-stats ────────────────────
+    notification_stats = None
+    notification_filters = {}
+    if section == "notifications":
+        n_type = (request.GET.get("ntype") or "").strip()
+        n_lu = (request.GET.get("lu") or "").strip()
+        notification_filters = {"ntype": n_type, "lu": n_lu}
+        _n_qs = Notification.objects.all()
+        if n_type:
+            _n_qs = _n_qs.filter(notif_type=n_type)
+        if n_lu == "1":
+            _n_qs = _n_qs.filter(lu=True)
+        elif n_lu == "0":
+            _n_qs = _n_qs.filter(lu=False)
+        notifications = list(_n_qs.order_by("-created_at")[:50])
+        _all_notif = Notification.objects.all()
+        notification_stats = {
+            "count": _all_notif.count(),
+            "non_lues": _all_notif.filter(lu=False).count(),
+            "affichees": len(notifications),
+        }
+
     if request.GET.get("partial") == "stats" and section == "dashboard":
         return render(
             request,
@@ -2303,6 +2372,12 @@ def dashboard(request):
         "litige_filters": litige_filters,
         "client_stats": client_stats,
         "client_filters": client_filters,
+        "category_stats": category_stats,
+        "category_filters": category_filters,
+        "actualite_stats": actualite_stats,
+        "actualite_filters": actualite_filters,
+        "notification_stats": notification_stats,
+        "notification_filters": notification_filters,
         "categories": categories,
         "notifications": notifications,
         "unified_notifications": notifications,

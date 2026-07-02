@@ -11,6 +11,44 @@
     </div>
   </div>
 
+  {% if actualite_stats %}
+  <div class="pay-mini-stats">
+    <div class="pay-stat pay-stat--blue">
+      <span class="pay-stat-label">Actualités</span>
+      <strong class="pay-stat-value">{{ actualite_stats.count }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--green">
+      <span class="pay-stat-label">Publiées</span>
+      <strong class="pay-stat-value">{{ actualite_stats.publiees }}</strong>
+    </div>
+    <div class="pay-stat {% if actualite_stats.brouillons %}pay-stat--warn{% endif %}">
+      <span class="pay-stat-label">Brouillons</span>
+      <strong class="pay-stat-value">{{ actualite_stats.brouillons }}</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="get" class="pay-filter-bar">
+    <input type="hidden" name="section" value="actualites">
+    {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+    <select name="publie" class="pay-filter-input" title="Statut">
+      <option value="">Toutes</option>
+      <option value="1" {% if actualite_filters.publie == '1' %}selected{% endif %}>Publiées</option>
+      <option value="0" {% if actualite_filters.publie == '0' %}selected{% endif %}>Brouillons</option>
+    </select>
+    <select name="cible" class="pay-filter-input" title="Audience">
+      <option value="">Toute audience</option>
+      <option value="client" {% if actualite_filters.cible == 'client' %}selected{% endif %}>Client</option>
+      <option value="prestataire" {% if actualite_filters.cible == 'prestataire' %}selected{% endif %}>Prestataire</option>
+      <option value="tous" {% if actualite_filters.cible == 'tous' %}selected{% endif %}>Tous</option>
+    </select>
+    <input type="date" name="date_start" value="{{ actualite_filters.date_start }}" class="pay-filter-input" title="Du">
+    <input type="date" name="date_end" value="{{ actualite_filters.date_end }}" class="pay-filter-input" title="Au">
+    <button type="submit" class="pay-filter-btn">Filtrer</button>
+    <a href="?section=actualites" class="pay-filter-reset">Réinitialiser</a>
+  </form>
+  {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
   <div class="grid-cards">
     {% for actu in actualites %}
     <article class="news-card {% if not actu.publie %}news-card--draft{% endif %}">

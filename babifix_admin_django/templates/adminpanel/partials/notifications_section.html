@@ -12,6 +12,46 @@
     </div>
   </div>
 
+  {% if notification_stats %}
+  <div class="pay-mini-stats">
+    <div class="pay-stat pay-stat--blue">
+      <span class="pay-stat-label">Notifications</span>
+      <strong class="pay-stat-value">{{ notification_stats.count }}</strong>
+    </div>
+    <div class="pay-stat {% if notification_stats.non_lues %}pay-stat--warn{% endif %}">
+      <span class="pay-stat-label">Non lues</span>
+      <strong class="pay-stat-value">{{ notification_stats.non_lues }}</strong>
+    </div>
+    <div class="pay-stat">
+      <span class="pay-stat-label">Affichées</span>
+      <strong class="pay-stat-value">{{ notification_stats.affichees }}</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="get" class="pay-filter-bar">
+    <input type="hidden" name="section" value="notifications">
+    {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+    <select name="ntype" class="pay-filter-input" title="Type">
+      <option value="">Tous les types</option>
+      <option value="reservation" {% if notification_filters.ntype == 'reservation' %}selected{% endif %}>Réservation</option>
+      <option value="message" {% if notification_filters.ntype == 'message' %}selected{% endif %}>Message</option>
+      <option value="validation" {% if notification_filters.ntype == 'validation' %}selected{% endif %}>Validation compte</option>
+      <option value="broadcast" {% if notification_filters.ntype == 'broadcast' %}selected{% endif %}>Annonce</option>
+      <option value="payment" {% if notification_filters.ntype == 'payment' %}selected{% endif %}>Paiement</option>
+      <option value="dispute" {% if notification_filters.ntype == 'dispute' %}selected{% endif %}>Litige</option>
+      <option value="general" {% if notification_filters.ntype == 'general' %}selected{% endif %}>Général</option>
+    </select>
+    <select name="lu" class="pay-filter-input" title="Lecture">
+      <option value="">Toutes</option>
+      <option value="0" {% if notification_filters.lu == '0' %}selected{% endif %}>Non lues</option>
+      <option value="1" {% if notification_filters.lu == '1' %}selected{% endif %}>Lues</option>
+    </select>
+    <button type="submit" class="pay-filter-btn">Filtrer</button>
+    <a href="?section=notifications" class="pay-filter-reset">Réinitialiser</a>
+  </form>
+  {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
   <div class="notif-list">
     {% for notif in notifications %}
     <div class="notif-item {% if not notif.lu %}notif-item--unread{% endif %}" data-id="{{ notif.id }}">

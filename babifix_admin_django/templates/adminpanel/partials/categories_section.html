@@ -59,6 +59,40 @@
     </article>
   </div>
 
+  {% if category_stats %}
+  <div class="pay-mini-stats">
+    <div class="pay-stat pay-stat--blue">
+      <span class="pay-stat-label">Catégories</span>
+      <strong class="pay-stat-value">{{ category_stats.count }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--green">
+      <span class="pay-stat-label">Actives</span>
+      <strong class="pay-stat-value">{{ category_stats.actives }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--amber">
+      <span class="pay-stat-label">Services</span>
+      <strong class="pay-stat-value">{{ category_stats.services }}</strong>
+    </div>
+    <div class="pay-stat">
+      <span class="pay-stat-label">Réservations</span>
+      <strong class="pay-stat-value">{{ category_stats.reservations }}</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="get" class="pay-filter-bar">
+    <input type="hidden" name="section" value="categories">
+    {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+    <select name="actif" class="pay-filter-input" title="Visibilité">
+      <option value="">Toutes</option>
+      <option value="1" {% if category_filters.actif == '1' %}selected{% endif %}>Actives</option>
+      <option value="0" {% if category_filters.actif == '0' %}selected{% endif %}>Inactives</option>
+    </select>
+    <button type="submit" class="pay-filter-btn">Filtrer</button>
+    <a href="?section=categories" class="pay-filter-reset">Réinitialiser</a>
+  </form>
+  {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
   <article class="card card-elevate category-list-card">
     <div class="category-list-header">
       <h3>Liste des catégories</h3>
