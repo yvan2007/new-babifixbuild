@@ -831,14 +831,22 @@ def _actualite_to_json(request, a: Actualite, summary: bool = False) -> dict:
 
 
 def _build_kanban_reservations():
+    # Pipeline COMPLET (les 11 statuts du modèle, dans l'ordre logique). Avant,
+    # seuls 7 statuts étaient affichés → les réservations « Confirmee »,
+    # « En attente », « En cours » ou « Annulee » n'apparaissaient dans AUCUNE
+    # colonne, donnant un kanban vide (« rien ne vient »).
     statuses = [
+        "En attente",
         "DEMANDE_ENVOYEE",
         "DEVIS_EN_COURS",
         "DEVIS_ENVOYE",
         "DEVIS_ACCEPTE",
+        "Confirmee",
         "INTERVENTION_EN_COURS",
+        "En cours",
         "En attente client",
         "Terminee",
+        "Annulee",
     ]
     kanban = {}
     for s in statuses:
@@ -847,6 +855,16 @@ def _build_kanban_reservations():
             .select_related("client_user", "assigned_provider")
             .order_by("-id")[:20]
         )
+    # Filet de sécurité : toute réservation dont le statut n'est PAS prévu
+    # ci-dessus est regroupée dans une colonne « Autres » — on ne cache
+    # jamais une réservation.
+    autres = list(
+        Reservation.objects.exclude(statut__in=statuses)
+        .select_related("client_user", "assigned_provider")
+        .order_by("-id")[:20]
+    )
+    if autres:
+        kanban["Autres"] = autres
     return kanban
 
 
