@@ -1912,6 +1912,10 @@
                 Rés. {{ p.reservation.reference|truncatechars:12 }}
               </span>
               {% endif %}
+              {# Moyen de paiement : opérateur Mobile Money (logo + nom) ou type. #}
+              <span class="kanban-card-category" style="margin-top:4px;">
+                {% if p.reservation and p.reservation.mobile_money_operator %}{% with op=p.reservation.mobile_money_operator %}{% if op == 'ORANGE_MONEY' %}<img src="{% static 'payment-logos/orange-money.svg' %}" alt="Orange" style="width:14px;height:14px;object-fit:contain;border-radius:3px;">{% elif op == 'MTN_MOMO' %}<img src="{% static 'payment-logos/mtn-momo.svg' %}" alt="MTN" style="width:14px;height:14px;object-fit:contain;border-radius:3px;">{% elif op == 'WAVE' %}<img src="{% static 'payment-logos/wave.svg' %}" alt="Wave" style="width:14px;height:14px;object-fit:contain;border-radius:3px;">{% elif op == 'MOOV' %}<img src="{% static 'payment-logos/moov-money.svg' %}" alt="Moov" style="width:14px;height:14px;object-fit:contain;border-radius:3px;">{% endif %}{{ p.reservation.get_mobile_money_operator_display }}{% endwith %}{% else %}{{ p.get_type_paiement_display }}{% endif %}
+              </span>
               <div class="kanban-card-footer">
                 <span class="kanban-card-amount">{{ p.montant|floatformat:0 }} FCFA</span>
                 <span class="kanban-card-commission">Com. {{ p.commission|floatformat:0 }} F</span>
@@ -1950,12 +1954,14 @@
           <button type="button" class="bulk-bar__btn" id="bulk-btn-paiement" onclick="babifixBulkDelete('paiement')" disabled>🗑 Supprimer la sélection</button>
         </div>
         <table>
-          <thead><tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="paiement" onclick="babifixBulkToggleAll('paiement', this)"></th><th>Référence</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Commission</th><th>Statut</th><th>Actions</th></tr></thead>
+          <thead><tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="paiement" onclick="babifixBulkToggleAll('paiement', this)"></th><th>Référence</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Commission</th><th>Moyen</th><th>Statut</th><th>Actions</th></tr></thead>
           <tbody>
             {% for p in paiements %}
             <tr>
               <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="paiement" value="{{ p.id }}" onchange="babifixBulkUpdate('paiement')"></td>
-              <td>{{ p.reference }}</td><td>{{ p.client }}</td><td>{{ p.prestataire }}</td><td>{{ p.montant }}</td><td>{{ p.commission }}</td><td>{{ p.etat }}</td>
+              <td>{{ p.reference }}</td><td>{{ p.client }}</td><td>{{ p.prestataire }}</td><td>{{ p.montant }}</td><td>{{ p.commission }}</td>
+              <td>{% if p.reservation and p.reservation.mobile_money_operator %}{% with op=p.reservation.mobile_money_operator %}{% if op == 'ORANGE_MONEY' %}<img src="{% static 'payment-logos/orange-money.svg' %}" alt="Orange" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'MTN_MOMO' %}<img src="{% static 'payment-logos/mtn-momo.svg' %}" alt="MTN" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'WAVE' %}<img src="{% static 'payment-logos/wave.svg' %}" alt="Wave" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'MOOV' %}<img src="{% static 'payment-logos/moov-money.svg' %}" alt="Moov" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% endif %}{{ p.reservation.get_mobile_money_operator_display }}{% endwith %}{% else %}{{ p.get_type_paiement_display }}{% endif %}</td>
+              <td>{{ p.etat }}</td>
               <td class="td-actions">
                 <a href="?section=paiements&amp;edit_paiement={{ p.id }}" class="link-edit">Modifier</a>
                 <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">

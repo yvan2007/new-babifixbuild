@@ -878,6 +878,27 @@ def _build_kanban_providers():
     return kanban
 
 
+def _build_kanban_paiements():
+    """Colonnes du Kanban Paiements, groupées par état (les 3 états du modèle
+    Payment) + une colonne « Autres » filet de sécurité."""
+    etats = ["Pending", "Complete", "Litige"]
+    kanban = {}
+    for e in etats:
+        kanban[e] = list(
+            Payment.objects.filter(etat=e)
+            .select_related("reservation")
+            .order_by("-id")[:20]
+        )
+    autres = list(
+        Payment.objects.exclude(etat__in=etats)
+        .select_related("reservation")
+        .order_by("-id")[:20]
+    )
+    if autres:
+        kanban["Autres"] = autres
+    return kanban
+
+
 def _dashboard_forms_context(request, section):
     """Formulaires CRUD intégrés au dashboard (pas django-admin)."""
     ctx = {}
@@ -942,6 +963,13 @@ def _dashboard_forms_context(request, section):
                 ctx["paiement_form"] = PaymentForm()
         else:
             ctx["paiement_form"] = PaymentForm()
+        # Toggle Tableau / Kanban de la section paiements. AVANT : la vue ne
+        # définissait ni `paiement_view` ni `kanban_paiements` → cliquer
+        # « Kanban » ne faisait rien (le board ne s'affichait jamais).
+        ctx["paiement_view"] = request.GET.get("view", "table")
+        ctx["kanban_paiements"] = (
+            _build_kanban_paiements() if ctx["paiement_view"] == "kanban" else {}
+        )
     elif section == "categories":
         ctx["category_icon_slugs"] = CATEGORY_ICON_SLUGS
         eid = request.GET.get("edit_category")
