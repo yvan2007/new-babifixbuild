@@ -1827,6 +1827,58 @@
       </article>
       {% endif %}
 
+      {# ── Mini-stats de la section (calculées sur la sélection filtrée) ── #}
+      {% if paiement_stats %}
+      <div class="pay-mini-stats">
+        <div class="pay-stat pay-stat--green">
+          <span class="pay-stat-label">Encaissé (complétés)</span>
+          <strong class="pay-stat-value">{{ paiement_stats.encaisse|floatformat:0 }} FCFA</strong>
+        </div>
+        <div class="pay-stat pay-stat--amber">
+          <span class="pay-stat-label">Commissions BABIFIX</span>
+          <strong class="pay-stat-value">{{ paiement_stats.commission|floatformat:0 }} FCFA</strong>
+        </div>
+        <div class="pay-stat pay-stat--blue">
+          <span class="pay-stat-label">Paiements</span>
+          <strong class="pay-stat-value">{{ paiement_stats.count }}</strong>
+        </div>
+        <div class="pay-stat {% if paiement_stats.pending %}pay-stat--warn{% endif %}">
+          <span class="pay-stat-label">En attente</span>
+          <strong class="pay-stat-value">{{ paiement_stats.pending }}</strong>
+        </div>
+        <div class="pay-stat {% if paiement_stats.litige %}pay-stat--danger{% endif %}">
+          <span class="pay-stat-label">Litiges</span>
+          <strong class="pay-stat-value">{{ paiement_stats.litige }}</strong>
+        </div>
+      </div>
+      {% endif %}
+
+      {# ── Barre de filtres avancés (GET) ── #}
+      <form method="get" class="pay-filter-bar">
+        <input type="hidden" name="section" value="paiements">
+        {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+        <input type="hidden" name="view" value="{{ paiement_view|default:'table' }}">
+        <select name="etat" class="pay-filter-input" title="État">
+          <option value="">Tous les états</option>
+          <option value="Pending" {% if paiement_filters.etat == 'Pending' %}selected{% endif %}>En attente</option>
+          <option value="Complete" {% if paiement_filters.etat == 'Complete' %}selected{% endif %}>Complété</option>
+          <option value="Litige" {% if paiement_filters.etat == 'Litige' %}selected{% endif %}>Litige</option>
+        </select>
+        <select name="operator" class="pay-filter-input" title="Opérateur">
+          <option value="">Tous opérateurs</option>
+          <option value="ORANGE_MONEY" {% if paiement_filters.operator == 'ORANGE_MONEY' %}selected{% endif %}>Orange Money</option>
+          <option value="MTN_MOMO" {% if paiement_filters.operator == 'MTN_MOMO' %}selected{% endif %}>MTN MoMo</option>
+          <option value="WAVE" {% if paiement_filters.operator == 'WAVE' %}selected{% endif %}>Wave</option>
+          <option value="MOOV" {% if paiement_filters.operator == 'MOOV' %}selected{% endif %}>Moov Money</option>
+        </select>
+        <input type="date" name="date_start" value="{{ paiement_filters.date_start }}" class="pay-filter-input" title="Du">
+        <input type="date" name="date_end" value="{{ paiement_filters.date_end }}" class="pay-filter-input" title="Au">
+        <input type="number" name="amount_min" value="{{ paiement_filters.amount_min }}" placeholder="Montant min" class="pay-filter-input pay-filter-num">
+        <input type="number" name="amount_max" value="{{ paiement_filters.amount_max }}" placeholder="Montant max" class="pay-filter-input pay-filter-num">
+        <button type="submit" class="pay-filter-btn">Filtrer</button>
+        <a href="?section=paiements" class="pay-filter-reset">Réinitialiser</a>
+      </form>
+
       <div class="section-toolbar" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
         <div class="toolbar-left" style="display:flex;align-items:center;gap:8px;">
           <span class="section-count">{{ paiements|length }} resultat(s)</span>
@@ -1835,16 +1887,6 @@
           {% endif %}
         </div>
         <div class="toolbar-filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <input type="date" name="date_start" value="{{ request.GET.date_start }}"
-                 class="filter-date" title="Date debut"
-                 hx-get="?section=paiements&page=1&q={{ search_q|urlencode }}"
-                 hx-trigger="change" hx-target="#section-content"
-                 hx-select="#section-content" hx-swap="outerHTML" hx-push-url="true">
-          <input type="date" name="date_end" value="{{ request.GET.date_end }}"
-                 class="filter-date" title="Date fin"
-                 hx-get="?section=paiements&page=1&q={{ search_q|urlencode }}"
-                 hx-trigger="change" hx-target="#section-content"
-                 hx-select="#section-content" hx-swap="outerHTML" hx-push-url="true">
           <div class="view-toggle">
             <a href="?section=paiements&view=table{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}"
                class="view-toggle-btn {% if paiement_view != 'kanban' %}view-toggle-btn--active{% endif %}" title="Vue tableau">Tableau</a>
@@ -1961,8 +2003,24 @@
               <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="paiement" value="{{ p.id }}" onchange="babifixBulkUpdate('paiement')"></td>
               <td>{{ p.reference }}</td><td>{{ p.client }}</td><td>{{ p.prestataire }}</td><td>{{ p.montant }}</td><td>{{ p.commission }}</td>
               <td>{% if p.reservation and p.reservation.mobile_money_operator %}{% with op=p.reservation.mobile_money_operator %}{% if op == 'ORANGE_MONEY' %}<img src="{% static 'payment-logos/orange-money.svg' %}" alt="Orange" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'MTN_MOMO' %}<img src="{% static 'payment-logos/mtn-momo.svg' %}" alt="MTN" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'WAVE' %}<img src="{% static 'payment-logos/wave.svg' %}" alt="Wave" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'MOOV' %}<img src="{% static 'payment-logos/moov-money.svg' %}" alt="Moov" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% endif %}{{ p.reservation.get_mobile_money_operator_display }}{% endwith %}{% else %}{{ p.get_type_paiement_display }}{% endif %}</td>
-              <td>{{ p.etat }}</td>
+              <td><span class="status-badge status-badge--{{ p.etat|lower|slugify }}">{{ p.get_etat_display }}</span></td>
               <td class="td-actions">
+                <button type="button" class="table-btn" onclick="showPayDetail(this)"
+                  data-ref="{{ p.reference }}" data-client="{{ p.client }}" data-presta="{{ p.prestataire }}"
+                  data-montant="{{ p.montant|floatformat:0 }}" data-commission="{{ p.commission|floatformat:0 }}"
+                  data-etat="{{ p.get_etat_display }}" data-date="{{ p.created_at|date:'d/m/Y H:i' }}"
+                  data-moyen="{% if p.reservation and p.reservation.mobile_money_operator %}{{ p.reservation.get_mobile_money_operator_display }}{% else %}{{ p.get_type_paiement_display }}{% endif %}"
+                  data-resa="{% if p.reservation %}{{ p.reservation.reference }}{% endif %}"
+                  data-resastatut="{% if p.reservation %}{{ p.reservation.statut }}{% endif %}"
+                  data-ext="{{ p.reference_externe }}">Détail</button>
+                {% if p.etat == 'Pending' %}
+                <form method="post" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="payment_validate">
+                  <input type="hidden" name="payment_id" value="{{ p.id }}">
+                  <button type="submit" class="table-btn" style="color:#16a34a;border-color:#16a34a;">Valider</button>
+                </form>
+                {% endif %}
                 <a href="?section=paiements&amp;edit_paiement={{ p.id }}" class="link-edit">Modifier</a>
                 <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
                   {% csrf_token %}
@@ -1977,6 +2035,86 @@
         </table>
       </article>
       {% endif %}
+
+      {# ── Panneau de détail (modal) : rempli en JS depuis les data-* de la ligne ── #}
+      <div id="pay-detail-overlay" class="pay-modal-overlay" onclick="closePayDetail()">
+        <div class="pay-modal" onclick="event.stopPropagation()">
+          <div class="pay-modal-head">
+            <h3>Détail du paiement</h3>
+            <button type="button" class="pay-modal-close" onclick="closePayDetail()">&times;</button>
+          </div>
+          <div class="pay-modal-body">
+            <div class="pay-modal-row"><span>Référence</span><b id="pd-ref"></b></div>
+            <div class="pay-modal-row"><span>État</span><b id="pd-etat"></b></div>
+            <div class="pay-modal-row"><span>Client</span><b id="pd-client"></b></div>
+            <div class="pay-modal-row"><span>Prestataire</span><b id="pd-presta"></b></div>
+            <div class="pay-modal-row"><span>Moyen de paiement</span><b id="pd-moyen"></b></div>
+            <div class="pay-modal-row"><span>Montant</span><b id="pd-montant"></b></div>
+            <div class="pay-modal-row"><span>Commission BABIFIX</span><b id="pd-commission"></b></div>
+            <div class="pay-modal-row"><span>Net prestataire</span><b id="pd-net"></b></div>
+            <div class="pay-modal-row"><span>Date</span><b id="pd-date"></b></div>
+            <div class="pay-modal-row"><span>Réservation liée</span><b id="pd-resa"></b></div>
+            <div class="pay-modal-row"><span>Statut réservation</span><b id="pd-resastatut"></b></div>
+            <div class="pay-modal-row"><span>Réf. externe (GeniusPay)</span><b id="pd-ext"></b></div>
+          </div>
+        </div>
+      </div>
+      <script>
+        function showPayDetail(btn){
+          var d = btn.dataset;
+          function set(id, v){ var el=document.getElementById(id); if(el) el.textContent = (v && v.length) ? v : 'N/A'; }
+          set('pd-ref', d.ref); set('pd-etat', d.etat); set('pd-client', d.client);
+          set('pd-presta', d.presta); set('pd-moyen', d.moyen);
+          set('pd-montant', d.montant ? d.montant + ' FCFA' : '');
+          set('pd-commission', d.commission ? d.commission + ' FCFA' : '');
+          var net = (parseInt(d.montant||'0',10) - parseInt(d.commission||'0',10));
+          set('pd-net', (isNaN(net)?0:net) + ' FCFA');
+          set('pd-date', d.date); set('pd-resa', d.resa);
+          set('pd-resastatut', d.resastatut); set('pd-ext', d.ext);
+          document.getElementById('pay-detail-overlay').classList.add('open');
+        }
+        function closePayDetail(){ document.getElementById('pay-detail-overlay').classList.remove('open'); }
+        document.addEventListener('keydown', function(e){ if(e.key==='Escape') closePayDetail(); });
+      </script>
+      <style>
+        .pay-mini-stats { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+        .pay-stat { flex:1 1 150px; min-width:140px; padding:12px 14px; border-radius:12px;
+          background:rgba(148,163,184,0.08); border:1px solid rgba(148,163,184,0.18);
+          display:flex; flex-direction:column; gap:4px; }
+        .pay-stat-label { font-size:12px; opacity:0.7; }
+        .pay-stat-value { font-size:19px; font-weight:800; }
+        .pay-stat--green { border-color:rgba(16,185,129,0.4); }
+        .pay-stat--green .pay-stat-value { color:#10b981; }
+        .pay-stat--amber .pay-stat-value { color:#f59e0b; }
+        .pay-stat--blue .pay-stat-value { color:#38bdf8; }
+        .pay-stat--warn { border-color:rgba(245,158,11,0.5); background:rgba(245,158,11,0.08); }
+        .pay-stat--danger { border-color:rgba(239,68,68,0.5); background:rgba(239,68,68,0.08); }
+        .pay-stat--danger .pay-stat-value { color:#ef4444; }
+        .pay-filter-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;
+          padding:10px 12px; border-radius:12px; background:rgba(148,163,184,0.06);
+          border:1px solid rgba(148,163,184,0.15); }
+        .pay-filter-input { padding:7px 10px; border-radius:8px; border:1px solid rgba(148,163,184,0.3);
+          background:rgba(255,255,255,0.04); color:inherit; font-size:13px; }
+        .pay-filter-num { width:110px; }
+        .pay-filter-btn { padding:7px 16px; border-radius:8px; border:none; cursor:pointer;
+          background:linear-gradient(135deg,#4CC9F0,#2563EB); color:#fff; font-weight:700; font-size:13px; }
+        .pay-filter-reset { padding:7px 12px; font-size:13px; opacity:0.7; text-decoration:underline; }
+        .pay-modal-overlay { display:none; position:fixed; inset:0; z-index:9999;
+          background:rgba(0,0,0,0.55); align-items:center; justify-content:center; padding:20px; }
+        .pay-modal-overlay.open { display:flex; }
+        .pay-modal { width:100%; max-width:440px; background:#0f1e33; border-radius:16px;
+          border:1px solid rgba(148,163,184,0.25); box-shadow:0 20px 60px rgba(0,0,0,0.5);
+          max-height:88vh; overflow:auto; }
+        .pay-modal-head { display:flex; align-items:center; justify-content:space-between;
+          padding:16px 18px; border-bottom:1px solid rgba(148,163,184,0.15); }
+        .pay-modal-head h3 { margin:0; font-size:16px; color:#fff; }
+        .pay-modal-close { background:none; border:none; color:#94a3b8; font-size:26px; cursor:pointer; line-height:1; }
+        .pay-modal-body { padding:8px 18px 18px; }
+        .pay-modal-row { display:flex; justify-content:space-between; gap:14px;
+          padding:10px 0; border-bottom:1px solid rgba(148,163,184,0.10); }
+        .pay-modal-row span { color:#94a3b8; font-size:13px; }
+        .pay-modal-row b { color:#fff; font-size:13px; text-align:right; }
+      </style>
 
       {% if total_pages > 1 %}
       <div class="pagination-bar" style="display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;">

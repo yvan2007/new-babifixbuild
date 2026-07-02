@@ -1747,6 +1747,17 @@ def dashboard(request):
             if pk and str(pk).isdigit():
                 Payment.objects.filter(pk=int(pk)).delete()
                 messages.success(request, "Paiement supprimé.")
+        elif action == "payment_validate":
+            # Valider un paiement en attente (bouton « Valider » du tableau/kanban
+            # — jusque-là sans effet faute de handler).
+            pid = request.POST.get("payment_id") or request.POST.get("pk")
+            if pid and str(pid).isdigit():
+                pay = Payment.objects.filter(pk=int(pid)).first()
+                if pay:
+                    pay.etat = Payment.State.COMPLETE
+                    pay.valide_par_admin = True
+                    pay.save(update_fields=["etat", "valide_par_admin"])
+                    messages.success(request, f"Paiement {pay.reference} validé.")
         elif action == "category_save":
             pk = (request.POST.get("pk") or "").strip()
             inst = Category.objects.filter(pk=int(pk)).first() if pk.isdigit() else None
@@ -2027,6 +2038,52 @@ def dashboard(request):
             Q(titre__icontains=search_q) | Q(description__icontains=search_q)
         )
 
+    # ── Paiements : filtres avancés + mini-stats (section « pro ») ──────────
+    # Filtres : état, opérateur Mobile Money, plage de dates (date_start/end,
+    # jusque-là inertes), montant min/max. Stats calculées sur la sélection.
+    paiement_stats = None
+    paiement_filters = {}
+    if section == "paiements":
+        from django.utils.dateparse import parse_date
+        from decimal import InvalidOperation
+
+        f_etat = (request.GET.get("etat") or "").strip()
+        f_op = (request.GET.get("operator") or "").strip()
+        f_ds = (request.GET.get("date_start") or "").strip()
+        f_de = (request.GET.get("date_end") or "").strip()
+        f_min = (request.GET.get("amount_min") or "").strip()
+        f_max = (request.GET.get("amount_max") or "").strip()
+        paiement_filters = {
+            "etat": f_etat, "operator": f_op, "date_start": f_ds,
+            "date_end": f_de, "amount_min": f_min, "amount_max": f_max,
+        }
+        if f_etat:
+            paiements = paiements.filter(etat=f_etat)
+        if f_op:
+            paiements = paiements.filter(reservation__mobile_money_operator=f_op)
+        if f_ds and parse_date(f_ds):
+            paiements = paiements.filter(created_at__date__gte=parse_date(f_ds))
+        if f_de and parse_date(f_de):
+            paiements = paiements.filter(created_at__date__lte=parse_date(f_de))
+        if f_min:
+            try:
+                paiements = paiements.filter(montant__gte=Decimal(f_min))
+            except (InvalidOperation, ValueError):
+                pass
+        if f_max:
+            try:
+                paiements = paiements.filter(montant__lte=Decimal(f_max))
+            except (InvalidOperation, ValueError):
+                pass
+        paiement_stats = {
+            "encaisse": paiements.filter(etat="Complete").aggregate(
+                s=Sum("montant"))["s"] or 0,
+            "commission": paiements.aggregate(s=Sum("commission"))["s"] or 0,
+            "count": paiements.count(),
+            "pending": paiements.filter(etat="Pending").count(),
+            "litige": paiements.filter(etat="Litige").count(),
+        }
+
     if request.GET.get("partial") == "stats" and section == "dashboard":
         return render(
             request,
@@ -2110,6 +2167,8 @@ def dashboard(request):
         "litiges": litiges,
         "clients": clients,
         "paiements": paiements,
+        "paiement_stats": paiement_stats,
+        "paiement_filters": paiement_filters,
         "categories": categories,
         "notifications": notifications,
         "unified_notifications": notifications,
