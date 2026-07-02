@@ -130,7 +130,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
       } else {
         final lat = group.map((e) => e.lat).reduce((a, b) => a + b) / group.length;
         final lon = group.map((e) => e.lon).reduce((a, b) => a + b) / group.length;
-        markers.add(_clusterBadge(LatLng(lat, lon), group.length));
+        markers.add(_clusterBadge(LatLng(lat, lon), List<_Provider>.from(group)));
       }
     });
     return markers;
@@ -156,13 +156,109 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     );
   }
 
-  Marker _clusterBadge(LatLng center, int count) {
+  /// Affiche la liste des prestataires regroupés sous un cluster (même point
+  /// ou proches). Fonctionne même quand ils partagent des coordonnées
+  /// identiques — le zoom ne pouvait pas les séparer.
+  void _showClusterSheet(List<_Provider> group) {
+    final sorted = [...group]
+      ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: BabifixDesign.navy,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.groups_rounded,
+                      color: BabifixDesign.cyan, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${group.length} prestataires à cet endroit',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                itemCount: sorted.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(color: Colors.white10, height: 1),
+                itemBuilder: (_, i) {
+                  final p = sorted[i];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      radius: 22,
+                      backgroundColor:
+                          BabifixDesign.ciBlue.withValues(alpha: 0.3),
+                      backgroundImage: p.photoUrl.isNotEmpty
+                          ? NetworkImage(p.photoUrl)
+                          : null,
+                      child: p.photoUrl.isEmpty
+                          ? const Icon(Icons.person, color: Colors.white70)
+                          : null,
+                    ),
+                    title: Text(
+                      p.name,
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      '${p.city} · ${p.distanceKm.toStringAsFixed(1)} km',
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 12),
+                    ),
+                    trailing:
+                        const Icon(Icons.chevron_right, color: Colors.white38),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      setState(() => _selected = p);
+                      _mapCtrl.move(
+                          LatLng(p.lat, p.lon), math.max(_zoom, 15.0));
+                    },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Marker _clusterBadge(LatLng center, List<_Provider> group) {
+    final count = group.length;
     return Marker(
       point: center,
       width: 52,
       height: 52,
       child: GestureDetector(
-        onTap: () => _mapCtrl.move(center, (_zoom + 2).clamp(3.0, 18.0)),
+        // Tap sur un cluster → liste des prestataires du groupe (bottom sheet).
+        // AVANT : on zoomait ; mais des prestataires AU MÊME POINT (repli Abidjan
+        // sans GPS) ne se séparaient jamais → cluster inexploitable.
+        onTap: () => _showClusterSheet(group),
         child: Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
