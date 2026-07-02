@@ -8,6 +8,50 @@
     </div>
   </div>
 
+  {% if litige_stats %}
+  <div class="pay-mini-stats">
+    <div class="pay-stat pay-stat--blue">
+      <span class="pay-stat-label">Litiges</span>
+      <strong class="pay-stat-value">{{ litige_stats.count }}</strong>
+    </div>
+    <div class="pay-stat {% if litige_stats.open %}pay-stat--warn{% endif %}">
+      <span class="pay-stat-label">Ouverts</span>
+      <strong class="pay-stat-value">{{ litige_stats.open }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--green">
+      <span class="pay-stat-label">Résolus</span>
+      <strong class="pay-stat-value">{{ litige_stats.resolved }}</strong>
+    </div>
+    <div class="pay-stat {% if litige_stats.urgent %}pay-stat--danger{% endif %}">
+      <span class="pay-stat-label">Priorité haute</span>
+      <strong class="pay-stat-value">{{ litige_stats.urgent }}</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="get" class="pay-filter-bar">
+    <input type="hidden" name="section" value="litiges">
+    {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+    <select name="priorite" class="pay-filter-input" title="Priorité">
+      <option value="">Toutes priorités</option>
+      <option value="Haute" {% if litige_filters.priorite == 'Haute' %}selected{% endif %}>Haute</option>
+      <option value="Moyenne" {% if litige_filters.priorite == 'Moyenne' %}selected{% endif %}>Moyenne</option>
+      <option value="Basse" {% if litige_filters.priorite == 'Basse' %}selected{% endif %}>Basse</option>
+    </select>
+    <select name="decision" class="pay-filter-input" title="Décision">
+      <option value="">Toutes décisions</option>
+      <option value="__open__" {% if litige_filters.decision == '__open__' %}selected{% endif %}>Ouverts (en cours)</option>
+      <option value="Rembourser client" {% if litige_filters.decision == 'Rembourser client' %}selected{% endif %}>Rembourser client</option>
+      <option value="Liberer paiement" {% if litige_filters.decision == 'Liberer paiement' %}selected{% endif %}>Libérer paiement</option>
+      <option value="Partage partiel" {% if litige_filters.decision == 'Partage partiel' %}selected{% endif %}>Partage partiel</option>
+    </select>
+    <input type="date" name="date_start" value="{{ litige_filters.date_start }}" class="pay-filter-input" title="Du">
+    <input type="date" name="date_end" value="{{ litige_filters.date_end }}" class="pay-filter-input" title="Au">
+    <button type="submit" class="pay-filter-btn">Filtrer</button>
+    <a href="?section=litiges" class="pay-filter-reset">Réinitialiser</a>
+  </form>
+  {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
   <div class="table-card">
     <table class="data-table">
       <thead>
@@ -38,7 +82,13 @@
           <td><span class="cell-date">{{ litige.created_at|date:"d/m/Y" }}</span></td>
           <td>
             <div class="row-actions">
-              <a href="/?section=litiges&action=view&id={{ litige.id }}" class="action-btn" title="Voir">👁️</a>
+              <button type="button" class="action-btn" title="Détail" onclick="showLitigeDetail(this)"
+                data-ref="{{ litige.reference }}" data-motif="{{ litige.motif }}"
+                data-client="{{ litige.client }}" data-presta="{{ litige.prestataire }}"
+                data-priorite="{{ litige.get_priorite_display }}" data-decision="{{ litige.get_decision_display }}"
+                data-resa="{% if litige.reservation %}{{ litige.reservation.reference }}{% endif %}"
+                data-date="{{ litige.created_at|date:'d/m/Y H:i' }}"
+                data-reponse="{{ litige.prestataire_response|truncatechars:200 }}">👁️</button>
               {% if litige.decision == "En cours" %}
               <button class="action-btn action-btn--success" onclick="resolveLitige({{ litige.id }}, 'Liberer')" title="Liberer">✓</button>
               <button class="action-btn action-btn--danger" onclick="resolveLitige({{ litige.id }}, 'Rembourser')" title="Rembourser">↩</button>
@@ -53,3 +103,10 @@
     </table>
   </div>
 </section>
+<script>
+  function showLitigeDetail(b){ var d=b.dataset; admFillDetail('Litige ' + d.ref, [
+    ['Motif', d.motif], ['Client', d.client], ['Prestataire', d.presta],
+    ['Priorité', d.priorite], ['Décision', d.decision], ['Réservation', d.resa],
+    ['Ouvert le', d.date], ['Réponse prestataire', d.reponse]
+  ]); }
+</script>

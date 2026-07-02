@@ -8,6 +8,36 @@
     </div>
   </div>
 
+  {% if client_stats %}
+  <div class="pay-mini-stats">
+    <div class="pay-stat pay-stat--blue">
+      <span class="pay-stat-label">Clients</span>
+      <strong class="pay-stat-value">{{ client_stats.count }}</strong>
+    </div>
+    <div class="pay-stat">
+      <span class="pay-stat-label">Villes</span>
+      <strong class="pay-stat-value">{{ client_stats.villes }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--amber">
+      <span class="pay-stat-label">Réservations cumulées</span>
+      <strong class="pay-stat-value">{{ client_stats.reservations }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--green">
+      <span class="pay-stat-label">Dépense cumulée</span>
+      <strong class="pay-stat-value">{{ client_stats.depense|floatformat:0 }} F</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="get" class="pay-filter-bar">
+    <input type="hidden" name="section" value="clients">
+    {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+    <input type="text" name="ville" value="{{ client_filters.ville }}" placeholder="Filtrer par ville" class="pay-filter-input">
+    <button type="submit" class="pay-filter-btn">Filtrer</button>
+    <a href="?section=clients" class="pay-filter-reset">Réinitialiser</a>
+  </form>
+  {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
   <div class="table-card">
     <table class="data-table">
       <thead>
@@ -17,7 +47,7 @@
           <th>Ville</th>
           <th>Reservations</th>
           <th>Depenses</th>
-          <th>Date inscription</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -26,9 +56,13 @@
           <td><span class="cell-name">{{ client.nom }}</span></td>
           <td><span class="cell-sub">{{ client.email|default:"N/A" }}</span></td>
           <td>{{ client.ville|default:"N/A" }}</td>
-          <td><span class="count-badge">{{ client.reservations_count|default:0 }}</span></td>
+          <td><span class="count-badge">{{ client.reservations|default:0 }}</span></td>
           <td><strong>{{ client.depense|default:0|floatformat:0 }} FCFA</strong></td>
-          <td><span class="cell-date">{{ client.created_at|date:"d/m/Y" }}</span></td>
+          <td>
+            <button type="button" class="table-btn" onclick="showClientDetail(this)"
+              data-nom="{{ client.nom }}" data-email="{{ client.email }}" data-ville="{{ client.ville }}"
+              data-resa="{{ client.reservations|default:0 }}" data-depense="{{ client.depense|default:0|floatformat:0 }}">Détail</button>
+          </td>
         </tr>
         {% empty %}
         <tr><td colspan="6" class="empty-state">Aucun client</td></tr>
@@ -37,3 +71,9 @@
     </table>
   </div>
 </section>
+<script>
+  function showClientDetail(b){ var d=b.dataset; admFillDetail('Client : ' + d.nom, [
+    ['Email', d.email], ['Ville', d.ville], ['Réservations', d.resa],
+    ['Dépense cumulée', d.depense ? d.depense + ' FCFA' : '']
+  ]); }
+</script>

@@ -1,6 +1,45 @@
 {% load babifix_tags %}
 
 <div class="payouts-admin">
+  {% if payout_stats %}
+  <div class="pay-mini-stats">
+    <div class="pay-stat pay-stat--blue">
+      <span class="pay-stat-label">Retraits</span>
+      <strong class="pay-stat-value">{{ payout_stats.count }}</strong>
+    </div>
+    <div class="pay-stat {% if payout_stats.pending %}pay-stat--warn{% endif %}">
+      <span class="pay-stat-label">En attente</span>
+      <strong class="pay-stat-value">{{ payout_stats.pending }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--green">
+      <span class="pay-stat-label">Payés</span>
+      <strong class="pay-stat-value">{{ payout_stats.paid }}</strong>
+    </div>
+    <div class="pay-stat {% if payout_stats.failed %}pay-stat--danger{% endif %}">
+      <span class="pay-stat-label">Échoués</span>
+      <strong class="pay-stat-value">{{ payout_stats.failed }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--amber">
+      <span class="pay-stat-label">Total versé</span>
+      <strong class="pay-stat-value">{{ payout_stats.total_paid|floatformat:0 }} F</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="get" class="pay-filter-bar">
+    <input type="hidden" name="section" value="payouts">
+    <select name="pstatus" class="pay-filter-input" title="Statut du retrait">
+      <option value="">Tous les statuts</option>
+      <option value="pending" {% if payout_status_filter == 'pending' %}selected{% endif %}>En attente</option>
+      <option value="processing" {% if payout_status_filter == 'processing' %}selected{% endif %}>En cours</option>
+      <option value="success" {% if payout_status_filter == 'success' %}selected{% endif %}>Payés</option>
+      <option value="failed" {% if payout_status_filter == 'failed' %}selected{% endif %}>Échoués</option>
+    </select>
+    <button type="submit" class="pay-filter-btn">Filtrer</button>
+    <a href="?section=payouts" class="pay-filter-reset">Réinitialiser</a>
+  </form>
+  {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
   <!-- Retraits prestataires --------------------------------------------------->
   <article class="card card-elevate" style="margin-bottom:18px;">
     <h3>Retraits prestataires <span class="section-count">{{ payout_withdrawals|length }}</span></h3>

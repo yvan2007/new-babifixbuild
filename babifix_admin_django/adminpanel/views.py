@@ -1013,10 +1013,23 @@ def _dashboard_forms_context(request, section):
     elif section == "payouts":
         # Retraits prestataires à traiter (en attente d'abord, puis récents).
         from django.db.models import Case, When, Value, IntegerField
+
+        po_status = (request.GET.get("pstatus") or "").strip()
+        base_qs = WalletTransaction.objects.filter(tx_type="debit")
+        ctx["payout_status_filter"] = po_status
+        ctx["payout_stats"] = {
+            "count": base_qs.count(),
+            "pending": base_qs.filter(status="pending").count(),
+            "paid": base_qs.filter(status="success").count(),
+            "failed": base_qs.filter(status="failed").count(),
+            "total_paid": base_qs.filter(status="success").aggregate(
+                s=Sum("amount_fcfa"))["s"] or 0,
+        }
+        po_qs = base_qs.select_related("provider")
+        if po_status:
+            po_qs = po_qs.filter(status=po_status)
         ctx["payout_withdrawals"] = list(
-            WalletTransaction.objects.filter(tx_type="debit")
-            .select_related("provider")
-            .order_by(
+            po_qs.order_by(
                 Case(When(status="pending", then=Value(0)), default=Value(1),
                      output_field=IntegerField()),
                 "-created_at",
@@ -2149,6 +2162,54 @@ def dashboard(request):
             "premium": providers.filter(is_premium=True).count(),
         }
 
+    # ── Litiges : filtres + mini-stats ─────────────────────────────────────
+    litige_stats = None
+    litige_filters = {}
+    if section == "litiges":
+        from django.utils.dateparse import parse_date as _pd
+
+        l_prio = (request.GET.get("priorite") or "").strip()
+        l_dec = (request.GET.get("decision") or "").strip()
+        l_ds = (request.GET.get("date_start") or "").strip()
+        l_de = (request.GET.get("date_end") or "").strip()
+        litige_filters = {
+            "priorite": l_prio, "decision": l_dec,
+            "date_start": l_ds, "date_end": l_de,
+        }
+        if l_prio:
+            litiges = litiges.filter(priorite=l_prio)
+        # « Ouvert » = décision encore « En cours » (valeur par défaut du modèle).
+        if l_dec == "__open__":
+            litiges = litiges.filter(decision="En cours")
+        elif l_dec:
+            litiges = litiges.filter(decision=l_dec)
+        if l_ds and _pd(l_ds):
+            litiges = litiges.filter(created_at__date__gte=_pd(l_ds))
+        if l_de and _pd(l_de):
+            litiges = litiges.filter(created_at__date__lte=_pd(l_de))
+        litige_stats = {
+            "count": litiges.count(),
+            "open": litiges.filter(decision="En cours").count(),
+            "resolved": litiges.exclude(decision="En cours").count(),
+            "urgent": litiges.filter(priorite="Haute").count(),
+        }
+
+    # ── Clients : filtres + mini-stats (Client n'a pas de date : on s'appuie
+    #    sur ville, nb de réservations et dépense cumulée). ─────────────────
+    client_stats = None
+    client_filters = {}
+    if section == "clients":
+        c_ville = (request.GET.get("ville") or "").strip()
+        client_filters = {"ville": c_ville}
+        if c_ville:
+            clients = clients.filter(ville__icontains=c_ville)
+        client_stats = {
+            "count": clients.count(),
+            "villes": clients.exclude(ville="").values("ville").distinct().count(),
+            "reservations": clients.aggregate(s=Sum("reservations"))["s"] or 0,
+            "depense": clients.aggregate(s=Sum("depense"))["s"] or 0,
+        }
+
     if request.GET.get("partial") == "stats" and section == "dashboard":
         return render(
             request,
@@ -2238,6 +2299,10 @@ def dashboard(request):
         "reservation_filters": reservation_filters,
         "provider_stats": provider_stats,
         "provider_filters": provider_filters,
+        "litige_stats": litige_stats,
+        "litige_filters": litige_filters,
+        "client_stats": client_stats,
+        "client_filters": client_filters,
         "categories": categories,
         "notifications": notifications,
         "unified_notifications": notifications,
