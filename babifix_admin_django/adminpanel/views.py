@@ -2084,6 +2084,71 @@ def dashboard(request):
             "litige": paiements.filter(etat="Litige").count(),
         }
 
+    # ── Réservations : filtres avancés + mini-stats ────────────────────────
+    reservation_stats = None
+    reservation_filters = {}
+    if section == "reservations":
+        from django.utils.dateparse import parse_date as _pd
+
+        r_statut = (request.GET.get("statut") or "").strip()
+        r_pay = (request.GET.get("payment") or "").strip()
+        r_op = (request.GET.get("operator") or "").strip()
+        r_ds = (request.GET.get("date_start") or "").strip()
+        r_de = (request.GET.get("date_end") or "").strip()
+        r_urgent = (request.GET.get("urgent") or "").strip()
+        reservation_filters = {
+            "statut": r_statut, "payment": r_pay, "operator": r_op,
+            "date_start": r_ds, "date_end": r_de, "urgent": r_urgent,
+        }
+        if r_statut:
+            reservations = reservations.filter(statut=r_statut)
+        if r_pay:
+            reservations = reservations.filter(payment_type=r_pay)
+        if r_op:
+            reservations = reservations.filter(mobile_money_operator=r_op)
+        if r_ds and _pd(r_ds):
+            reservations = reservations.filter(created_at__date__gte=_pd(r_ds))
+        if r_de and _pd(r_de):
+            reservations = reservations.filter(created_at__date__lte=_pd(r_de))
+        if r_urgent == "1":
+            reservations = reservations.filter(is_urgent=True)
+        reservation_stats = {
+            "count": reservations.count(),
+            "active": reservations.exclude(
+                statut__in=["Terminee", "Annulee"]).count(),
+            "done": reservations.filter(statut="Terminee").count(),
+            "urgent": reservations.filter(is_urgent=True).count(),
+            "montant": reservations.aggregate(s=Sum("montant"))["s"] or 0,
+        }
+
+    # ── Prestataires : filtres avancés + mini-stats ────────────────────────
+    provider_stats = None
+    provider_filters = {}
+    if section == "prestataires":
+        p_statut = (request.GET.get("statut") or "").strip()
+        p_tier = (request.GET.get("tier") or "").strip()
+        p_kyc = (request.GET.get("kyc") or "").strip()
+        p_ville = (request.GET.get("ville") or "").strip()
+        provider_filters = {
+            "statut": p_statut, "tier": p_tier, "kyc": p_kyc, "ville": p_ville,
+        }
+        if p_statut:
+            providers = providers.filter(statut=p_statut)
+        if p_tier == "premium":
+            providers = providers.filter(is_premium=True)
+        elif p_tier in ("gold", "silver", "bronze"):
+            providers = providers.filter(premium_tier=p_tier, is_premium=True)
+        if p_kyc:
+            providers = providers.filter(kyc_status=p_kyc)
+        if p_ville:
+            providers = providers.filter(ville__icontains=p_ville)
+        provider_stats = {
+            "count": providers.count(),
+            "pending": providers.filter(statut="En attente").count(),
+            "valides": providers.filter(statut="Valide").count(),
+            "premium": providers.filter(is_premium=True).count(),
+        }
+
     if request.GET.get("partial") == "stats" and section == "dashboard":
         return render(
             request,
@@ -2169,6 +2234,10 @@ def dashboard(request):
         "paiements": paiements,
         "paiement_stats": paiement_stats,
         "paiement_filters": paiement_filters,
+        "reservation_stats": reservation_stats,
+        "reservation_filters": reservation_filters,
+        "provider_stats": provider_stats,
+        "provider_filters": provider_filters,
         "categories": categories,
         "notifications": notifications,
         "unified_notifications": notifications,

@@ -407,6 +407,61 @@
       </article>
       {% endif %}
 
+      {# ── Mini-stats Prestataires ── #}
+      {% if provider_stats %}
+      <div class="pay-mini-stats">
+        <div class="pay-stat pay-stat--blue">
+          <span class="pay-stat-label">Prestataires</span>
+          <strong class="pay-stat-value">{{ provider_stats.count }}</strong>
+        </div>
+        <div class="pay-stat {% if provider_stats.pending %}pay-stat--warn{% endif %}">
+          <span class="pay-stat-label">En attente</span>
+          <strong class="pay-stat-value">{{ provider_stats.pending }}</strong>
+        </div>
+        <div class="pay-stat pay-stat--green">
+          <span class="pay-stat-label">Validés</span>
+          <strong class="pay-stat-value">{{ provider_stats.valides }}</strong>
+        </div>
+        <div class="pay-stat pay-stat--amber">
+          <span class="pay-stat-label">Premium</span>
+          <strong class="pay-stat-value">{{ provider_stats.premium }}</strong>
+        </div>
+      </div>
+      {% endif %}
+
+      {# ── Filtres avancés (GET) ── #}
+      <form method="get" class="pay-filter-bar">
+        <input type="hidden" name="section" value="prestataires">
+        {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+        <input type="hidden" name="view" value="{{ provider_view|default:'table' }}">
+        <select name="statut" class="pay-filter-input" title="Statut">
+          <option value="">Tous les statuts</option>
+          <option value="En attente" {% if provider_filters.statut == 'En attente' %}selected{% endif %}>En attente</option>
+          <option value="Valide" {% if provider_filters.statut == 'Valide' %}selected{% endif %}>Validé</option>
+          <option value="Suspendu" {% if provider_filters.statut == 'Suspendu' %}selected{% endif %}>Suspendu</option>
+          <option value="Refuse" {% if provider_filters.statut == 'Refuse' %}selected{% endif %}>Refusé</option>
+        </select>
+        <select name="tier" class="pay-filter-input" title="Abonnement">
+          <option value="">Tous abonnements</option>
+          <option value="premium" {% if provider_filters.tier == 'premium' %}selected{% endif %}>Premium (tous)</option>
+          <option value="gold" {% if provider_filters.tier == 'gold' %}selected{% endif %}>Gold</option>
+          <option value="silver" {% if provider_filters.tier == 'silver' %}selected{% endif %}>Silver</option>
+          <option value="bronze" {% if provider_filters.tier == 'bronze' %}selected{% endif %}>Bronze</option>
+        </select>
+        <select name="kyc" class="pay-filter-input" title="KYC">
+          <option value="">Tout KYC</option>
+          <option value="not_submitted" {% if provider_filters.kyc == 'not_submitted' %}selected{% endif %}>Non soumis</option>
+          <option value="pending" {% if provider_filters.kyc == 'pending' %}selected{% endif %}>En attente</option>
+          <option value="under_review" {% if provider_filters.kyc == 'under_review' %}selected{% endif %}>En examen</option>
+          <option value="approved" {% if provider_filters.kyc == 'approved' %}selected{% endif %}>Approuvé</option>
+          <option value="rejected" {% if provider_filters.kyc == 'rejected' %}selected{% endif %}>Rejeté</option>
+        </select>
+        <input type="text" name="ville" value="{{ provider_filters.ville }}" placeholder="Ville" class="pay-filter-input">
+        <button type="submit" class="pay-filter-btn">Filtrer</button>
+        <a href="?section=prestataires" class="pay-filter-reset">Réinitialiser</a>
+      </form>
+      {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
       <article class="card card-elevate">
         <div class="providers-section-header">
           <div>
@@ -1119,6 +1174,69 @@
       </div>
       {% endif %}
 
+      {# ── Mini-stats Réservations ── #}
+      {% if reservation_stats %}
+      <div class="pay-mini-stats">
+        <div class="pay-stat pay-stat--blue">
+          <span class="pay-stat-label">Réservations</span>
+          <strong class="pay-stat-value">{{ reservation_stats.count }}</strong>
+        </div>
+        <div class="pay-stat">
+          <span class="pay-stat-label">En cours</span>
+          <strong class="pay-stat-value">{{ reservation_stats.active }}</strong>
+        </div>
+        <div class="pay-stat pay-stat--green">
+          <span class="pay-stat-label">Terminées</span>
+          <strong class="pay-stat-value">{{ reservation_stats.done }}</strong>
+        </div>
+        <div class="pay-stat {% if reservation_stats.urgent %}pay-stat--danger{% endif %}">
+          <span class="pay-stat-label">Urgentes</span>
+          <strong class="pay-stat-value">{{ reservation_stats.urgent }}</strong>
+        </div>
+        <div class="pay-stat pay-stat--amber">
+          <span class="pay-stat-label">Montant total</span>
+          <strong class="pay-stat-value">{{ reservation_stats.montant|floatformat:0 }} F</strong>
+        </div>
+      </div>
+      {% endif %}
+
+      {# ── Filtres avancés (GET) ── #}
+      <form method="get" class="pay-filter-bar">
+        <input type="hidden" name="section" value="reservations">
+        {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+        <input type="hidden" name="view" value="{{ reservation_view|default:'table' }}">
+        <select name="statut" class="pay-filter-input" title="Statut">
+          <option value="">Tous les statuts</option>
+          <option value="DEMANDE_ENVOYEE" {% if reservation_filters.statut == 'DEMANDE_ENVOYEE' %}selected{% endif %}>Demande envoyée</option>
+          <option value="DEVIS_EN_COURS" {% if reservation_filters.statut == 'DEVIS_EN_COURS' %}selected{% endif %}>Devis en cours</option>
+          <option value="DEVIS_ENVOYE" {% if reservation_filters.statut == 'DEVIS_ENVOYE' %}selected{% endif %}>Devis envoyé</option>
+          <option value="DEVIS_ACCEPTE" {% if reservation_filters.statut == 'DEVIS_ACCEPTE' %}selected{% endif %}>Devis accepté</option>
+          <option value="Confirmee" {% if reservation_filters.statut == 'Confirmee' %}selected{% endif %}>Confirmée</option>
+          <option value="INTERVENTION_EN_COURS" {% if reservation_filters.statut == 'INTERVENTION_EN_COURS' %}selected{% endif %}>Intervention en cours</option>
+          <option value="En attente client" {% if reservation_filters.statut == 'En attente client' %}selected{% endif %}>En attente client</option>
+          <option value="Terminee" {% if reservation_filters.statut == 'Terminee' %}selected{% endif %}>Terminée</option>
+          <option value="Annulee" {% if reservation_filters.statut == 'Annulee' %}selected{% endif %}>Annulée</option>
+        </select>
+        <select name="payment" class="pay-filter-input" title="Paiement">
+          <option value="">Tout paiement</option>
+          <option value="ESPECES" {% if reservation_filters.payment == 'ESPECES' %}selected{% endif %}>Espèces</option>
+          <option value="MOBILE_MONEY" {% if reservation_filters.payment == 'MOBILE_MONEY' %}selected{% endif %}>Mobile Money</option>
+          <option value="CARTE" {% if reservation_filters.payment == 'CARTE' %}selected{% endif %}>Carte</option>
+        </select>
+        <select name="operator" class="pay-filter-input" title="Opérateur">
+          <option value="">Tous opérateurs</option>
+          <option value="ORANGE_MONEY" {% if reservation_filters.operator == 'ORANGE_MONEY' %}selected{% endif %}>Orange Money</option>
+          <option value="MTN_MOMO" {% if reservation_filters.operator == 'MTN_MOMO' %}selected{% endif %}>MTN MoMo</option>
+          <option value="WAVE" {% if reservation_filters.operator == 'WAVE' %}selected{% endif %}>Wave</option>
+          <option value="MOOV" {% if reservation_filters.operator == 'MOOV' %}selected{% endif %}>Moov Money</option>
+        </select>
+        <input type="date" name="date_start" value="{{ reservation_filters.date_start }}" class="pay-filter-input" title="Du">
+        <input type="date" name="date_end" value="{{ reservation_filters.date_end }}" class="pay-filter-input" title="Au">
+        <label class="pay-filter-check"><input type="checkbox" name="urgent" value="1" {% if reservation_filters.urgent == '1' %}checked{% endif %}> Urgentes</label>
+        <button type="submit" class="pay-filter-btn">Filtrer</button>
+        <a href="?section=reservations" class="pay-filter-reset">Réinitialiser</a>
+      </form>
+
       <div class="section-toolbar" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
         <div class="toolbar-left" style="display:flex;align-items:center;gap:8px;">
           <span class="section-count">{{ reservations|length }} resultat(s)</span>
@@ -1127,36 +1245,15 @@
           {% endif %}
         </div>
         <div class="toolbar-filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <select name="statut" class="filter-select"
-                  hx-get="?section=reservations&page=1&q={{ search_q|urlencode }}"
-                  hx-trigger="change" hx-target="#section-content"
-                  hx-select="#section-content" hx-swap="outerHTML" hx-push-url="true">
-            <option value="" {% if not request.GET.statut %}selected{% endif %}>Tous les statuts</option>
-            <option value="DEMANDE_ENVOYEE" {% if request.GET.statut == 'DEMANDE_ENVOYEE' %}selected{% endif %}>Demande envoyee</option>
-            <option value="DEVIS_EN_COURS" {% if request.GET.statut == 'DEVIS_EN_COURS' %}selected{% endif %}>Devis en cours</option>
-            <option value="DEVIS_ACCEPTE" {% if request.GET.statut == 'DEVIS_ACCEPTE' %}selected{% endif %}>Devis accepte</option>
-            <option value="INTERVENTION_EN_COURS" {% if request.GET.statut == 'INTERVENTION_EN_COURS' %}selected{% endif %}>En cours</option>
-            <option value="Terminee" {% if request.GET.statut == 'Terminee' %}selected{% endif %}>Terminee</option>
-            <option value="Annulee" {% if request.GET.statut == 'Annulee' %}selected{% endif %}>Annulee</option>
-          </select>
-          <input type="date" name="date_start" value="{{ request.GET.date_start }}"
-                 class="filter-date" title="Date debut"
-                 hx-get="?section=reservations&page=1&q={{ search_q|urlencode }}&statut={{ request.GET.statut|urlencode }}"
-                 hx-trigger="change" hx-target="#section-content"
-                 hx-select="#section-content" hx-swap="outerHTML" hx-push-url="true">
-          <input type="date" name="date_end" value="{{ request.GET.date_end }}"
-                 class="filter-date" title="Date fin"
-                 hx-get="?section=reservations&page=1&q={{ search_q|urlencode }}&statut={{ request.GET.statut|urlencode }}"
-                 hx-trigger="change" hx-target="#section-content"
-                 hx-select="#section-content" hx-swap="outerHTML" hx-push-url="true">
           <div class="view-toggle">
-            <a href="?section=reservations&view=table{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}{% if request.GET.statut %}&statut={{ request.GET.statut|urlencode }}{% endif %}"
+            <a href="?section=reservations&view=table{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}"
                class="view-toggle-btn {% if reservation_view != 'kanban' %}view-toggle-btn--active{% endif %}" title="Vue tableau">Tableau</a>
-            <a href="?section=reservations&view=kanban{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}{% if request.GET.statut %}&statut={{ request.GET.statut|urlencode }}{% endif %}"
+            <a href="?section=reservations&view=kanban{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}"
                class="view-toggle-btn {% if reservation_view == 'kanban' %}view-toggle-btn--active{% endif %}" title="Vue kanban">Kanban</a>
           </div>
         </div>
       </div>
+      {% include 'adminpanel/partials/_admin_detail_modal.html' %}
 
       {% if reservation_view == 'kanban' and kanban_reservations %}
       <div class="kanban-board">
@@ -1264,8 +1361,16 @@
                   <span class="muted">---</span>
                 {% endif %}
               </td>
-              <td>{{ r.statut }}</td>
+              <td><span class="status-badge status-badge--{{ r.statut|lower|slugify }}">{{ r.statut }}</span>{% if r.is_urgent %} <span class="status-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;border-color:rgba(239,68,68,0.3);font-size:10px;">URGENT</span>{% endif %}</td>
               <td class="td-actions">
+                <button type="button" class="table-btn" onclick="showResaDetail(this)"
+                  data-ref="{{ r.reference }}" data-client="{{ r.client }}" data-presta="{{ r.prestataire }}"
+                  data-service="{{ r.title }}" data-montant="{{ r.montant|floatformat:0 }}"
+                  data-statut="{{ r.statut }}" data-payment="{{ r.get_payment_type_display }}"
+                  data-operator="{% if r.mobile_money_operator %}{{ r.get_mobile_money_operator_display }}{% endif %}"
+                  data-ville="{{ r.address_ville }}" data-date="{{ r.created_at|date:'d/m/Y H:i' }}"
+                  data-scheduled="{% if r.scheduled_date %}{{ r.scheduled_date|date:'d/m/Y' }}{% endif %}"
+                  data-urgent="{% if r.is_urgent %}Oui{% else %}Non{% endif %}">Détail</button>
                 <a href="?section=reservations&amp;edit_reservation={{ r.id }}" class="link-edit">Modifier</a>
                 <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
                   {% csrf_token %}
@@ -1282,6 +1387,14 @@
         </table>
       </article>
       {% endif %}
+      <script>
+        function showResaDetail(b){ var d=b.dataset; admFillDetail('Réservation ' + d.ref, [
+          ['Service', d.service], ['Client', d.client], ['Prestataire', d.presta],
+          ['Statut', d.statut], ['Paiement', d.payment], ['Opérateur', d.operator],
+          ['Montant', d.montant ? d.montant + ' FCFA' : ''], ['Ville', d.ville],
+          ['Date prévue', d.scheduled], ['Créée le', d.date], ['Urgente', d.urgent]
+        ]); }
+      </script>
 
       {% if total_pages > 1 %}
       <div class="pagination-bar" style="display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;">
