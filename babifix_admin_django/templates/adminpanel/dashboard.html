@@ -1619,6 +1619,50 @@
         </a>
       </div>
       {% endif %}
+
+      {% if litige_stats %}
+      <div class="pay-mini-stats">
+        <div class="pay-stat pay-stat--blue">
+          <span class="pay-stat-label">Litiges</span>
+          <strong class="pay-stat-value">{{ litige_stats.count }}</strong>
+        </div>
+        <div class="pay-stat {% if litige_stats.open %}pay-stat--warn{% endif %}">
+          <span class="pay-stat-label">Ouverts</span>
+          <strong class="pay-stat-value">{{ litige_stats.open }}</strong>
+        </div>
+        <div class="pay-stat pay-stat--green">
+          <span class="pay-stat-label">Résolus</span>
+          <strong class="pay-stat-value">{{ litige_stats.resolved }}</strong>
+        </div>
+        <div class="pay-stat {% if litige_stats.urgent %}pay-stat--danger{% endif %}">
+          <span class="pay-stat-label">Priorité haute</span>
+          <strong class="pay-stat-value">{{ litige_stats.urgent }}</strong>
+        </div>
+      </div>
+      {% endif %}
+      <form method="get" class="pay-filter-bar">
+        <input type="hidden" name="section" value="litiges">
+        {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+        <select name="priorite" class="pay-filter-input" title="Priorité">
+          <option value="">Toutes priorités</option>
+          <option value="Haute" {% if litige_filters.priorite == 'Haute' %}selected{% endif %}>Haute</option>
+          <option value="Moyenne" {% if litige_filters.priorite == 'Moyenne' %}selected{% endif %}>Moyenne</option>
+          <option value="Basse" {% if litige_filters.priorite == 'Basse' %}selected{% endif %}>Basse</option>
+        </select>
+        <select name="decision" class="pay-filter-input" title="Décision">
+          <option value="">Toutes décisions</option>
+          <option value="__open__" {% if litige_filters.decision == '__open__' %}selected{% endif %}>Ouverts (en cours)</option>
+          <option value="Rembourser client" {% if litige_filters.decision == 'Rembourser client' %}selected{% endif %}>Rembourser client</option>
+          <option value="Liberer paiement" {% if litige_filters.decision == 'Liberer paiement' %}selected{% endif %}>Libérer paiement</option>
+          <option value="Partage partiel" {% if litige_filters.decision == 'Partage partiel' %}selected{% endif %}>Partage partiel</option>
+        </select>
+        <input type="date" name="date_start" value="{{ litige_filters.date_start }}" class="pay-filter-input" title="Du">
+        <input type="date" name="date_end" value="{{ litige_filters.date_end }}" class="pay-filter-input" title="Au">
+        <button type="submit" class="pay-filter-btn">Filtrer</button>
+        <a href="?section=litiges" class="pay-filter-reset">Réinitialiser</a>
+      </form>
+      {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
       <article class="card card-elevate">
         <div class="section-header">
           <div>
@@ -1818,6 +1862,36 @@
         </form>
       </article>
       {% endif %}
+
+      {% if client_stats %}
+      <div class="pay-mini-stats">
+        <div class="pay-stat pay-stat--blue">
+          <span class="pay-stat-label">Clients</span>
+          <strong class="pay-stat-value">{{ client_stats.count }}</strong>
+        </div>
+        <div class="pay-stat">
+          <span class="pay-stat-label">Villes</span>
+          <strong class="pay-stat-value">{{ client_stats.villes }}</strong>
+        </div>
+        <div class="pay-stat pay-stat--amber">
+          <span class="pay-stat-label">Réservations cumulées</span>
+          <strong class="pay-stat-value">{{ client_stats.reservations }}</strong>
+        </div>
+        <div class="pay-stat pay-stat--green">
+          <span class="pay-stat-label">Dépense cumulée</span>
+          <strong class="pay-stat-value">{{ client_stats.depense|floatformat:0 }} F</strong>
+        </div>
+      </div>
+      {% endif %}
+      <form method="get" class="pay-filter-bar">
+        <input type="hidden" name="section" value="clients">
+        {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+        <input type="text" name="ville" value="{{ client_filters.ville }}" placeholder="Filtrer par ville" class="pay-filter-input">
+        <button type="submit" class="pay-filter-btn">Filtrer</button>
+        <a href="?section=clients" class="pay-filter-reset">Réinitialiser</a>
+      </form>
+      {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
       {% if client_view == 'kanban' and kanban_clients %}
       <div class="kanban-toolbar">
         <div class="kanban-toolbar-left">
@@ -1912,6 +1986,11 @@
               <td title="Identifiant masqué (stats)">{% if c.email %}{% with e=c.email %}{{ e|slice:":2" }}•••@•••{% endwith %}{% else %}-{% endif %}</td>
               <td>{{ c.ville }}</td><td>{{ c.reservations }}</td><td>{{ c.depense }}</td>
               <td class="td-actions">
+                <button type="button" class="table-btn" onclick="showClientDetail(this)"
+                  data-nom="{{ c.nom }}" data-email="{{ c.email }}" data-ville="{{ c.ville }}"
+                  data-resa="{{ c.reservations|default:0 }}" data-depense="{{ c.depense|default:0|floatformat:0 }}">Détail</button>
+                <a href="?section=reservations&q={{ c.nom|urlencode }}" class="table-btn" title="Ses réservations">Réservations</a>
+                <a href="?section=paiements&q={{ c.nom|urlencode }}" class="table-btn" title="Ses paiements">Paiements</a>
                 <a href="?section=clients&amp;edit_client={{ c.id }}" class="link-edit">Modifier</a>
                 <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
                   {% csrf_token %}
@@ -1926,6 +2005,12 @@
         </table>
       </article>
       {% endif %}
+      <script>
+        function showClientDetail(b){ var d=b.dataset; admFillDetail('Client : ' + d.nom, [
+          ['Email', d.email], ['Ville', d.ville], ['Réservations', d.resa],
+          ['Dépense cumulée', d.depense ? d.depense + ' FCFA' : '']
+        ]); }
+      </script>
     {% elif section == 'paiements' %}
       {% if edit_paiement_id %}
       <article class="card card-elevate crud-form-card">
@@ -2276,6 +2361,46 @@
         </form>
       </article>
       {% endif %}
+
+      {% if notification_stats %}
+      <div class="pay-mini-stats">
+        <div class="pay-stat pay-stat--blue">
+          <span class="pay-stat-label">Notifications</span>
+          <strong class="pay-stat-value">{{ notification_stats.count }}</strong>
+        </div>
+        <div class="pay-stat {% if notification_stats.non_lues %}pay-stat--warn{% endif %}">
+          <span class="pay-stat-label">Non lues</span>
+          <strong class="pay-stat-value">{{ notification_stats.non_lues }}</strong>
+        </div>
+        <div class="pay-stat">
+          <span class="pay-stat-label">Affichées</span>
+          <strong class="pay-stat-value">{{ notification_stats.affichees }}</strong>
+        </div>
+      </div>
+      {% endif %}
+      <form method="get" class="pay-filter-bar">
+        <input type="hidden" name="section" value="notifications">
+        {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+        <select name="ntype" class="pay-filter-input" title="Type">
+          <option value="">Tous les types</option>
+          <option value="reservation" {% if notification_filters.ntype == 'reservation' %}selected{% endif %}>Réservation</option>
+          <option value="message" {% if notification_filters.ntype == 'message' %}selected{% endif %}>Message</option>
+          <option value="validation" {% if notification_filters.ntype == 'validation' %}selected{% endif %}>Validation compte</option>
+          <option value="broadcast" {% if notification_filters.ntype == 'broadcast' %}selected{% endif %}>Annonce</option>
+          <option value="payment" {% if notification_filters.ntype == 'payment' %}selected{% endif %}>Paiement</option>
+          <option value="dispute" {% if notification_filters.ntype == 'dispute' %}selected{% endif %}>Litige</option>
+          <option value="general" {% if notification_filters.ntype == 'general' %}selected{% endif %}>Général</option>
+        </select>
+        <select name="lu" class="pay-filter-input" title="Lecture">
+          <option value="">Toutes</option>
+          <option value="0" {% if notification_filters.lu == '0' %}selected{% endif %}>Non lues</option>
+          <option value="1" {% if notification_filters.lu == '1' %}selected{% endif %}>Lues</option>
+        </select>
+        <button type="submit" class="pay-filter-btn">Filtrer</button>
+        <a href="?section=notifications" class="pay-filter-reset">Réinitialiser</a>
+      </form>
+      {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
       {% if notification_view == 'kanban' and kanban_notifications %}
       <div class="kanban-toolbar">
         <div class="kanban-toolbar-left">
@@ -2390,6 +2515,44 @@
         </form>
       </article>
       {% endif %}
+
+      {% if actualite_stats %}
+      <div class="pay-mini-stats">
+        <div class="pay-stat pay-stat--blue">
+          <span class="pay-stat-label">Actualités</span>
+          <strong class="pay-stat-value">{{ actualite_stats.count }}</strong>
+        </div>
+        <div class="pay-stat pay-stat--green">
+          <span class="pay-stat-label">Publiées</span>
+          <strong class="pay-stat-value">{{ actualite_stats.publiees }}</strong>
+        </div>
+        <div class="pay-stat {% if actualite_stats.brouillons %}pay-stat--warn{% endif %}">
+          <span class="pay-stat-label">Brouillons</span>
+          <strong class="pay-stat-value">{{ actualite_stats.brouillons }}</strong>
+        </div>
+      </div>
+      {% endif %}
+      <form method="get" class="pay-filter-bar">
+        <input type="hidden" name="section" value="actualites">
+        {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+        <select name="publie" class="pay-filter-input" title="Statut">
+          <option value="">Toutes</option>
+          <option value="1" {% if actualite_filters.publie == '1' %}selected{% endif %}>Publiées</option>
+          <option value="0" {% if actualite_filters.publie == '0' %}selected{% endif %}>Brouillons</option>
+        </select>
+        <select name="cible" class="pay-filter-input" title="Audience">
+          <option value="">Toute audience</option>
+          <option value="client" {% if actualite_filters.cible == 'client' %}selected{% endif %}>Client</option>
+          <option value="prestataire" {% if actualite_filters.cible == 'prestataire' %}selected{% endif %}>Prestataire</option>
+          <option value="tous" {% if actualite_filters.cible == 'tous' %}selected{% endif %}>Tous</option>
+        </select>
+        <input type="date" name="date_start" value="{{ actualite_filters.date_start }}" class="pay-filter-input" title="Du">
+        <input type="date" name="date_end" value="{{ actualite_filters.date_end }}" class="pay-filter-input" title="Au">
+        <button type="submit" class="pay-filter-btn">Filtrer</button>
+        <a href="?section=actualites" class="pay-filter-reset">Réinitialiser</a>
+      </form>
+      {% include 'adminpanel/partials/_admin_detail_modal.html' %}
+
       {% if actualite_view == 'kanban' and kanban_actualites %}
       <div class="kanban-toolbar">
         <div class="kanban-toolbar-left">

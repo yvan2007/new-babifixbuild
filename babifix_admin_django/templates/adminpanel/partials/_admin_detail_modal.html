@@ -69,4 +69,22 @@ passe un tableau [ [label, valeur], … ] à admFillDetail(title, rows).
     padding:10px 0; border-bottom:1px solid rgba(148,163,184,0.10); }
   .pay-modal-row span { color:#94a3b8; font-size:13px; }
   .pay-modal-row b { color:#fff; font-size:13px; text-align:right; }
+
+  /* Boutons d'action alignés proprement (prestataires + autres colonnes
+     d'actions) : grille qui s'enroule, tailles homogènes, boutons pleine
+     largeur de leur contenu, plus de chevauchement. */
+  .td-actions, .td-actions--column .action-row {
+    display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  }
+  .td-actions form, .td-actions--column .action-row form { margin:0; display:inline-flex; }
+  .td-actions .table-btn, .td-actions .link-edit,
+  .td-actions--column .action-row .table-btn,
+  .td-actions--column .action-row .link-edit {
+    padding:5px 11px; font-size:12px; font-weight:600; border-radius:8px;
+    white-space:nowrap; line-height:1.3; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .td-actions .link-edit, .td-actions--column .action-row .link-edit {
+    text-decoration:none;
+  }
 </style>
