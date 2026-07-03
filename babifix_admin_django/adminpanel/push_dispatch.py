@@ -132,8 +132,8 @@ def on_reservation_change(
         is_urgent = getattr(instance, "is_urgent", False)
         _schedule(
             uids,
-            "🚨 BABIFIX — Demande urgente !" if is_urgent else "BABIFIX — Nouvelle réservation",
-            f"Demande {instance.reference} — {instance.statut}",
+            "🚨 BABIFIX · Demande urgente !" if is_urgent else "BABIFIX · Nouvelle réservation",
+            f"Nouvelle demande {instance.reference} (statut : {instance.statut}).",
             {
                 "type": "reservation.created",
                 "reference": instance.reference,
@@ -156,12 +156,12 @@ def on_reservation_change(
     # deux notifications redondantes. Les étapes mineures (demande envoyée, devis
     # en préparation) ne déclenchent AUCUNE notification.
     spec = {
-        "DEVIS_ENVOYE": ("BABIFIX — Devis reçu", f"Vous avez reçu un devis pour {ref}.", "client"),
-        "DEVIS_ACCEPTE": ("BABIFIX — Devis accepté", f"Le client a accepté le devis ({ref}).", "presta"),
-        "INTERVENTION_EN_COURS": ("BABIFIX — Intervention démarrée", f"L'intervention pour {ref} a commencé.", "client"),
-        "En attente client": ("BABIFIX — Prestation terminée", f"Confirmez la prestation {ref} pour finaliser.", "client"),
-        "Terminee": ("BABIFIX — Prestation confirmée", f"Le client a confirmé {ref}. Place au paiement.", "presta"),
-        "Annulee": ("BABIFIX — Réservation annulée", f"La réservation {ref} a été annulée.", "both"),
+        "DEVIS_ENVOYE": ("BABIFIX · Devis reçu", f"Vous avez reçu un devis pour {ref}.", "client"),
+        "DEVIS_ACCEPTE": ("BABIFIX · Devis accepté", f"Le client a accepté votre devis ({ref}). Vous pouvez démarrer.", "presta"),
+        "INTERVENTION_EN_COURS": ("BABIFIX · Intervention démarrée", f"L'intervention pour {ref} a commencé.", "client"),
+        "En attente client": ("BABIFIX · Prestation terminée", f"Confirmez la prestation {ref} pour finaliser.", "client"),
+        "Terminee": ("BABIFIX · Prestation confirmée", f"Le client a confirmé {ref}. Place au paiement.", "presta"),
+        "Annulee": ("BABIFIX · Réservation annulée", f"La réservation {ref} a été annulée.", "both"),
     }
     entry = spec.get(instance.statut)
     if not entry:
@@ -342,11 +342,18 @@ def on_notification_created(instance) -> None:
     ids: list[int | None] = []
     if instance.user_id:
         ids = [instance.user_id]
-    else:
-        # Notification globale (user=None) → tous les utilisateurs actifs
+    elif (instance.notif_type or '') == 'broadcast':
+        # Broadcast VOLONTAIRE (annonce admin « push à tous ») → utilisateurs actifs.
         ids = list(
             UserProfile.objects.filter(active=True).values_list('user_id', flat=True)
         )
+    else:
+        # Notification INTERNE admin (log d'activité : « Statut prestataire mis à
+        # jour », etc.) sans destinataire → on NE blaste PAS tous les utilisateurs
+        # par FCM. Avant : chaque client ET prestataire recevait ce message
+        # générique pour toute action admin. On reste silencieux (panneau admin
+        # seulement).
+        return
     _schedule(
         ids,
         instance.title or 'BABIFIX — Notification',

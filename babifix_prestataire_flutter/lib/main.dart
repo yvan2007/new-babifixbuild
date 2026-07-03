@@ -35,7 +35,10 @@ import 'features/auth/pending_screen.dart';
 import 'features/auth/refused_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/dashboard/floating_nav_bar.dart'
-    show babifixNewRequestsCount, babifixReservationsTick;
+    show
+        babifixNewRequestsCount,
+        babifixReservationsTick,
+        babifixOpenReservationRef;
 import 'features/requests/requests_screen.dart';
 import 'features/messages/messages_screen.dart';
 import 'features/profile/contrat_screen.dart';
@@ -421,6 +424,28 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
     }
   }
 
+  /// Message SPÉCIFIQUE (titre, corps) selon le statut d'une réservation —
+  /// pour les événements temps réel (WebSocket) qui n'ont pas de texte prêt.
+  (String, String) _reservationNotifText(String statut, String ref) {
+    final r = ref.isNotEmpty ? ' ($ref)' : '';
+    switch (statut) {
+      case 'DEVIS_ACCEPTE':
+        return ('Devis accepté', 'Le client a accepté votre devis$r. Vous pourrez démarrer le jour prévu.');
+      case 'Confirmee':
+        return ('Acompte versé', 'L\'acompte pour la réservation$r est versé. Vous pouvez démarrer.');
+      case 'INTERVENTION_EN_COURS':
+        return ('Intervention démarrée', 'L\'intervention$r a commencé.');
+      case 'En attente client':
+        return ('En attente du client', 'Le client doit confirmer la prestation$r.');
+      case 'Terminee':
+        return ('Prestation confirmée', 'Le client a confirmé$r. Place au paiement.');
+      case 'Annulee':
+        return ('Réservation annulée', 'La réservation$r a été annulée.');
+      default:
+        return ('Mission mise à jour', 'Le statut de la réservation$r a évolué.');
+    }
+  }
+
   void _showPrestataireUrgentDialog(BabifixInAppNotif n) {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -728,13 +753,25 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
           body: 'Un client vous a écrit.',
           actionRoute: 'messages',
         );
-      } else if (babifixEventTypeIsBookingRequest(ty)) {
-        // Badge sur l'onglet Exigences (compteur de nouvelles demandes).
+      } else if (babifixEventTypeIsBookingRequest(ty) ||
+          ty.contains('reservation') ||
+          ty == 'prestation.updated') {
+        // Badge sur l'onglet Exigences + rechargement des écrans ouverts.
         babifixNewRequestsCount.value = babifixNewRequestsCount.value + 1;
+        babifixReservationsTick.value++;
+        // On affiche le message SPÉCIFIQUE envoyé par le serveur (ex. « Le
+        // client a accepté votre devis (RES-003) ») au lieu d'un texte
+        // générique. On garde la référence pour ouvrir la bonne réservation.
+        final specTitle = msg.notification?.title;
+        final specBody = msg.notification?.body;
         _pushPrestataireNotif(
           category: 'demande',
-          title: 'Nouvelle demande',
-          body: 'Une réservation ou une demande nécessite votre attention.',
+          title: (specTitle != null && specTitle.isNotEmpty)
+              ? specTitle
+              : 'Mise à jour réservation',
+          body: (specBody != null && specBody.isNotEmpty)
+              ? specBody
+              : 'Une de vos réservations a évolué.',
           actionRoute: 'requests',
           severity: BabifixNotifSeverity.important,
         );
@@ -761,6 +798,17 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         );
       } else if (ty == 'actualite.published' && mounted) {
         setState(() => current = 'actualites');
+      } else if (ty == 'chat.message' && mounted) {
+        setState(() => current = 'messages');
+      } else if (babifixEventTypeIsBookingRequest(ty) ||
+          ty.contains('reservation') ||
+          ty == 'prestation.updated' ||
+          ty.contains('dispute')) {
+        // Tap sur la notification → on ouvre l'onglet Demandes ET, si la
+        // référence est fournie, on ouvre DIRECTEMENT la bonne réservation.
+        final ref = '${d['reference'] ?? ''}';
+        if (mounted) setState(() => current = 'requests');
+        if (ref.isNotEmpty) babifixOpenReservationRef.value = ref;
       }
     });
     _connectPrestataireWs(jwt);
@@ -870,30 +918,35 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
                 actionRoute: 'messages',
               );
             } else if (babifixEventTypeIsBookingRequest(t)) {
-              // Nouvelle demande → on recharge les écrans ouverts (Demandes/
-              // Dashboard) en plus de la notif, pour voir la demande apparaître
-              // SANS tirer pour rafraîchir.
+              // Nouvelle demande → recharge les écrans ouverts + notif avec réf.
               babifixReservationsTick.value++;
+              final pl = m['payload'];
+              final ref = (pl is Map) ? '${pl['reference'] ?? ''}' : '';
               _pushPrestataireNotif(
                 category: 'demande',
                 title: 'Nouvelle demande',
-                body: 'Ouvrez l’onglet Demandes pour traiter la réservation.',
+                body: ref.isNotEmpty
+                    ? 'Nouvelle réservation ($ref) à traiter.'
+                    : 'Une nouvelle réservation nécessite votre attention.',
                 actionRoute: 'requests',
                 severity: BabifixNotifSeverity.important,
               );
             } else if (t.contains('reservation') ||
                 t.contains('booking') ||
                 t == 'prestation.updated') {
-              // Statut d'une réservation qui évolue → rechargement automatique
-              // des écrans ouverts (avant : seule une notif, il fallait
-              // rafraîchir à la main pour voir l'étape suivante).
+              // Statut d'une réservation qui évolue → rechargement auto + message
+              // SPÉCIFIQUE selon le statut (au lieu d'un texte générique).
               babifixReservationsTick.value++;
+              final pl = m['payload'];
+              final ref = (pl is Map) ? '${pl['reference'] ?? ''}' : '';
+              final statut = (pl is Map) ? '${pl['statut'] ?? ''}' : '';
+              final txt = _reservationNotifText(statut, ref);
               _pushPrestataireNotif(
                 category: 'demande',
-                title: 'Mission mise à jour',
-                body: 'Le statut d’une réservation a évolué.',
+                title: txt.$1,
+                body: txt.$2,
                 actionRoute: 'requests',
-                severity: BabifixNotifSeverity.info,
+                severity: BabifixNotifSeverity.important,
               );
             } else if (t.contains('dispute') || t == 'litige.ouvert') {
               _pushPrestataireNotif(

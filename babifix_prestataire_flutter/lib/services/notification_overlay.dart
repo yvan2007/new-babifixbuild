@@ -18,7 +18,9 @@ class BabifixNotificationOverlay {
 
     overlay.insert(_currentEntry!);
 
-    _timer = Timer(const Duration(seconds: 4), _dismiss);
+    // 7 s : laisse le temps de lire un message complet (les messages sont
+    // désormais spécifiques et plus longs).
+    _timer = Timer(const Duration(seconds: 7), _dismiss);
   }
 
   static void _dismiss() {
@@ -111,15 +113,16 @@ class _BannerWidgetState extends State<_BannerWidget>
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (widget.body.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text(
                             widget.body,
-                            style: const TextStyle(color: Colors.white70, fontSize: 13),
-                            maxLines: 2,
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 13, height: 1.35),
+                            maxLines: 5,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],

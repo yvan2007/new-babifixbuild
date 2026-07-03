@@ -13,6 +13,12 @@ final ValueNotifier<int> babifixNewRequestsCount = ValueNotifier<int>(0);
 /// et rechargent leurs données → plus besoin de tirer pour rafraîchir.
 final ValueNotifier<int> babifixReservationsTick = ValueNotifier<int>(0);
 
+/// Référence de réservation à OUVRIR (détail) après un tap sur une notification.
+/// main.dart la positionne (clic notif → section Demandes) et l'écran Demandes
+/// l'écoute pour ouvrir directement la bonne réservation, puis la remet à null.
+final ValueNotifier<String?> babifixOpenReservationRef =
+    ValueNotifier<String?>(null);
+
 class MessagesNavBadge extends StatelessWidget {
   const MessagesNavBadge({
     super.key,

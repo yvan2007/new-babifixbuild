@@ -13,7 +13,8 @@ import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_slide_to_confirm.dart';
 import '../../shared/widgets/babifix_prestation_timer.dart';
 import '../../shared/widgets/payment_method_logo.dart';
-import '../dashboard/floating_nav_bar.dart' show babifixReservationsTick;
+import '../dashboard/floating_nav_bar.dart'
+    show babifixReservationsTick, babifixOpenReservationRef;
 import 'devis_kanban_editor_screen.dart';
 import 'client_journal_viewer.dart';
 import 'rate_client_screen.dart';
@@ -54,16 +55,52 @@ class _RequestsScreenState extends State<RequestsScreen> {
     // réservation (statut/devis/acompte/démarrage/fin) — sans attendre le
     // timer de 20 s ni tirer pour rafraîchir.
     babifixReservationsTick.addListener(_onReservationsTick);
+    // Ouverture DIRECTE d'une réservation après un tap sur une notification
+    // (la référence est posée par main.dart).
+    babifixOpenReservationRef.addListener(_onOpenReservationRef);
+    // Cas où la référence a été posée AVANT que cet écran ne s'ouvre.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _onOpenReservationRef());
   }
 
   void _onReservationsTick() {
     if (mounted && !loading) _loadRequests(silent: true);
   }
 
+  /// Ouvre le détail de la réservation dont la référence a été demandée via une
+  /// notification. Si la liste n'est pas encore chargée, on la recharge d'abord.
+  Future<void> _onOpenReservationRef() async {
+    final ref = babifixOpenReservationRef.value;
+    if (ref == null || ref.isEmpty || !mounted) return;
+    _RequestItem? found;
+    for (final it in items) {
+      if (it.reference == ref) {
+        found = it;
+        break;
+      }
+    }
+    if (found == null) {
+      // Pas encore dans la liste → on recharge puis on réessaie.
+      await _loadRequests(silent: true);
+      if (!mounted) return;
+      for (final it in items) {
+        if (it.reference == ref) {
+          found = it;
+          break;
+        }
+      }
+    }
+    if (found != null && mounted) {
+      babifixOpenReservationRef.value = null; // consommé
+      _openRequestDetail(found);
+    }
+  }
+
   @override
   void dispose() {
     _autoRefreshTimer?.cancel();
     babifixReservationsTick.removeListener(_onReservationsTick);
+    babifixOpenReservationRef.removeListener(_onOpenReservationRef);
     _searchCtrl.dispose();
     super.dispose();
   }
