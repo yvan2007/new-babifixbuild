@@ -544,6 +544,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
       case 'litige.ouvert':
       case 'litige.resolved':
         setState(() => navIndex = 3);
+        // Ouvre DIRECTEMENT la réservation concernée si la référence est fournie.
+        final ref = '${data['reference'] ?? ''}';
+        if (ref.isNotEmpty) _openClientReservationByRef(ref);
         break;
       case 'notification':
       case 'broadcast':
@@ -556,6 +559,52 @@ class _ClientHomePageState extends State<ClientHomePage> {
         break;
       default:
         setState(() => navIndex = 0);
+    }
+  }
+
+  /// Ouvre le détail de la réservation `ref` après un tap sur une notification.
+  /// Si elle n'est pas encore chargée, on recharge puis on réessaie.
+  void _openClientReservationByRef(String ref) {
+    ClientReservation? find() {
+      for (final r in reservations) {
+        if (r.reference == ref) return r;
+      }
+      return null;
+    }
+
+    final r = find();
+    if (r != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showReservationDetails(r);
+      });
+      return;
+    }
+    _loadRemoteData().then((_) {
+      if (!mounted) return;
+      final r2 = find();
+      if (r2 != null) _showReservationDetails(r2);
+    });
+  }
+
+  /// Message SPÉCIFIQUE (titre, corps) côté CLIENT selon le statut, pour les
+  /// événements temps réel (WebSocket) qui n'ont pas de texte prêt.
+  (String, String) _clientReservationNotifText(String statut, String ref) {
+    final r = ref.isNotEmpty ? ' ($ref)' : '';
+    switch (statut) {
+      case 'DEVIS_ENVOYE':
+        return ('Devis reçu', 'Vous avez reçu un devis pour votre réservation$r.');
+      case 'DEVIS_ACCEPTE':
+        return ('Devis accepté', 'Votre devis$r est accepté. Le prestataire va intervenir.');
+      case 'INTERVENTION_EN_COURS':
+        return ('Intervention démarrée', 'L\'intervention$r a commencé.');
+      case 'En attente client':
+        return ('Prestation terminée', 'Confirmez la prestation$r pour finaliser.');
+      case 'Terminee':
+        return ('Prestation confirmée', 'Vous avez confirmé la prestation$r. Merci !');
+      case 'Annulee':
+        return ('Réservation annulée', 'La réservation$r a été annulée.');
+      default:
+        return ('Votre réservation', 'Le statut de votre réservation$r a évolué.');
     }
   }
 
@@ -867,10 +916,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
               typ.contains('booking') ||
               typ == 'prestation.updated') {
             _loadRemoteData();
+            final pl = m['payload'];
+            final ref = (pl is Map) ? '${pl['reference'] ?? ''}' : '';
+            final statut = (pl is Map) ? '${pl['statut'] ?? ''}' : '';
+            final txt = _clientReservationNotifText(statut, ref);
             _pushClientNotif(
               category: 'demande',
-              title: 'Votre reservation',
-              body: 'Mise a jour sur une de vos demandes de service.',
+              title: txt.$1,
+              body: txt.$2,
               actionRoute: 'reservations',
               severity: BabifixNotifSeverity.important,
             );
@@ -941,10 +994,18 @@ class _ClientHomePageState extends State<ClientHomePage> {
         );
       } else if (ty.contains('reservation') || ty.contains('booking')) {
         _loadRemoteData();
+        // Message SPÉCIFIQUE du serveur (ex. « Vous avez reçu un devis pour
+        // RES-003. ») au lieu d'un texte générique.
+        final specTitle = msg.notification?.title;
+        final specBody = msg.notification?.body;
         _pushClientNotif(
           category: 'demande',
-          title: 'Reservation',
-          body: 'Statut ou detail d\'une reservation a change.',
+          title: (specTitle != null && specTitle.isNotEmpty)
+              ? specTitle
+              : 'Votre réservation',
+          body: (specBody != null && specBody.isNotEmpty)
+              ? specBody
+              : 'Le statut d\'une de vos réservations a évolué.',
           actionRoute: 'reservations',
           severity: BabifixNotifSeverity.important,
         );
