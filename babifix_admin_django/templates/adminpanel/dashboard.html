@@ -719,6 +719,9 @@
                     <input type="hidden" name="pk" value="{{ p.id }}">
                     <button type="submit" class="table-btn danger">Supprimer</button>
                   </form>
+                  <a href="?section=reservations&q={{ p.nom|urlencode }}" class="table-btn" title="Ses réservations">Réservations</a>
+                  <a href="?section=paiements&q={{ p.nom|urlencode }}" class="table-btn" title="Ses paiements">Paiements</a>
+                  <a href="?section=litiges&q={{ p.nom|urlencode }}" class="table-btn" title="Ses litiges">Litiges</a>
                   <button type="button" class="table-btn table-btn--dossier"
                           onclick="toggleDossier({{ p.id }})" id="btn-dossier-{{ p.id }}">
                     📋 Voir dossier
