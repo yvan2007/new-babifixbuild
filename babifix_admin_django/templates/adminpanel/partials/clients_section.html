@@ -58,10 +58,12 @@
           <td>{{ client.ville|default:"N/A" }}</td>
           <td><span class="count-badge">{{ client.reservations|default:0 }}</span></td>
           <td><strong>{{ client.depense|default:0|floatformat:0 }} FCFA</strong></td>
-          <td>
+          <td class="td-actions">
             <button type="button" class="table-btn" onclick="showClientDetail(this)"
               data-nom="{{ client.nom }}" data-email="{{ client.email }}" data-ville="{{ client.ville }}"
               data-resa="{{ client.reservations|default:0 }}" data-depense="{{ client.depense|default:0|floatformat:0 }}">Détail</button>
+            <a href="?section=reservations&q={{ client.nom|urlencode }}" class="table-btn" title="Voir ses réservations">Réservations</a>
+            <a href="?section=paiements&q={{ client.nom|urlencode }}" class="table-btn" title="Voir ses paiements">Paiements</a>
           </td>
         </tr>
         {% empty %}
