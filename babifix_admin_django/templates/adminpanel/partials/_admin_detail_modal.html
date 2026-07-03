@@ -1,7 +1,9 @@
-{# Modal de détail générique + styles partagés (mini-stats, filtres, modal).
-   Utilisé par plusieurs sections (Réservations, Prestataires…). Chaque section
-   met des data-* sur son bouton « Détail » et appelle une petite fonction qui
-   passe un tableau [ [label, valeur], … ] à admFillDetail(title, rows). #}
+{% comment %}
+Modal de détail générique + styles partagés (mini-stats, filtres, modal).
+Utilisé par plusieurs sections (Réservations, Prestataires…). Chaque section
+met des data-* sur son bouton « Détail » et appelle une petite fonction qui
+passe un tableau [ [label, valeur], … ] à admFillDetail(title, rows).
+{% endcomment %}
 <div id="adm-detail-overlay" class="pay-modal-overlay" onclick="closeAdmDetail()">
   <div class="pay-modal" onclick="event.stopPropagation()">
     <div class="pay-modal-head">

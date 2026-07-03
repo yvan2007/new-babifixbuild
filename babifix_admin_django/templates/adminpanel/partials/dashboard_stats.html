@@ -245,9 +245,11 @@
 })();
 {% endif %}
 
-{# Compteur animé — enhancement JS, sorti du bloc des graphiques pour tourner
-   TOUJOURS. La vraie valeur est déjà rendue en dur : si le JS ne tourne pas,
-   le chiffre reste correct (avant : tout restait figé à 0). #}
+{% comment %}
+Compteur animé — enhancement JS, sorti du bloc des graphiques pour tourner
+TOUJOURS. La vraie valeur est déjà rendue en dur : si le JS ne tourne pas,
+le chiffre reste correct (avant : tout restait figé à 0).
+{% endcomment %}
 <script>
 (function(){
   var counters = document.querySelectorAll('.kpi-card__value[data-target]');

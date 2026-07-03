@@ -2073,7 +2073,7 @@
               </span>
               <div class="kanban-card-footer">
                 <span class="kanban-card-amount">{{ p.montant|floatformat:0 }} FCFA</span>
-                <span class="kanban-card-commission">Com. {{ p.commission|floatformat:0 }} F</span>
+                <span class="kanban-card-commission">Com. {% if p.commission %}{{ p.commission|floatformat:0 }}{% elif p.reservation %}{{ p.reservation.commission|floatformat:0 }}{% else %}0{% endif %} F</span>
               </div>
               <div class="kanban-card-actions">
                 <a href="?section=paiements&edit_paiement={{ p.id }}" class="kanban-card-action-btn" title="Modifier">
@@ -2114,13 +2114,13 @@
             {% for p in paiements %}
             <tr>
               <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="paiement" value="{{ p.id }}" onchange="babifixBulkUpdate('paiement')"></td>
-              <td>{{ p.reference }}</td><td>{{ p.client }}</td><td>{{ p.prestataire }}</td><td>{{ p.montant }}</td><td>{{ p.commission }}</td>
+              <td>{{ p.reference }}</td><td>{{ p.client }}</td><td>{{ p.prestataire }}</td><td>{{ p.montant }}</td><td>{% if p.commission %}{{ p.commission|floatformat:0 }}{% elif p.reservation %}{{ p.reservation.commission|floatformat:0 }}{% else %}0{% endif %} FCFA</td>
               <td>{% if p.reservation and p.reservation.mobile_money_operator %}{% with op=p.reservation.mobile_money_operator %}{% if op == 'ORANGE_MONEY' %}<img src="{% static 'payment-logos/orange-money.svg' %}" alt="Orange" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'MTN_MOMO' %}<img src="{% static 'payment-logos/mtn-momo.svg' %}" alt="MTN" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'WAVE' %}<img src="{% static 'payment-logos/wave.svg' %}" alt="Wave" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'MOOV' %}<img src="{% static 'payment-logos/moov-money.svg' %}" alt="Moov" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% endif %}{{ p.reservation.get_mobile_money_operator_display }}{% endwith %}{% else %}{{ p.get_type_paiement_display }}{% endif %}</td>
               <td><span class="status-badge status-badge--{{ p.etat|lower|slugify }}">{{ p.get_etat_display }}</span></td>
               <td class="td-actions">
                 <button type="button" class="table-btn" onclick="showPayDetail(this)"
                   data-ref="{{ p.reference }}" data-client="{{ p.client }}" data-presta="{{ p.prestataire }}"
-                  data-montant="{{ p.montant|floatformat:0 }}" data-commission="{{ p.commission|floatformat:0 }}"
+                  data-montant="{{ p.montant|floatformat:0 }}" data-commission="{% if p.commission %}{{ p.commission|floatformat:0 }}{% elif p.reservation %}{{ p.reservation.commission|floatformat:0 }}{% else %}0{% endif %}"
                   data-etat="{{ p.get_etat_display }}" data-date="{{ p.created_at|date:'d/m/Y H:i' }}"
                   data-moyen="{% if p.reservation and p.reservation.mobile_money_operator %}{{ p.reservation.get_mobile_money_operator_display }}{% else %}{{ p.get_type_paiement_display }}{% endif %}"
                   data-resa="{% if p.reservation %}{{ p.reservation.reference }}{% endif %}"

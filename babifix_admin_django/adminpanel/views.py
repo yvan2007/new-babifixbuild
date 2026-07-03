@@ -1103,12 +1103,15 @@ def _finance_overview():
     wallet_ecart = wallet_balances - wallet_expected
     wallet_ok = abs(wallet_ecart) <= _D("1")
 
-    # ── Commission BABIFIX = TON revenu (somme des commissions encaissées) ──
-    commission_total = Z
-    completed_payments = 0
-    for p in Payment.objects.filter(etat="Complete").only("commission"):
-        commission_total += _safe_decimal(p.commission)
-        completed_payments += 1
+    # ── Commission BABIFIX = TON revenu réel ──────────────────────────────
+    # On somme le LEDGER de revenus (PlatformRevenue source=commission) et non
+    # `Payment.commission` qui n'est pas renseigné (=0) → total faux à 0 FCFA.
+    from .models import PlatformRevenue
+
+    commission_total = PlatformRevenue.objects.filter(
+        source="commission"
+    ).aggregate(s=Sum("amount_fcfa"))["s"] or Z
+    completed_payments = Payment.objects.filter(etat="Complete").count()
 
     # ── Remboursements clients (depuis Reservation) ──
     refunds_owed_qs = Reservation.objects.filter(refund_owed_fcfa__gt=0).exclude(
@@ -2088,10 +2091,16 @@ def dashboard(request):
                 paiements = paiements.filter(montant__lte=Decimal(f_max))
             except (InvalidOperation, ValueError):
                 pass
+        # La commission n'est pas stockée sur Payment mais sur la Réservation :
+        # on somme la commission des réservations DISTINCTES des paiements filtrés
+        # (Payment.commission vaut 0 → une somme dessus donnerait un faux 0).
+        _resa_ids = paiements.exclude(reservation__isnull=True).values_list(
+            "reservation_id", flat=True).distinct()
         paiement_stats = {
             "encaisse": paiements.filter(etat="Complete").aggregate(
                 s=Sum("montant"))["s"] or 0,
-            "commission": paiements.aggregate(s=Sum("commission"))["s"] or 0,
+            "commission": Reservation.objects.filter(id__in=_resa_ids).aggregate(
+                s=Sum("commission"))["s"] or 0,
             "count": paiements.count(),
             "pending": paiements.filter(etat="Pending").count(),
             "litige": paiements.filter(etat="Litige").count(),
