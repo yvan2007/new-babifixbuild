@@ -1310,15 +1310,24 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final activeKey = categoryTabs.isEmpty
-        ? 'TOUS'
-        : categoryTabs[categoryIndex.clamp(0, categoryTabs.length - 1)]
-              .filterKey;
+    final activeTab = categoryTabs.isEmpty
+        ? null
+        : categoryTabs[categoryIndex.clamp(0, categoryTabs.length - 1)];
+    final activeKey = activeTab?.filterKey ?? 'TOUS';
+    final activeLabel = (activeTab?.label ?? '').trim().toLowerCase();
     final visibleServices = activeKey == 'TOUS'
         ? services
-        : services
-              .where((s) => babifixCategoryFilterKey(s.category) == activeKey)
-              .toList();
+        : services.where((s) {
+            // Match principal : même clé de catégorie.
+            if (babifixCategoryFilterKey(s.category) == activeKey) return true;
+            // Repli TOLÉRANT (données incohérentes : catégorie du presta ≠ libellé
+            // exact de l'onglet) → on compare aussi les libellés en souple.
+            final sc = s.category.trim().toLowerCase();
+            if (sc.isEmpty || activeLabel.isEmpty) return false;
+            return sc == activeLabel ||
+                sc.contains(activeLabel) ||
+                activeLabel.contains(sc);
+          }).toList();
     return Scaffold(
       extendBody: true,
       body: PopScope(

@@ -27,6 +27,7 @@ class _Provider {
     required this.distanceKm,
     this.rating = 0,
     this.photoUrl = '',
+    this.category = '',
   });
   final int id;
   final String name;
@@ -36,6 +37,7 @@ class _Provider {
   final double distanceKm;
   final double rating;
   final String photoUrl;
+  final String category;
 }
 
 class ProvidersMapScreen extends StatefulWidget {
@@ -55,6 +57,24 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
   double _radiusKm = 25;
   double _zoom = 12; // zoom courant (pour le clustering)
   _Provider? _selected;
+
+  // Filtre catégorie de la carte (null = toutes les catégories).
+  String? _selectedCategory;
+
+  /// Prestataires réellement affichés = filtrés par la catégorie sélectionnée.
+  List<_Provider> get _visibleProviders => _selectedCategory == null
+      ? _providers
+      : _providers.where((p) => p.category == _selectedCategory).toList();
+
+  /// Catégories distinctes présentes parmi les prestataires chargés.
+  List<String> get _categories {
+    final set = <String>{};
+    for (final p in _providers) {
+      if (p.category.isNotEmpty) set.add(p.category);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
 
   // Style de carte choisi par l'utilisateur ('' = auto selon le thème système,
   // sinon 'light' / 'dark' / 'satellite'). Permet un vrai mode nuit manuel.
@@ -115,11 +135,12 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
   /// 1 presta → pin goutte avec photo ; plusieurs → badge avec le compte
   /// (tap = zoom sur le groupe). Évite que les pins se chevauchent.
   List<Marker> _buildClusteredMarkers() {
-    if (_providers.isEmpty) return const [];
+    final visible = _visibleProviders;
+    if (visible.isEmpty) return const [];
     // Taille de cellule (degrés) selon le zoom : plus on zoome, plus c'est fin.
     final cell = (90.0 / math.pow(2, _zoom)).clamp(0.0004, 6.0);
     final buckets = <String, List<_Provider>>{};
-    for (final p in _providers) {
+    for (final p in visible) {
       final key = '${(p.lat / cell).floor()}_${(p.lon / cell).floor()}';
       (buckets[key] ??= <_Provider>[]).add(p);
     }
@@ -404,10 +425,17 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
           distanceKm: jsonDouble(m['distance_km']),
           rating: jsonDouble(m['rating']),
           photoUrl: '${m['photo_portrait_url'] ?? ''}',
+          category: '${m['category_nom'] ?? m['specialite'] ?? ''}'.trim(),
         ));
       }
       setState(() {
         _providers = providers;
+        // Si la catégorie filtrée n'existe plus dans les résultats, on la retire
+        // (évite un dropdown avec une valeur absente + une carte vide).
+        if (_selectedCategory != null &&
+            !providers.any((p) => p.category == _selectedCategory)) {
+          _selectedCategory = null;
+        }
         _loading = false;
       });
     } catch (_) {
@@ -590,29 +618,84 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.radar_rounded, size: 18),
-                    const SizedBox(width: 8),
-                    Text('${_radiusKm.round()} km',
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
-                    Expanded(
-                      child: Slider(
-                        value: _radiusKm,
-                        min: 5,
-                        max: 100,
-                        divisions: 19,
-                        activeColor: BabifixDesign.cyan,
-                        onChanged: (v) => setState(() => _radiusKm = v),
-                        onChangeEnd: (_) => _loadProviders(),
-                      ),
+                    Row(
+                      children: [
+                        const Icon(Icons.radar_rounded, size: 18),
+                        const SizedBox(width: 8),
+                        Text('${_radiusKm.round()} km',
+                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Expanded(
+                          child: Slider(
+                            value: _radiusKm,
+                            min: 5,
+                            max: 100,
+                            divisions: 19,
+                            activeColor: BabifixDesign.cyan,
+                            onChanged: (v) => setState(() => _radiusKm = v),
+                            onChangeEnd: (_) => _loadProviders(),
+                          ),
+                        ),
+                        Text('${_visibleProviders.length} prestataire(s)',
+                            style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: BabifixDesign.navy)),
+                      ],
                     ),
-                    Text('${_providers.length} prestataire(s)',
-                        style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: BabifixDesign.navy)),
+                    // ── Filtre par catégorie ──
+                    if (_categories.isNotEmpty) ...[
+                      const Divider(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.category_rounded,
+                              size: 17, color: BabifixDesign.cyan),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String?>(
+                                isExpanded: true,
+                                isDense: true,
+                                value: _selectedCategory,
+                                hint: const Text('Toutes les catégories',
+                                    style: TextStyle(fontSize: 13)),
+                                items: [
+                                  const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text('Toutes les catégories',
+                                        style: TextStyle(fontSize: 13)),
+                                  ),
+                                  ..._categories.map(
+                                    (c) => DropdownMenuItem<String?>(
+                                      value: c,
+                                      child: Text(c,
+                                          style: const TextStyle(fontSize: 13),
+                                          overflow: TextOverflow.ellipsis),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (v) => setState(() {
+                                  _selectedCategory = v;
+                                  _selected = null;
+                                }),
+                              ),
+                            ),
+                          ),
+                          if (_selectedCategory != null)
+                            InkWell(
+                              onTap: () =>
+                                  setState(() => _selectedCategory = null),
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(Icons.close_rounded, size: 16),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
