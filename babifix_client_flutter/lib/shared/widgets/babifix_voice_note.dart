@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../babifix_design_system.dart';
 
@@ -179,22 +181,95 @@ class BabifixVoiceRecorderButton extends StatefulWidget {
 
 class _BabifixVoiceRecorderButtonState
     extends State<BabifixVoiceRecorderButton> {
-  // Enregistrement vocal désactivé tant que le package `record` est
-  // incompatible avec le SDK courant. La LECTURE des notes vocales marche.
+  final AudioRecorder _rec = AudioRecorder();
+  bool _recording = false;
+  int _seconds = 0;
+  Timer? _timer;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _rec.dispose();
+    super.dispose();
+  }
+
+  void _snack(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  Future<void> _toggle() async {
+    if (_recording) {
+      // Arrêt
+      String? path;
+      try {
+        path = await _rec.stop();
+      } catch (_) {}
+      _timer?.cancel();
+      final dur = _seconds;
+      if (mounted) setState(() {
+        _recording = false;
+        _seconds = 0;
+      });
+      if (path != null && path.isNotEmpty && dur >= 1) {
+        widget.onRecorded(path, dur);
+      } else {
+        _snack('Note vocale trop courte.');
+      }
+      return;
+    }
+    // Démarrage
+    try {
+      if (!await _rec.hasPermission()) {
+        _snack('Autorisez le micro pour enregistrer une note vocale.');
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final p =
+          '${dir.path}/vn_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _rec.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc),
+        path: p,
+      );
+      if (mounted) setState(() {
+        _recording = true;
+        _seconds = 0;
+      });
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _seconds++);
+        if (_seconds >= 120) _toggle(); // limite 2 minutes
+      });
+    } catch (e) {
+      _snack('Enregistrement impossible.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.color ?? BabifixDesign.cyan;
-    return IconButton(
-      onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Note vocale bientôt disponible.'),
-            duration: Duration(seconds: 2),
+    if (_recording) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            formatVoiceDuration(_seconds),
+            style: const TextStyle(
+                color: Colors.red, fontWeight: FontWeight.w700, fontSize: 12),
           ),
-        );
-      },
-      icon: Icon(Icons.mic_none_rounded, color: c.withValues(alpha: 0.6)),
-      tooltip: 'Note vocale (bientôt)',
+          IconButton(
+            onPressed: _toggle,
+            icon: const Icon(Icons.stop_circle_rounded, color: Colors.red),
+            tooltip: 'Arrêter',
+          ),
+        ],
+      );
+    }
+    return IconButton(
+      onPressed: _toggle,
+      icon: Icon(Icons.mic_none_rounded, color: c),
+      tooltip: 'Enregistrer une note vocale',
     );
   }
 }

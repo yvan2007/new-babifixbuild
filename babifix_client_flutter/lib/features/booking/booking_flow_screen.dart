@@ -18,6 +18,8 @@ import '../../shared/widgets/gps_location_card.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/babifix_voice_note.dart';
+import '../../services/babifix_api.dart';
 import '../../shared/geo_utils.dart';
 
 /// Flow de réservation en 4 étapes :
@@ -53,6 +55,29 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   int _step = 0;
 
   final _problemeCtrl = TextEditingController();
+  // Note vocale décrivant le besoin (facultative) : URL après upload.
+  String _audioProblemeUrl = '';
+  bool _audioUploading = false;
+
+  Future<void> _onVoiceRecorded(String path, int durationSeconds) async {
+    setState(() => _audioUploading = true);
+    try {
+      final url = await MediaApi.uploadFile(path);
+      if (mounted) {
+        setState(() {
+          _audioProblemeUrl = url;
+          _audioUploading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _audioUploading = false);
+        showBabifixToast(context,
+            type: BabifixToastType.error,
+            message: 'Envoi de la note vocale échoué.');
+      }
+    }
+  }
   // Nature de la demande (facultatif) : panne, maintenance, rénovation… Plus
   // précis qu'un texte libre. Vide = non précisé.
   String _demandeType = '';
@@ -544,6 +569,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           .map((b) => 'data:image/jpeg;base64,${base64Encode(b)}')
           .toList();
     }
+    if (_audioProblemeUrl.isNotEmpty) {
+      data['audio_probleme'] = _audioProblemeUrl;
+    }
 
     // Réserver = action authentifiée. Si le client N'EST PAS connecté, on ouvre
     // l'écran d'auth ICI (avant tout appel onConfirm/API) puis on REPREND
@@ -700,6 +728,10 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           onDemandeTypeChanged: (t) => setState(() => _demandeType = t),
           photos: _photos,
           onPhotosChanged: (p) => setState(() => _photos = p),
+          audioUrl: _audioProblemeUrl,
+          audioUploading: _audioUploading,
+          onVoiceRecorded: _onVoiceRecorded,
+          onAudioRemoved: () => setState(() => _audioProblemeUrl = ''),
           onNext: () {
             if (_problemeCtrl.text.trim().isEmpty) {
               showBabifixToast(
@@ -1002,6 +1034,10 @@ class _StepProbleme extends StatelessWidget {
     required this.onDemandeTypeChanged,
     required this.photos,
     required this.onPhotosChanged,
+    required this.audioUrl,
+    required this.audioUploading,
+    required this.onVoiceRecorded,
+    required this.onAudioRemoved,
     required this.onNext,
     this.providerName,
     this.providerSpecialite,
@@ -1016,6 +1052,10 @@ class _StepProbleme extends StatelessWidget {
   final ValueChanged<String> onDemandeTypeChanged;
   final List<Uint8List> photos;
   final ValueChanged<List<Uint8List>> onPhotosChanged;
+  final String audioUrl;
+  final bool audioUploading;
+  final void Function(String path, int durationSeconds) onVoiceRecorded;
+  final VoidCallback onAudioRemoved;
   final VoidCallback onNext;
   final String? providerName;
   final String? providerSpecialite;
@@ -1267,6 +1307,58 @@ class _StepProbleme extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 12),
+            // ── Note vocale (facultative) : décrire le besoin à la voix ──
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D1525),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
+              ),
+              child: audioUploading
+                  ? Row(
+                      children: const [
+                        SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: BabifixRingLoader.cyan(size: 28)),
+                        SizedBox(width: 12),
+                        Text('Envoi de la note vocale…',
+                            style: TextStyle(color: Colors.white70)),
+                      ],
+                    )
+                  : audioUrl.isEmpty
+                      ? Row(
+                          children: [
+                            BabifixVoiceRecorderButton(
+                                color: _kCyan, onRecorded: onVoiceRecorded),
+                            const Expanded(
+                              child: Text(
+                                'Ajouter une note vocale (optionnel)',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: BabifixVoiceNotePlayer(
+                                url: MediaApi.absolute(audioUrl),
+                                durationSeconds: 0,
+                                isMe: true,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: onAudioRemoved,
+                              icon: const Icon(Icons.delete_outline,
+                                  color: Colors.redAccent),
+                              tooltip: 'Supprimer la note vocale',
+                            ),
+                          ],
+                        ),
             ),
             const Spacer(),
             GestureDetector(
