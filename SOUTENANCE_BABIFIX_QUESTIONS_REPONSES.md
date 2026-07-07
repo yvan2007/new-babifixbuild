@@ -178,6 +178,33 @@
 ### Q12 — « Combien d'utilisateurs faut-il pour que ce soit viable ? »
 > « C'est le défi de toute marketplace : l'effet de réseau. J'ai prévu un **système de parrainage** pour amorcer la croissance, et une stratégie de lancement **ville par ville** — concentrer offre et demande sur Abidjan d'abord, atteindre une masse critique locale, puis répliquer. Mieux vaut être dense dans un quartier que dispersé dans tout le pays. »
 
+### Q12-bis — « Comment financez-vous concrètement le fonds de garantie / l'assurance dégâts ? »
+> « Par une **micro-assurance** : une **petite fraction de la commission** de chaque prestation est mise de côté et alimente un **fonds de garantie "dégâts"**. Point crucial : BABIFIX **ne devient pas assureur** — je serais **preneur d'une police d'assurance groupe** auprès d'une **compagnie agréée CIMA** (NSIA, SUNU, Atlantique, Allianz CI, SAHAM/Sanlam). En phase pilote, un **fonds interne plafonné** ; au passage à l'échelle, le **partenariat assureur**. Je n'ai donc pas besoin d'agrément d'assurance : la compagnie porte le risque, BABIFIX fournit le volume et les preuves horodatées (photos avant/après, géolocalisation) qui fluidifient l'indemnisation. »
+
+> ⚠️ **Piège à éviter** : ne jamais dire « BABIFIX assure les clients ». Toujours : *« partenariat avec une compagnie agréée CIMA, nous ne sommes pas assureur »*.
+
+### Q12-ter — « Et si un gros concurrent débarque (Jumia, un Uber-like) avec plus de moyens ? »
+> « D'abord, un gros acteur qui entre **valide le marché** — c'est plutôt bon signe. Ensuite, mon avantage est **local et défensif** : des catégories pensées pour la Côte d'Ivoire, l'intégration Mobile Money (Orange/MTN/Wave/Moov), et surtout la **confiance construite sur le terrain** (KYC, avis, réputation). Or l'**effet de réseau** — les avis, les historiques, les réputations accumulées — **ne se copie pas** : celui qui installe la confiance en premier prend une longueur d'avance. Et rien n'interdit, à terme, un **partenariat ou un rachat** : un grand acteur préfère souvent acheter un acteur local établi que repartir de zéro. »
+
+### Q12-quater — « Quand l'entreprise sera-t-elle rentable ? »
+> « L'**économie unitaire est saine** : la commission de chaque transaction couvre ses coûts variables (frais Mobile Money, support). Les **coûts fixes sont faibles** — cloud, pas d'agence physique, pas de stock. La rentabilité vient donc du **volume** : plus de transactions sur la même infrastructure, sans coût proportionnel. L'enjeu n'est pas le coût par transaction, c'est **d'atteindre la masse critique** d'utilisateurs sur une ville d'abord. »
+
+### Q12-quinto — « Le Mobile Money prend déjà des frais. Le prestataire n'est-il pas doublement ponctionné ? »
+> « Non. Les frais de l'agrégateur Mobile Money (~2-3 %) sont **inclus dans la commission**, pas ajoutés par-dessus. Le prestataire voit **un seul taux clair**, sans empilement de frais cachés. C'est justement une des choses que la commission couvre — je l'assume à sa place. »
+
+### Q12-sexto — « Qui fixe le prix d'une prestation ? »
+> « **Le prestataire**, via son **devis** — il reste maître de ses tarifs et de sa main-d'œuvre. BABIFIX ne fixe **pas** les prix ; il **encadre la transaction** (devis, séquestre, commission). La **concurrence** entre prestataires et les **avis clients** régulent naturellement les prix vers le juste. »
+
+### Q12-septimo — « Et un prestataire qui refuse de payer sa commission ? »
+> « Il ne le **peut pas** : la commission est **prélevée automatiquement dans le flux de paiement** (séquestre), **avant** que le prestataire ne touche son net. Il ne reçoit jamais l'argent "brut" du client. La commission n'est donc pas une facture qu'il pourrait ignorer — elle est intégrée au mécanisme de paiement lui-même. »
+
+### Q12-octavo — « Pour les travaux qui exigent une visite (peinture, carrelage), le prestataire se déplace-t-il gratuitement ? Comment le protégez-vous ? »
+> « C'est un vrai enjeu : on ne peut pas toujours chiffrer sur photos — la peinture ou le carrelage exigent un **métré** (mesures sur place). Ma réponse est la **visite de diagnostic encadrée** : au lieu d'un devis direct, le prestataire propose une **visite** avec un **créneau** et une **caution de diagnostic** (petite somme fixe). Le client la **paie dans l'app**, ce qui **débloque l'adresse exacte** — pour ce prestataire, pour ce créneau seulement. Après la visite, le prestataire saisit son **devis ferme dans l'app**. Si le client accepte, la caution est **déduite** du devis ; s'il refuse, elle **reste au prestataire** comme dédommagement du déplacement.
+>
+> Résultat : **le prestataire ne se déplace jamais gratuitement**, le **client fantôme** est dissuadé, l'**adresse reste protégée**, et le devis est **fiable** (basé sur de vraies mesures). Je prends une **petite commission sur la caution** et ma **commission normale sur la prestation** — jamais en double. »
+
+> 💡 **Si on te demande "et vous, quand prenez-vous votre commission là-dedans ?"** : *« Une petite commission sur la caution au moment où elle est payée, et ma commission habituelle sur la prestation à la libération du séquestre. Comme ça, même une visite sans suite me rapporte un peu, et le prestataire est toujours dédommagé. »*
+
 ## 🟢 D. Questions ouvertes classiques
 
 ### Q13 — « Quelle a été votre plus grande difficulté ? »
@@ -193,6 +220,26 @@
 
 ### Q16 — « Votre projet est-il réellement fonctionnel ou est-ce une maquette ? »
 > « Il est **fonctionnel de bout en bout** : un client s'inscrit, géolocalise un prestataire, reçoit un devis (affiché comme une carte professionnelle dans le chat), paie en Mobile Money, suit l'intervention, confirme, note — et le prestataire reçoit son paiement. Le tout avec notifications temps réel, appels audio, notes vocales dans le chat, et supervision admin. Je peux vous le démontrer maintenant. »
+
+## 🔵 E. Marché & impact social
+
+### Q18 — « Quelle est la taille de votre marché ? À qui vous adressez-vous ? »
+> « Le marché est **large et concret**. La Côte d'Ivoire compte plus de **24 millions de comptes Mobile Money**, et **plus de 70 % des adultes** paient déjà par téléphone — la population est donc **prête à transiger en numérique**. En face, les services à domicile (plomberie, électricité, ménage, jardinage, climatisation…) sont un **besoin quotidien et récurrent**, aujourd'hui **massivement informel**. Ma cible de départ : **Abidjan**, la plus dense, avant de répliquer ville par ville. Je ne crée pas un besoin, je **structure un marché qui existe déjà**. »
+
+### Q19 — « Quel est l'impact social / sur l'emploi de votre plateforme ? »
+> « Il est direct : BABIFIX **formalise un secteur informel** et **valorise le travail des prestataires**. Un artisan compétent mais invisible obtient une **vitrine numérique**, une **réputation vérifiable** (avis, historique), des **reçus professionnels**, et surtout un **revenu plus régulier** grâce aux clients apportés. C'est un outil d'**inclusion économique** : je donne des moyens de se faire connaître et d'être payé en confiance à des travailleurs qui n'avaient que le bouche-à-oreille. »
+
+### Q20 — « Comment touchez-vous les non-bancarisés ? »
+> « C'est justement la **force du Mobile Money**. En Côte d'Ivoire, la majorité des gens n'ont **pas de compte bancaire**, mais **ont un compte Mobile Money**. En construisant tout le paiement sur **Orange, MTN, Wave et Moov** — et **pas** sur la carte bancaire — je rends la plateforme accessible à la **grande majorité de la population**, y compris les prestataires et clients **non bancarisés**. »
+
+### Q21 — « Beaucoup de prestataires sont peu à l'aise avec le numérique. Comment gérez-vous cette barrière ? »
+> « J'en ai fait un **principe de conception** : l'application prestataire est **simple, en français, guidée pas à pas**, avec des **messages d'erreur clairs** (jamais de code technique). Le parcours suit sa logique métier : *recevoir une demande → faire un devis → exécuter → être payé*. À terme, un **onboarding accompagné** (tutoriels, voire agents de terrain pour l'inscription des premiers) lève la barrière — c'est un enjeu d'**accompagnement**, pas seulement de technologie. »
+
+### Q22 — « Votre modèle est-il réplicable à d'autres pays ? »
+> « Oui, et c'est voulu. Les briques — Mobile Money, géolocalisation, séquestre, KYC — sont **communes à toute l'Afrique de l'Ouest** (zone **UEMOA/CIMA**). Le socle technique est le même ; il suffit d'**adapter les opérateurs de paiement et les catégories locales**. La Côte d'Ivoire est un **marché-pilote** représentatif : ce qui marche à Abidjan est transposable à Dakar, Lomé, Cotonou… »
+
+### Q23 — « En quoi contribuez-vous concrètement à l'économie ivoirienne ? »
+> « Sur trois plans. **Formalisation** : je fais entrer une activité informelle dans un cadre tracé (identité vérifiée, transactions enregistrées, reçus). **Confiance** : je réduis l'asymétrie d'information qui freine la consommation de ces services. **Numérisation des paiements** : je pousse l'usage du Mobile Money vers de nouveaux cas d'usage. C'est aligné avec la stratégie nationale de **transformation numérique** de la Côte d'Ivoire. »
 
 ---
 
