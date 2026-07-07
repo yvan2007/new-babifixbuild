@@ -288,10 +288,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             from django.contrib.auth import get_user_model
             User = get_user_model()
             sender = User.objects.get(pk=uid)
+            from .text_utils import mask_contacts
             msg = Message.objects.create(
                 conversation=conv,
                 sender=sender,
-                body=body,
+                body=mask_contacts(body),
                 reply_to=reply_to,
             )
             conv.save(update_fields=['updated_at'])

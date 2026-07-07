@@ -3596,10 +3596,12 @@ def api_messages_send_by_reservation(request):
         )
 
     sender = User.objects.filter(pk=uid).first()
+    from .text_utils import mask_contacts
+
     message = Message.objects.create(
         conversation=conv,
         sender=sender,
-        body=message_text,
+        body=mask_contacts(message_text),
     )
 
     _schedule(
