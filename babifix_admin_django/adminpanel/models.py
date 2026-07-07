@@ -492,6 +492,29 @@ class Reservation(models.Model):
     description_probleme = models.TextField(
         blank=True, default="", help_text="Description du problème par le client"
     )
+    # Nature de la demande (un TYPE, plus précis que du texte libre). Optionnel :
+    # vide = non précisé (comportement historique conservé).
+    demande_type = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        choices=[
+            ("panne", "Panne / réparation"),
+            ("maintenance", "Maintenance / entretien"),
+            ("renovation", "Réaménagement / rénovation"),
+            ("installation", "Installation / pose"),
+            ("conseil", "Devis / conseil"),
+            ("autre", "Autre"),
+        ],
+        help_text="Nature de la demande (panne, maintenance, rénovation, pose...)",
+    )
+    # Note vocale du client décrivant le besoin (URL du fichier audio). Optionnel.
+    audio_probleme = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="URL d'une note vocale décrivant le besoin (facultatif)",
+    )
     photos_probleme = models.JSONField(
         default=list, blank=True, help_text="URLs des photos du problème"
     )

@@ -2483,6 +2483,9 @@ def api_client_home(request):
                 "can_rate": can_rate,
                 "rated": has_rating,
                 "client_message": (item.client_message or "")[:500],
+                "demande_type": item.demande_type or "",
+                "demande_type_label": item.get_demande_type_display() if item.demande_type else "",
+                "audio_probleme": item.audio_probleme or "",
                 "intervention_started_at": item.intervention_started_at.isoformat()
                 if item.intervention_started_at
                 else None,
@@ -4120,6 +4123,8 @@ def api_client_create_reservation(request):
         preuve_photos=preuve_list,
         prix_propose=prix_propose,
         description_probleme=str(payload.get("description_probleme", "") or "")[:2000],
+        demande_type=str(payload.get("demande_type", "") or "")[:20],
+        audio_probleme=str(payload.get("audio_probleme", "") or "")[:500],
         disponibilites_client=str(payload.get("disponibilites_client", "") or "")[:255],
         is_urgent=is_urgent,
         urgence_surcharge_pct=urgence_surcharge_pct,
