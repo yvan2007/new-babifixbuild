@@ -866,6 +866,35 @@ class _RequestsScreenState extends State<RequestsScreen> {
             it.service,
             style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
           ),
+          // Nature de la demande (panne, rénovation…) si le client l'a précisée.
+          if (it.demandeTypeLabel.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF38BDF8).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: const Color(0xFF38BDF8).withValues(alpha: 0.30)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.label_important_rounded,
+                      size: 12, color: Color(0xFF38BDF8)),
+                  const SizedBox(width: 5),
+                  Text(
+                    it.demandeTypeLabel,
+                    style: const TextStyle(
+                        color: Color(0xFF38BDF8),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -1693,6 +1722,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             scheduledDate: '${e['scheduled_date'] ?? ''}',
             clientRated: e['client_rated'] == true,
             clientMessage: '${e['client_message'] ?? ''}',
+            demandeTypeLabel: '${e['demande_type_label'] ?? ''}',
             clientPhotos: photos,
             bookingId: (e['id'] as num?)?.toInt(),
             disponibilitesClient: '${e['disponibilites_client'] ?? ''}',
@@ -2095,6 +2125,10 @@ class _RequestItem {
   /// Message du client décrivant le problème
   final String clientMessage;
 
+  /// Nature de la demande, libellé prêt à afficher (« Rénovation », « Panne »…).
+  /// Vide si le client ne l'a pas précisée.
+  final String demandeTypeLabel;
+
   /// Photos envoyées par le client (base64 data URI ou URL HTTP)
   final List<String> clientPhotos;
 
@@ -2152,6 +2186,7 @@ class _RequestItem {
     this.scheduledDate = '',
     this.clientRated = false,
     this.clientMessage = '',
+    this.demandeTypeLabel = '',
     this.clientPhotos = const [],
     this.bookingId,
     this.disponibilitesClient = '',

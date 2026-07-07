@@ -53,6 +53,17 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   int _step = 0;
 
   final _problemeCtrl = TextEditingController();
+  // Nature de la demande (facultatif) : panne, maintenance, rénovation… Plus
+  // précis qu'un texte libre. Vide = non précisé.
+  String _demandeType = '';
+  static const List<(String, String, IconData)> _demandeTypes = [
+    ('panne', 'Panne / réparation', Icons.build_rounded),
+    ('maintenance', 'Maintenance / entretien', Icons.handyman_rounded),
+    ('renovation', 'Réaménagement / rénovation', Icons.format_paint_rounded),
+    ('installation', 'Installation / pose', Icons.add_home_work_rounded),
+    ('conseil', 'Devis / conseil', Icons.request_quote_rounded),
+    ('autre', 'Autre', Icons.more_horiz_rounded),
+  ];
   final _addressCtrl = TextEditingController();
   // Point de repère libre saisi par le client (ex : « à côté de la pharmacie
   // Saint-Joseph », « en face de l'école Sainte-Marie »). Affiché en
@@ -509,6 +520,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     final data = <String, dynamic>{
       'title': widget.serviceTitle,
       'description_probleme': _problemeCtrl.text.trim(),
+      if (_demandeType.isNotEmpty) 'demande_type': _demandeType,
       'address_label': _addressCtrl.text.trim(),
       'address_repere': _repereCtrl.text.trim(),
       'client_message': _msgCtrl.text.trim(),
@@ -683,6 +695,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           textColor: text,
           subColor: sub,
           problemeCtrl: _problemeCtrl,
+          demandeType: _demandeType,
+          demandeTypes: _demandeTypes,
+          onDemandeTypeChanged: (t) => setState(() => _demandeType = t),
           photos: _photos,
           onPhotosChanged: (p) => setState(() => _photos = p),
           onNext: () {
@@ -982,6 +997,9 @@ class _StepProbleme extends StatelessWidget {
     required this.textColor,
     required this.subColor,
     required this.problemeCtrl,
+    required this.demandeType,
+    required this.demandeTypes,
+    required this.onDemandeTypeChanged,
     required this.photos,
     required this.onPhotosChanged,
     required this.onNext,
@@ -993,6 +1011,9 @@ class _StepProbleme extends StatelessWidget {
   final Color textColor;
   final Color subColor;
   final TextEditingController problemeCtrl;
+  final String demandeType;
+  final List<(String, String, IconData)> demandeTypes;
+  final ValueChanged<String> onDemandeTypeChanged;
   final List<Uint8List> photos;
   final ValueChanged<List<Uint8List>> onPhotosChanged;
   final VoidCallback onNext;
@@ -1123,7 +1144,68 @@ class _StepProbleme extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
+            // ── Nature de la demande (facultatif) ──────────────────────────
+            Text(
+              'De quoi s\'agit-il ? (facultatif)',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: demandeTypes.map((t) {
+                final selected = demandeType == t.$1;
+                return GestureDetector(
+                  onTap: () =>
+                      onDemandeTypeChanged(selected ? '' : t.$1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? _kBlue.withValues(alpha: 0.18)
+                          : const Color(0xFF0D1525),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected
+                            ? _kBlue
+                            : Colors.white.withValues(alpha: 0.12),
+                        width: selected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(t.$3,
+                            size: 16,
+                            color: selected
+                                ? _kBlue
+                                : Colors.white.withValues(alpha: 0.55)),
+                        const SizedBox(width: 6),
+                        Text(
+                          t.$2,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w500,
+                            color: selected
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
             Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF0D1525),
