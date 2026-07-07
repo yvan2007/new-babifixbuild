@@ -13,6 +13,8 @@ import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_slide_to_confirm.dart';
 import '../../shared/widgets/babifix_prestation_timer.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../../shared/widgets/babifix_voice_note.dart';
+import '../../services/babifix_api.dart' show MediaApi;
 import '../dashboard/floating_nav_bar.dart'
     show babifixReservationsTick, babifixOpenReservationRef;
 import 'devis_kanban_editor_screen.dart';
@@ -895,6 +897,23 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ),
           ],
+          if (it.audioProbleme.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.mic_rounded,
+                    size: 15, color: Color(0xFF38BDF8)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: BabifixVoiceNotePlayer(
+                    url: MediaApi.absolute(it.audioProbleme),
+                    durationSeconds: 0,
+                    isMe: false,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -1723,6 +1742,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             clientRated: e['client_rated'] == true,
             clientMessage: '${e['client_message'] ?? ''}',
             demandeTypeLabel: '${e['demande_type_label'] ?? ''}',
+            audioProbleme: '${e['audio_probleme'] ?? ''}',
             clientPhotos: photos,
             bookingId: (e['id'] as num?)?.toInt(),
             disponibilitesClient: '${e['disponibilites_client'] ?? ''}',
@@ -2129,6 +2149,9 @@ class _RequestItem {
   /// Vide si le client ne l'a pas précisée.
   final String demandeTypeLabel;
 
+  /// Note vocale du client décrivant le besoin (URL). Vide si absente.
+  final String audioProbleme;
+
   /// Photos envoyées par le client (base64 data URI ou URL HTTP)
   final List<String> clientPhotos;
 
@@ -2187,6 +2210,7 @@ class _RequestItem {
     this.clientRated = false,
     this.clientMessage = '',
     this.demandeTypeLabel = '',
+    this.audioProbleme = '',
     this.clientPhotos = const [],
     this.bookingId,
     this.disponibilitesClient = '',
