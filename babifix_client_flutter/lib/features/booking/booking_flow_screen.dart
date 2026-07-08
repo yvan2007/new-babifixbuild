@@ -801,6 +801,14 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
               ..addAll(m);
           }),
           onNext: () {
+            if (_demandeType.isEmpty) {
+              showBabifixToast(
+                context,
+                type: BabifixToastType.info,
+                message: 'Choisissez le type de demande.',
+              );
+              return;
+            }
             if (_problemeCtrl.text.trim().isEmpty) {
               showBabifixToast(
         context,

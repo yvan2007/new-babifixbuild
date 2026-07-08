@@ -22,6 +22,11 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+        <!-- Force le rendu Skia (Impeller OFF) : corrige l'écran noir au scroll
+             et les clignotements observés sur émulateurs Android (BlueStacks). -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
