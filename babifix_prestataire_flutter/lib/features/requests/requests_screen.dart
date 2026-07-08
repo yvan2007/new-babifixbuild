@@ -671,6 +671,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           addressLat: it.addressLat,
           addressLon: it.addressLon,
           addressIsApproximate: it.addressIsApproximate,
+          distanceKm: it.distanceKm,
           description: it.description,
           apiStatus: it.apiStatus,
           scheduledDate: it.scheduledDate,
@@ -940,9 +941,36 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        it.address,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              it.address,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFF94A3B8)),
+                            ),
+                          ),
+                          if (it.distanceKm != null) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0EA5E9)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '~${it.distanceKm!.toStringAsFixed(it.distanceKm! < 10 ? 1 : 0)} km',
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0EA5E9),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const Padding(
                         padding: EdgeInsets.only(top: 2),
@@ -1722,6 +1750,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             amount: '${e['amount']}',
             address: '${e['address']}',
             addressIsApproximate: e['address_is_approximate'] == true,
+            distanceKm: (e['distance_km'] as num?)?.toDouble(),
             // Adresse structurée pro (rue/quartier/ville/pays/repère + GPS).
             addressStreet: '${e['address_street'] ?? ''}',
             addressQuartier: '${e['address_quartier'] ?? ''}',
@@ -2127,6 +2156,10 @@ class _RequestItem {
   /// True tant que le presta n'est pas engagé : l'adresse affichée est
   /// approximative (commune, ville) pour protéger le client.
   final bool addressIsApproximate;
+
+  /// Distance estimée (km) entre le prestataire et le lieu de la demande.
+  /// null si non calculable (coordonnées manquantes / hors zone).
+  final double? distanceKm;
   final String description;
   final double rating;
 
@@ -2198,6 +2231,7 @@ class _RequestItem {
     required this.amount,
     required this.address,
     this.addressIsApproximate = false,
+    this.distanceKm,
     required this.description,
     required this.rating,
     required this.status,

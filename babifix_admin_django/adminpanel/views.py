@@ -4549,6 +4549,11 @@ def api_prestataire_requests(request):
                 "address_lat": lat_out,
                 "address_lon": lon_out,
                 "address_is_approximate": approx,
+                # Distance réservation ↔ prestataire (km) : permet au presta de
+                # juger le trajet AVANT d'accepter, sans dévoiler l'adresse exacte.
+                "distance_km": _provider_distance_km(
+                    item.latitude, item.longitude, prov
+                ),
                 "description": (
                     client_text or f"Detail de la demande {item.reference}"
                 )[:500],

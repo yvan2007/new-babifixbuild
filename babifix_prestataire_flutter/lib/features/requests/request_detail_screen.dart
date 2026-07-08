@@ -41,6 +41,7 @@ class RequestDetailScreen extends StatelessWidget {
     this.addressLat,
     this.addressLon,
     this.addressIsApproximate = true,
+    this.distanceKm,
     this.scheduledDate = '',
   });
 
@@ -71,6 +72,9 @@ class RequestDetailScreen extends StatelessWidget {
   final double? addressLat;
   final double? addressLon;
   final bool addressIsApproximate;
+
+  /// Distance estimée (km) entre le prestataire et le lieu de la demande.
+  final double? distanceKm;
 
   /// Date prévue (ISO yyyy-mm-dd) choisie par le client — pour bloquer le
   /// bouton « Démarrer » avant le jour J.
@@ -167,6 +171,7 @@ class RequestDetailScreen extends StatelessWidget {
                   lat: addressLat,
                   lon: addressLon,
                   isApproximate: addressIsApproximate,
+                  distanceKm: distanceKm,
                 ),
                 // Carte moderne : emplacement du client (pin goutte).
                 if (addressLat != null && addressLon != null) ...[
@@ -809,6 +814,7 @@ class _AddressCard extends StatelessWidget {
     required this.lat,
     required this.lon,
     required this.isApproximate,
+    this.distanceKm,
   });
 
   final String street;
@@ -820,6 +826,7 @@ class _AddressCard extends StatelessWidget {
   final double? lat;
   final double? lon;
   final bool isApproximate;
+  final double? distanceKm;
 
   bool get _hasStructured =>
       street.isNotEmpty ||
@@ -890,6 +897,31 @@ class _AddressCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (distanceKm != null)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.directions_car_rounded,
+                            color: Colors.white, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          '~${distanceKm!.toStringAsFixed(distanceKm! < 10 ? 1 : 0)} km',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
