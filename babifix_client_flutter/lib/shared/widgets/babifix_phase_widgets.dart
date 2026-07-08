@@ -57,6 +57,9 @@ class DevisCardWidget extends StatelessWidget {
           .where((e) => e.isNotEmpty)
           .toList(),
       lignes: lignes,
+      estEstimation: payload['est_estimation'] == true,
+      prixMin: (payload['prix_min'] as num?)?.toDouble() ?? 0,
+      prixMax: (payload['prix_max'] as num?)?.toDouble() ?? 0,
     );
     return DevisCardWidget(devis: devis, compact: compact);
   }
@@ -329,6 +332,30 @@ class DevisCardWidget extends StatelessWidget {
   }
 
   Widget _totals() {
+    if (devis.estEstimation) {
+      // Estimation : fourchette indicative, pas de total payable.
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+        child: Row(
+          children: [
+            const Icon(Icons.query_stats_rounded,
+                size: 16, color: BabifixDesign.ciBlue),
+            const SizedBox(width: 6),
+            const Text('Estimation',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Text(
+              '${fmtMoney(devis.prixMin)} – ${fmtMoney(devis.prixMax)}',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: BabifixDesign.ciBlue,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
       child: MoneyBreakdownWidget(

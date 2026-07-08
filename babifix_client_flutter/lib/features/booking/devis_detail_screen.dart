@@ -552,6 +552,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     final devis = _devis!;
     final lignes = (devis['lignes'] as List?) ?? [];
     final statut = devis['statut'] as String? ?? '';
+    final estim = devis['est_estimation'] == true;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -566,14 +567,108 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           _buildDevisPhotos(devis),
           _buildDateInfo(devis),
           const SizedBox(height: 16),
-          _buildLignes(lignes),
-          const SizedBox(height: 16),
-          _buildTotal(devis),
-          if (statut == 'ENVOYE') ...[
-            const SizedBox(height: 28),
-            _buildActionButtons(),
+          // Une estimation n'a pas de lignes détaillées : on montre la
+          // fourchette + un bandeau « en attente du devis ferme ».
+          if (estim) ...[
+            _buildEstimationTotal(devis),
+            if (statut == 'ENVOYE') ...[
+              const SizedBox(height: 20),
+              _buildEstimationNotice(),
+            ],
+          ] else ...[
+            _buildLignes(lignes),
+            const SizedBox(height: 16),
+            _buildTotal(devis),
+            if (statut == 'ENVOYE') ...[
+              const SizedBox(height: 28),
+              _buildActionButtons(),
+            ],
           ],
           const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEstimationTotal(Map<String, dynamic> devis) {
+    final min = (devis['prix_min'] as num?) ?? 0;
+    final max = (devis['prix_max'] as num?) ?? 0;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0A1628), Color(0xFF152A45)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x22FFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.query_stats_rounded,
+                  color: BabifixDesign.cyan, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Estimation indicative',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${min.toStringAsFixed(0)} – ${max.toStringAsFixed(0)} FCFA',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              color: BabifixDesign.cyan,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Fourchette donnée à titre indicatif. Aucun paiement n’est demandé '
+            'sur une estimation.',
+            style: TextStyle(
+                fontSize: 11.5, color: Color(0xFF64748B), height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEstimationNotice() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: BabifixDesign.ciOrange.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border:
+            Border.all(color: BabifixDesign.ciOrange.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: const [
+          Icon(Icons.hourglass_top_rounded,
+              color: BabifixDesign.ciOrange, size: 22),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Le prestataire vous enverra ensuite un devis ferme (montant '
+              'exact) que vous pourrez accepter et régler.',
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: Color(0xFF334155),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );

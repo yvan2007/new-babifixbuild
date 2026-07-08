@@ -161,6 +161,10 @@ class Devis {
   final DevisStatus statut;
   final List<String> photosPrestataire;
   final List<LigneDevis> lignes;
+  // Devis en 2 temps : estimation (fourchette indicative, non payable).
+  final bool estEstimation;
+  final double prixMin;
+  final double prixMax;
 
   const Devis({
     this.id,
@@ -180,6 +184,9 @@ class Devis {
     required this.statut,
     this.photosPrestataire = const [],
     required this.lignes,
+    this.estEstimation = false,
+    this.prixMin = 0,
+    this.prixMax = 0,
   });
 
   factory Devis.fromJson(Map<String, dynamic> j) {
@@ -208,6 +215,9 @@ class Devis {
           .where((e) => e.isNotEmpty)
           .toList(),
       lignes: lignes,
+      estEstimation: j['est_estimation'] == true,
+      prixMin: _asDouble(j['prix_min']),
+      prixMax: _asDouble(j['prix_max']),
     );
   }
 

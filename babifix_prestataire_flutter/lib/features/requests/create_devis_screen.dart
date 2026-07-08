@@ -27,6 +27,10 @@ class CreateDevisScreen extends StatefulWidget {
 class _CreateDevisScreenState extends State<CreateDevisScreen> {
   final _diagnosticCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
+  // Devis en 2 temps : estimation (fourchette indicative, non payable).
+  bool _estEstimation = false;
+  final _prixMinCtrl = TextEditingController();
+  final _prixMaxCtrl = TextEditingController();
   DateTime? _dateProposee;
   TimeOfDay? _heureDebut;
   TimeOfDay? _heureFin;
@@ -84,6 +88,8 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
   @override
   void dispose() {
     _diagnosticCtrl.dispose();
+    _prixMinCtrl.dispose();
+    _prixMaxCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -110,7 +116,21 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
       return;
     }
 
-    if (_lignes.isEmpty) {
+    final prixMin = double.tryParse(
+            _prixMinCtrl.text.replaceAll(',', '.').trim()) ??
+        0;
+    final prixMax = double.tryParse(
+            _prixMaxCtrl.text.replaceAll(',', '.').trim()) ??
+        0;
+    if (_estEstimation) {
+      if (prixMin <= 0 || prixMax <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Indiquez une fourchette (min et max).')),
+        );
+        return;
+      }
+    } else if (_lignes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ajoutez au moins une ligne de devis')),
       );
@@ -147,16 +167,22 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
         'validite_jours': _validiteJours,
         'note_prestataire': _noteCtrl.text.trim(),
         if (_photos.isNotEmpty) 'photos': _photos,
-        'lignes': _lignes
-            .map(
-              (l) => {
-                'type_ligne': l.type,
-                'description': l.description,
-                'quantite': l.quantite,
-                'prix_unitaire': l.prixUnitaire,
-              },
-            )
-            .toList(),
+        if (_estEstimation) ...{
+          'est_estimation': true,
+          'prix_min': prixMin,
+          'prix_max': prixMax,
+          'lignes': const [],
+        } else
+          'lignes': _lignes
+              .map(
+                (l) => {
+                  'type_ligne': l.type,
+                  'description': l.description,
+                  'quantite': l.quantite,
+                  'prix_unitaire': l.prixUnitaire,
+                },
+              )
+              .toList(),
       };
 
       final resp = await http.post(
@@ -171,7 +197,11 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
       if (resp.statusCode == 200) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Devis envoyé avec succès!')),
+            SnackBar(
+              content: Text(_estEstimation
+                  ? 'Estimation envoyée au client.'
+                  : 'Devis envoyé avec succès!'),
+            ),
           );
           widget.onDevisCreated();
         }
@@ -210,16 +240,23 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
           children: [
             _buildReservationInfo(),
             const SizedBox(height: 16),
+            _buildModeSection(),
+            const SizedBox(height: 16),
             _buildDiagnosticSection(),
             const SizedBox(height: 16),
             _buildDateTimeSection(),
             const SizedBox(height: 16),
-            _buildLignesSection(),
+            if (_estEstimation)
+              _buildEstimationSection()
+            else
+              _buildLignesSection(),
             const SizedBox(height: 16),
             _buildValiditeSection(),
             const SizedBox(height: 24),
-            _buildTotalSection(),
-            const SizedBox(height: 24),
+            if (!_estEstimation) ...[
+              _buildTotalSection(),
+              const SizedBox(height: 24),
+            ],
             _buildSubmitButton(),
             const SizedBox(height: 40),
           ],
@@ -254,6 +291,92 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
                 style: TextStyle(fontSize: 13, color: Colors.grey[600]),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _estEstimation,
+              activeThumbColor: const Color(0xFF06B6D4),
+              onChanged: (v) => setState(() => _estEstimation = v),
+              title: const Text(
+                'Envoyer une estimation',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+              subtitle: const Text(
+                'Fourchette indicative (non payable). Vous enverrez ensuite '
+                'un devis ferme.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEstimationSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Fourchette estimée (FCFA)',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Le client verra « ~min–max FCFA » à titre indicatif. Aucun '
+              'paiement ne sera demandé sur une estimation.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _prixMinCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Minimum',
+                      suffixText: 'FCFA',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('–',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w800)),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _prixMaxCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Maximum',
+                      suffixText: 'FCFA',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
