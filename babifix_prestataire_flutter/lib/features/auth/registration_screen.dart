@@ -172,6 +172,31 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     }
   }
 
+  /// Puce d'aide à la rédaction de la bio : insère une amorce de phrase que le
+  /// prestataire complète ensuite. Rend la description plus structurée et pro.
+  Widget _bioChip(String label, String snippet) {
+    return ActionChip(
+      label: Text(label),
+      labelStyle: const TextStyle(
+          fontSize: 12, fontWeight: FontWeight.w600, color: _kCyan),
+      backgroundColor: _kCyan.withValues(alpha: 0.10),
+      side: BorderSide(color: _kCyan.withValues(alpha: 0.35)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onPressed: () {
+        final cur = _bioCtrl.text;
+        final sep = (cur.isEmpty || cur.endsWith(' ') || cur.endsWith('\n'))
+            ? ''
+            : ' ';
+        final newText = '$cur$sep$snippet';
+        _bioCtrl.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newText.length),
+        );
+        setState(() {});
+      },
+    );
+  }
+
   // ── Documents étape 2 ────────────────────────────────────────────────────
   String? _profilePhotoPath;
   String? _cniRectoPath;
@@ -1012,6 +1037,31 @@ class _RegistrationScreenState extends State<RegistrationScreen>
               maxLines: 4,
               hint:
                   'Ex. : Plombier depuis 8 ans, spécialisé en rénovation et dépannage rapide...',
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: const [
+                Icon(Icons.visibility_outlined, size: 14, color: _kCyan),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Ce texte est visible par les clients : soyez précis et rassurant.',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _bioChip('Expérience', 'J\'ai X ans d\'expérience. '),
+                _bioChip('Spécialités', 'Mes spécialités : . '),
+                _bioChip('Zone', 'J\'interviens à Abidjan (préciser communes). '),
+                _bioChip('Garanties', 'Devis gratuit, travail garanti, ponctuel. '),
+                _bioChip('Équipement', 'Je viens avec mon matériel. '),
+              ],
             ),
             const SizedBox(height: 16),
 

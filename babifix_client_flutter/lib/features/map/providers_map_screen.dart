@@ -618,32 +618,66 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.radar_rounded, size: 18),
+                        Icon(Icons.radar_rounded,
+                            size: 18, color: BabifixDesign.cyan),
                         const SizedBox(width: 8),
-                        Text('${_radiusKm.round()} km',
-                            style: const TextStyle(fontWeight: FontWeight.w700)),
-                        Expanded(
-                          child: Slider(
-                            value: _radiusKm,
-                            min: 5,
-                            max: 100,
-                            divisions: 19,
-                            activeColor: BabifixDesign.cyan,
-                            onChanged: (v) => setState(() => _radiusKm = v),
-                            onChangeEnd: (_) => _loadProviders(),
+                        // Rayon : pastille colorée selon la distance.
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _distanceColor(_radiusKm)
+                                .withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${_radiusKm.round()} km',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                color: _distanceColor(_radiusKm)),
                           ),
                         ),
-                        Text('${_visibleProviders.length} prestataire(s)',
+                        Expanded(
+                          child: SliderTheme(
+                            data: SliderThemeData(
+                              trackHeight: 3,
+                              overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 14),
+                            ),
+                            child: Slider(
+                              value: _radiusKm,
+                              min: 5,
+                              max: 100,
+                              divisions: 19,
+                              activeColor: BabifixDesign.cyan,
+                              onChanged: (v) => setState(() => _radiusKm = v),
+                              onChangeEnd: (_) => _loadProviders(),
+                            ),
+                          ),
+                        ),
+                        // Compteur de résultats en badge.
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: BabifixDesign.navy,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${_visibleProviders.length}',
                             style: const TextStyle(
                                 fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: BabifixDesign.navy)),
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white),
+                          ),
+                        ),
                       ],
                     ),
                     // ── Filtre par catégorie ──
