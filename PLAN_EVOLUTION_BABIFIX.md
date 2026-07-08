@@ -89,15 +89,15 @@ Beaucoup d'utilisateurs sont **peu à l'aise avec l'écrit**. La demande doit ac
 - [x] **Bouton « visio-diagnostic »** : appel vidéo presta→client avant acceptation (exception ciblée, LiveKit).
 - [ ] → Tester, redéployer admin, réinstaller les APK.
 
-### Phase 2 — Le devis intelligent (cœur métier) — EN COURS
+### Phase 2 — Le devis intelligent (cœur métier) ✅ TERMINÉE
 - [x] Champ **`profil_devis`** sur la **catégorie** (défaut **Standard** → inchangé). *(migration 0082)*
 - [x] Champ **`template_exigences` (JSON)** sur la catégorie (défaut **vide** → formulaire actuel). *(migration 0082 ; éditable dans l'admin catégories)*
 - [x] App : **si template vide → formulaire actuel** ; sinon → formulaire **généré dynamiquement**. *(widget `BabifixDynamicRequirements` + endpoint `/api/providers/<id>/requirements/` ; réponses stockées dans `Reservation.reponses_exigences`, migration 0083, affichées côté presta)*
 - [x] Le **type de demande** peut filtrer/adapter les questions du template. *(question déclarant `types:[...]` → affichée seulement si le type courant y figure)*
 - [x] **Formulaire de mesures** (profil Surface) + **calcul m² auto** + **presets logement**. *(assistant surface : presets studio→villa + calcul L×l (sol) / 2·(L+l)·H (murs) → bouton Reporter)*
 - [x] **Toutes les catégories pré-remplies** (profil + template). *(migration 0084, idempotente)*
-- [ ] **Devis en 2 temps** : champs `prix_min` / `prix_max` + flag **`est_estimation`** (optionnels ; absents → devis ferme comme aujourd'hui). ⏳ *reste à faire — décision UX en attente (voir ci-dessous)*
-- [ ] → Activer **une seule catégorie test** (ex. Peinture), vérifier, puis étendre.
+- [x] **Devis en 2 temps** : `est_estimation` + `prix_min` / `prix_max` (migration 0085). Estimation = fourchette indicative NON payable (demande reste DEVIS_EN_COURS) ; le presta envoie ensuite un devis ferme (qui périme l'estimation) ; l'acceptation refuse les estimations. App presta : bascule « Envoyer une estimation ». App client : fiche + carte chat affichent la fourchette, sans bouton payer.
+- [ ] → Activer **une seule catégorie test** (ex. Peinture), vérifier, puis étendre. *(les 10 catégories sont déjà pré-remplies via 0084 ; à valider en réel)*
 
 ### Phase 3 — La visite & la caution (+ commission)
 - [ ] Statut **`VISITE_DIAGNOSTIC`** inséré **avant `DEVIS_ENVOYE`** — **optionnel** (devis direct toujours possible).
