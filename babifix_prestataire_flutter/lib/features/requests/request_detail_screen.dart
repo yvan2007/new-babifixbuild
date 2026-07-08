@@ -42,6 +42,7 @@ class RequestDetailScreen extends StatelessWidget {
     this.addressLon,
     this.addressIsApproximate = true,
     this.distanceKm,
+    this.reponsesExigences = const {},
     this.scheduledDate = '',
   });
 
@@ -75,6 +76,10 @@ class RequestDetailScreen extends StatelessWidget {
 
   /// Distance estimée (km) entre le prestataire et le lieu de la demande.
   final double? distanceKm;
+
+  /// Réponses du client aux questions dynamiques de la catégorie (Phase 2).
+  /// Format {key: {label, value, unit?}}.
+  final Map<String, dynamic> reponsesExigences;
 
   /// Date prévue (ISO yyyy-mm-dd) choisie par le client — pour bloquer le
   /// bouton « Démarrer » avant le jour J.
@@ -173,6 +178,7 @@ class RequestDetailScreen extends StatelessWidget {
                   isApproximate: addressIsApproximate,
                   distanceKm: distanceKm,
                 ),
+                _RequirementsAnswersCard(reponses: reponsesExigences),
                 // Carte moderne : emplacement du client (pin goutte).
                 if (addressLat != null && addressLon != null) ...[
                   const SizedBox(height: 12),
@@ -838,6 +844,118 @@ class _SafeImage extends StatelessWidget {
     } catch (_) {}
 
     return _placeholder(size);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _RequirementsAnswersCard — réponses du client aux questions dynamiques de la
+// catégorie (Phase 2). Format {key: {label, value, unit?}}. Rien si vide.
+// ─────────────────────────────────────────────────────────────────────────────
+class _RequirementsAnswersCard extends StatelessWidget {
+  const _RequirementsAnswersCard({required this.reponses});
+
+  final Map<String, dynamic> reponses;
+
+  @override
+  Widget build(BuildContext context) {
+    // Ne garder que les entrées ayant une valeur non vide.
+    final rows = <MapEntry<String, String>>[];
+    for (final v in reponses.values) {
+      if (v is! Map) continue;
+      final label = (v['label'] ?? '').toString().trim();
+      var value = (v['value'] ?? '').toString().trim();
+      final unit = (v['unit'] ?? '').toString().trim();
+      if (value.isEmpty) continue;
+      if (unit.isNotEmpty) value = '$value $unit';
+      rows.add(MapEntry(label.isEmpty ? '—' : label, value));
+    }
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+                color: Colors.black12, blurRadius: 12, offset: Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                ),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.assignment_turned_in_rounded,
+                      color: Colors.white, size: 20),
+                  SizedBox(width: 10),
+                  Text(
+                    'Détails de la demande',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Column(
+                children: [
+                  for (int i = 0; i < rows.length; i++) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 5,
+                          child: Text(
+                            rows[i].key,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 6,
+                          child: Text(
+                            rows[i].value,
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              color: Color(0xFF0B1B34),
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (i != rows.length - 1)
+                      const Divider(height: 18, color: Color(0xFFF1F5F9)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -672,6 +672,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           addressLon: it.addressLon,
           addressIsApproximate: it.addressIsApproximate,
           distanceKm: it.distanceKm,
+          reponsesExigences: it.reponsesExigences,
           description: it.description,
           apiStatus: it.apiStatus,
           scheduledDate: it.scheduledDate,
@@ -1751,6 +1752,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
             address: '${e['address']}',
             addressIsApproximate: e['address_is_approximate'] == true,
             distanceKm: (e['distance_km'] as num?)?.toDouble(),
+            reponsesExigences: (e['reponses_exigences'] is Map)
+                ? Map<String, dynamic>.from(e['reponses_exigences'] as Map)
+                : const {},
             // Adresse structurée pro (rue/quartier/ville/pays/repère + GPS).
             addressStreet: '${e['address_street'] ?? ''}',
             addressQuartier: '${e['address_quartier'] ?? ''}',
@@ -2160,6 +2164,10 @@ class _RequestItem {
   /// Distance estimée (km) entre le prestataire et le lieu de la demande.
   /// null si non calculable (coordonnées manquantes / hors zone).
   final double? distanceKm;
+
+  /// Réponses du client aux questions dynamiques de la catégorie (Phase 2).
+  /// Format auto-descriptif {key: {label, value, unit?}}. Vide si aucune.
+  final Map<String, dynamic> reponsesExigences;
   final String description;
   final double rating;
 
@@ -2232,6 +2240,7 @@ class _RequestItem {
     required this.address,
     this.addressIsApproximate = false,
     this.distanceKm,
+    this.reponsesExigences = const {},
     required this.description,
     required this.rating,
     required this.status,

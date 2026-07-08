@@ -19,6 +19,7 @@ import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/babifix_voice_note.dart';
+import '../../shared/widgets/babifix_dynamic_requirements.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/geo_utils.dart';
 
@@ -111,6 +112,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   List<Map<String, dynamic>> _availableCreneaux = [];
   String _reservationReference = '';
 
+  // Devis intelligent (Phase 2) : questions dynamiques propres à la catégorie
+  // du prestataire. Vide = catégorie STANDARD → formulaire habituel.
+  List<Map<String, dynamic>> _exigTemplate = [];
+  final Map<String, dynamic> _reponsesExigences = {};
+
   LatLng _mapPin = BabifixOsmLocationPicker.defaultCenter;
 
   /// `true` après un tap sur la carte ou « Ma position » — sinon on n'envoie pas lat/lng à l'API.
@@ -134,6 +140,49 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     // toujours saisir une autre adresse à la main (non obligatoire).
     WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoLocate());
     _loadSavedAddresses();
+    _loadRequirements();
+  }
+
+  /// Construit le payload auto-descriptif des réponses aux exigences :
+  /// {key: {label, value, unit?}}. Ignore les réponses vides.
+  Map<String, dynamic> _buildReponsesExigences() {
+    if (_exigTemplate.isEmpty || _reponsesExigences.isEmpty) return {};
+    final out = <String, dynamic>{};
+    for (final q in _exigTemplate) {
+      final key = (q['key'] ?? '').toString();
+      if (key.isEmpty) continue;
+      final v = _reponsesExigences[key];
+      final empty = v == null || (v is String && v.trim().isEmpty);
+      if (empty) continue;
+      final unit = (q['unit'] ?? '').toString();
+      out[key] = {
+        'label': (q['label'] ?? key).toString(),
+        'value': v,
+        if (unit.isNotEmpty) 'unit': unit,
+      };
+    }
+    return out;
+  }
+
+  /// Charge les questions dynamiques de la catégorie du prestataire choisi.
+  /// Best-effort : en cas d'échec, template vide → formulaire habituel.
+  Future<void> _loadRequirements() async {
+    final pid = widget.providerId;
+    if (pid == null) return;
+    try {
+      final r =
+          await BabifixUserStore.authGet('/api/providers/$pid/requirements/');
+      if (r.statusCode == 200 && mounted) {
+        final d = jsonDecode(r.body) as Map<String, dynamic>;
+        final tpl = (d['template_exigences'] as List?) ?? const [];
+        setState(() {
+          _exigTemplate = tpl
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadSavedAddresses() async {
@@ -572,6 +621,14 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     if (_audioProblemeUrl.isNotEmpty) {
       data['audio_probleme'] = _audioProblemeUrl;
     }
+    // Réponses aux questions dynamiques de la catégorie (Phase 2). Absent si
+    // aucune question → l'API reçoit un dict vide (comportement actuel).
+    // Payload auto-descriptif {key: {label, value, unit}} : le prestataire
+    // affiche label + valeur sans avoir besoin du template.
+    final reponses = _buildReponsesExigences();
+    if (reponses.isNotEmpty) {
+      data['reponses_exigences'] = reponses;
+    }
 
     // Réserver = action authentifiée. Si le client N'EST PAS connecté, on ouvre
     // l'écran d'auth ICI (avant tout appel onConfirm/API) puis on REPREND
@@ -732,6 +789,14 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           audioUploading: _audioUploading,
           onVoiceRecorded: _onVoiceRecorded,
           onAudioRemoved: () => setState(() => _audioProblemeUrl = ''),
+          // Questions dynamiques de la catégorie (Phase 2). Vide = rien affiché.
+          exigencesTemplate: _exigTemplate,
+          reponsesExigences: _reponsesExigences,
+          onExigencesChanged: (m) => setState(() {
+            _reponsesExigences
+              ..clear()
+              ..addAll(m);
+          }),
           onNext: () {
             if (_problemeCtrl.text.trim().isEmpty) {
               showBabifixToast(
@@ -739,6 +804,18 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         type: BabifixToastType.info,
         message: 'Décrivez votre problème.',
       );
+              return;
+            }
+            final missing = babifixMissingRequirements(
+              _exigTemplate,
+              _reponsesExigences,
+            );
+            if (missing.isNotEmpty) {
+              showBabifixToast(
+                context,
+                type: BabifixToastType.info,
+                message: 'Complétez : ${missing.join(', ')}.',
+              );
               return;
             }
             _goTo(1);
@@ -1038,6 +1115,9 @@ class _StepProbleme extends StatelessWidget {
     required this.audioUploading,
     required this.onVoiceRecorded,
     required this.onAudioRemoved,
+    required this.exigencesTemplate,
+    required this.reponsesExigences,
+    required this.onExigencesChanged,
     required this.onNext,
     this.providerName,
     this.providerSpecialite,
@@ -1056,6 +1136,9 @@ class _StepProbleme extends StatelessWidget {
   final bool audioUploading;
   final void Function(String path, int durationSeconds) onVoiceRecorded;
   final VoidCallback onAudioRemoved;
+  final List<Map<String, dynamic>> exigencesTemplate;
+  final Map<String, dynamic> reponsesExigences;
+  final ValueChanged<Map<String, dynamic>> onExigencesChanged;
   final VoidCallback onNext;
   final String? providerName;
   final String? providerSpecialite;
@@ -1075,6 +1158,11 @@ class _StepProbleme extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
             // ── Header prestataire ───────────────────────────────────────────
             if (providerName != null) ...[
               Container(
@@ -1360,7 +1448,30 @@ class _StepProbleme extends StatelessWidget {
                           ],
                         ),
             ),
-            const Spacer(),
+                  // ── Exigences dynamiques de la catégorie (Phase 2) ──
+                  // Rendu sur carte claire (l'étape est en fond navy). Vide =
+                  // rien affiché (catégorie STANDARD → formulaire habituel).
+                  if (exigencesTemplate.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: BabifixDynamicRequirements(
+                        template: exigencesTemplate,
+                        answers: reponsesExigences,
+                        onChanged: onExigencesChanged,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+            const SizedBox(height: 16),
             GestureDetector(
               onTap: onNext,
               child: Container(
