@@ -617,7 +617,7 @@ body.app-shell {
 
 .search-submit-btn {
   border: 0;
-  background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+  background: var(--brand);
   color: #fff;
   font: inherit;
   font-size: 12px;
@@ -1003,20 +1003,19 @@ body.app-shell {
   height: 4px;
 }
 
-.adminty-stats .stat-0 { background: linear-gradient(145deg, #fff7ed, #ffffff); }
-.adminty-stats .stat-0::before { background: linear-gradient(90deg, #fb923c, #f97316); }
-.adminty-stats .stat-0 .stat-ico { color: #ea580c; }
+/* Charte sobre : fond blanc plat, fine barre d'accent SOLIDE (pas de dégradé),
+   couleur d'icône discrète. Le color-coding aide au scan sans l'effet "IA". */
+.adminty-stats .stat-tile { background: #ffffff; }
+.adminty-stats .stat-0::before { background: #E87722; }
+.adminty-stats .stat-0 .stat-ico { color: #E87722; }
 
-.adminty-stats .stat-1 { background: linear-gradient(145deg, #ecfdf5, #ffffff); }
-.adminty-stats .stat-1::before { background: linear-gradient(90deg, #34d399, #10b981); }
-.adminty-stats .stat-1 .stat-ico { color: #059669; }
+.adminty-stats .stat-1::before { background: #22C55E; }
+.adminty-stats .stat-1 .stat-ico { color: #16a34a; }
 
-.adminty-stats .stat-2 { background: linear-gradient(145deg, #fdf2f8, #ffffff); }
-.adminty-stats .stat-2::before { background: linear-gradient(90deg, #f472b6, #ec4899); }
-.adminty-stats .stat-2 .stat-ico { color: #db2777; }
+.adminty-stats .stat-2::before { background: #EF4444; }
+.adminty-stats .stat-2 .stat-ico { color: #dc2626; }
 
-.adminty-stats .stat-3 { background: linear-gradient(145deg, #ecfeff, #ffffff); }
-.adminty-stats .stat-3::before { background: linear-gradient(90deg, #22d3ee, #06b6d4); }
+.adminty-stats .stat-3::before { background: #4CC9F0; }
 .adminty-stats .stat-3 .stat-ico { color: #0891b2; }
 
 .pill {
@@ -1084,19 +1083,19 @@ body.app-shell {
 
 .btn-primary {
   border: 0;
-  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  background: var(--brand);
   color: #fff;
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 12px 20px;
   font-weight: 600;
   cursor: pointer;
   font-size: 14px;
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.25);
-  transition: transform 0.2s var(--ease), box-shadow 0.2s;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s;
 }
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
 }
 
 .params-form { display: grid; gap: 12px; max-width: 520px; }
