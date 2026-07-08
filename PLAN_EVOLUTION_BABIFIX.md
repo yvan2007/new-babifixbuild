@@ -81,18 +81,18 @@ Beaucoup d'utilisateurs sont **peu à l'aise avec l'écrit**. La demande doit ac
 - [ ] Backup base avant chaque migration.
 - [ ] Noter le **cycle actuel de référence** (pour vérifier l'absence de régression).
 
-### Phase 1 — Quick wins (n'affectent PAS le flux existant)
-- [ ] **Nature de la demande (type)** : ajouter le sélecteur au formulaire de réservation (défaut « Autre » → rien cassé).
-- [ ] **Note vocale à la demande** : réutiliser le composant audio du chat au stade description.
-- [ ] **Zone + distance avant acceptation** : exposer commune/quartier + distance (champs existants). Adresse exacte toujours masquée.
-- [ ] **Masquage des contacts dans le chat** : filtrer numéros/emails à l'affichage (règle serveur).
-- [ ] **Bouton « proposer un visio-diagnostic »** : réutilise LiveKit.
+### Phase 1 — Quick wins (n'affectent PAS le flux existant) ✅ TERMINÉE
+- [x] **Nature de la demande (type)** : sélecteur ajouté au formulaire de réservation (défaut vide → rien cassé).
+- [x] **Note vocale à la demande** : composant audio du chat réutilisé au stade description.
+- [x] **Zone + distance avant acceptation** : `distance_km` exposé + badge presta ; adresse exacte toujours masquée.
+- [x] **Masquage des contacts dans le chat** : `mask_contacts` (numéros/emails) côté serveur (REST + WebSocket).
+- [x] **Bouton « visio-diagnostic »** : appel vidéo presta→client avant acceptation (exception ciblée, LiveKit).
 - [ ] → Tester, redéployer admin, réinstaller les APK.
 
-### Phase 2 — Le devis intelligent (cœur métier)
-- [ ] Champ **`profil_devis`** sur la **catégorie** (défaut **Standard** → inchangé).
-- [ ] Champ **`template_exigences` (JSON)** sur la catégorie (défaut **vide** → formulaire actuel).
-- [ ] App : **si template vide → formulaire actuel** ; sinon → formulaire **généré dynamiquement**.
+### Phase 2 — Le devis intelligent (cœur métier) — EN COURS
+- [x] Champ **`profil_devis`** sur la **catégorie** (défaut **Standard** → inchangé). *(migration 0082)*
+- [x] Champ **`template_exigences` (JSON)** sur la catégorie (défaut **vide** → formulaire actuel). *(migration 0082 ; éditable dans l'admin catégories)*
+- [x] App : **si template vide → formulaire actuel** ; sinon → formulaire **généré dynamiquement**. *(widget `BabifixDynamicRequirements` + endpoint `/api/providers/<id>/requirements/` ; réponses stockées dans `Reservation.reponses_exigences`, migration 0083, affichées côté presta)*
 - [ ] Le **type de demande** peut filtrer/adapter les questions du template.
 - [ ] **Formulaire de mesures** (profil Surface) + **calcul m² auto** + **presets logement**.
 - [ ] **Devis en 2 temps** : champs `prix_min` / `prix_max` + flag **`est_estimation`** (optionnels ; absents → devis ferme comme aujourd'hui).
