@@ -164,3 +164,17 @@ Le socle complet (nature de demande, note vocale, masquage contacts, zone+distan
 ---
 
 *Document de conception — BABIFIX. À dérouler phase par phase.*
+
+---
+
+## 🔧 Améliorations post-Phases 1–4 (livrées)
+- [x] **Réglages admin** (`PlatformConfig`, migration 0089, éditable via `/admin`) : commission caution (%), activation du gating + seuil, deltas de fiabilité. `pay_caution` et `ReliabilityService` lisent la config.
+- [x] **Gating fiabilité** (helpers + surfaces exposées, **OFF par défaut**) : `provider_penalise`, `client_prepaiement_requis` ; champs `fiabilite_score` (profil presta) et `prepaiement_requis` (résa client) exposés.
+- [x] **Badge score client** dans l'admin (fiche Clients).
+- [x] **Test bout-en-bout** (`adminpanel/tests/test_phase1_4_features.py`, 6 cas, VERT).
+
+## 🐞 Bugs trouvés par le test E2E
+- [x] **CORRIGÉ** — les hooks caution/fiabilité d'annulation étaient sur `CancellationService` **sans aucun appelant** (code mort) → déplacés vers `api_client_cancel_reservation` (endpoint réel). Avant ce fix, annuler ne remboursait jamais la caution et ne bougeait pas le score.
+- [ ] **À décider** — signal `post_save` réservation appelle `send_babifix_email` **non défini** → les e-mails liés aux réservations échouent silencieusement (warning à chaque save).
+- [ ] **À décider** — seed démo `Client.depense = "2 450"` mal formaté → `_bootstrap_data` plante si `BABIFIX_ENABLE_DEMO_SEED=1` sur base neuve.
+- [ ] **À décider** — `CancellationService.cancel` référence des colonnes supprimées (`cancelled_at`, `cancellation_by/stage/motif` par 0071) → planterait si un jour appelé (actuellement mort).
