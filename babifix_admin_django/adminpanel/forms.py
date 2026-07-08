@@ -97,6 +97,18 @@ class CategoryForm(forms.ModelForm):
         + [(s, f"{s} — {lb}") for s, lb in CATEGORY_ICON_SLUGS],
         required=False,
     )
+    # Devis intelligent (Phase 2). Le template est saisi en JSON brut dans un
+    # textarea ; vide = formulaire actuel (rétrocompatible).
+    template_exigences = forms.CharField(
+        label="Template d’exigences (JSON)",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 6, "class": "code-json"}),
+        help_text=(
+            "Liste JSON de questions dynamiques. Ex. : "
+            '[{"key":"surface_m2","label":"Surface (m²)","type":"number"}]. '
+            "Laisser vide = formulaire actuel."
+        ),
+    )
 
     class Meta:
         model = Category
@@ -109,11 +121,13 @@ class CategoryForm(forms.ModelForm):
             "services",
             "reservations",
             "actif",
+            "profil_devis",
         ]
         widgets = {"description": forms.Textarea(attrs={"rows": 2})}
         help_texts = {
             "icone_url": "Optionnel : URL d’image externe. Sinon, choisissez un pictogramme dans la grille ci‑dessous (slug).",
             "icone_slug": "Cliquez une vignette dans la bibliothèque pour remplir ce champ automatiquement.",
+            "profil_devis": "Oriente les questions posées au client. STANDARD = formulaire actuel inchangé.",
         }
 
     def __init__(self, *args, **kwargs):
@@ -124,6 +138,40 @@ class CategoryForm(forms.ModelForm):
                 self.fields["icone_slug"].choices = list(
                     self.fields["icone_slug"].choices
                 ) + [(cur, cur)]
+        # Pré-remplir le textarea JSON depuis la valeur stockée (liste/dict).
+        if self.instance and self.instance.pk:
+            import json as _json
+            existing = self.instance.template_exigences
+            if existing:
+                self.fields["template_exigences"].initial = _json.dumps(
+                    existing, ensure_ascii=False, indent=2
+                )
+
+    def clean_template_exigences(self):
+        """Valide le JSON saisi. Vide → liste vide (comportement actuel)."""
+        import json as _json
+        raw = (self.cleaned_data.get("template_exigences") or "").strip()
+        if not raw:
+            return []
+        try:
+            parsed = _json.loads(raw)
+        except (ValueError, TypeError):
+            raise forms.ValidationError(
+                "JSON invalide. Vérifiez la syntaxe (crochets, virgules, guillemets)."
+            )
+        if not isinstance(parsed, list):
+            raise forms.ValidationError(
+                "Le template doit être une LISTE de questions (entre crochets [ ])."
+            )
+        return parsed
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        # clean_template_exigences renvoie déjà une liste Python → l'affecter.
+        obj.template_exigences = self.cleaned_data.get("template_exigences") or []
+        if commit:
+            obj.save()
+        return obj
 
 
 class NotificationForm(forms.ModelForm):

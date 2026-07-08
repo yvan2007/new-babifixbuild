@@ -970,6 +970,31 @@ class Category(models.Model):
     is_deleted = models.BooleanField(default=False, db_index=True, help_text="Soft delete: l'admin a masqué cette catégorie, elle ne s'affiche plus mais les anciennes données sont conservées.")
     actif = models.BooleanField(default=True, help_text="Visible sur les apps (désactivable temporairement)")
 
+    class ProfilDevis(models.TextChoices):
+        STANDARD = "STANDARD", "Standard (photos + description)"
+        SURFACE = "SURFACE", "Surface / m² (peinture, carrelage)"
+        FORFAIT = "FORFAIT", "Forfait / quantités (ménage, jardinage)"
+        DIAGNOSTIC = "DIAGNOSTIC", "Diagnostic (plomberie, élec, clim)"
+
+    # Profil de devis : décide quel volet de questions s'affiche au moment de la
+    # demande. Défaut STANDARD = comportement actuel (photos + description), donc
+    # les catégories existantes ne changent pas tant qu'on ne les reconfigure pas.
+    profil_devis = models.CharField(
+        max_length=16,
+        choices=ProfilDevis.choices,
+        default=ProfilDevis.STANDARD,
+        db_index=True,
+        help_text="Profil de devis : oriente les questions posées au client. STANDARD = formulaire actuel inchangé.",
+    )
+    # Template d'exigences propre au métier : liste JSON de questions
+    # dynamiques (ex. [{\"key\":\"surface_m2\",\"label\":\"Surface (m²)\",\"type\":\"number\"}]).
+    # Défaut vide → l'app affiche le formulaire actuel (rétrocompatible).
+    template_exigences = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Questions dynamiques (liste JSON) propres à la catégorie. Vide = formulaire actuel.",
+    )
+
     class Meta:
         ordering = ["ordre_affichage", "nom"]
 

@@ -6086,6 +6086,10 @@ def api_public_categories(request):
             "services": cat.services,
             "reservations": cat.reservations,
             "providers_count": cat.providers_count,
+            # Devis intelligent (Phase 2) : profil + questions dynamiques.
+            # STANDARD + liste vide = formulaire actuel (rétrocompatible).
+            "profil_devis": cat.profil_devis or "STANDARD",
+            "template_exigences": cat.template_exigences or [],
         })
     # Mise en cache Redis (5 min TTL)
     try:
