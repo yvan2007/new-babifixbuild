@@ -23,11 +23,13 @@ class CallService {
     required String reservationReference,
     required String targetName,
     bool isVideo = false,
+    bool diagnostic = false,
   }) async {
     try {
       final invite = await CallsApi.initiate(
         reservationReference: reservationReference,
         isVideo: isVideo,
+        diagnostic: diagnostic,
       );
       if (!context.mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(

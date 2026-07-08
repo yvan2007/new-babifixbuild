@@ -366,6 +366,49 @@ class RequestDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+                // Visio-diagnostic : AVANT d'accepter, le presta peut lancer un
+                // appel vidéo pour évaluer le chantier (photos insuffisantes).
+                // Affiché uniquement tant que la demande n'est pas acceptée
+                // (adresse encore approximative).
+                if (addressIsApproximate) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => CallService.startOutgoing(
+                        context: context,
+                        reservationReference: reference,
+                        targetName: client,
+                        isVideo: true,
+                        diagnostic: true,
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF06B6D4),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                      ),
+                      icon: const Icon(Icons.videocam_rounded, size: 20),
+                      label: const Text(
+                        'Visio-diagnostic (avant devis)',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6, left: 4, right: 4),
+                    child: Text(
+                      'Évaluez le chantier en vidéo avant de proposer un devis. '
+                      'Le client reçoit un appel et peut décliner.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.4,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ),
+                ],
                 // Appel direct au client + raccourci historique
                 const SizedBox(height: 8),
                 Row(

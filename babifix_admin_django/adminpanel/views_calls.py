@@ -188,33 +188,52 @@ def api_call_initiate(request):
     kind_raw = str(payload.get("kind", "VOICE")).upper()
     kind = Call.Kind.VIDEO if kind_raw == "VIDEO" else Call.Kind.VOICE
 
+    # Visio-diagnostic : le prestataire peut lancer UN appel vidéo AVANT
+    # d'accepter, pour évaluer le chantier (photos insuffisantes). Vidéo
+    # uniquement, initié par le presta, sur une demande qui lui est adressée.
+    is_diagnostic = bool(payload.get("diagnostic")) and kind == Call.Kind.VIDEO
+
     res = Reservation.objects.filter(reference=reference).first()
     if not res:
         return JsonResponse({"error": "reservation_not_found"}, status=404)
 
     uid = int(request.api_user_id)
     is_client = res.client_user_id == uid
+    # Le presta est reconnu même avant l'assignation finale : une demande peut
+    # lui être adressée via assigned_provider OU prestataire_user_id.
     is_prest = bool(
-        res.assigned_provider
-        and res.assigned_provider.user_id
-        and res.assigned_provider.user_id == uid
+        (
+            res.assigned_provider
+            and res.assigned_provider.user_id
+            and res.assigned_provider.user_id == uid
+        )
+        or res.prestataire_user_id == uid
     )
     if not (is_client or is_prest):
         return JsonResponse({"error": "forbidden"}, status=403)
 
     # Règle métier : pas de contact avant accord. Tant que le prestataire n'a
     # pas accepté la demande, ni le client ni le prestataire ne peuvent appeler.
+    # Exception : visio-diagnostic initié par le prestataire pendant que la
+    # demande est encore au stade DEMANDE_ENVOYEE (il appelle son prospect ;
+    # le client reçoit la sonnerie et peut décliner).
     if not res.contact_allowed():
-        return JsonResponse(
-            {
-                "error": "contact_not_allowed",
-                "detail": (
-                    "L'appel sera disponible une fois que le prestataire aura "
-                    "accepté la demande."
-                ),
-            },
-            status=403,
+        diagnostic_ok = (
+            is_diagnostic
+            and is_prest
+            and res.statut == Reservation.Status.DEMANDE_ENVOYEE
         )
+        if not diagnostic_ok:
+            return JsonResponse(
+                {
+                    "error": "contact_not_allowed",
+                    "detail": (
+                        "L'appel sera disponible une fois que le prestataire "
+                        "aura accepté la demande."
+                    ),
+                },
+                status=403,
+            )
 
     # Après la prestation terminée, plus d'appel (voix comme vidéo) — sauf litige
     # ouvert. En cas de souci, on passe par « Signaler un problème ».
@@ -282,10 +301,19 @@ def api_call_initiate(request):
     )
 
     # FCM ring au destinataire
+    if is_diagnostic:
+        ring_title = "Visio-diagnostic entrant"
+        ring_body = (
+            f"{_user_display(caller)} propose un visio-diagnostic pour "
+            f"évaluer votre demande ({res.reference})"
+        )
+    else:
+        ring_title = f"Appel {'vidéo' if kind == Call.Kind.VIDEO else 'audio'} entrant"
+        ring_body = f"{_user_display(caller)} vous appelle (réservation {res.reference})"
     _schedule(
         [callee_id],
-        f"Appel {'vidéo' if kind == Call.Kind.VIDEO else 'audio'} entrant",
-        f"{_user_display(caller)} vous appelle (réservation {res.reference})",
+        ring_title,
+        ring_body,
         {
             "type": "call.incoming",
             "call_id": str(call.pk),
@@ -294,6 +322,7 @@ def api_call_initiate(request):
             "caller_id": str(caller.pk),
             "caller_name": _user_display(caller),
             "reservation_reference": res.reference,
+            "diagnostic": "1" if is_diagnostic else "0",
             # High priority pour Android — sonnerie même app fermée
             "android_channel_id": "babifix_calls",
             "priority": "high",

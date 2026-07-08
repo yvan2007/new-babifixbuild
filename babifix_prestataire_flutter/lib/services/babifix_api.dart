@@ -169,12 +169,15 @@ class CallsApi {
   static Future<CallInvite> initiate({
     required String reservationReference,
     bool isVideo = false,
+    bool diagnostic = false,
   }) async {
     final r = await BabifixUserStore.authPost(
       '/api/calls/initiate',
       body: jsonEncode({
         'reservation_reference': reservationReference,
         'kind': isVideo ? 'VIDEO' : 'VOICE',
+        // Visio-diagnostic : appel vidéo autorisé avant l'acceptation.
+        if (diagnostic) 'diagnostic': true,
       }),
     );
     _ensureOk(r);
