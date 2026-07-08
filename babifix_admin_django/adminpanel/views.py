@@ -6963,6 +6963,14 @@ def api_prestataire_create_devis(request, reference):
     if not isinstance(lignes_data, list):
         lignes_data = []
 
+    # Devis en 2 temps : une ESTIMATION est une fourchette indicative, non
+    # payable. Le presta enverra ensuite un devis ferme (montant exact).
+    est_estimation = bool(payload.get("est_estimation"))
+    prix_min = parse_money_amount(payload.get("prix_min", 0))
+    prix_max = parse_money_amount(payload.get("prix_max", 0))
+    if est_estimation and prix_max > 0 and prix_min > prix_max:
+        prix_min, prix_max = prix_max, prix_min  # tolère l'inversion
+
     # Photos jointes au devis (data:image base64) — visibles par le client.
     raw_devis_photos = payload.get("photos") or payload.get("photos_prestataire") or []
     devis_photos = []
@@ -6978,8 +6986,12 @@ def api_prestataire_create_devis(request, reference):
     if not diagnostic:
         return JsonResponse({"error": "diagnostic_required"}, status=400)
 
+    # Seul un devis FERME déjà envoyé/accepté bloque un nouveau devis. Une
+    # estimation (indicative) ne bloque pas : elle sera suivie d'un devis ferme.
     existing_devis = Devis.objects.filter(
-        reservation=res, statut__in=[Devis.Statut.ENVOYE, Devis.Statut.ACCEPTE]
+        reservation=res,
+        est_estimation=False,
+        statut__in=[Devis.Statut.ENVOYE, Devis.Statut.ACCEPTE],
     ).first()
     if existing_devis:
         return JsonResponse({"error": "devis_already_exists"}, status=400)
@@ -7035,13 +7047,16 @@ def api_prestataire_create_devis(request, reference):
     eff = _get_effective_commission_rate(provider)
     commission_rate = int((eff * Decimal("100")).quantize(Decimal("1")))
 
-    # Validation transition de statut
-    is_valid, allowed = validate_reservation_transition(res.statut, "DEVIS_ENVOYE")
-    if not is_valid:
-        return JsonResponse(
-            {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
-            status=400,
-        )
+    # Validation transition de statut — seulement pour un devis FERME (qui fait
+    # passer la demande à DEVIS_ENVOYE, état payable). Une estimation ne change
+    # pas l'état payable : on ne valide donc pas cette transition.
+    if not est_estimation:
+        is_valid, allowed = validate_reservation_transition(res.statut, "DEVIS_ENVOYE")
+        if not is_valid:
+            return JsonResponse(
+                {"error": "invalid_transition", "current": res.statut, "allowed": allowed},
+                status=400,
+            )
 
     try:
         devis = Devis.objects.create(
@@ -7086,16 +7101,39 @@ def api_prestataire_create_devis(request, reference):
             )
             sous_total += ligne.total
 
-        devis.sous_total = sous_total
-        devis.commission_montant = sous_total * Decimal(commission_rate) / 100
-        # Façon B : le client paie le prix annoncé (sous_total) ; la commission est
-        # prélevée sur la part du prestataire au moment du versement.
-        devis.total_ttc = sous_total
-        devis.statut = Devis.Statut.ENVOYE
-        devis.save()
+        if est_estimation:
+            # Estimation indicative : pas de lignes / pas de total payable.
+            devis.est_estimation = True
+            devis.prix_min = prix_min
+            devis.prix_max = prix_max
+            devis.sous_total = Decimal("0")
+            devis.commission_montant = Decimal("0")
+            devis.total_ttc = Decimal("0")
+            devis.statut = Devis.Statut.ENVOYE
+            devis.save()
+            # La demande reste « en cours de devis » (NON payable) pour que le
+            # presta puisse ensuite envoyer un devis ferme.
+            if res.statut == Reservation.Status.DEMANDE_ENVOYEE:
+                res.statut = Reservation.Status.DEVIS_EN_COURS
+                res.save(update_fields=["statut"])
+        else:
+            devis.sous_total = sous_total
+            devis.commission_montant = sous_total * Decimal(commission_rate) / 100
+            # Façon B : le client paie le prix annoncé (sous_total) ; la commission
+            # est prélevée sur la part du prestataire au moment du versement.
+            devis.total_ttc = sous_total
+            devis.statut = Devis.Statut.ENVOYE
+            devis.save()
+            # Un devis ferme périme les estimations antérieures (évite le doublon
+            # côté client).
+            Devis.objects.filter(
+                reservation=res,
+                est_estimation=True,
+                statut=Devis.Statut.ENVOYE,
+            ).exclude(pk=devis.pk).update(statut=Devis.Statut.EXPIRE)
 
-        res.statut = Reservation.Status.DEVIS_ENVOYE
-        res.save(update_fields=["statut"])
+            res.statut = Reservation.Status.DEVIS_ENVOYE
+            res.save(update_fields=["statut"])
     except Exception as exc:  # noqa: BLE001 — on évite toute 500 brute côté app
         logger.exception("api_prestataire_create_devis: échec création devis %s", reference)
         return JsonResponse(
@@ -7135,6 +7173,9 @@ def api_prestataire_create_devis(request, reference):
                 "total_ttc": float(devis.total_ttc),
                 "net_prestataire": float(devis.sous_total - devis.commission_montant),
                 "statut": devis.statut,
+                "est_estimation": devis.est_estimation,
+                "prix_min": float(devis.prix_min),
+                "prix_max": float(devis.prix_max),
                 "lignes": [
                     {
                         "id": l.id,
@@ -7201,6 +7242,9 @@ def api_reservation_devis(request, reference):
                 "refus_motif": devis.refus_motif or "",
                 "validite_jours": devis.validite_jours,
                 "statut": devis.statut,
+                "est_estimation": devis.est_estimation,
+                "prix_min": float(devis.prix_min),
+                "prix_max": float(devis.prix_max),
                 "created_at": str(devis.created_at),
                 "lignes": [
                     {
@@ -7231,8 +7275,25 @@ def api_client_accept_devis(request, reference):
     if res.client_user_id != uid:
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    devis = Devis.objects.filter(reservation=res, statut=Devis.Statut.ENVOYE).first()
+    # On n'accepte QUE des devis fermes. Une estimation n'est pas payable :
+    # le client doit attendre le devis ferme.
+    devis = Devis.objects.filter(
+        reservation=res, est_estimation=False, statut=Devis.Statut.ENVOYE
+    ).first()
     if not devis:
+        if Devis.objects.filter(
+            reservation=res, est_estimation=True, statut=Devis.Statut.ENVOYE
+        ).exists():
+            return JsonResponse(
+                {
+                    "error": "estimation_only",
+                    "detail": (
+                        "Vous avez reçu une estimation. Le prestataire vous "
+                        "enverra ensuite un devis ferme à accepter."
+                    ),
+                },
+                status=409,
+            )
         return JsonResponse({"error": "devis_introuvable", "detail": "Aucun devis en attente d'acceptation."}, status=404)
     if res.statut == Reservation.Status.DEVIS_ACCEPTE:
         return JsonResponse({"error": "deja_accepte", "detail": "Ce devis a déjà été accepté."}, status=409)

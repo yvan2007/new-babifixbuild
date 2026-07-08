@@ -141,13 +141,22 @@ def post_devis_card(reservation, devis) -> Optional[object]:
         "total_ttc": float(devis.total_ttc),
         "net_prestataire": float(devis.net_prestataire),
         "statut": devis.statut,
+        "est_estimation": devis.est_estimation,
+        "prix_min": float(devis.prix_min),
+        "prix_max": float(devis.prix_max),
         "validite_jours": devis.validite_jours,
         "note_prestataire": devis.note_prestataire,
         "photos_prestataire": list(devis.photos_prestataire or []),
         "lignes": lignes,
     }
     sender = _system_sender(reservation)
-    body = f"Devis {devis.reference} — total {int(devis.total_ttc)} F CFA."
+    if devis.est_estimation:
+        body = (
+            f"Estimation {devis.reference} — "
+            f"{int(devis.prix_min)}–{int(devis.prix_max)} F CFA (indicatif)."
+        )
+    else:
+        body = f"Devis {devis.reference} — total {int(devis.total_ttc)} F CFA."
     return Message.objects.create(
         conversation=conv,
         sender=sender,

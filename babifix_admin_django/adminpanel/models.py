@@ -1644,6 +1644,16 @@ class Devis(models.Model):
     # Motif fourni par le client lorsqu'il REFUSE le devis (affiché au presta).
     refus_motif = models.TextField(blank=True, default="")
     validite_jours = models.IntegerField(default=7)
+
+    # Devis en 2 temps. Une ESTIMATION est indicative (fourchette prix_min–max),
+    # NON payable : le client la voit puis attend le devis FERME. Défaut False =
+    # devis ferme (comportement actuel, payable comme aujourd'hui).
+    est_estimation = models.BooleanField(
+        default=False,
+        help_text="True = estimation indicative (fourchette, non payable) ; False = devis ferme.",
+    )
+    prix_min = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    prix_max = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     statut = models.CharField(
         max_length=20, choices=Statut.choices, default=Statut.BROUILLON
     )
