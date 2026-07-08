@@ -33,14 +33,33 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 MAX_BYTES = 6 * 1024 * 1024  # 6 MiB
+MAX_AUDIO_BYTES = 15 * 1024 * 1024  # 15 MiB (note vocale ~2 min)
 MAX_DIMENSION = 1600
 ALLOWED_MIMES = {"image/jpeg", "image/png", "image/webp"}
+# Note vocale (record ^6.x → conteneur m4a/aac). On tolère aussi les variantes
+# et l'octet-stream (certains clients ne renseignent pas le content-type).
+ALLOWED_AUDIO_MIMES = {
+    "audio/mp4", "audio/aac", "audio/m4a", "audio/x-m4a",
+    "audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav", "audio/webm",
+}
 
 _MIME_TO_EXT = {
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
+}
+
+_AUDIO_MIME_TO_EXT = {
+    "audio/mp4": "m4a",
+    "audio/aac": "m4a",
+    "audio/m4a": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/ogg": "ogg",
+    "audio/wav": "wav",
+    "audio/webm": "webm",
 }
 
 
@@ -143,11 +162,58 @@ class MediaService:
         return MediaService.store_bytes(content, mime, user_id)
 
     @staticmethod
+    def store_audio_bytes(content: bytes, ext: str, user_id: int) -> str:
+        """Sauvegarde un fichier audio (note vocale) tel quel — pas de resize."""
+        if not content:
+            raise MediaUploadError("empty_file")
+        if len(content) > MAX_AUDIO_BYTES:
+            raise MediaUploadError("file_too_large")
+        ext = (ext or "m4a").lstrip(".").lower()[:5] or "m4a"
+        now = timezone.now()
+        rel_dir = os.path.join(
+            "babifix_uploads", f"{now.year:04d}", f"{now.month:02d}",
+            str(int(user_id) or 0),
+        )
+        _ensure_dir(rel_dir)
+        digest = hashlib.sha1(content).hexdigest()[:12]
+        filename = _safe_filename(f"vn{digest}", ext)
+        rel_path = f"{rel_dir}/{filename}".replace("\\", "/")
+        saved = default_storage.save(rel_path, ContentFile(content))
+        return f"{settings.MEDIA_URL.rstrip('/')}/{saved.lstrip('/')}"
+
+    @staticmethod
     def store_upload(uploaded_file, user_id: int) -> str:
-        """Pour les InMemoryUploadedFile/TemporaryUploadedFile Django."""
+        """Pour les InMemoryUploadedFile/TemporaryUploadedFile Django.
+
+        Accepte les images (redimensionnées) ET l'audio des notes vocales
+        (stocké tel quel). Certains clients n'envoient pas de content-type
+        fiable → on retombe sur l'extension du nom de fichier.
+        """
         mime = (uploaded_file.content_type or "").lower()
+        name = (getattr(uploaded_file, "name", "") or "").lower()
+
+        # Audio (note vocale) ?
+        is_audio = mime in ALLOWED_AUDIO_MIMES or name.endswith(
+            (".m4a", ".aac", ".mp3", ".ogg", ".wav", ".webm")
+        )
+        if is_audio:
+            content = uploaded_file.read()
+            ext = _AUDIO_MIME_TO_EXT.get(mime)
+            if not ext and "." in name:
+                ext = name.rsplit(".", 1)[-1]
+            return MediaService.store_audio_bytes(content, ext or "m4a", user_id)
+
+        # Image
         if mime not in ALLOWED_MIMES:
-            raise MediaUploadError("unsupported_mime")
+            # Dernier recours : deviner via l'extension image du nom.
+            if name.endswith((".jpg", ".jpeg")):
+                mime = "image/jpeg"
+            elif name.endswith(".png"):
+                mime = "image/png"
+            elif name.endswith(".webp"):
+                mime = "image/webp"
+            else:
+                raise MediaUploadError("unsupported_mime")
         content = uploaded_file.read()
         if not content:
             raise MediaUploadError("empty_file")

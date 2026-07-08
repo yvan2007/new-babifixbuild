@@ -7,6 +7,7 @@ from .geniuspay import (
     geniuspay_webhook,
 )
 from . import views_calls as _calls_views
+from .views_media import api_media_upload
 from .views_b2b import (
     api_pro_formules,
     api_pro_account,
@@ -158,6 +159,9 @@ from .views import (
 urlpatterns = [
     path("export/csv/<str:kind>/", export_dashboard_csv, name="admin-export-csv"),
     path("", dashboard, name="admin-dashboard"),
+    # Upload média (photos + notes vocales) — était importé mais jamais routé
+    # → renvoyait 404, cassant l'envoi des notes vocales.
+    path("api/media/upload", api_media_upload, name="api-media-upload"),
     path("api/public/vitrine/", api_public_vitrine, name="api-public-vitrine"),
     path("api/public/categories/", api_public_categories, name="api-public-categories"),
     path("api/public/metiers/", api_public_metiers, name="api-public-metiers"),
