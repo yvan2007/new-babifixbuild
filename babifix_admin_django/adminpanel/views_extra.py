@@ -1079,6 +1079,24 @@ def send_weekly_digest_email(prestataire: "Provider", stats_dict: dict) -> None:
     )
 
 
+def send_babifix_email(to_email: str, subject: str, body: str) -> None:
+    """Envoi d'un e-mail BABIFIX en texte simple.
+
+    Wrapper autour de `send_babifix_email_html` : convertit le corps texte en
+    HTML minimal (paragraphes) pour réutiliser le même transport SMTP threadé.
+    (Était référencé par les e-mails transactionnels prestataire/réservation
+    sans jamais être défini → les envois échouaient silencieusement.)
+    """
+    import html as _html
+
+    safe = _html.escape(body or "")
+    html_content = (
+        '<div style="font-family:Arial,sans-serif;font-size:14px;color:#0B1B34;'
+        'line-height:1.55;white-space:pre-wrap;">' + safe + "</div>"
+    )
+    send_babifix_email_html(to_email=to_email, subject=subject, html_content=html_content)
+
+
 def send_babifix_email_html(
     to_email: str,
     subject: str,

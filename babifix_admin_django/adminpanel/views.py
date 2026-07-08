@@ -289,21 +289,21 @@ def _bootstrap_data():
                     email="pierre@email.com",
                     ville="Paris",
                     reservations=24,
-                    depense="2450€",
+                    depense=Decimal("2450"),
                 ),
                 Client(
                     nom="Claire Rousseau",
                     email="claire@email.com",
                     ville="Lyon",
                     reservations=18,
-                    depense="1890€",
+                    depense=Decimal("1890"),
                 ),
                 Client(
                     nom="Thomas Blanc",
                     email="thomas@email.com",
                     ville="Marseille",
                     reservations=31,
-                    depense="3200€",
+                    depense=Decimal("3200"),
                 ),
             ]
         )

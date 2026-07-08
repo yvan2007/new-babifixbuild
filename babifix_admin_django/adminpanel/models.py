@@ -744,6 +744,14 @@ class Reservation(models.Model):
     client_confirme_prestation_at = models.DateTimeField(null=True, blank=True)
     # Motif d'annulation saisi par le client (stats admin + info presta).
     cancellation_reason = models.CharField(max_length=255, blank=True, default="")
+    # Détail d'annulation (utilisés par CancellationService : règles de
+    # remboursement/pénalité). Ces colonnes avaient été retirées par erreur du
+    # modèle (0057) puis droppées (0071), cassant le service et ses tests → on
+    # les rétablit. Tout est optionnel/nullable (aucun impact sur l'existant).
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancellation_by = models.CharField(max_length=20, blank=True, default="")
+    cancellation_stage = models.CharField(max_length=30, blank=True, default="")
+    cancellation_motif = models.TextField(blank=True, default="")
     # Date prévue de l'intervention (choisie par le client au moment de la
     # réservation). Sert à empêcher de démarrer avant le jour prévu et à
     # détecter les conflits d'agenda du prestataire.
@@ -1864,6 +1872,9 @@ class PlatformRevenue(models.Model):
         related_name="platform_revenues",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    # Horodatage de remboursement de ce revenu (annulation) — rétabli : utilisé
+    # par CancellationService. Null = revenu toujours acquis.
+    refunded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
