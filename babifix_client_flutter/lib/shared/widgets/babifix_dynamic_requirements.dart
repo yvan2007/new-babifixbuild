@@ -29,10 +29,21 @@ class BabifixDynamicRequirements extends StatefulWidget {
     required this.template,
     required this.answers,
     required this.onChanged,
+    this.profil = '',
+    this.demandeType = '',
   });
 
   /// Liste de questions (voir en-tête). Peut être vide.
   final List<Map<String, dynamic>> template;
+
+  /// Profil de devis de la catégorie (STANDARD/SURFACE/FORFAIT/DIAGNOSTIC).
+  /// Pour SURFACE, un assistant de calcul de m² s'affiche.
+  final String profil;
+
+  /// Type de demande courant (panne/maintenance/renovation…). Sert à filtrer
+  /// les questions déclarant une liste `types` : elles ne s'affichent que si
+  /// le type courant y figure. Une question sans `types` s'affiche toujours.
+  final String demandeType;
 
   /// Réponses courantes (persistées par le parent pour survivre aux rebuilds).
   final Map<String, dynamic> answers;
@@ -49,12 +60,54 @@ class _BabifixDynamicRequirementsState
     extends State<BabifixDynamicRequirements> {
   final Map<String, TextEditingController> _controllers = {};
 
+  // Assistant de surface (profil SURFACE).
+  final _lenCtrl = TextEditingController();
+  final _widCtrl = TextEditingController();
+  final _heightCtrl = TextEditingController(text: '2.8');
+  String _calcMode = 'sol'; // 'sol' (L×l) | 'murs' (2·(L+l)·H)
+
   @override
   void dispose() {
     for (final c in _controllers.values) {
       c.dispose();
     }
+    _lenCtrl.dispose();
+    _widCtrl.dispose();
+    _heightCtrl.dispose();
     super.dispose();
+  }
+
+  /// Clé cible pour l'assistant de surface : `surface_m2` en priorité, sinon
+  /// le premier champ numérique dont l'unité contient « m² ».
+  String? get _surfaceTargetKey {
+    for (final q in widget.template) {
+      if ((q['key'] ?? '').toString() == 'surface_m2') return 'surface_m2';
+    }
+    for (final q in widget.template) {
+      final unit = (q['unit'] ?? '').toString().toLowerCase();
+      final type = (q['type'] ?? '').toString().toLowerCase();
+      if (type == 'number' && unit.contains('m²')) {
+        return (q['key'] ?? '').toString();
+      }
+    }
+    return null;
+  }
+
+  double? _num(TextEditingController c) {
+    final t = c.text.replaceAll(',', '.').trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  double? get _computedSurface {
+    final l = _num(_lenCtrl);
+    final w = _num(_widCtrl);
+    if (l == null || w == null || l <= 0 || w <= 0) return null;
+    if (_calcMode == 'murs') {
+      final h = _num(_heightCtrl) ?? 2.8;
+      return 2 * (l + w) * h;
+    }
+    return l * w;
   }
 
   TextEditingController _controllerFor(String key) {
@@ -69,6 +122,15 @@ class _BabifixDynamicRequirementsState
     widget.onChanged(Map<String, dynamic>.from(widget.answers));
   }
 
+  /// Reporte une surface calculée/preset dans le champ cible + son contrôleur.
+  void _applySurface(double value) {
+    final key = _surfaceTargetKey;
+    if (key == null || key.isEmpty) return;
+    final rounded = value >= 100 ? value.round().toString() : value.toStringAsFixed(1);
+    _controllerFor(key).text = rounded;
+    setState(() => _set(key, rounded));
+  }
+
   String _typeOf(Map<String, dynamic> q) =>
       (q['type'] ?? 'text').toString().toLowerCase();
 
@@ -76,6 +138,7 @@ class _BabifixDynamicRequirementsState
   Widget build(BuildContext context) {
     final valid = widget.template
         .where((q) => (q['key'] ?? '').toString().isNotEmpty)
+        .where((q) => babifixQuestionMatchesType(q, widget.demandeType))
         .toList();
     if (valid.isEmpty) return const SizedBox.shrink();
 
@@ -103,11 +166,204 @@ class _BabifixDynamicRequirementsState
           style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
         ),
         const SizedBox(height: 12),
+        if (widget.profil.toUpperCase() == 'SURFACE' &&
+            _surfaceTargetKey != null) ...[
+          _buildSurfaceAssistant(),
+          const SizedBox(height: 16),
+        ],
         for (final q in valid) ...[
           _buildQuestion(q),
           const SizedBox(height: 14),
         ],
       ],
+    );
+  }
+
+  // Presets de surface au sol (m²) — repères logement Côte d'Ivoire.
+  static const List<(String, double)> _surfacePresets = [
+    ('Studio', 20),
+    ('2 pièces', 45),
+    ('3 pièces', 70),
+    ('4 pièces +', 95),
+    ('Villa', 140),
+  ];
+
+  Widget _buildSurfaceAssistant() {
+    final computed = _computedSurface;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: BabifixDesign.cyan.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.square_foot_rounded,
+                  size: 18, color: BabifixDesign.cyan),
+              SizedBox(width: 6),
+              Text(
+                'Aide au calcul de la surface',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: BabifixDesign.navy,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Pas besoin d’être exact — une estimation suffit pour le devis.',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 10),
+          // Presets rapides.
+          Text(
+            'Estimer rapidement',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: BabifixDesign.navy.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final p in _surfacePresets)
+                ActionChip(
+                  label: Text('${p.$1} · ~${p.$2.round()} m²'),
+                  onPressed: () => _applySurface(p.$2),
+                  backgroundColor: Colors.white,
+                  labelStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: BabifixDesign.navy,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Calculateur dimensions.
+          Row(
+            children: [
+              Text(
+                'Calculer',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: BabifixDesign.navy.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _modeChip('Sol', 'sol'),
+              const SizedBox(width: 6),
+              _modeChip('Murs', 'murs'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _dimField(_lenCtrl, 'Longueur', 'm')),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: Text('×', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+              Expanded(child: _dimField(_widCtrl, 'Largeur', 'm')),
+              if (_calcMode == 'murs') ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child:
+                      Text('×', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+                Expanded(child: _dimField(_heightCtrl, 'Hauteur', 'm')),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  computed == null
+                      ? (_calcMode == 'murs'
+                          ? 'Surface des murs : 2 × (L + l) × H'
+                          : 'Surface au sol : L × l')
+                      : '≈ ${computed >= 100 ? computed.round() : computed.toStringAsFixed(1)} m²',
+                  style: TextStyle(
+                    fontSize: computed == null ? 11.5 : 15,
+                    fontWeight:
+                        computed == null ? FontWeight.w500 : FontWeight.w800,
+                    color: computed == null
+                        ? const Color(0xFF64748B)
+                        : BabifixDesign.navy,
+                  ),
+                ),
+              ),
+              FilledButton(
+                onPressed: computed == null
+                    ? null
+                    : () => _applySurface(computed),
+                style: FilledButton.styleFrom(
+                  backgroundColor: BabifixDesign.cyan,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Reporter',
+                    style: TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeChip(String label, String value) {
+    final sel = _calcMode == value;
+    return GestureDetector(
+      onTap: () => setState(() => _calcMode = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: sel ? BabifixDesign.cyan : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: sel ? BabifixDesign.cyan : const Color(0xFFCBD5E1),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: sel ? Colors.white : const Color(0xFF475569),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dimField(TextEditingController c, String hint, String unit) {
+    return TextField(
+      controller: c,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      onChanged: (_) => setState(() {}),
+      decoration: _decoration(hint, unit),
     );
   }
 
@@ -250,15 +506,29 @@ class _BabifixDynamicRequirementsState
       );
 }
 
-/// Vérifie que toutes les questions `required` du template ont une réponse
-/// non vide dans [answers]. Renvoie la liste des libellés manquants.
+/// Une question s'applique au type de demande courant si elle ne déclare pas
+/// de liste `types`, ou si [demandeType] y figure. Liste vide/absente = toujours.
+bool babifixQuestionMatchesType(Map<String, dynamic> q, String demandeType) {
+  final raw = q['types'];
+  if (raw is! List || raw.isEmpty) return true;
+  if (demandeType.isEmpty) return true; // type non précisé → on n'exclut rien
+  return raw.map((e) => e.toString().toLowerCase()).contains(
+        demandeType.toLowerCase(),
+      );
+}
+
+/// Vérifie que toutes les questions `required` du template (applicables au
+/// type courant) ont une réponse non vide dans [answers]. Renvoie la liste des
+/// libellés manquants.
 List<String> babifixMissingRequirements(
   List<Map<String, dynamic>> template,
-  Map<String, dynamic> answers,
-) {
+  Map<String, dynamic> answers, {
+  String demandeType = '',
+}) {
   final missing = <String>[];
   for (final q in template) {
     if (q['required'] != true) continue;
+    if (!babifixQuestionMatchesType(q, demandeType)) continue;
     final key = (q['key'] ?? '').toString();
     if (key.isEmpty) continue;
     final v = answers[key];

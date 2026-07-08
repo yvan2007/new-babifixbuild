@@ -115,6 +115,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   // Devis intelligent (Phase 2) : questions dynamiques propres à la catégorie
   // du prestataire. Vide = catégorie STANDARD → formulaire habituel.
   List<Map<String, dynamic>> _exigTemplate = [];
+  String _exigProfil = 'STANDARD';
   final Map<String, dynamic> _reponsesExigences = {};
 
   LatLng _mapPin = BabifixOsmLocationPicker.defaultCenter;
@@ -176,6 +177,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         final d = jsonDecode(r.body) as Map<String, dynamic>;
         final tpl = (d['template_exigences'] as List?) ?? const [];
         setState(() {
+          _exigProfil = (d['profil_devis'] ?? 'STANDARD').toString();
           _exigTemplate = tpl
               .whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
@@ -791,6 +793,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           onAudioRemoved: () => setState(() => _audioProblemeUrl = ''),
           // Questions dynamiques de la catégorie (Phase 2). Vide = rien affiché.
           exigencesTemplate: _exigTemplate,
+          exigencesProfil: _exigProfil,
           reponsesExigences: _reponsesExigences,
           onExigencesChanged: (m) => setState(() {
             _reponsesExigences
@@ -809,6 +812,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
             final missing = babifixMissingRequirements(
               _exigTemplate,
               _reponsesExigences,
+              demandeType: _demandeType,
             );
             if (missing.isNotEmpty) {
               showBabifixToast(
@@ -1116,6 +1120,7 @@ class _StepProbleme extends StatelessWidget {
     required this.onVoiceRecorded,
     required this.onAudioRemoved,
     required this.exigencesTemplate,
+    required this.exigencesProfil,
     required this.reponsesExigences,
     required this.onExigencesChanged,
     required this.onNext,
@@ -1137,6 +1142,7 @@ class _StepProbleme extends StatelessWidget {
   final void Function(String path, int durationSeconds) onVoiceRecorded;
   final VoidCallback onAudioRemoved;
   final List<Map<String, dynamic>> exigencesTemplate;
+  final String exigencesProfil;
   final Map<String, dynamic> reponsesExigences;
   final ValueChanged<Map<String, dynamic>> onExigencesChanged;
   final VoidCallback onNext;
@@ -1461,6 +1467,8 @@ class _StepProbleme extends StatelessWidget {
                       ),
                       child: BabifixDynamicRequirements(
                         template: exigencesTemplate,
+                        profil: exigencesProfil,
+                        demandeType: demandeType,
                         answers: reponsesExigences,
                         onChanged: onExigencesChanged,
                       ),
