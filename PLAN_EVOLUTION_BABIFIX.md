@@ -112,10 +112,15 @@ Beaucoup d'utilisateurs sont **peu à l'aise avec l'écrit**. La demande doit ac
 
 > ⚠️ Note technique : l'écran de création de devis réellement utilisé est **`DevisKanbanEditorScreen`** ; `create_devis_screen.dart` est **du code mort**. L'estimation & la visite sont donc exposées via des **dialogues dans la fiche demande** (`request_detail_screen.dart`), pas dans l'ancien écran.
 
-### Phase 4 — Confiance avancée (v2)
-- [ ] **Score de fiabilité** (points) : gains/pertes, seuils, conséquences (visibilité, quota, prépaiement).
-- [ ] **Détection d'annulations suspectes** (juste après déblocage adresse, même client+presta répété).
-- [ ] → Commencer **permissif** pour ne pas punir les honnêtes.
+### Phase 4 — Confiance avancée (v2) ✅ TERMINÉE (permissif)
+- [x] **Score de fiabilité** (0–100, défaut 100) sur `Provider` ET `UserProfile` (client). Gains à la prestation terminée, pertes au no-show / annulation tardive (`ReliabilityService`, migration 0088). *Conséquences dures (visibilité, quota, prépaiement) volontairement PAS encore appliquées → activables plus tard sur ce signal.*
+- [x] **Détection d'annulations suspectes** : client qui annule juste après le déblocage de l'adresse (sans visite/prestation) → `annulation_suspecte` + malus + log si motif répété même client+presta.
+- [x] → **Permissif** : deltas petits, aucun blocage, score borné 0–100, hooks best-effort. Badge « Fiabilité X/100 » visible dans l'admin (fiche presta).
+
+---
+
+## ✅ ÉTAT GLOBAL — Phases 1 à 4 livrées
+Le socle complet (nature de demande, note vocale, masquage contacts, zone+distance, visio-diagnostic, devis intelligent + templates par catégorie + assistant surface, devis en 2 temps, visite + caution déductible + commission à 2 moments + no-show, score de fiabilité) est **implémenté et poussé**. Restent surtout : **tests bout-en-bout en réel**, et les **améliorations d'activation** (rendre configurables les taux/seuils, activer le gating du score quand le signal est jugé fiable).
 
 ---
 
