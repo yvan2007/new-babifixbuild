@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../babifix_design_system.dart';
 import '../../services/call_service.dart';
+import '../../services/babifix_api.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_mini_map.dart';
 import '../call/call_history_screen.dart';
@@ -414,6 +416,39 @@ class RequestDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showEstimationDialog(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                          ),
+                          icon: const Icon(Icons.query_stats_rounded, size: 18),
+                          label: const Text('Estimation',
+                              style: TextStyle(fontSize: 12.5)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showVisitDialog(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                          ),
+                          icon: const Icon(Icons.home_repair_service_rounded,
+                              size: 18),
+                          label: const Text('Visite',
+                              style: TextStyle(fontSize: 12.5)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
                 // Appel direct au client + raccourci historique
                 const SizedBox(height: 8),
@@ -459,6 +494,191 @@ class RequestDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // ── Estimation (fourchette indicative) ──────────────────────────────────
+  Future<void> _showEstimationDialog(BuildContext context) async {
+    final diagCtrl = TextEditingController();
+    final minCtrl = TextEditingController();
+    final maxCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Envoyer une estimation'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Fourchette indicative (non payable). Vous enverrez ensuite '
+                  'un devis ferme.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: diagCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Diagnostic',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: minCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Min',
+                        suffixText: 'FCFA',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: maxCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Max',
+                        suffixText: 'FCFA',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Envoyer')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final diag = diagCtrl.text.trim();
+    final min = double.tryParse(minCtrl.text.replaceAll(',', '.').trim()) ?? 0;
+    final max = double.tryParse(maxCtrl.text.replaceAll(',', '.').trim()) ?? 0;
+    if (!context.mounted) return;
+    if (diag.isEmpty || min <= 0 || max <= 0) {
+      showBabifixToast(context,
+          type: BabifixToastType.info,
+          message: 'Renseignez le diagnostic et la fourchette.');
+      return;
+    }
+    try {
+      await DevisApi.createEstimation(
+        reference: reference,
+        diagnostic: diag,
+        prixMin: min,
+        prixMax: max,
+      );
+      if (!context.mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.success,
+          message: 'Estimation envoyée au client.');
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!context.mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.error, message: 'Échec : $e');
+    }
+  }
+
+  // ── Demande de visite de diagnostic (caution) ───────────────────────────
+  Future<void> _showVisitDialog(BuildContext context) async {
+    final cautionCtrl = TextEditingController();
+    final motifCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Demander une visite'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Le client règle une caution (déductible du devis) avant que '
+                  'vous receviez l’adresse exacte.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: cautionCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Montant de la caution',
+                  suffixText: 'FCFA',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: motifCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Motif (optionnel)',
+                  hintText: 'Ex. mesures sur place nécessaires',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Demander')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final caution =
+        double.tryParse(cautionCtrl.text.replaceAll(',', '.').trim()) ?? 0;
+    if (!context.mounted) return;
+    if (caution <= 0) {
+      showBabifixToast(context,
+          type: BabifixToastType.info,
+          message: 'Indiquez un montant de caution.');
+      return;
+    }
+    try {
+      await DevisApi.requestVisit(
+        reference: reference,
+        cautionMontant: caution,
+        cautionMotif: motifCtrl.text.trim(),
+      );
+      if (!context.mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.success,
+          message: 'Visite proposée au client.');
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!context.mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.error, message: 'Échec : $e');
+    }
   }
 
   void _showPhotoFullscreen(BuildContext context, String src) {

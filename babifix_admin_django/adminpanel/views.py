@@ -2519,6 +2519,14 @@ def api_client_home(request):
                 "can_pay_deposit": item.statut == "DEVIS_ACCEPTE"
                 and item.client_user_id == uid
                 and not item.acompte_valide,
+                # Caution de visite de diagnostic (Phase 3).
+                "caution_montant": float(item.caution_montant or 0),
+                "caution_motif": item.caution_motif or "",
+                "caution_payee": bool(item.caution_payee),
+                "can_pay_caution": item.statut == "VISITE_DIAGNOSTIC"
+                and item.client_user_id == uid
+                and (item.caution_montant or 0) > 0
+                and not item.caution_payee,
                 # MM : le solde 70 % se paie APRÈS la confirmation des travaux
                 # (ordre métier : vérifier puis payer). Le paiement du solde
                 # déclenche la libération des fonds au prestataire.

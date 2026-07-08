@@ -4224,6 +4224,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         r.canAcceptDevis ||
         r.canPayDeposit ||
         r.canPayRemainder ||
+        r.canPayCaution ||
         r.needCashRemainder ||
         _canDeclareCash(r);
 
@@ -4598,6 +4599,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             _openPostPrestationPaySheet(r);
                           }
                         },
+                      ),
+                    if (r.canPayCaution)
+                      _QuickActionChip(
+                        icon: Icons.home_repair_service_rounded,
+                        label: 'Caution visite',
+                        color: const Color(0xFF06B6D4),
+                        onTap: () => _payCaution(r),
                       ),
                     if (r.canPayDeposit)
                       _QuickActionChip(
@@ -6079,6 +6087,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
               canAcceptDevis: jsonBool(item['can_accept_devis']),
               canPayDeposit: jsonBool(item['can_pay_deposit']),
               canPayRemainder: jsonBool(item['can_pay_remainder']),
+              cautionMontant: jsonDoubleNullable(item['caution_montant']) ?? 0,
+              cautionMotif: '${item['caution_motif'] ?? ''}',
+              cautionPayee: jsonBool(item['caution_payee']),
+              canPayCaution: jsonBool(item['can_pay_caution']),
               needCashRemainder: jsonBool(item['need_cash_remainder']),
               receiptAvailable: jsonBool(item['receipt_available']),
               clientConfirmed:
@@ -6666,6 +6678,18 @@ class _ClientHomePageState extends State<ClientHomePage> {
       ),
     );
     await _loadRemoteData();
+  }
+
+  Future<void> _payCaution(ClientReservation r) async {
+    if (authToken == null || r.reference.isEmpty) return;
+    final op = await _pickMobileMoneyOperator();
+    if (op == null) return;
+    await _sendPaymentAction(
+      r: r,
+      endpoint: 'pay-caution',
+      successMsg: 'Caution réglée. Le prestataire va organiser la visite.',
+      body: {'mobile_money_operator': op},
+    );
   }
 
   Future<void> _payRemainder(ClientReservation r) async {

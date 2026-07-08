@@ -124,6 +124,45 @@ class DevisApi {
     return Devis.fromJson(Map<String, dynamic>.from(j['devis'] as Map));
   }
 
+  /// Envoie une ESTIMATION (fourchette indicative, non payable). Le devis ferme
+  /// suivra. Pas de lignes nécessaires.
+  static Future<void> createEstimation({
+    required String reference,
+    required String diagnostic,
+    required double prixMin,
+    required double prixMax,
+    String notePrestataire = '',
+  }) async {
+    final r = await BabifixUserStore.authPost(
+      '/api/prestataire/requests/$reference/devis',
+      body: jsonEncode({
+        'diagnostic': diagnostic,
+        'note_prestataire': notePrestataire,
+        'est_estimation': true,
+        'prix_min': prixMin,
+        'prix_max': prixMax,
+        'lignes': const [],
+      }),
+    );
+    _ensureOk(r);
+  }
+
+  /// Demande une VISITE de diagnostic avec caution (déductible du devis).
+  static Future<void> requestVisit({
+    required String reference,
+    required double cautionMontant,
+    String cautionMotif = '',
+  }) async {
+    final r = await BabifixUserStore.authPost(
+      '/api/prestataire/requests/$reference/request-visit',
+      body: jsonEncode({
+        'caution_montant': cautionMontant,
+        'caution_motif': cautionMotif,
+      }),
+    );
+    _ensureOk(r);
+  }
+
   /// Renvoie le brouillon de devis du prestataire (ou null s'il n'y en a pas).
   static Future<Map<String, dynamic>?> getDraft(String reference) async {
     final r = await BabifixUserStore.authGet(

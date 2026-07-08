@@ -160,6 +160,10 @@ class ClientReservation {
     this.serviceTitle = '',
     this.providerName = '',
     this.scheduledDate = '',
+    this.cautionMontant = 0,
+    this.cautionMotif = '',
+    this.cautionPayee = false,
+    this.canPayCaution = false,
   });
 
   final String title;
@@ -190,6 +194,12 @@ class ClientReservation {
   final bool clientConfirmed;
   final bool disputeOuverte;
   final String statusLabel;
+
+  /// Caution de visite de diagnostic (Phase 3).
+  final double cautionMontant;
+  final String cautionMotif;
+  final bool cautionPayee;
+  final bool canPayCaution;
 
   /// Lieu d'intervention si enregistré (carte dans l'avis).
   final double? latitude;
