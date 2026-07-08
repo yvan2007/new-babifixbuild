@@ -305,6 +305,17 @@ class CancellationService:
             "caution_remboursee",
         ])
 
+        # Score de fiabilité + détection d'annulations suspectes (permissif).
+        try:
+            from adminpanel.services.reliability_service import ReliabilityService
+            ReliabilityService.on_cancellation(reservation, by=by, stage=stage)
+        except Exception:
+            logger.warning(
+                "reliability hook (cancel) failed for %s",
+                reservation.reference,
+                exc_info=True,
+            )
+
         # Notif aux 2 parties
         try:
             from adminpanel.push_dispatch import _schedule

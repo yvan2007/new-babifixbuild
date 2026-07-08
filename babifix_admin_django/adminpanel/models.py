@@ -66,6 +66,14 @@ class Provider(models.Model):
         default="",
         help_text="Motif affiche au prestataire si dossier refuse",
     )
+    # Score de fiabilité (Phase 4). Démarre à 100 (permissif). Baisse en cas
+    # de no-show / annulation tardive, remonte à chaque prestation terminée.
+    # Pour l'instant purement INDICATIF (aucun blocage) — le gating (visibilité,
+    # quota, prépaiement) viendra dans un second temps.
+    fiabilite_score = models.PositiveSmallIntegerField(
+        default=100,
+        help_text="Score de fiabilité 0–100 (indicatif). 100 = neutre/parfait.",
+    )
     # Moteur KYC automatique — score 0-100 calculé à la soumission du dossier
     auto_check_score = models.IntegerField(
         default=0,
@@ -557,6 +565,13 @@ class Reservation(models.Model):
     caution_remboursee = models.BooleanField(
         default=False,
         help_text="La caution a été remboursée au client (annulation avant visite).",
+    )
+    # Anti-contournement (Phase 4) : annulation jugée suspecte (ex. le client
+    # annule juste après le déblocage de l'adresse exacte). Indicatif : sert au
+    # score de fiabilité et à la détection de motifs répétés client+presta.
+    annulation_suspecte = models.BooleanField(
+        default=False,
+        help_text="Annulation flaggée comme suspecte (anti-désintermédiation).",
     )
     photos_probleme = models.JSONField(
         default=list, blank=True, help_text="URLs des photos du problème"
@@ -1257,6 +1272,13 @@ class UserProfile(models.Model):
     fidelite_credit_fcfa = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
         help_text="Crédit de réduction obtenu en convertissant des points de fidélité",
+    )
+    # Score de fiabilité CLIENT (Phase 4) — surtout anti-contournement : baisse
+    # si le client annule juste après le déblocage de l'adresse (soupçon de
+    # désintermédiation). Indicatif pour l'instant (aucun blocage).
+    fiabilite_score = models.PositiveSmallIntegerField(
+        default=100,
+        help_text="Score de fiabilité client 0–100 (indicatif). 100 = neutre.",
     )
     # Photo de profil (avatar) — URL servie (disque local ou Cloudinary).
     avatar_url = models.TextField(

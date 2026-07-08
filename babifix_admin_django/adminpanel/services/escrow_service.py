@@ -539,6 +539,13 @@ class EscrowService:
             update_fields=["funds_released_at", "solde_valide", "cash_flow_status"]
         )
 
+        # Prestation menée à terme : bonus de fiabilité (permissif, best-effort).
+        try:
+            from adminpanel.services.reliability_service import ReliabilityService
+            ReliabilityService.on_completion(reservation)
+        except Exception:
+            logger.debug("reliability on_completion skipped", exc_info=True)
+
         # Prévenir le PRESTATAIRE que son argent est arrivé : push (BABIFIX PRO)
         # + e-mail de confirmation de versement.
         try:
