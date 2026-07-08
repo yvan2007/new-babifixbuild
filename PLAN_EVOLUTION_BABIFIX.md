@@ -99,14 +99,16 @@ Beaucoup d'utilisateurs sont **peu à l'aise avec l'écrit**. La demande doit ac
 - [x] **Devis en 2 temps** : `est_estimation` + `prix_min` / `prix_max` (migration 0085). Estimation = fourchette indicative NON payable (demande reste DEVIS_EN_COURS) ; le presta envoie ensuite un devis ferme (qui périme l'estimation) ; l'acceptation refuse les estimations. App presta : bascule « Envoyer une estimation ». App client : fiche + carte chat affichent la fourchette, sans bouton payer.
 - [ ] → Activer **une seule catégorie test** (ex. Peinture), vérifier, puis étendre. *(les 10 catégories sont déjà pré-remplies via 0084 ; à valider en réel)*
 
-### Phase 3 — La visite & la caution (+ commission) — EN COURS
+### Phase 3 — La visite & la caution (+ commission) ✅ TERMINÉE
 - [x] Statut **`VISITE_DIAGNOSTIC`** inséré **avant `DEVIS_ENVOYE`** — **optionnel** (devis direct toujours possible). *(migration 0086)*
 - [x] Champs **caution** : `caution_montant`, `caution_motif`, `caution_payee`, `caution_deduite` (défauts 0/false).
 - [x] **Endpoint paiement caution** : `POST .../pay-caution` (même modèle que l'acompte : Payment + PlatformRevenue). App presta demande la visite (`request-visit`), app client règle la caution (chip « Caution visite »).
 - [x] **Déblocage adresse conditionné au paiement de la caution** (`caution_payee` → adresse exacte révélée au presta).
 - [x] **Commission caution** (12 % sur la caution) + **déduction** de la caution du montant à l'acceptation du devis (`caution_deduite`).
-- [ ] **Règles no-show / annulation** (qui garde la caution, notes). ⏳ *reste à faire*
+- [x] **Règles no-show / annulation** (qui garde la caution). *(migration 0087 : `visite_effectuee`/`caution_remboursee`. Visite faite → presta garde la caution ; sinon → remboursée au client + commission plateforme rendue. Presta déclare la visite via `visite-done`.)*
 - [ ] → Tester le cycle **avec** ET **sans** visite (les deux doivent marcher).
+
+> 💰 Commission caution fixée à **12 %** (dans `pay_caution`). Le montant de la caution lui-même est libre (FCFA saisi par le presta). Rendre le 12 % configurable en admin = amélioration possible.
 
 > ⚠️ Note technique : l'écran de création de devis réellement utilisé est **`DevisKanbanEditorScreen`** ; `create_devis_screen.dart` est **du code mort**. L'estimation & la visite sont donc exposées via des **dialogues dans la fiche demande** (`request_detail_screen.dart`), pas dans l'ancien écran.
 
