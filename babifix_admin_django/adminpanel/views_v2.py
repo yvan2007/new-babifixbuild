@@ -154,8 +154,14 @@ def _res_to_dict(res: Reservation, uid: int) -> dict:
         "client_message": res.client_message,
         "cash_flow_status": res.cash_flow_status,
         "dispute_ouverte": res.dispute_ouverte,
+        # Caution de visite de diagnostic (Phase 3). 0 / False = pas de visite.
+        "caution_montant": float(res.caution_montant or 0),
+        "caution_motif": res.caution_motif or "",
+        "caution_payee": bool(res.caution_payee),
+        "caution_deduite": bool(res.caution_deduite),
         "can_cancel": res.statut
-        in ("En attente", "Confirmee", "DEMANDE_ENVOYEE", "DEVIS_EN_COURS", "DEVIS_ENVOYE"),
+        in ("En attente", "Confirmee", "DEMANDE_ENVOYEE", "DEVIS_EN_COURS",
+            "DEVIS_ENVOYE", "VISITE_DIAGNOSTIC"),
         "can_rate": res.statut == "Terminee" and not has_rating,
         "can_dispute": res.statut in ("Terminee", "En cours")
         and not res.dispute_ouverte,

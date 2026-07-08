@@ -2487,6 +2487,9 @@ def api_client_home(request):
                 "demande_type_label": item.get_demande_type_display() if item.demande_type else "",
                 "audio_probleme": item.audio_probleme or "",
                 "reponses_exigences": item.reponses_exigences or {},
+                "caution_montant": float(item.caution_montant or 0),
+                "caution_motif": item.caution_motif or "",
+                "caution_payee": bool(item.caution_payee),
                 "intervention_started_at": item.intervention_started_at.isoformat()
                 if item.intervention_started_at
                 else None,
@@ -4501,7 +4504,9 @@ def api_prestataire_requests(request):
             "Terminee",
             "DONE",
         }
-        accepted = item.statut in _ACCEPTED_STATUSES
+        # L'adresse exacte se débloque aussi dès que la caution de visite est
+        # réglée (le presta doit pouvoir s'y rendre pour le diagnostic).
+        accepted = item.statut in _ACCEPTED_STATUSES or bool(item.caution_payee)
         approx = bool(item.address_is_approximate) and not accepted
         if approx:
             street_out = ""
@@ -4562,6 +4567,10 @@ def api_prestataire_requests(request):
                 ),
                 # Réponses du client aux questions dynamiques de la catégorie.
                 "reponses_exigences": item.reponses_exigences or {},
+                # Caution de visite de diagnostic (Phase 3).
+                "caution_montant": float(item.caution_montant or 0),
+                "caution_motif": item.caution_motif or "",
+                "caution_payee": bool(item.caution_payee),
                 "description": (
                     client_text or f"Detail de la demande {item.reference}"
                 )[:500],
@@ -6393,6 +6402,95 @@ def api_client_pay_deposit(request, reference):
 @csrf_exempt
 @require_http_methods(["POST"])
 @require_api_auth(["client"])
+def api_client_pay_caution(request, reference):
+    """Le client règle la caution de visite de diagnostic.
+
+    Suit le même modèle que l'acompte (enregistre un Payment + une commission
+    de plateforme). La caution débloque l'adresse exacte et fait repartir la
+    demande vers le devis. Elle sera déduite du prix final si le devis est
+    accepté.
+    """
+    from decimal import Decimal
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+    if res.client_user_id != int(request.api_user_id):
+        return JsonResponse({"error": "forbidden"}, status=403)
+    if res.statut != Reservation.Status.VISITE_DIAGNOSTIC:
+        return JsonResponse(
+            {"error": "invalide", "detail": "Aucune visite en attente de caution."},
+            status=400,
+        )
+    if res.caution_payee:
+        return JsonResponse(
+            {"error": "deja_paye", "detail": "La caution a déjà été réglée."},
+            status=409,
+        )
+    montant = res.caution_montant or Decimal("0")
+    if montant <= 0:
+        return JsonResponse({"error": "caution_absente"}, status=400)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    operator = str(payload.get("mobile_money_operator", "") or "").strip().upper()
+    valid_operators = {"ORANGE_MONEY", "MTN_MOMO", "WAVE", "MOOV"}
+    if operator not in valid_operators:
+        return JsonResponse(
+            {"error": "operateur_invalide", "allowed": list(valid_operators)},
+            status=400,
+        )
+
+    from .models import PlatformRevenue
+    # Commission de visite : petit % prélevé sur la caution (≠ commission du job).
+    caution_commission = (montant * Decimal("0.12")).quantize(Decimal("1"))
+
+    with transaction.atomic():
+        res.caution_payee = True
+        res.mobile_money_operator = operator
+        # La caution réglée débloque l'adresse et relance le devis.
+        res.statut = Reservation.Status.DEVIS_EN_COURS
+        res.save(update_fields=["caution_payee", "mobile_money_operator", "statut"])
+        pay = Payment.objects.create(
+            reference=f"CAUTION-{res.reference}-{int(timezone.now().timestamp())}",
+            client=res.client,
+            prestataire=res.prestataire,
+            montant=montant,
+            commission=caution_commission,
+            etat=Payment.State.COMPLETE,
+            reservation=res,
+            type_paiement=Payment.TypePaiement.MOBILE_MONEY,
+            valide_par_admin=False,
+        )
+        PlatformRevenue.objects.create(
+            amount_fcfa=caution_commission,
+            source=PlatformRevenue.Source.COMMISSION,
+            reference=res.reference,
+            description=f"Commission caution visite {res.reference}",
+            payment=pay,
+        )
+
+    _schedule(
+        [res.prestataire_user_id] if res.prestataire_user_id else [],
+        "Caution réglée",
+        (
+            f"La caution de {int(montant)} FCFA est payée pour {res.reference}. "
+            "Vous pouvez organiser la visite puis envoyer le devis."
+        ),
+        {"type": "caution.paid", "reference": res.reference},
+    )
+    return JsonResponse({
+        "ok": True,
+        "caution": str(montant),
+        "commission": str(caution_commission),
+        "statut": res.statut,
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
 def api_client_pay_remainder(request, reference):
     """Le client paie le solde restant par mobile money (uniquement si mode global MOBILE_MONEY).
 
@@ -6525,6 +6623,82 @@ def api_prestataire_accept_demande(request, reference):
     )
 
     return JsonResponse({"ok": True, "statut": res.statut})
+
+
+# Prestataire : demander une VISITE de diagnostic (avec caution)
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_request_visit(request, reference):
+    """Le prestataire demande une visite de diagnostic avec caution.
+
+    Alternative au devis direct : quand une visite sur place est nécessaire
+    pour chiffrer (gros chantier, accès, mesures), le presta fixe une caution
+    (déductible du prix final). Le client la règle AVANT le déblocage de
+    l'adresse exacte. Reste 100% optionnel : le devis direct fonctionne comme
+    avant.
+    """
+    _bootstrap_data()
+    from decimal import Decimal
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=403)
+
+    if res.assigned_provider_id != provider.id:
+        return JsonResponse({"error": "not_authorized"}, status=403)
+
+    if res.statut not in (
+        Reservation.Status.DEMANDE_ENVOYEE,
+        Reservation.Status.DEVIS_EN_COURS,
+    ):
+        return JsonResponse({"error": "invalid_state"}, status=400)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    montant = parse_money_amount(payload.get("caution_montant", 0))
+    motif = str(payload.get("caution_motif", "") or "")[:300]
+    if montant <= 0:
+        return JsonResponse(
+            {"error": "caution_invalide", "detail": "Indiquez un montant de caution."},
+            status=400,
+        )
+    # Garde-fou : caution plafonnée pour éviter l'abus.
+    if montant > Decimal("100000"):
+        montant = Decimal("100000")
+
+    res.caution_montant = montant
+    res.caution_motif = motif
+    res.caution_payee = False
+    res.caution_deduite = False
+    res.statut = Reservation.Status.VISITE_DIAGNOSTIC
+    res.save(update_fields=[
+        "caution_montant", "caution_motif", "caution_payee",
+        "caution_deduite", "statut",
+    ])
+
+    _schedule(
+        [res.client_user_id] if res.client_user_id else [],
+        "Visite de diagnostic proposée",
+        (
+            f"{provider.nom} propose une visite pour évaluer votre demande "
+            f"(caution {int(montant)} FCFA, déductible du devis)."
+        ),
+        {"type": "visit.requested", "reference": res.reference},
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "statut": res.statut,
+        "caution_montant": float(montant),
+        "caution_motif": motif,
+    })
 
 
 # Prestataire : refuser la demande
@@ -7309,8 +7483,19 @@ def api_client_accept_devis(request, reference):
     devis.save()
 
     res.statut = Reservation.Status.DEVIS_ACCEPTE
-    res.montant = devis.total_ttc
-    res.save(update_fields=["statut", "montant", "commission"])
+    # Caution déductible : si une caution de visite a été réglée, on la déduit
+    # du montant à payer (elle a déjà été encaissée). Une seule fois.
+    final_montant = devis.total_ttc
+    update_fields = ["statut", "montant", "commission"]
+    if res.caution_payee and not res.caution_deduite and res.caution_montant:
+        from decimal import Decimal
+        final_montant = devis.total_ttc - res.caution_montant
+        if final_montant < Decimal("0"):
+            final_montant = Decimal("0")
+        res.caution_deduite = True
+        update_fields.append("caution_deduite")
+    res.montant = final_montant
+    res.save(update_fields=update_fields)
 
     # Met à jour la carte devis du fil + ajoute un événement système clair.
     try:

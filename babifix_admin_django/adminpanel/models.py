@@ -416,6 +416,9 @@ class Reservation(models.Model):
         # Nouveau parcours - demande et devis
         DEMANDE_ENVOYEE = "DEMANDE_ENVOYEE", "Demande envoyée"
         DEVIS_EN_COURS = "DEVIS_EN_COURS", "Devis en cours"
+        # Visite de diagnostic/métré (optionnelle) : le presta doit se déplacer
+        # pour chiffrer. Insérée AVANT le devis ; le devis direct reste possible.
+        VISITE_DIAGNOSTIC = "VISITE_DIAGNOSTIC", "Visite de diagnostic"
         DEVIS_ENVOYE = "DEVIS_ENVOYE", "Devis envoyé"
         DEVIS_ACCEPTE = "DEVIS_ACCEPTE", "Devis accepté"
         INTERVENTION_EN_COURS = "INTERVENTION_EN_COURS", "Intervention en cours"
@@ -522,6 +525,26 @@ class Reservation(models.Model):
         default=dict,
         blank=True,
         help_text="Réponses du client aux questions dynamiques de la catégorie (clé → valeur).",
+    )
+    # Caution de visite de diagnostic (Phase 3). Optionnelle : quand le presta
+    # doit se déplacer pour chiffrer, il demande une caution que le client paie
+    # AVANT le déblocage de l'adresse exacte. Défauts 0/False = pas de caution
+    # (parcours actuel inchangé). La caution est déductible du prix final.
+    caution_montant = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Montant de la caution de visite (0 = pas de visite payante).",
+    )
+    caution_motif = models.CharField(
+        max_length=300, blank=True, default="",
+        help_text="Raison de la visite de diagnostic (affichée au client).",
+    )
+    caution_payee = models.BooleanField(
+        default=False,
+        help_text="La caution de visite a été réglée par le client.",
+    )
+    caution_deduite = models.BooleanField(
+        default=False,
+        help_text="La caution a été déduite du prix final (devis accepté).",
     )
     photos_probleme = models.JSONField(
         default=list, blank=True, help_text="URLs des photos du problème"
