@@ -45,6 +45,8 @@ class RequestDetailScreen extends StatelessWidget {
     this.addressIsApproximate = true,
     this.distanceKm,
     this.reponsesExigences = const {},
+    this.cautionPayee = false,
+    this.visiteEffectuee = false,
     this.scheduledDate = '',
   });
 
@@ -82,6 +84,10 @@ class RequestDetailScreen extends StatelessWidget {
   /// Réponses du client aux questions dynamiques de la catégorie (Phase 2).
   /// Format {key: {label, value, unit?}}.
   final Map<String, dynamic> reponsesExigences;
+
+  /// Caution de visite (Phase 3).
+  final bool cautionPayee;
+  final bool visiteEffectuee;
 
   /// Date prévue (ISO yyyy-mm-dd) choisie par le client — pour bloquer le
   /// bouton « Démarrer » avant le jour J.
@@ -345,6 +351,53 @@ class RequestDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                // Caution réglée : le presta confirme la visite (détermine qui
+                // garde la caution en cas d'annulation).
+                if (cautionPayee && !visiteEffectuee) ...[
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _markVisitDone(context),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF06B6D4),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                      ),
+                      icon: const Icon(Icons.fact_check_rounded, size: 20),
+                      label: const Text('Visite effectuée',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ] else if (visiteEffectuee) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.check_circle_rounded,
+                            color: Color(0xFF16A34A), size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Visite effectuée — la caution vous est acquise.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF166534),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 // Actions cycle exécution (démarrer/photos/terminer + escrow status)
                 const SizedBox(height: 14),
                 ExecutionActionsWidget(
@@ -673,6 +726,39 @@ class RequestDetailScreen extends StatelessWidget {
       showBabifixToast(context,
           type: BabifixToastType.success,
           message: 'Visite proposée au client.');
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!context.mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.error, message: 'Échec : $e');
+    }
+  }
+
+  Future<void> _markVisitDone(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmer la visite'),
+        content: const Text(
+          'Confirmez-vous avoir effectué la visite de diagnostic ? '
+          'La caution vous sera acquise même en cas d’annulation.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirmer')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await DevisApi.visiteDone(reference);
+      if (!context.mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.success, message: 'Visite confirmée.');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!context.mounted) return;

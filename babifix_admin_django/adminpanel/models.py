@@ -546,6 +546,18 @@ class Reservation(models.Model):
         default=False,
         help_text="La caution a été déduite du prix final (devis accepté).",
     )
+    # No-show / annulation : la visite a-t-elle eu lieu ? Détermine qui garde la
+    # caution en cas d'annulation (visite faite = presta la garde ; sinon =
+    # remboursée au client).
+    visite_effectuee = models.BooleanField(
+        default=False,
+        help_text="Le prestataire a effectué la visite de diagnostic.",
+    )
+    visite_effectuee_at = models.DateTimeField(null=True, blank=True)
+    caution_remboursee = models.BooleanField(
+        default=False,
+        help_text="La caution a été remboursée au client (annulation avant visite).",
+    )
     photos_probleme = models.JSONField(
         default=list, blank=True, help_text="URLs des photos du problème"
     )

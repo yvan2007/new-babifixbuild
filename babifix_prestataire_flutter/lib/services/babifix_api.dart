@@ -163,6 +163,15 @@ class DevisApi {
     _ensureOk(r);
   }
 
+  /// Le prestataire déclare avoir effectué la visite de diagnostic.
+  static Future<void> visiteDone(String reference) async {
+    final r = await BabifixUserStore.authPost(
+      '/api/prestataire/requests/$reference/visite-done',
+      body: jsonEncode(const {}),
+    );
+    _ensureOk(r);
+  }
+
   /// Renvoie le brouillon de devis du prestataire (ou null s'il n'y en a pas).
   static Future<Map<String, dynamic>?> getDraft(String reference) async {
     final r = await BabifixUserStore.authGet(

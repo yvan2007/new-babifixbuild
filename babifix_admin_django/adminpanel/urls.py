@@ -125,6 +125,7 @@ from .views import (
     api_messages_unread_total,
     api_prestataire_accept_demande,
     api_prestataire_request_visit,
+    api_prestataire_visite_done,
     api_prestataire_confirm_cash,
     api_prestataire_conversations,
     api_prestataire_create_devis,
@@ -594,6 +595,11 @@ urlpatterns = [
         "api/prestataire/requests/<str:reference>/request-visit",
         api_prestataire_request_visit,
         name="api-prestataire-request-visit",
+    ),
+    path(
+        "api/prestataire/requests/<str:reference>/visite-done",
+        api_prestataire_visite_done,
+        name="api-prestataire-visite-done",
     ),
     path(
         "api/client/reservations/<str:reference>/pay-caution",

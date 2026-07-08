@@ -2490,6 +2490,7 @@ def api_client_home(request):
                 "caution_montant": float(item.caution_montant or 0),
                 "caution_motif": item.caution_motif or "",
                 "caution_payee": bool(item.caution_payee),
+                "visite_effectuee": bool(item.visite_effectuee),
                 "intervention_started_at": item.intervention_started_at.isoformat()
                 if item.intervention_started_at
                 else None,
@@ -2523,6 +2524,7 @@ def api_client_home(request):
                 "caution_montant": float(item.caution_montant or 0),
                 "caution_motif": item.caution_motif or "",
                 "caution_payee": bool(item.caution_payee),
+                "visite_effectuee": bool(item.visite_effectuee),
                 "can_pay_caution": item.statut == "VISITE_DIAGNOSTIC"
                 and item.client_user_id == uid
                 and (item.caution_montant or 0) > 0
@@ -4579,6 +4581,7 @@ def api_prestataire_requests(request):
                 "caution_montant": float(item.caution_montant or 0),
                 "caution_motif": item.caution_motif or "",
                 "caution_payee": bool(item.caution_payee),
+                "visite_effectuee": bool(item.visite_effectuee),
                 "description": (
                     client_text or f"Detail de la demande {item.reference}"
                 )[:500],
@@ -6707,6 +6710,45 @@ def api_prestataire_request_visit(request, reference):
         "caution_montant": float(montant),
         "caution_motif": motif,
     })
+
+
+# Prestataire : marquer la visite de diagnostic comme effectuée
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_visite_done(request, reference):
+    """Le prestataire déclare avoir effectué la visite de diagnostic.
+
+    Détermine qui garde la caution en cas d'annulation : une fois la visite
+    faite, le presta la conserve (compensation du déplacement).
+    """
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+    provider = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not provider:
+        return JsonResponse({"error": "provider_not_found"}, status=403)
+    if res.assigned_provider_id != provider.id:
+        return JsonResponse({"error": "not_authorized"}, status=403)
+    if not res.caution_payee:
+        return JsonResponse(
+            {"error": "caution_non_payee", "detail": "La caution n'est pas encore réglée."},
+            status=400,
+        )
+    if res.visite_effectuee:
+        return JsonResponse({"ok": True, "visite_effectuee": True})
+
+    res.visite_effectuee = True
+    res.visite_effectuee_at = timezone.now()
+    res.save(update_fields=["visite_effectuee", "visite_effectuee_at"])
+
+    _schedule(
+        [res.client_user_id] if res.client_user_id else [],
+        "Visite effectuée",
+        f"{provider.nom} a effectué la visite. Vous recevrez le devis sous peu.",
+        {"type": "visit.done", "reference": res.reference},
+    )
+    return JsonResponse({"ok": True, "visite_effectuee": True})
 
 
 # Prestataire : refuser la demande

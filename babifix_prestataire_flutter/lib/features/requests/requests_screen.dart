@@ -673,6 +673,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
           addressIsApproximate: it.addressIsApproximate,
           distanceKm: it.distanceKm,
           reponsesExigences: it.reponsesExigences,
+          cautionPayee: it.cautionPayee,
+          visiteEffectuee: it.visiteEffectuee,
           description: it.description,
           apiStatus: it.apiStatus,
           scheduledDate: it.scheduledDate,
@@ -1755,6 +1757,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
             reponsesExigences: (e['reponses_exigences'] is Map)
                 ? Map<String, dynamic>.from(e['reponses_exigences'] as Map)
                 : const {},
+            cautionPayee: e['caution_payee'] == true,
+            visiteEffectuee: e['visite_effectuee'] == true,
             // Adresse structurée pro (rue/quartier/ville/pays/repère + GPS).
             addressStreet: '${e['address_street'] ?? ''}',
             addressQuartier: '${e['address_quartier'] ?? ''}',
@@ -2168,6 +2172,10 @@ class _RequestItem {
   /// Réponses du client aux questions dynamiques de la catégorie (Phase 2).
   /// Format auto-descriptif {key: {label, value, unit?}}. Vide si aucune.
   final Map<String, dynamic> reponsesExigences;
+
+  /// Caution de visite (Phase 3).
+  final bool cautionPayee;
+  final bool visiteEffectuee;
   final String description;
   final double rating;
 
@@ -2241,6 +2249,8 @@ class _RequestItem {
     this.addressIsApproximate = false,
     this.distanceKm,
     this.reponsesExigences = const {},
+    this.cautionPayee = false,
+    this.visiteEffectuee = false,
     required this.description,
     required this.rating,
     required this.status,
