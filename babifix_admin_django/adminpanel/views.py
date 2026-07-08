@@ -2358,6 +2358,23 @@ def dashboard(request):
             )
         )
 
+    # Score de fiabilité client (Phase 4) : le modèle Client legacy n'a pas le
+    # score (il est sur UserProfile) → on le rattache par e-mail pour l'affichage.
+    if section == "clients":
+        try:
+            emails = [c.email for c in clients if getattr(c, "email", "")]
+            score_by_email = {}
+            if emails:
+                for u in User.objects.filter(email__in=emails).select_related("profile"):
+                    prof = getattr(u, "profile", None)
+                    if prof is not None and u.email:
+                        score_by_email[u.email] = int(prof.fiabilite_score or 100)
+            for c in clients:
+                c.fiabilite_score = score_by_email.get(getattr(c, "email", ""), 100)
+        except Exception:
+            for c in clients:
+                c.fiabilite_score = 100
+
     context = {
         "section": section,
         "page_heading": page_heading,
@@ -2435,6 +2452,13 @@ def api_client_home(request):
     user = User.objects.filter(id=uid).first()
     client_name = (user.get_full_name() or user.username) if user else ""
     reservations = []
+    # Gating fiabilité (Phase 4) — calculé une fois (même client pour toutes
+    # les lignes). False si gating désactivé (défaut).
+    try:
+        from .services.reliability_service import ReliabilityService
+        _prepaiement_requis = ReliabilityService.client_prepaiement_requis(uid)
+    except Exception:
+        _prepaiement_requis = False
 
     def _push_reservation_row(item):
         has_rating = Rating.objects.filter(reservation=item).exists()
@@ -2529,6 +2553,9 @@ def api_client_home(request):
                 and item.client_user_id == uid
                 and (item.caution_montant or 0) > 0
                 and not item.caution_payee,
+                # Gating fiabilité (Phase 4) — surface uniquement (non bloquant
+                # tant que l'app n'en tient pas compte). False si gating inactif.
+                "prepaiement_requis": _prepaiement_requis,
                 # MM : le solde 70 % se paie APRÈS la confirmation des travaux
                 # (ordre métier : vérifier puis payer). Le paiement du solde
                 # déclenche la libération des fonds au prestataire.
@@ -5273,6 +5300,7 @@ def api_prestataire_me(request):
                 "bio": prov.bio,
                 "average_rating": float(prov.average_rating or 0),
                 "rating_count": int(prov.rating_count or 0),
+                "fiabilite_score": int(getattr(prov, "fiabilite_score", 100) or 100),
                 "tarif_horaire": float(prov.tarif_horaire)
                 if prov.tarif_horaire is not None
                 else None,
@@ -6453,9 +6481,10 @@ def api_client_pay_caution(request, reference):
             status=400,
         )
 
-    from .models import PlatformRevenue
-    # Commission de visite : petit % prélevé sur la caution (≠ commission du job).
-    caution_commission = (montant * Decimal("0.12")).quantize(Decimal("1"))
+    from .models import PlatformRevenue, PlatformConfig
+    # Commission de visite : % configurable prélevé sur la caution (≠ job).
+    pct = Decimal(str(PlatformConfig.get_solo().caution_commission_pct)) / Decimal("100")
+    caution_commission = (montant * pct).quantize(Decimal("1"))
 
     with transaction.atomic():
         res.caution_payee = True

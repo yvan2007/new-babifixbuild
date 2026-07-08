@@ -312,6 +312,7 @@ def api_client_cancel_reservation(request, reference):
         "DEMANDE_ENVOYEE",
         "DEVIS_EN_COURS",
         "DEVIS_ENVOYE",
+        "VISITE_DIAGNOSTIC",
     ):
         return JsonResponse(
             {"error": "cannot_cancel", "statut": res.statut}, status=400
@@ -323,13 +324,54 @@ def api_client_cancel_reservation(request, reference):
         motif = str(payload.get("motif", "") or "").strip()[:255]
     except (json.JSONDecodeError, TypeError):
         pass
+    statut_avant = res.statut
     with transaction.atomic():
         res.statut = Reservation.Status.CANCELLED
         fields = ["statut"]
         if motif:
             res.cancellation_reason = motif
             fields.append("cancellation_reason")
+
+        # ── Règlement de la caution de visite (Phase 3) ──────────────────────
+        # Visite déjà effectuée → le presta garde la caution ; sinon → remboursée
+        # au client (commission plateforme rendue aussi).
+        if (
+            res.caution_payee
+            and not res.caution_deduite
+            and not res.caution_remboursee
+            and not res.visite_effectuee
+        ):
+            res.caution_remboursee = True
+            fields.append("caution_remboursee")
+            # La plateforme rend sa commission de caution : écriture négative
+            # d'offset (le champ refunded_at a été retiré du modèle → on
+            # neutralise via un revenu négatif, cohérent avec la compta).
+            try:
+                from adminpanel.models import PlatformRevenue, Payment
+                cpay = Payment.objects.filter(
+                    reference__startswith=f"CAUTION-{res.reference}"
+                ).first()
+                if cpay and (cpay.commission or 0) > 0:
+                    PlatformRevenue.objects.create(
+                        amount_fcfa=-cpay.commission,
+                        source=PlatformRevenue.Source.COMMISSION,
+                        reference=res.reference,
+                        description=f"Remboursement commission caution {res.reference}",
+                        payment=cpay,
+                    )
+            except Exception:
+                pass
+
         res.save(update_fields=fields)
+
+        # ── Score de fiabilité + détection anti-contournement (Phase 4) ──────
+        try:
+            from adminpanel.services.reliability_service import ReliabilityService
+            _stage = "after_devis" if statut_avant == "DEVIS_ENVOYE" else "before_devis"
+            ReliabilityService.on_cancellation(res, by="CLIENT", stage=_stage)
+        except Exception:
+            pass
+
         # Notifier le prestataire
         if res.prestataire_user_id:
             Notification.objects.create(

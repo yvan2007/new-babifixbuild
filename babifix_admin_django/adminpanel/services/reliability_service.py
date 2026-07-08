@@ -20,13 +20,22 @@ def _clamp(v) -> int:
 
 
 class ReliabilityService:
-    # Deltas volontairement petits (permissif) — on n'assomme pas les honnêtes.
+    # Deltas par défaut (permissif). Surchargés par PlatformConfig si présent.
     COMPLETION_BONUS_PRESTA = 2
     COMPLETION_BONUS_CLIENT = 1
     CLIENT_SUSPICIOUS_CANCEL = -8   # annulation après déblocage adresse
     CLIENT_LATE_CANCEL = -4         # annulation après acceptation
     PRESTA_NOSHOW = -12             # caution payée mais visite jamais faite
     PRESTA_LATE_CANCEL = -8
+
+    @staticmethod
+    def _cfg():
+        """Config plateforme (deltas/gating). Best-effort : None si indispo."""
+        try:
+            from adminpanel.models import PlatformConfig
+            return PlatformConfig.get_solo()
+        except Exception:
+            return None
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -52,12 +61,11 @@ class ReliabilityService:
     def on_completion(cls, reservation) -> None:
         """Prestation terminée : petit bonus au presta et au client."""
         try:
-            cls._adjust_provider(
-                reservation.assigned_provider, cls.COMPLETION_BONUS_PRESTA
-            )
-            cls._adjust_client(
-                reservation.client_user_id, cls.COMPLETION_BONUS_CLIENT
-            )
+            cfg = cls._cfg()
+            bp = cfg.delta_completion_presta if cfg else cls.COMPLETION_BONUS_PRESTA
+            bc = cfg.delta_completion_client if cfg else cls.COMPLETION_BONUS_CLIENT
+            cls._adjust_provider(reservation.assigned_provider, bp)
+            cls._adjust_client(reservation.client_user_id, bc)
         except Exception:
             logger.warning(
                 "reliability on_completion failed for %s",
@@ -73,6 +81,12 @@ class ReliabilityService:
         after_accept / after_start / completed (fourni par CancellationService).
         """
         try:
+            cfg = cls._cfg()
+            d_susp = cfg.delta_client_annulation_suspecte if cfg else cls.CLIENT_SUSPICIOUS_CANCEL
+            d_late_c = cfg.delta_client_annulation_tardive if cfg else cls.CLIENT_LATE_CANCEL
+            d_noshow = cfg.delta_presta_noshow if cfg else cls.PRESTA_NOSHOW
+            d_late_p = cfg.delta_presta_annulation_tardive if cfg else cls.PRESTA_LATE_CANCEL
+
             # Adresse débloquée si la caution est payée OU si on a dépassé
             # l'acceptation du devis (le presta connaît alors l'adresse exacte).
             address_unlocked = bool(
@@ -89,25 +103,17 @@ class ReliabilityService:
                     # Annulation juste après avoir obtenu l'adresse, sans visite
                     # ni prestation = soupçon de contournement.
                     suspicious = True
-                    cls._adjust_client(
-                        reservation.client_user_id, cls.CLIENT_SUSPICIOUS_CANCEL
-                    )
+                    cls._adjust_client(reservation.client_user_id, d_susp)
                 elif stage in ("after_accept", "after_start"):
-                    cls._adjust_client(
-                        reservation.client_user_id, cls.CLIENT_LATE_CANCEL
-                    )
+                    cls._adjust_client(reservation.client_user_id, d_late_c)
             elif by == "PRESTATAIRE":
                 if (
                     getattr(reservation, "caution_payee", False)
                     and not getattr(reservation, "visite_effectuee", False)
                 ):
-                    cls._adjust_provider(
-                        reservation.assigned_provider, cls.PRESTA_NOSHOW
-                    )
+                    cls._adjust_provider(reservation.assigned_provider, d_noshow)
                 elif stage in ("after_accept", "after_start"):
-                    cls._adjust_provider(
-                        reservation.assigned_provider, cls.PRESTA_LATE_CANCEL
-                    )
+                    cls._adjust_provider(reservation.assigned_provider, d_late_p)
 
             if suspicious and not reservation.annulation_suspecte:
                 reservation.annulation_suspecte = True
@@ -119,6 +125,37 @@ class ReliabilityService:
                 getattr(reservation, "reference", "?"),
                 exc_info=True,
             )
+
+    # ------------------------------------------------------------------ gating
+    @classmethod
+    def gating_active(cls) -> bool:
+        cfg = cls._cfg()
+        return bool(cfg and cfg.fiabilite_gating_actif)
+
+    @classmethod
+    def _seuil(cls) -> int:
+        cfg = cls._cfg()
+        return int(cfg.fiabilite_seuil) if cfg else 40
+
+    @classmethod
+    def provider_penalise(cls, provider) -> bool:
+        """True si le gating est actif ET le presta est sous le seuil.
+        Conséquence douce : déprioritisation dans les listes/recherche."""
+        if not cls.gating_active() or not provider:
+            return False
+        return int(getattr(provider, "fiabilite_score", 100) or 100) < cls._seuil()
+
+    @classmethod
+    def client_prepaiement_requis(cls, user_id) -> bool:
+        """True si le gating est actif ET le client est sous le seuil.
+        Conséquence : l'app peut exiger un prépaiement (surface, non bloquant)."""
+        if not cls.gating_active() or not user_id:
+            return False
+        from adminpanel.models import UserProfile
+        prof = UserProfile.objects.filter(user_id=user_id).first()
+        if not prof:
+            return False
+        return int(prof.fiabilite_score or 100) < cls._seuil()
 
     @staticmethod
     def _log_repeat_pattern(reservation) -> None:

@@ -386,3 +386,38 @@ class MetierProposeAdmin(admin.ModelAdmin):
 admin.site.site_header = "BABIFIX — Administration"
 admin.site.site_title = "BABIFIX Admin"
 admin.site.index_title = "CRUD : prestataires, réservations, paiements, contenido…"
+
+
+# ── Configuration plateforme (taux/seuils/deltas modifiables) ────────────────
+from .models import PlatformConfig as _PlatformConfig
+
+
+@admin.register(_PlatformConfig)
+class PlatformConfigAdmin(admin.ModelAdmin):
+    """Réglages globaux BABIFIX (singleton pk=1)."""
+
+    fieldsets = (
+        ("Commission", {"fields": ("caution_commission_pct",)}),
+        ("Gating fiabilité", {
+            "fields": ("fiabilite_gating_actif", "fiabilite_seuil"),
+            "description": "Désactivé par défaut. Une fois activé, un score bas "
+                           "déprioritise le prestataire et signale le client en "
+                           "prépaiement.",
+        }),
+        ("Deltas de fiabilité (signés)", {
+            "fields": (
+                "delta_completion_presta", "delta_completion_client",
+                "delta_client_annulation_suspecte", "delta_client_annulation_tardive",
+                "delta_presta_noshow", "delta_presta_annulation_tardive",
+            ),
+        }),
+        (None, {"fields": ("updated_at",)}),
+    )
+    readonly_fields = ("updated_at",)
+
+    def has_add_permission(self, request):
+        # Singleton : pas d'ajout si la ligne existe déjà.
+        return not _PlatformConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

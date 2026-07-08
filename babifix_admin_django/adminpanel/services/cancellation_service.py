@@ -254,35 +254,6 @@ class CancellationService:
                         ),
                     )
 
-        # ── Règlement de la caution de visite (no-show / annulation) ──────────
-        # Règle : si la visite a eu lieu, le prestataire garde la caution
-        # (compensation du déplacement). Sinon, elle est remboursée au client
-        # (le déplacement n'a pas été consommé), commission plateforme incluse.
-        caution_montant = Decimal(str(getattr(reservation, "caution_montant", 0) or 0))
-        caution_refunded = False
-        if (
-            caution_montant > 0
-            and getattr(reservation, "caution_payee", False)
-            and not getattr(reservation, "caution_deduite", False)
-            and not getattr(reservation, "caution_remboursee", False)
-        ):
-            if not getattr(reservation, "visite_effectuee", False):
-                # Remboursement dû au client (s'ajoute au refund éventuel).
-                refund_owed = refund_owed + caution_montant
-                reservation.caution_remboursee = True
-                caution_refunded = True
-                # La plateforme rend aussi sa commission de caution.
-                for pr in PlatformRevenue.objects.filter(
-                    reference=reservation.reference,
-                    refunded_at__isnull=True,
-                    description__icontains="caution",
-                ):
-                    pr.refunded_at = timezone.now()
-                    pr.description = (f"{pr.description} | REMBOURSÉ caution {by}")[:5000]
-                    pr.save(update_fields=["refunded_at", "description"])
-            # else : visite faite → le presta garde la caution (rien à faire,
-            # le Payment de caution reste acquis).
-
         # Persiste l'état d'annulation
         reservation.statut = Reservation.Status.CANCELLED
         reservation.cancelled_at = timezone.now()
@@ -302,19 +273,7 @@ class CancellationService:
             "cancellation_motif",
             "refund_owed_fcfa",
             "funds_released_at",
-            "caution_remboursee",
         ])
-
-        # Score de fiabilité + détection d'annulations suspectes (permissif).
-        try:
-            from adminpanel.services.reliability_service import ReliabilityService
-            ReliabilityService.on_cancellation(reservation, by=by, stage=stage)
-        except Exception:
-            logger.warning(
-                "reliability hook (cancel) failed for %s",
-                reservation.reference,
-                exc_info=True,
-            )
 
         # Notif aux 2 parties
         try:

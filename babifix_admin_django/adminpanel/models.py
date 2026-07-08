@@ -2015,3 +2015,56 @@ class MetierPropose(models.Model):
 
     def __str__(self):
         return f"{self.nom} ({self.votes} demande(s)) — {self.statut}"
+
+
+class PlatformConfig(models.Model):
+    """Réglages plateforme modifiables par l'admin (singleton, pk=1).
+
+    Centralise les taux/seuils/deltas jusque-là codés en dur : commission de
+    caution, deltas de fiabilité, activation du gating. On lit toujours via
+    `PlatformConfig.get_solo()` qui crée la ligne au besoin (défauts = valeurs
+    historiques → aucun changement de comportement tant qu'on ne touche à rien).
+    """
+
+    # Commission de visite (Phase 3) — % prélevé sur la caution.
+    caution_commission_pct = models.PositiveSmallIntegerField(
+        default=12,
+        help_text="Commission BABIFIX sur la caution de visite (%). Défaut 12.",
+    )
+
+    # Gating du score de fiabilité (Phase 4) — désactivé par défaut (permissif).
+    fiabilite_gating_actif = models.BooleanField(
+        default=False,
+        help_text="Si activé, un score de fiabilité bas a des conséquences "
+                  "(prestataire déprioritisé, client en prépaiement).",
+    )
+    fiabilite_seuil = models.PositiveSmallIntegerField(
+        default=40,
+        help_text="Sous ce score, les conséquences s'appliquent (si gating actif).",
+    )
+
+    # Deltas de fiabilité (signés). Positifs = bonus, négatifs = malus.
+    delta_completion_presta = models.IntegerField(default=2)
+    delta_completion_client = models.IntegerField(default=1)
+    delta_client_annulation_suspecte = models.IntegerField(default=-8)
+    delta_client_annulation_tardive = models.IntegerField(default=-4)
+    delta_presta_noshow = models.IntegerField(default=-12)
+    delta_presta_annulation_tardive = models.IntegerField(default=-8)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuration plateforme"
+        verbose_name_plural = "Configuration plateforme"
+
+    def __str__(self):
+        return "Configuration plateforme BABIFIX"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # force le singleton
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls) -> "PlatformConfig":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

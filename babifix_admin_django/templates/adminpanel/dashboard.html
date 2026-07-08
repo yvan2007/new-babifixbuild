@@ -1985,7 +1985,10 @@
             {% for c in clients %}
             <tr>
               <td class="bulk-col"><input type="checkbox" class="bulk-cb" data-scope="client" value="{{ c.id }}" onchange="babifixBulkUpdate('client')"></td>
-              <td>{{ c.nom }}</td>
+              <td>
+                {{ c.nom }}
+                <span title="Score de fiabilité client (annulations suspectes / no-show)" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;{% if c.fiabilite_score < 60 %}background:#fee2e2;color:#b91c1c;{% elif c.fiabilite_score < 85 %}background:#fef3c7;color:#92400e;{% else %}background:#dcfce7;color:#166534;{% endif %}">🛡️ {{ c.fiabilite_score|default:100 }}</span>
+              </td>
               <td title="Identifiant masqué (stats)">{% if c.email %}{% with e=c.email %}{{ e|slice:":2" }}•••@•••{% endwith %}{% else %}-{% endif %}</td>
               <td>{{ c.ville }}</td><td>{{ c.reservations }}</td><td>{{ c.depense }}</td>
               <td class="td-actions">
