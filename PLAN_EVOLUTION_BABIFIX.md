@@ -93,9 +93,10 @@ Beaucoup d'utilisateurs sont **peu à l'aise avec l'écrit**. La demande doit ac
 - [x] Champ **`profil_devis`** sur la **catégorie** (défaut **Standard** → inchangé). *(migration 0082)*
 - [x] Champ **`template_exigences` (JSON)** sur la catégorie (défaut **vide** → formulaire actuel). *(migration 0082 ; éditable dans l'admin catégories)*
 - [x] App : **si template vide → formulaire actuel** ; sinon → formulaire **généré dynamiquement**. *(widget `BabifixDynamicRequirements` + endpoint `/api/providers/<id>/requirements/` ; réponses stockées dans `Reservation.reponses_exigences`, migration 0083, affichées côté presta)*
-- [ ] Le **type de demande** peut filtrer/adapter les questions du template.
-- [ ] **Formulaire de mesures** (profil Surface) + **calcul m² auto** + **presets logement**.
-- [ ] **Devis en 2 temps** : champs `prix_min` / `prix_max` + flag **`est_estimation`** (optionnels ; absents → devis ferme comme aujourd'hui).
+- [x] Le **type de demande** peut filtrer/adapter les questions du template. *(question déclarant `types:[...]` → affichée seulement si le type courant y figure)*
+- [x] **Formulaire de mesures** (profil Surface) + **calcul m² auto** + **presets logement**. *(assistant surface : presets studio→villa + calcul L×l (sol) / 2·(L+l)·H (murs) → bouton Reporter)*
+- [x] **Toutes les catégories pré-remplies** (profil + template). *(migration 0084, idempotente)*
+- [ ] **Devis en 2 temps** : champs `prix_min` / `prix_max` + flag **`est_estimation`** (optionnels ; absents → devis ferme comme aujourd'hui). ⏳ *reste à faire — décision UX en attente (voir ci-dessous)*
 - [ ] → Activer **une seule catégorie test** (ex. Peinture), vérifier, puis étendre.
 
 ### Phase 3 — La visite & la caution (+ commission)
