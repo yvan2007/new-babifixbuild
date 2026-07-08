@@ -515,6 +515,14 @@ class Reservation(models.Model):
         default="",
         help_text="URL d'une note vocale décrivant le besoin (facultatif)",
     )
+    # Réponses du client aux questions dynamiques de la catégorie
+    # (Category.template_exigences). Dict {key: valeur}. Défaut vide =
+    # aucune question posée (catégorie STANDARD) → rétrocompatible.
+    reponses_exigences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Réponses du client aux questions dynamiques de la catégorie (clé → valeur).",
+    )
     photos_probleme = models.JSONField(
         default=list, blank=True, help_text="URLs des photos du problème"
     )

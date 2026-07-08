@@ -140,6 +140,7 @@ from .views import (
     api_prestataire_terminer_intervention,
     api_prestataire_upload_photos,
     api_public_categories,
+    api_provider_requirements,
     api_public_metiers,
     api_public_payment_methods,
     api_public_providers,
@@ -158,6 +159,11 @@ urlpatterns = [
     path("api/public/categories/", api_public_categories, name="api-public-categories"),
     path("api/public/metiers/", api_public_metiers, name="api-public-metiers"),
     path("api/public/providers/", api_public_providers, name="api-public-providers"),
+    path(
+        "api/providers/<int:provider_id>/requirements/",
+        api_provider_requirements,
+        name="api-provider-requirements",
+    ),
     path(
         "api/public/providers/<int:provider_id>/availability/",
         api_public_provider_availability,

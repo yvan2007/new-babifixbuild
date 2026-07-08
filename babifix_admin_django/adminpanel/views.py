@@ -2486,6 +2486,7 @@ def api_client_home(request):
                 "demande_type": item.demande_type or "",
                 "demande_type_label": item.get_demande_type_display() if item.demande_type else "",
                 "audio_probleme": item.audio_probleme or "",
+                "reponses_exigences": item.reponses_exigences or {},
                 "intervention_started_at": item.intervention_started_at.isoformat()
                 if item.intervention_started_at
                 else None,
@@ -4127,6 +4128,11 @@ def api_client_create_reservation(request):
         description_probleme=str(payload.get("description_probleme", "") or "")[:2000],
         demande_type=str(payload.get("demande_type", "") or "")[:20],
         audio_probleme=str(payload.get("audio_probleme", "") or "")[:500],
+        reponses_exigences=(
+            payload.get("reponses_exigences")
+            if isinstance(payload.get("reponses_exigences"), dict)
+            else {}
+        ),
         disponibilites_client=str(payload.get("disponibilites_client", "") or "")[:255],
         is_urgent=is_urgent,
         urgence_surcharge_pct=urgence_surcharge_pct,
@@ -4554,6 +4560,8 @@ def api_prestataire_requests(request):
                 "distance_km": _provider_distance_km(
                     item.latitude, item.longitude, prov
                 ),
+                # Réponses du client aux questions dynamiques de la catégorie.
+                "reponses_exigences": item.reponses_exigences or {},
                 "description": (
                     client_text or f"Detail de la demande {item.reference}"
                 )[:500],
@@ -6103,6 +6111,35 @@ def api_public_categories(request):
             "icon_library": [{"slug": s, "label": lb} for s, lb in CATEGORY_ICON_SLUGS],
         }
     )
+
+
+@require_GET
+def api_provider_requirements(request, provider_id):
+    """Profil de devis + questions dynamiques de la catégorie d'un prestataire.
+
+    L'app client appelle cet endpoint avec l'id du prestataire choisi (qu'elle
+    possède déjà) pour savoir quelles questions afficher au moment de la demande.
+    Réponse par défaut (prestataire/catégorie introuvable, ou catégorie STANDARD
+    non configurée) : profil STANDARD + liste vide → l'app garde son formulaire
+    actuel (rétrocompatible).
+    """
+    prov = (
+        Provider.objects.select_related("category")
+        .filter(pk=provider_id)
+        .first()
+    )
+    cat = prov.category if prov else None
+    if not cat:
+        return JsonResponse({
+            "profil_devis": "STANDARD",
+            "template_exigences": [],
+        })
+    return JsonResponse({
+        "profil_devis": cat.profil_devis or "STANDARD",
+        "template_exigences": cat.template_exigences or [],
+        "category_id": cat.id,
+        "category_nom": cat.nom,
+    })
 
 
 def _payment_complete_exists(res: Reservation) -> bool:
