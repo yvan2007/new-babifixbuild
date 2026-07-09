@@ -278,12 +278,12 @@ body.app-shell {
   padding: 10px 12px;
   font-size: 13px;
   font-weight: 700;
-  color: #0c4a6e;
-  background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+  color: #fff;
+  background: #0891b2;
   border-radius: 10px;
   text-decoration: none;
-  transition: transform 0.2s var(--ease), filter 0.2s;
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+  transition: transform 0.15s var(--ease), filter 0.2s;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.08);
 }
 
 .btn-crud-main:hover {
@@ -856,7 +856,7 @@ body.app-shell {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #38bdf8, #2563eb);
+  background: #0B1B34;
   color: #fff;
   font-weight: 700;
   font-size: 13px;
@@ -1066,9 +1066,9 @@ body.app-shell {
 }
 .inline-form button, .table-btn {
   border: 0;
-  background-image: linear-gradient(135deg, #38bdf8, #2563eb);
+  background: #475569;
   color: #fff;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 8px 12px;
   cursor: pointer;
   font-weight: 600;
@@ -2002,18 +2002,17 @@ html[data-theme="dark"] table tbody tr:hover {
 .dossier-avatar-img {
   width: 88px; height: 88px; border-radius: 50%;
   object-fit: cover;
-  border: 3px solid #f97316;
-  box-shadow: 0 6px 24px rgba(249,115,22,0.25);
+  border: 2px solid #E2E8F0;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.08);
   display: block;
   transition: transform 0.2s;
 }
 .dossier-avatar-img:hover { transform: scale(1.04); }
 .dossier-avatar-placeholder {
   width: 88px; height: 88px; border-radius: 50%;
-  background: linear-gradient(135deg, #f97316, #ea580c);
-  color: #fff; font-size: 36px; font-weight: 800;
+  background: #0B1B34;
+  color: #fff; font-size: 36px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 6px 24px rgba(249,115,22,0.25);
 }
 .dossier-status-pill {
   position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
@@ -2135,8 +2134,8 @@ html[data-theme="dark"] table tbody tr:hover {
   font-size: 13px; font-weight: 700; transition: transform 0.15s, box-shadow 0.15s;
 }
 .dossier-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.15); }
-.dossier-btn--approve { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; }
-.dossier-btn--reject  { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
+.dossier-btn--approve { background: #16a34a; color: #fff; }
+.dossier-btn--reject  { background: #dc2626; color: #fff; }
 .dossier-refusal-input {
   padding: 9px 12px; border-radius: 8px; border: 1px solid #cbd5e1;
   font-size: 13px; background: #fff; outline: none;
@@ -2144,7 +2143,7 @@ html[data-theme="dark"] table tbody tr:hover {
 .dossier-refusal-input:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.15); }
 
 .table-btn--dossier {
-  background: linear-gradient(135deg, #f97316, #ea580c) !important;
+  background: #E87722 !important;
   color: #fff !important;
 }
 
@@ -2208,7 +2207,7 @@ html[data-theme="dark"] table tbody tr:hover {
 
 /* Header */
 .providers-table thead tr {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  background: #0F172A;
 }
 .providers-table thead th {
   color: rgba(255,255,255,0.65);
@@ -2230,7 +2229,7 @@ html[data-theme="dark"] table tbody tr:hover {
   border-bottom: 1px solid rgba(226,232,240,0.6);
 }
 .providers-table tbody tr:hover {
-  background: linear-gradient(135deg, rgba(249,115,22,0.03) 0%, rgba(14,165,233,0.03) 100%);
+  background: #F8FAFC;
   z-index: 1;
 }
 .providers-table tbody tr:hover td {
@@ -2245,12 +2244,10 @@ html[data-theme="dark"] table tbody tr:hover {
 /* ── Identité prestataire ── */
 .provider-identity { display: flex; align-items: center; gap: 14px; }
 .provider-avatar {
-  width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
-  background: linear-gradient(135deg, #f97316 0%, #fb923c 50%, #ec4899 100%);
-  color: #fff; font-size: 18px; font-weight: 900;
+  width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+  background: #0B1B34;
+  color: #fff; font-size: 18px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 14px rgba(249,115,22,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
-  text-shadow: 0 1px 3px rgba(0,0,0,0.25);
   letter-spacing: -0.5px;
   position: relative;
 }
@@ -2343,7 +2340,7 @@ html[data-theme="dark"] table tbody tr:hover {
   gap: 10px;
 }
 .kanban-toolbar-badge {
-  background: linear-gradient(135deg, var(--brand), #f97316);
+  background: var(--brand);
   color: #fff;
   padding: 4px 10px;
   border-radius: 8px;
