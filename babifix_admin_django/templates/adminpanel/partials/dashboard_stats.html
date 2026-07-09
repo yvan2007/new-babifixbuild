@@ -29,9 +29,9 @@
     <div class="kpi-card__body">
       <span class="kpi-card__label">{{ stat.label }}</span>
       <strong class="kpi-card__value" data-target="{{ stat.value }}">{{ stat.value }}</strong>
-      {# Charte sobre : on n'affiche le bandeau de tendance QUE s'il porte une
-         info utile (traitement requis). Le générique « Mise à jour live »
-         répété sur chaque carte était du bruit visuel → retiré. #}
+      {% comment %}Sobre : bandeau de tendance uniquement s'il porte une info
+      utile (traitement requis). Le « Mise à jour live » répété était du bruit
+      visuel, retiré.{% endcomment %}
       {% if stat.warn and stat.value > 0 %}
       <span class="kpi-card__trend kpi-card__trend--warn">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4M12 17h.01M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0z"/></svg>
