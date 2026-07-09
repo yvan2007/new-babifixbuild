@@ -17,12 +17,13 @@ if [ "${RESET_DATABASE}" = "true" ]; then
 fi
 
 # ── CATALOGUE MÉTIER (idempotent) ───────────────────────────────────────────
-# Sème / met à jour les 77 catégories (depuis data/categories-services-domicile.json)
-# puis le catalogue d'items par catégorie. Indispensable : sans ça la table
-# Category est vide sur une base fraîche → l'app prestataire n'affiche AUCUNE
-# spécialité à l'inscription. update_or_create => rejouable sans risque.
+# Sème / met à jour les 77 catégories (depuis data/categories-services-domicile.json).
+# Indispensable : sans ça la table Category est vide sur une base fraîche →
+# l'app prestataire n'affiche AUCUNE spécialité à l'inscription.
+# update_or_create => rejouable sans risque.
 python manage.py import_babifix_categories || true
-python manage.py seed_catalogue || true
+# NB : `seed_catalogue` retiré — il importait le modèle CatalogueItem supprimé
+# (migration 0057) → ImportError à chaque build (non bloquant mais pollue les logs).
 
 # Créer le superadmin automatiquement si inexistant (variables depuis env Render)
 python manage.py createsuperuser --noinput || true
