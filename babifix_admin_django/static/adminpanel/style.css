@@ -2966,3 +2966,63 @@ html[data-theme="dark"] table tbody tr:hover {
 [data-theme="dark"] .kyc-checks-table td {
   border-top-color: #1e293b;
 }
+
+/* ======================================================================
+   MENU D'ACTIONS « ⋯ » (progressive disclosure) — 1 action + le reste
+   rangé dans un menu. Réutilisable sur tous les tableaux admin.
+   ====================================================================== */
+.action-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+.btn-action-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #E87722; color: #fff; border: none;
+  border-radius: 8px; padding: 7px 14px;
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.btn-action-primary:hover { background: #cf6717; }
+
+.actions-menu { position: relative; }
+.actions-menu > summary {
+  list-style: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 8px;
+  border: 1px solid #e2e8f0; background: #fff;
+  font-size: 13px; font-weight: 600; color: #475569;
+}
+.actions-menu > summary::-webkit-details-marker { display: none; }
+.actions-menu[open] > summary { background: #f1f5f9; border-color: #cbd5e1; }
+
+.actions-menu__panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60;
+  min-width: 200px; padding: 6px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+}
+.actions-menu__group { padding: 4px 0; }
+.actions-menu__group + .actions-menu__group { border-top: 1px solid #f1f5f9; }
+.actions-menu__group form { margin: 0; }
+
+.actions-menu__item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  text-align: left; padding: 8px 12px;
+  font-size: 13px; font-weight: 500; color: #0f172a;
+  background: none; border: none; border-radius: 8px;
+  cursor: pointer; text-decoration: none; box-sizing: border-box;
+}
+.actions-menu__item:hover { background: #f8fafc; }
+.actions-menu__item--warn { color: #b45309; }
+.actions-menu__item--danger { color: #dc2626; }
+
+.actions-submenu { width: 100%; }
+.actions-submenu > summary { list-style: none; }
+.actions-submenu > summary::-webkit-details-marker { display: none; }
+.actions-submenu[open] > summary { background: #fff7ed; }
+.actions-submenu .refuse-form-expanded { padding: 8px 10px 4px; }
+
+/* Dark mode */
+[data-theme="dark"] .actions-menu > summary { background: #0f172a; border-color: #334155; color: #cbd5e1; }
+[data-theme="dark"] .actions-menu[open] > summary { background: #1e293b; }
+[data-theme="dark"] .actions-menu__panel { background: #0f172a; border-color: #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+[data-theme="dark"] .actions-menu__group + .actions-menu__group { border-top-color: #1e293b; }
+[data-theme="dark"] .actions-menu__item { color: #e2e8f0; }
+[data-theme="dark"] .actions-menu__item:hover { background: #1e293b; }

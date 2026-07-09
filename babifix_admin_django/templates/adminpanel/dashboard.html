@@ -711,68 +711,71 @@
                 {% endif %}
               </td>
               <td class="td-actions td-actions--column">
-                <div class="action-row">
-                  <a href="?section=prestataires&amp;edit_provider={{ p.id }}" class="link-edit">Modifier</a>
-                  <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ce prestataire ?');">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="provider_delete">
-                    <input type="hidden" name="pk" value="{{ p.id }}">
-                    <button type="submit" class="table-btn danger">Supprimer</button>
-                  </form>
-                  <a href="?section=reservations&q={{ p.nom|urlencode }}" class="table-btn" title="Ses réservations">Réservations</a>
-                  <a href="?section=paiements&q={{ p.nom|urlencode }}" class="table-btn" title="Ses paiements">Paiements</a>
-                  <a href="?section=litiges&q={{ p.nom|urlencode }}" class="table-btn" title="Ses litiges">Litiges</a>
-                  <button type="button" class="table-btn table-btn--dossier"
+                <div class="action-cell">
+                  <button type="button" class="btn-action-primary"
                           onclick="toggleDossier({{ p.id }})" id="btn-dossier-{{ p.id }}">
-                    📋 Voir dossier
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+                    Voir dossier
                   </button>
-                  <form method="post" style="display:inline-block;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="provider_status">
-                    <input type="hidden" name="provider_id" value="{{ p.id }}">
-                    <input type="hidden" name="next_status" value="{% if p.statut == 'En attente' %}Valide{% elif p.statut == 'Valide' %}Suspendu{% else %}Valide{% endif %}">
-                    <button type="submit" class="table-btn table-btn--{% if p.statut == 'En attente' %}approve{% elif p.statut == 'Valide' %}suspend{% else %}reactivate{% endif %}">
-                      {% if p.statut == 'En attente' %}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-                      Valider
-                      {% elif p.statut == 'Valide' %}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
-                      Suspendre
-                      {% else %}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-                      Réactiver
-                      {% endif %}
-                    </button>
-                  </form>
+                  <details class="actions-menu">
+                    <summary class="actions-menu__trigger" aria-label="Plus d'actions">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                      Plus
+                    </summary>
+                    <div class="actions-menu__panel">
+                      <div class="actions-menu__group">
+                        <a href="?section=reservations&q={{ p.nom|urlencode }}" class="actions-menu__item">Réservations</a>
+                        <a href="?section=paiements&q={{ p.nom|urlencode }}" class="actions-menu__item">Paiements</a>
+                        <a href="?section=litiges&q={{ p.nom|urlencode }}" class="actions-menu__item">Litiges</a>
+                      </div>
+                      <div class="actions-menu__group">
+                        <a href="?section=prestataires&amp;edit_provider={{ p.id }}" class="actions-menu__item">Modifier</a>
+                        <form method="post">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="provider_status">
+                          <input type="hidden" name="provider_id" value="{{ p.id }}">
+                          <input type="hidden" name="next_status" value="{% if p.statut == 'En attente' %}Valide{% elif p.statut == 'Valide' %}Suspendu{% else %}Valide{% endif %}">
+                          <button type="submit" class="actions-menu__item{% if p.statut == 'Valide' %} actions-menu__item--warn{% endif %}">
+                            {% if p.statut == 'En attente' %}Valider{% elif p.statut == 'Valide' %}Suspendre{% else %}Réactiver{% endif %}
+                          </button>
+                        </form>
+                        {% if p.statut == 'En attente' or p.statut == 'Valide' %}
+                        <details class="refuse-details actions-submenu">
+                          <summary class="actions-menu__item actions-menu__item--warn">Refuser…</summary>
+                          <form method="post" class="refuse-form-expanded">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="provider_refuse">
+                            <input type="hidden" name="provider_id" value="{{ p.id }}">
+                            <label class="refuse-label">Motif de refus</label>
+                            <select class="refuse-preset input-reason" name="reason" required>
+                              <option value="">Choisir un motif -</option>
+                              <optgroup label="Motifs fréquents">
+                                <option value="Documents d'identité (CNI) illisibles ou expirés">CNI illisible ou expirée</option>
+                                <option value="Photo de profil non conforme (floue, non visible)">Photo de profil non conforme</option>
+                                <option value="Informations professionnelles incomplètes">Infos professionnelles incomplètes</option>
+                                <option value="Spécialité non couverte par la plateforme BABIFIX">Spécialité non couverte</option>
+                                <option value="Doublon de compte détecté">Doublon de compte</option>
+                                <option value="Coordonnées de contact invalides">Coordonnées invalides</option>
+                              </optgroup>
+                              <option value="custom">Autre motif (préciser ci-dessous)…</option>
+                            </select>
+                            <input type="text" name="reason_custom" placeholder="Motif personnalisé si « Autre »…" class="input-reason" style="margin-top:6px; display:none;" id="reason-custom-{{ p.id }}">
+                            <button type="submit" class="table-btn danger refuse-confirm-btn">Confirmer le refus</button>
+                          </form>
+                        </details>
+                        {% endif %}
+                      </div>
+                      <div class="actions-menu__group">
+                        <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ce prestataire ?');">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="provider_delete">
+                          <input type="hidden" name="pk" value="{{ p.id }}">
+                          <button type="submit" class="actions-menu__item actions-menu__item--danger">Supprimer</button>
+                        </form>
+                      </div>
+                    </div>
+                  </details>
                 </div>
-                {% if p.statut == 'En attente' or p.statut == 'Valide' %}
-                <details class="refuse-details" x-data="{ open: false }">
-                  <summary class="refuse-summary">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
-                    Refuser…
-                  </summary>
-                  <form method="post" class="refuse-form-expanded">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="provider_refuse">
-                    <input type="hidden" name="provider_id" value="{{ p.id }}">
-                    <label class="refuse-label">Motif de refus</label>
-                    <select class="refuse-preset input-reason" name="reason" required>
-                      <option value="">Choisir un motif -</option>
-                      <optgroup label="Motifs fréquents">
-                        <option value="Documents d'identité (CNI) illisibles ou expirés">CNI illisible ou expirée</option>
-                        <option value="Photo de profil non conforme (floue, non visible)">Photo de profil non conforme</option>
-                        <option value="Informations professionnelles incomplètes">Infos professionnelles incomplètes</option>
-                        <option value="Spécialité non couverte par la plateforme BABIFIX">Spécialité non couverte</option>
-                        <option value="Doublon de compte détecté">Doublon de compte</option>
-                        <option value="Coordonnées de contact invalides">Coordonnées invalides</option>
-                      </optgroup>
-                      <option value="custom">Autre motif (préciser ci-dessous)…</option>
-                    </select>
-                    <input type="text" name="reason_custom" placeholder="Motif personnalisé si « Autre »…" class="input-reason" style="margin-top:6px; display:none;" id="reason-custom-{{ p.id }}">
-                    <button type="submit" class="table-btn danger refuse-confirm-btn">Confirmer le refus</button>
-                  </form>
-                </details>
-                {% endif %}
               </td>
             </tr>
             <tr class="provider-dossier-row" id="dossier-{{ p.id }}" hidden>
@@ -1368,22 +1371,39 @@
                 {% endif %}
               </td>
               <td><span class="status-badge status-badge--{{ r.statut|lower|slugify }}">{{ r.statut }}</span>{% if r.is_urgent %} <span class="status-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;border-color:rgba(239,68,68,0.3);font-size:10px;">URGENT</span>{% endif %}</td>
-              <td class="td-actions">
-                <button type="button" class="table-btn" onclick="showResaDetail(this)"
-                  data-ref="{{ r.reference }}" data-client="{{ r.client }}" data-presta="{{ r.prestataire }}"
-                  data-service="{{ r.title }}" data-montant="{{ r.montant|floatformat:0 }}"
-                  data-statut="{{ r.statut }}" data-payment="{{ r.get_payment_type_display }}"
-                  data-operator="{% if r.mobile_money_operator %}{{ r.get_mobile_money_operator_display }}{% endif %}"
-                  data-ville="{{ r.address_ville }}" data-date="{{ r.created_at|date:'d/m/Y H:i' }}"
-                  data-scheduled="{% if r.scheduled_date %}{{ r.scheduled_date|date:'d/m/Y' }}{% endif %}"
-                  data-urgent="{% if r.is_urgent %}Oui{% else %}Non{% endif %}">Détail</button>
-                <a href="?section=reservations&amp;edit_reservation={{ r.id }}" class="link-edit">Modifier</a>
-                <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="reservation_delete">
-                  <input type="hidden" name="pk" value="{{ r.id }}">
-                  <button type="submit" class="table-btn danger">Supprimer</button>
-                </form>
+              <td class="td-actions td-actions--column">
+                <div class="action-cell">
+                  <button type="button" class="btn-action-primary" onclick="showResaDetail(this)"
+                    data-ref="{{ r.reference }}" data-client="{{ r.client }}" data-presta="{{ r.prestataire }}"
+                    data-service="{{ r.title }}" data-montant="{{ r.montant|floatformat:0 }}"
+                    data-statut="{{ r.statut }}" data-payment="{{ r.get_payment_type_display }}"
+                    data-operator="{% if r.mobile_money_operator %}{{ r.get_mobile_money_operator_display }}{% endif %}"
+                    data-ville="{{ r.address_ville }}" data-date="{{ r.created_at|date:'d/m/Y H:i' }}"
+                    data-scheduled="{% if r.scheduled_date %}{{ r.scheduled_date|date:'d/m/Y' }}{% endif %}"
+                    data-urgent="{% if r.is_urgent %}Oui{% else %}Non{% endif %}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>
+                    Détail
+                  </button>
+                  <details class="actions-menu">
+                    <summary class="actions-menu__trigger" aria-label="Plus d'actions">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                      Plus
+                    </summary>
+                    <div class="actions-menu__panel">
+                      <div class="actions-menu__group">
+                        <a href="?section=reservations&amp;edit_reservation={{ r.id }}" class="actions-menu__item">Modifier</a>
+                      </div>
+                      <div class="actions-menu__group">
+                        <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="reservation_delete">
+                          <input type="hidden" name="pk" value="{{ r.id }}">
+                          <button type="submit" class="actions-menu__item actions-menu__item--danger">Supprimer</button>
+                        </form>
+                      </div>
+                    </div>
+                  </details>
+                </div>
               </td>
             </tr>
             {% empty %}
@@ -1991,19 +2011,38 @@
               </td>
               <td title="Identifiant masqué (stats)">{% if c.email %}{% with e=c.email %}{{ e|slice:":2" }}•••@•••{% endwith %}{% else %}-{% endif %}</td>
               <td>{{ c.ville }}</td><td>{{ c.reservations }}</td><td>{{ c.depense }}</td>
-              <td class="td-actions">
-                <button type="button" class="table-btn" onclick="showClientDetail(this)"
-                  data-nom="{{ c.nom }}" data-email="{{ c.email }}" data-ville="{{ c.ville }}"
-                  data-resa="{{ c.reservations|default:0 }}" data-depense="{{ c.depense|default:0|floatformat:0 }}">Détail</button>
-                <a href="?section=reservations&q={{ c.nom|urlencode }}" class="table-btn" title="Ses réservations">Réservations</a>
-                <a href="?section=paiements&q={{ c.nom|urlencode }}" class="table-btn" title="Ses paiements">Paiements</a>
-                <a href="?section=clients&amp;edit_client={{ c.id }}" class="link-edit">Modifier</a>
-                <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="client_delete">
-                  <input type="hidden" name="pk" value="{{ c.id }}">
-                  <button type="submit" class="table-btn danger">Supprimer</button>
-                </form>
+              <td class="td-actions td-actions--column">
+                <div class="action-cell">
+                  <button type="button" class="btn-action-primary" onclick="showClientDetail(this)"
+                    data-nom="{{ c.nom }}" data-email="{{ c.email }}" data-ville="{{ c.ville }}"
+                    data-resa="{{ c.reservations|default:0 }}" data-depense="{{ c.depense|default:0|floatformat:0 }}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>
+                    Détail
+                  </button>
+                  <details class="actions-menu">
+                    <summary class="actions-menu__trigger" aria-label="Plus d'actions">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                      Plus
+                    </summary>
+                    <div class="actions-menu__panel">
+                      <div class="actions-menu__group">
+                        <a href="?section=reservations&q={{ c.nom|urlencode }}" class="actions-menu__item">Réservations</a>
+                        <a href="?section=paiements&q={{ c.nom|urlencode }}" class="actions-menu__item">Paiements</a>
+                      </div>
+                      <div class="actions-menu__group">
+                        <a href="?section=clients&amp;edit_client={{ c.id }}" class="actions-menu__item">Modifier</a>
+                      </div>
+                      <div class="actions-menu__group">
+                        <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="client_delete">
+                          <input type="hidden" name="pk" value="{{ c.id }}">
+                          <button type="submit" class="actions-menu__item actions-menu__item--danger">Supprimer</button>
+                        </form>
+                      </div>
+                    </div>
+                  </details>
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -2211,30 +2250,52 @@
               <td>{{ p.reference }}</td><td>{{ p.client }}</td><td>{{ p.prestataire }}</td><td>{{ p.montant }}</td><td>{% if p.commission %}{{ p.commission|floatformat:0 }}{% elif p.reservation %}{{ p.reservation.commission|floatformat:0 }}{% else %}0{% endif %} FCFA</td>
               <td>{% if p.reservation and p.reservation.mobile_money_operator %}{% with op=p.reservation.mobile_money_operator %}{% if op == 'ORANGE_MONEY' %}<img src="{% static 'payment-logos/orange-money.svg' %}" alt="Orange" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'MTN_MOMO' %}<img src="{% static 'payment-logos/mtn-momo.svg' %}" alt="MTN" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'WAVE' %}<img src="{% static 'payment-logos/wave.svg' %}" alt="Wave" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% elif op == 'MOOV' %}<img src="{% static 'payment-logos/moov-money.svg' %}" alt="Moov" style="width:16px;height:16px;vertical-align:middle;object-fit:contain;margin-right:4px;border-radius:3px;">{% endif %}{{ p.reservation.get_mobile_money_operator_display }}{% endwith %}{% else %}{{ p.get_type_paiement_display }}{% endif %}</td>
               <td><span class="status-badge status-badge--{{ p.etat|lower|slugify }}">{{ p.get_etat_display }}</span></td>
-              <td class="td-actions">
-                <button type="button" class="table-btn" onclick="showPayDetail(this)"
-                  data-ref="{{ p.reference }}" data-client="{{ p.client }}" data-presta="{{ p.prestataire }}"
-                  data-montant="{{ p.montant|floatformat:0 }}" data-commission="{% if p.commission %}{{ p.commission|floatformat:0 }}{% elif p.reservation %}{{ p.reservation.commission|floatformat:0 }}{% else %}0{% endif %}"
-                  data-etat="{{ p.get_etat_display }}" data-date="{{ p.created_at|date:'d/m/Y H:i' }}"
-                  data-moyen="{% if p.reservation and p.reservation.mobile_money_operator %}{{ p.reservation.get_mobile_money_operator_display }}{% else %}{{ p.get_type_paiement_display }}{% endif %}"
-                  data-resa="{% if p.reservation %}{{ p.reservation.reference }}{% endif %}"
-                  data-resastatut="{% if p.reservation %}{{ p.reservation.statut }}{% endif %}"
-                  data-ext="{{ p.reference_externe }}">Détail</button>
-                {% if p.etat == 'Pending' %}
-                <form method="post" style="display:inline;">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="payment_validate">
-                  <input type="hidden" name="payment_id" value="{{ p.id }}">
-                  <button type="submit" class="table-btn" style="color:#16a34a;border-color:#16a34a;">Valider</button>
-                </form>
-                {% endif %}
-                <a href="?section=paiements&amp;edit_paiement={{ p.id }}" class="link-edit">Modifier</a>
-                <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="paiement_delete">
-                  <input type="hidden" name="pk" value="{{ p.id }}">
-                  <button type="submit" class="table-btn danger">Supprimer</button>
-                </form>
+              <td class="td-actions td-actions--column">
+                <div class="action-cell">
+                  <button type="button" class="btn-action-primary" onclick="showPayDetail(this)"
+                    data-ref="{{ p.reference }}" data-client="{{ p.client }}" data-presta="{{ p.prestataire }}"
+                    data-montant="{{ p.montant|floatformat:0 }}" data-commission="{% if p.commission %}{{ p.commission|floatformat:0 }}{% elif p.reservation %}{{ p.reservation.commission|floatformat:0 }}{% else %}0{% endif %}"
+                    data-etat="{{ p.get_etat_display }}" data-date="{{ p.created_at|date:'d/m/Y H:i' }}"
+                    data-moyen="{% if p.reservation and p.reservation.mobile_money_operator %}{{ p.reservation.get_mobile_money_operator_display }}{% else %}{{ p.get_type_paiement_display }}{% endif %}"
+                    data-resa="{% if p.reservation %}{{ p.reservation.reference }}{% endif %}"
+                    data-resastatut="{% if p.reservation %}{{ p.reservation.statut }}{% endif %}"
+                    data-ext="{{ p.reference_externe }}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>
+                    Détail
+                  </button>
+                  <details class="actions-menu">
+                    <summary class="actions-menu__trigger" aria-label="Plus d'actions">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                      Plus
+                    </summary>
+                    <div class="actions-menu__panel">
+                      {% if p.etat == 'Pending' %}
+                      <div class="actions-menu__group">
+                        <form method="post">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="payment_validate">
+                          <input type="hidden" name="payment_id" value="{{ p.id }}">
+                          <button type="submit" class="actions-menu__item" style="color:#16a34a;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                            Valider le paiement
+                          </button>
+                        </form>
+                      </div>
+                      {% endif %}
+                      <div class="actions-menu__group">
+                        <a href="?section=paiements&amp;edit_paiement={{ p.id }}" class="actions-menu__item">Modifier</a>
+                      </div>
+                      <div class="actions-menu__group">
+                        <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer ?');">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="paiement_delete">
+                          <input type="hidden" name="pk" value="{{ p.id }}">
+                          <button type="submit" class="actions-menu__item actions-menu__item--danger">Supprimer</button>
+                        </form>
+                      </div>
+                    </div>
+                  </details>
+                </div>
               </td>
             </tr>
             {% endfor %}
