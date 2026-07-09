@@ -2746,9 +2746,29 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    // Extrait court : l'accueil ne montre qu'un aperçu ;
+                    // le texte complet s'ouvre au clic (détail actualité).
                     Text(
                       item.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: _textSecondary, height: 1.35),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          'Lire la suite',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: BabifixDesign.ciOrange,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Icon(Icons.arrow_forward_rounded,
+                            size: 14, color: BabifixDesign.ciOrange),
+                      ],
                     ),
                   ],
                 ),

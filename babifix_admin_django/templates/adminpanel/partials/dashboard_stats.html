@@ -78,26 +78,37 @@
 <script>
 (function(){
   'use strict';
-  if (typeof Chart === 'undefined') return;
+  var _tries = 0;
+  function drawCharts(){
+    /* Chart.js (CDN) peut ne pas etre encore charge quand ce script tourne :
+       on RETENTE au lieu d'abandonner -> corrige les graphiques restes vides. */
+    if (typeof Chart === 'undefined') {
+      if (_tries++ < 30) setTimeout(drawCharts, 150);
+      return;
+    }
+    var kpiRaw = document.getElementById('kpi-data');
+    if (!kpiRaw) return;
+    var kpi;
+    try { kpi = JSON.parse(kpiRaw.textContent); } catch(e){ return; }
+    /* Evite « Canvas is already in use » apres un rafraichissement htmx. */
+    ['lineChart','pieChart'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && Chart.getChart) { var ex = Chart.getChart(el); if (ex) ex.destroy(); }
+    });
 
-  var kpiRaw = document.getElementById('kpi-data');
-  if (!kpiRaw) return;
-  var kpi;
-  try { kpi = JSON.parse(kpiRaw.textContent); } catch(e){ return; }
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+    var textColor = isDark ? '#94a3b8' : '#64748b';
+    var tooltipBg = isDark ? '#1e293b' : '#ffffff';
+    var tooltipText = isDark ? '#f8fafc' : '#0f172a';
 
-  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  var gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-  var textColor = isDark ? '#94a3b8' : '#64748b';
-  var tooltipBg = isDark ? '#1e293b' : '#ffffff';
-  var tooltipText = isDark ? '#f8fafc' : '#0f172a';
-
-  /* · Palette · */
-  var cyan = '#4CC9F0';
-  var navy = '#2563EB';
-  var amber = '#F59E0B';
-  var green = '#10B981';
-  var purple = '#8B5CF6';
-  var red = '#EF4444';
+    /* · Palette · */
+    var cyan = '#4CC9F0';
+    var navy = '#2563EB';
+    var amber = '#F59E0B';
+    var green = '#10B981';
+    var purple = '#8B5CF6';
+    var red = '#EF4444';
 
   /* ── Graphique COURBE ─────────────────────────────────────────── */
   var lineCtx = document.getElementById('lineChart');
@@ -241,7 +252,12 @@
         }
       }
     });
-}
+    }
+  }
+  drawCharts();
+  document.body.addEventListener('htmx:afterSwap', function(e){
+    if (e.target && e.target.id === 'dashboard-stats-fragment') drawCharts();
+  });
 })();
 {% endif %}
 
