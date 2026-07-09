@@ -937,10 +937,14 @@ def _dashboard_forms_context(request, section):
                 ctx["edit_reservation_id"] = inst.pk
             except Reservation.DoesNotExist:
                 pass
-        ctx["kanban_reservations"] = _build_kanban_reservations() if ctx["reservation_view"] == "kanban" else {}
+        _kb = _build_kanban_reservations() if ctx["reservation_view"] == "kanban" else {}
+        ctx["kanban_reservations"] = _kb
+        ctx["kanban_total"] = sum(len(v) for v in _kb.values())
     elif section == "kanban":
         ctx["reservation_view"] = "kanban"
-        ctx["kanban_reservations"] = _build_kanban_reservations()
+        _kb = _build_kanban_reservations()
+        ctx["kanban_reservations"] = _kb
+        ctx["kanban_total"] = sum(len(v) for v in _kb.values())
     elif section == "litiges":
         eid = request.GET.get("edit_litige")
         if eid and str(eid).isdigit():

@@ -2403,9 +2403,12 @@ html[data-theme="dark"] table tbody tr:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 14px 12px;
-  background: linear-gradient(135deg, rgba(76,201,240,0.04), transparent);
+  padding: 13px 14px;
+  background: var(--card);
   border-bottom: 1px solid rgba(100,116,139,0.12);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 .kanban-column-header-left {
   display: flex;
@@ -2869,12 +2872,14 @@ html[data-theme="dark"] table tbody tr:hover {
   justify-content: center;
   min-width: 22px;
   height: 22px;
-  padding: 0 6px;
+  padding: 0 7px;
   border-radius: 99px;
   font-size: 11px;
   font-weight: 700;
-  color: #fff;
+  background: #EEF2F7;
+  color: #475569;
 }
+[data-theme="dark"] .kanban-count { background: #1e293b; color: #cbd5e1; }
 .kanban-card--dash {
   padding: 12px;
 }
