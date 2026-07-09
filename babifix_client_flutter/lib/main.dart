@@ -2022,21 +2022,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                                 img,
                                                 fit: BoxFit.cover,
                                               )
-                                            : DecoratedBox(
+                                            : const DecoratedBox(
                                                 decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    begin: Alignment.topLeft,
-                                                    end: Alignment.bottomRight,
-                                                    colors: [
-                                                      BabifixDesign.navy,
-                                                      BabifixDesign.navy
-                                                          .withValues(
-                                                            alpha: 0.85,
-                                                          ),
-                                                    ],
-                                                  ),
+                                                  color: BabifixDesign.navy,
                                                 ),
-                                                child: const Icon(
+                                                child: Icon(
                                                   Icons.person_rounded,
                                                   size: 40,
                                                   color: Colors.white38,
@@ -2108,11 +2098,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                               padding: const EdgeInsets.symmetric(
                                                   horizontal: 8, vertical: 3),
                                               decoration: BoxDecoration(
-                                                gradient: const LinearGradient(
-                                                    colors: [
-                                                      Color(0xFFFFD700),
-                                                      Color(0xFFFFA000)
-                                                    ]),
+                                                color: const Color(0xFFF59E0B),
                                                 borderRadius:
                                                     BorderRadius.circular(8),
                                               ),
@@ -4233,20 +4219,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         decoration: BoxDecoration(
-          gradient: isPending
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF2A1F0A), Color(0xFF1E1508)],
-                )
+          color: isPending
+              ? const Color(0xFF1E1508)
               : isActive
-                  ? const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF0A1F2A), Color(0xFF081520)],
-                    )
-                  : null,
-          color: (isPending || isActive) ? null : _cardBg,
+                  ? const Color(0xFF0A1B26)
+                  : _cardBg,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isPending
@@ -4265,17 +4242,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
           boxShadow: isPending
               ? [
                   BoxShadow(
-                    color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
+                    color: const Color(0x140F172A),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                 ]
               : isActive
                   ? [
                       BoxShadow(
-                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.18),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
+                        color: const Color(0x140F172A),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
                     ]
                   : isCancelled
