@@ -543,7 +543,7 @@ class EscrowStatusBadge extends StatelessWidget {
       icon = Icons.task_alt;
     } else if (!acompteValide) {
       label = strategy == EscrowStrategy.cashCommissionOnly
-          ? 'Acompte commission à verser'
+          ? 'Commission à régler pour démarrer'
           : 'Paiement initial requis';
       color = Colors.orange.shade700;
       icon = Icons.hourglass_top;

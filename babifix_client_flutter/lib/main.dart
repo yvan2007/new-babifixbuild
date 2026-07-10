@@ -3480,10 +3480,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     );
     final filledStyle = FilledButton.styleFrom(
-      backgroundColor: BabifixDesign.cyan,
-      foregroundColor: BabifixDesign.navy,
+      backgroundColor: BabifixDesign.ciOrange,
+      foregroundColor: Colors.white,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
     );
     return Opacity(
@@ -3554,12 +3554,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ],
                           ),
                           child: Text(
-                            item.category,
+                            item.category.replaceAll('_', ' '),
                             style: TextStyle(
                               color: BabifixDesign.navy,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               fontSize: 11,
-                              letterSpacing: 0.3,
                             ),
                           ),
                         ),
@@ -4338,12 +4337,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                     Icon(Icons.play_circle_rounded, size: 10, color: Color(0xFF4CC9F0)),
                                     SizedBox(width: 3),
                                     Text(
-                                      'ACTIF',
+                                      'Actif',
                                       style: TextStyle(
                                         fontSize: 9,
                                         fontWeight: FontWeight.w800,
                                         color: Color(0xFF4CC9F0),
-                                        letterSpacing: 0.5,
                                       ),
                                     ),
                                   ],
@@ -4460,7 +4458,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     Icon(Icons.warning_rounded, size: 14, color: Colors.orange.shade700),
                     const SizedBox(width: 4),
                     Text(
-                      'Litige signale',
+                      'Litige signalé',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -4520,7 +4518,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       _QuickActionChip(
                         icon: Icons.description_outlined,
                         label: r.canAcceptDevis ? 'Voir & accepter' : 'Voir le devis',
-                        color: const Color(0xFFF59E0B),
+                        isPrimary: r.canAcceptDevis,
                         onTap: () {
                           Navigator.of(context).push<void>(
                             MaterialPageRoute(
@@ -4535,7 +4533,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       _QuickActionChip(
                         icon: Icons.check_circle_outline,
                         label: 'Confirmer',
-                        color: const Color(0xFF22C55E),
+                        isPrimary: true,
                         onTap: () {
                           Navigator.of(context).push<void>(
                             MaterialPageRoute(
@@ -4581,7 +4579,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       _QuickActionChip(
                         icon: Icons.payment_rounded,
                         label: 'Payer',
-                        color: const Color(0xFF4CC9F0),
+                        isPrimary: true,
                         onTap: () {
                           if (r.id > 0) {
                             Navigator.of(context).push<void>(
@@ -4601,28 +4599,28 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       _QuickActionChip(
                         icon: Icons.home_repair_service_rounded,
                         label: 'Caution visite',
-                        color: const Color(0xFF06B6D4),
+                        isPrimary: true,
                         onTap: () => _payCaution(r),
                       ),
                     if (r.canPayDeposit)
                       _QuickActionChip(
                         icon: Icons.download_rounded,
                         label: 'Acompte',
-                        color: const Color(0xFFF59E0B),
+                        isPrimary: true,
                         onTap: () => _payDeposit(r),
                       ),
                     if (r.canPayRemainder)
                       _QuickActionChip(
                         icon: Icons.done_all_rounded,
                         label: 'Solde final',
-                        color: const Color(0xFF22C55E),
+                        isPrimary: true,
                         onTap: () => _payRemainder(r),
                       ),
                     if (r.needCashRemainder)
                       _QuickActionChip(
                         icon: Icons.money_rounded,
                         label: 'Régler en espèces',
-                        color: const Color(0xFF22C55E),
+                        isPrimary: true,
                         onTap: () {
                           showBabifixToast(
                             context,
@@ -5009,25 +5007,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                // ── Hero card premium (gradient sombre, contraste garanti) ──
+                // ── Hero card profil — navy PLAT (charte sobre) ──
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 22, 16, 20),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF0B1B34), // navy profond
-                        Color(0xFF14375E), // navy intermédiaire
-                        Color(0xFF1B4B7C), // bleu plus clair
-                      ],
-                    ),
-                    boxShadow: [
+                    borderRadius: BorderRadius.circular(20),
+                    color: const Color(0xFF0B1B34),
+                    boxShadow: const [
                       BoxShadow(
-                        color: BabifixDesign.cyan.withValues(alpha: 0.25),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
+                        color: Color(0x1A0F172A),
+                        blurRadius: 14,
+                        offset: Offset(0, 6),
                       ),
                     ],
                   ),
@@ -5036,34 +5026,16 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     children: [
                       Row(
                         children: [
-                          // Avatar avec halo cyan
+                          // Avatar plat (sans halo cyan)
                           Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: BabifixDesign.cyan
-                                      .withValues(alpha: 0.55),
-                                  blurRadius: 18,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            ),
                             child: Container(
                               width: 72,
                               height: 72,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFF4CC9F0),
-                                    Color(0xFF22A6D6),
-                                  ],
-                                ),
+                                color: const Color(0xFF1B4B7C),
                                 border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.25),
+                                  color: Colors.white.withValues(alpha: 0.18),
                                   width: 2,
                                 ),
                               ),
@@ -8207,37 +8179,50 @@ class _QuickActionChip extends StatelessWidget {
   const _QuickActionChip({
     required this.icon,
     required this.label,
-    required this.color,
+    this.color,
+    this.isPrimary = false,
     this.onTap,
   });
 
   final IconData icon;
   final String label;
-  final Color color;
+  /// Conservé pour compat. d'appel ; ignoré au profit d'un rendu sobre
+  /// (1 seul accent par écran : orange pour l'action principale, ardoise
+  /// neutre pour les actions secondaires — fini l'arc‑en‑ciel « IA »).
+  final Color? color;
+  final bool isPrimary;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    // Action principale = bouton plein orange (CTA). Secondaire = puce
+    // neutre ardoise, discrète et uniforme.
+    const primary = Color(0xFFE87722);
+    const neutral = Color(0xFF64748B);
+    final fg = isPrimary ? Colors.white : neutral;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: isPrimary ? primary : neutral.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+          border: isPrimary
+              ? null
+              : Border.all(color: neutral.withValues(alpha: 0.22)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
+            Icon(icon, size: 14, color: fg),
+            const SizedBox(width: 5),
             Text(
               label,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: color,
+                color: fg,
               ),
             ),
           ],

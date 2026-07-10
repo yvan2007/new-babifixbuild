@@ -118,13 +118,7 @@ class RequestDetailScreen extends StatelessWidget {
                 ),
               ),
               background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF0A1628), Color(0xFF152238)],
-                  ),
-                ),
+                color: const Color(0xFF0B1B34),
               ),
             ),
           ),
@@ -320,37 +314,37 @@ class RequestDetailScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                 ],
 
-                // Amount
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF152A45), Color(0xFF1A3355)],
+                // Amount — masqué tant qu'aucun montant réel (évite « 0 FCFA »)
+                if (amount.trim().isNotEmpty &&
+                    !RegExp(r'^0+(\s|$)').hasMatch(amount.trim()))
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF122236),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0x1A38BDF8)),
                     ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Montant estimé',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF94A3B8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Montant estimé',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF94A3B8),
+                          ),
                         ),
-                      ),
-                      Text(
-                        amount.isEmpty ? 'À définir' : amount,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF38BDF8),
+                        Text(
+                          amount,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF38BDF8),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
                 // Caution réglée : le presta confirme la visite (détermine qui
                 // garde la caution en cas d'annulation).
                 if (cautionPayee && !visiteEffectuee) ...[
@@ -862,14 +856,7 @@ class _StatusBadge extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            c.withValues(alpha: 0.15),
-            c.withValues(alpha: 0.05),
-          ],
-        ),
+        color: c.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: c.withValues(alpha: 0.3)),
       ),
@@ -882,7 +869,6 @@ class _StatusBadge extends StatelessWidget {
             decoration: BoxDecoration(
               color: c,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)],
             ),
           ),
           const SizedBox(width: 10),
@@ -921,11 +907,7 @@ class _SectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF152A45), Color(0xFF1A3355)],
-        ),
+        color: const Color(0xFF122236),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0x1AFFFFFF)),
       ),
@@ -937,7 +919,7 @@ class _SectionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  gradient: gradient,
+                  color: gradient.colors.first,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, size: 18, color: Colors.white),
@@ -1032,9 +1014,7 @@ class _UrgencyBadge extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0x20EF4444), Color(0x10EF4444)],
-        ),
+        color: const Color(0x18EF4444),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
       ),
@@ -1054,12 +1034,11 @@ class _UrgencyBadge extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'URGENT',
+                  'Urgent',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFFEF4444),
-                    letterSpacing: 1,
                   ),
                 ),
                 Text(
@@ -1195,9 +1174,7 @@ class _RequirementsAnswersCard extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                ),
+                color: Color(0xFF4F46E5),
                 borderRadius:
                     BorderRadius.vertical(top: Radius.circular(16)),
               ),
@@ -1336,11 +1313,7 @@ class _AddressCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isApproximate
-                    ? const [Color(0xFFF59E0B), Color(0xFFD97706)]
-                    : const [Color(0xFF06B6D4), Color(0xFF0891B2)],
-              ),
+              color: isApproximate ? const Color(0xFFD97706) : const Color(0xFF0891B2),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(
