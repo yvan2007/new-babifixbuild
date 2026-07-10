@@ -3695,6 +3695,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       compact: true,
                     ),
                   ],
+                  // Tarif indicatif « à partir de » — même repère de prix que
+                  // sur la fiche, l'accueil et la maquette (accent orange).
+                  if (item.price > 0) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(Icons.payments_outlined,
+                            size: 16, color: BabifixDesign.ciOrange),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Dès ${formatFcfa(item.price)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: BabifixDesign.ciOrange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   Row(
                     children: [

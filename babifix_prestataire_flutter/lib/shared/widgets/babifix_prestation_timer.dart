@@ -124,12 +124,7 @@ class _BabifixPrestationTimerState extends State<BabifixPrestationTimer> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            accent.withValues(alpha: 0.14),
-            accent.withValues(alpha: 0.05),
-          ],
-        ),
+        color: accent.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accent.withValues(alpha: 0.30)),
       ),
