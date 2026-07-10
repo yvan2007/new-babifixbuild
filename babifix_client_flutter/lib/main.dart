@@ -6679,6 +6679,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Future<void> _payCaution(ClientReservation r) async {
     if (authToken == null || r.reference.isEmpty) return;
+    // Écran d'info clair AVANT de payer : le client comprend ce qu'est la
+    // visite, combien et pourquoi (montant + motif + déductible du devis).
+    final confirm = await _showCautionInfoSheet(r);
+    if (confirm != true) return;
     final op = await _pickMobileMoneyOperator();
     if (op == null) return;
     await _sendPaymentAction(
@@ -6686,6 +6690,154 @@ class _ClientHomePageState extends State<ClientHomePage> {
       endpoint: 'pay-caution',
       successMsg: 'Caution réglée. Le prestataire va organiser la visite.',
       body: {'mobile_money_operator': op},
+    );
+  }
+
+  Future<bool?> _showCautionInfoSheet(ClientReservation r) {
+    final montant = r.cautionMontant.toStringAsFixed(0);
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: _cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: _textSecondary.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: BabifixDesign.ciBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.home_repair_service_rounded,
+                        color: BabifixDesign.ciBlue, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text('Visite de diagnostic',
+                        style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: _textPrimary)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Le prestataire souhaite se déplacer pour évaluer votre demande '
+                'avant de vous proposer un devis précis.',
+                style: TextStyle(
+                    fontSize: 13.5, height: 1.45, color: _textSecondary),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.ciBlue.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: BabifixDesign.ciBlue.withValues(alpha: 0.25)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Caution demandée',
+                        style: TextStyle(
+                            fontSize: 12, color: _textSecondary)),
+                    const SizedBox(height: 4),
+                    Text('$montant FCFA',
+                        style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: _textPrimary)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded,
+                            size: 14, color: BabifixDesign.ciBlue),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            'Entièrement déduite de votre devis final si vous '
+                            'l\'acceptez.',
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                color: _textSecondary,
+                                height: 1.35),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (r.cautionMotif.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('Motif du prestataire',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _textSecondary)),
+                const SizedBox(height: 3),
+                Text(r.cautionMotif,
+                    style: TextStyle(
+                        fontSize: 13.5, height: 1.4, color: _textPrimary)),
+              ],
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        side: BorderSide(
+                            color: _textSecondary.withValues(alpha: 0.3)),
+                      ),
+                      child: Text('Plus tard',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: _textPrimary)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: BabifixDesign.ciOrange,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      child: const Text('Payer la caution',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
