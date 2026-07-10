@@ -1289,7 +1289,7 @@ class _StepProbleme extends StatelessWidget {
             const SizedBox(height: 24),
             // ── Nature de la demande (facultatif) ──────────────────────────
             Text(
-              'De quoi s\'agit-il ? (facultatif)',
+              'De quoi s\'agit-il ?',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

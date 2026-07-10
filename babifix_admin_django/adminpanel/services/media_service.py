@@ -162,8 +162,25 @@ class MediaService:
         return MediaService.store_bytes(content, mime, user_id)
 
     @staticmethod
+    def _audio_storage():
+        """Storage adapté à l'audio.
+
+        Sur Cloudinary, le storage média par défaut upload en `resource_type=
+        image` → il REFUSE les .m4a/.aac (d'où « Envoi de la note vocale
+        échoué »). On force donc `RawMediaCloudinaryStorage` (resource_type=raw)
+        pour l'audio. En local (FileSystemStorage), le défaut convient.
+        """
+        try:
+            if getattr(settings, "CLOUDINARY_URL", ""):
+                from cloudinary_storage.storage import RawMediaCloudinaryStorage
+                return RawMediaCloudinaryStorage()
+        except Exception:
+            pass
+        return default_storage
+
+    @staticmethod
     def store_audio_bytes(content: bytes, ext: str, user_id: int) -> str:
-        """Sauvegarde un fichier audio (note vocale) tel quel — pas de resize."""
+        """Sauvegarde une note vocale telle quelle (pas de resize)."""
         if not content:
             raise MediaUploadError("empty_file")
         if len(content) > MAX_AUDIO_BYTES:
@@ -174,12 +191,23 @@ class MediaService:
             "babifix_uploads", f"{now.year:04d}", f"{now.month:02d}",
             str(int(user_id) or 0),
         )
-        _ensure_dir(rel_dir)
         digest = hashlib.sha1(content).hexdigest()[:12]
         filename = _safe_filename(f"vn{digest}", ext)
         rel_path = f"{rel_dir}/{filename}".replace("\\", "/")
-        saved = default_storage.save(rel_path, ContentFile(content))
-        return f"{settings.MEDIA_URL.rstrip('/')}/{saved.lstrip('/')}"
+
+        storage = MediaService._audio_storage()
+        # _ensure_dir n'est utile qu'en FileSystem local (no-op sur Cloudinary).
+        try:
+            _ensure_dir(rel_dir)
+        except Exception:
+            pass
+        saved = storage.save(rel_path, ContentFile(content))
+        # storage.url() renvoie l'URL correcte (absolue Cloudinary /raw/, ou
+        # /media/ en local). NE PAS reconstruire à la main pour Cloudinary.
+        try:
+            return storage.url(saved)
+        except Exception:
+            return f"{settings.MEDIA_URL.rstrip('/')}/{saved.lstrip('/')}"
 
     @staticmethod
     def store_upload(uploaded_file, user_id: int) -> str:
