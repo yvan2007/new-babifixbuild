@@ -164,6 +164,9 @@ class DevisCardWidget extends StatelessWidget {
       DevisStatus.envoye => BabifixDesign.ciBlue,
       _ => Colors.grey.shade500,
     };
+    // Une ESTIMATION et un DEVIS FERME ne portent plus le même nom (source de
+    // confusion) : titre + icône + pastille distincts.
+    final estim = devis.estEstimation;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: BoxDecoration(
@@ -172,18 +175,27 @@ class DevisCardWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.receipt_long, size: 20, color: BabifixDesign.iconOnLight),
+          Icon(estim ? Icons.query_stats_rounded : Icons.receipt_long,
+              size: 20, color: BabifixDesign.iconOnLight),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Devis ${devis.reference}',
+                  estim
+                      ? 'Estimation ${devis.reference}'
+                      : 'Devis ${devis.reference}',
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700),
                 ),
-                if (devis.dateProposee != null && devis.dateProposee!.isNotEmpty)
+                if (estim)
+                  const Text(
+                    'Fourchette indicative — non payable',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  )
+                else if (devis.dateProposee != null &&
+                    devis.dateProposee!.isNotEmpty)
                   Text(
                     'Proposé pour le ${devis.dateProposee}',
                     style: TextStyle(
@@ -196,15 +208,16 @@ class DevisCardWidget extends StatelessWidget {
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: couleur.withValues(alpha: 0.12),
+              color: (estim ? const Color(0xFFF59E0B) : couleur)
+                  .withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              devis.statut.label,
+              estim ? 'Indicatif' : devis.statut.label,
               style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: couleur),
+                  color: estim ? const Color(0xFFB45309) : couleur),
             ),
           ),
         ],
