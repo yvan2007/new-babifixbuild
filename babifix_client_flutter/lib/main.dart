@@ -6896,7 +6896,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 'ORANGE_MONEY'),
             child: const ListTile(
-              leading: Icon(Icons.phone_android),
+              leading: SizedBox(
+                  width: 34, height: 34,
+                  child: BabifixPaymentMethodLogo(methodId: 'ORANGE_MONEY', height: 34)),
               title: Text('Orange Money'),
               contentPadding: EdgeInsets.zero,
             ),
@@ -6904,7 +6906,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 'MTN_MOMO'),
             child: const ListTile(
-              leading: Icon(Icons.phone_android),
+              leading: SizedBox(
+                  width: 34, height: 34,
+                  child: BabifixPaymentMethodLogo(methodId: 'MTN_MOMO', height: 34)),
               title: Text('MTN Mobile Money'),
               contentPadding: EdgeInsets.zero,
             ),
@@ -6912,7 +6916,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 'WAVE'),
             child: const ListTile(
-              leading: Icon(Icons.phone_android),
+              leading: SizedBox(
+                  width: 34, height: 34,
+                  child: BabifixPaymentMethodLogo(methodId: 'WAVE', height: 34)),
               title: Text('Wave'),
               contentPadding: EdgeInsets.zero,
             ),
@@ -6920,7 +6926,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 'MOOV'),
             child: const ListTile(
-              leading: Icon(Icons.phone_android),
+              leading: SizedBox(
+                  width: 34, height: 34,
+                  child: BabifixPaymentMethodLogo(methodId: 'MOOV', height: 34)),
               title: Text('Moov'),
               contentPadding: EdgeInsets.zero,
             ),

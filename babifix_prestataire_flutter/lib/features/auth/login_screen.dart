@@ -42,7 +42,6 @@ class _LoginScreenState extends State<LoginScreen>
 
   static const _navyDeep = Color(0xFF060E1C);
   static const _cyan = Color(0xFF4CC9F0);
-  static const _blue = Color(0xFF4CC9F0);
 
   @override
   void initState() {
@@ -145,49 +144,9 @@ class _LoginScreenState extends State<LoginScreen>
         body: Stack(
           fit: StackFit.expand,
           children: [
-            // ── Fond gradient + orbes ──────────────────────────────────────
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF060E1C),
-                      Color(0xFF0B1B34),
-                      Color(0xFF0A1628),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: -80,
-              right: -60,
-              child: Container(
-                width: 260,
-                height: 260,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [_cyan.withValues(alpha: 0.18), Colors.transparent],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -100,
-              left: -80,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [_blue.withValues(alpha: 0.14), Colors.transparent],
-                  ),
-                ),
-              ),
+            // ── Fond sobre (plat) ──────────────────────────────────────────
+            const Positioned.fill(
+              child: ColoredBox(color: Color(0xFF060E1C)),
             ),
 
             // ── Contenu ────────────────────────────────────────────────────
@@ -214,15 +173,8 @@ class _LoginScreenState extends State<LoginScreen>
                           Container(
                             width: 80,
                             height: 80,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: _cyan.withValues(alpha: 0.45),
-                                  blurRadius: 28,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
                             ),
                             child: ClipOval(
                               child: Image.asset(
@@ -533,21 +485,8 @@ class _PremiumButton extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         height: 54,
         decoration: BoxDecoration(
-          gradient: loading
-              ? const LinearGradient(
-                  colors: [Color(0xFF475569), Color(0xFF334155)],
-                )
-              : gradient,
+          color: loading ? const Color(0xFF334155) : gradient.colors.first,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: loading
-              ? []
-              : [
-                  BoxShadow(
-                    color: const Color(0xFF4CC9F0).withValues(alpha: 0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
         ),
         child: Center(
           child: loading

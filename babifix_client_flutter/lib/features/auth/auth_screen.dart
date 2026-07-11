@@ -56,9 +56,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   bool _isLoading = true;
 
   static const _blue = Color(0xFF4CC9F0);
-  static const _blueDeep = Color(0xFF1D4ED8);
-  static const _navy = Color(0xFF0B1B34);
-  static const _cyan = Color(0xFF4CC9F0);
 
   @override
   void initState() {
@@ -278,9 +275,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [_blue, _blueDeep],
-                            ),
+                            color: _blue,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Text(
@@ -345,52 +340,9 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         backgroundColor: const Color(0xFF060E1C),
         body: Stack(
           children: [
-            // ── Fond premium ───────────────────────────────────────────────
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF050D1A),
-                      Color(0xFF0A1628),
-                      Color(0xFF060E1C),
-                    ],
-                    stops: [0.0, 0.4, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            // Orbe orange en haut
-            Positioned(
-              top: -120,
-              left: -80,
-              child: Container(
-                width: 340,
-                height: 340,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [_blue.withValues(alpha: 0.22), Colors.transparent],
-                  ),
-                ),
-              ),
-            ),
-            // Orbe cyan en bas
-            Positioned(
-              bottom: -100,
-              right: -60,
-              child: Container(
-                width: 280,
-                height: 280,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [_cyan.withValues(alpha: 0.14), Colors.transparent],
-                  ),
-                ),
-              ),
+            // ── Fond sobre (plat) ──────────────────────────────────────────
+            const Positioned.fill(
+              child: ColoredBox(color: Color(0xFF060E1C)),
             ),
 
             // ── Contenu ────────────────────────────────────────────────────
@@ -407,15 +359,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                           Container(
                             width: 80,
                             height: 80,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: _cyan.withValues(alpha: 0.45),
-                                  blurRadius: 28,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
                             ),
                             child: ClipOval(
                               child: Image.asset(
@@ -485,16 +430,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                                     controller: _tab,
                                     dividerColor: Colors.transparent,
                                     indicator: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [_blue, _blueDeep],
-                                      ),
+                                      color: _blue,
                                       borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: _blue.withValues(alpha: 0.4),
-                                          blurRadius: 12,
-                                        ),
-                                      ],
                                     ),
                                     labelColor: Colors.white,
                                     unselectedLabelColor: Colors.white
@@ -923,23 +860,8 @@ class _GradientButton extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         height: 54,
         decoration: BoxDecoration(
-          gradient: loading
-              ? const LinearGradient(
-                  colors: [Color(0xFF374151), Color(0xFF1F2937)],
-                )
-              : const LinearGradient(
-                  colors: [Color(0xFF4CC9F0), Color(0xFF1D4ED8)],
-                ),
+          color: loading ? const Color(0xFF334155) : const Color(0xFF2563EB),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: loading
-              ? []
-              : [
-                  BoxShadow(
-                    color: const Color(0xFF4CC9F0).withValues(alpha: 0.45),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
         ),
         child: Center(
           child: loading

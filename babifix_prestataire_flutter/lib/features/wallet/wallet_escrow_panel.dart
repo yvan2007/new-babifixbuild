@@ -98,16 +98,14 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white
+        : const Color(0xFF0F172A);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            BabifixDesign.ciBlue.withValues(alpha: 0.08),
-            BabifixDesign.ciGreen.withValues(alpha: 0.08),
-          ],
-        ),
+        color: BabifixDesign.ciBlue.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: BabifixDesign.ciBlue.withValues(alpha: 0.20)),
       ),
@@ -116,12 +114,11 @@ class _WalletEscrowPanelState extends State<WalletEscrowPanel> {
         children: [
           Row(
             children: [
-              Icon(Icons.account_balance_wallet,
-                  color: BabifixDesign.iconOnLight),
+              Icon(Icons.account_balance_wallet, color: onSurface),
               const SizedBox(width: 8),
-              const Text('Vos revenus',
+              Text('Vos revenus',
                   style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w800)),
+                      fontSize: 15, fontWeight: FontWeight.w800, color: onSurface)),
               const Spacer(),
               if (_loading)
                 const SizedBox(

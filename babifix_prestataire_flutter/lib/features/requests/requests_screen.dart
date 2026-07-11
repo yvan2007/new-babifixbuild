@@ -14,7 +14,7 @@ import '../../shared/widgets/babifix_slide_to_confirm.dart';
 import '../../shared/widgets/babifix_prestation_timer.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_voice_note.dart';
-import '../../services/babifix_api.dart' show MediaApi;
+import '../../services/babifix_api.dart' show MediaApi, DevisApi;
 import '../dashboard/floating_nav_bar.dart'
     show babifixReservationsTick, babifixOpenReservationRef;
 import 'devis_kanban_editor_screen.dart';
@@ -1354,6 +1354,77 @@ class _RequestsScreenState extends State<RequestsScreen> {
             ),
           ),
 
+          // ── Miroir caution / visite ───────────────────────────────────
+          // Les mêmes infos/actions que la page détail, directement sur la
+          // carte : dès que le client a réglé la caution, le presta voit qu'il
+          // doit confirmer la visite, sans avoir à ouvrir le détail.
+          if (it.cautionPayee && !it.visiteEffectuee) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF06B6D4).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: const Color(0xFF06B6D4).withValues(alpha: 0.30)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.home_repair_service_rounded,
+                      size: 16, color: Color(0xFF06B6D4)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Caution réglée — confirmez la visite de diagnostic.',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600,
+                          color: Color(0xFF67E8F9)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: FilledButton.icon(
+                onPressed: () => _markVisitDoneFromList(it),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF06B6D4),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.fact_check_rounded, size: 20),
+                label: const Text('Visite effectuée',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ] else if (it.visiteEffectuee) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.check_circle_rounded,
+                      size: 16, color: Color(0xFF16A34A)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Visite effectuée — caution acquise.',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700,
+                          color: Color(0xFF4ADE80)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           // ── Actions ───────────────────────────────────────────────────
           // Nouvelles demandes: Accepter / Refuser (pas de devis)
           if (it.status == 'pending') ...[
@@ -1825,6 +1896,41 @@ class _RequestsScreenState extends State<RequestsScreen> {
   void _applyStatusFromApi(_RequestItem item, String newApiStatus) {
     item.apiStatus = newApiStatus;
     item.status = _RequestsScreenState._bucketFromApi(newApiStatus);
+  }
+
+  // Confirmer la visite directement depuis la carte-liste (même effet que le
+  // bouton « Visite effectuée » de la page détail : DevisApi.visiteDone).
+  Future<void> _markVisitDoneFromList(_RequestItem item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmer la visite'),
+        content: const Text(
+          'Confirmez-vous avoir effectué la visite de diagnostic ? '
+          'La caution vous sera acquise même en cas d’annulation.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirmer')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await DevisApi.visiteDone(item.reference);
+      if (!mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.success, message: 'Visite confirmée.');
+      _loadRequests();
+    } catch (e) {
+      if (!mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.error, message: 'Échec : $e');
+    }
   }
 
   Future<void> _decide(_RequestItem item, String decision) async {
