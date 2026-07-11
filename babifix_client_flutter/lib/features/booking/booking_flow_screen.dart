@@ -586,6 +586,17 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
 
   Future<void> _submit() async {
     if (_submitting) return;
+    // Garde-fou : jamais de réservation sans position précise (le presta doit
+    // pouvoir s'y rendre). Normalement déjà bloqué à l'étape adresse.
+    if (!_mapPinFromUser) {
+      showBabifixToast(
+        context,
+        type: BabifixToastType.info,
+        message: "Épinglez votre position exacte sur la carte avant de réserver.",
+      );
+      _goTo(1);
+      return;
+    }
     setState(() => _submitting = true);
     // Pré-vérification anti-doublon (UX) — le backend bloque aussi en dur.
     final canProceed = await _precheckDuplicates();
@@ -863,22 +874,24 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
             _reverseGeocodeShort(p, overwrite: true);
           },
           onNext: () {
-            // GPS auto fait foi : si on a une position validée par
-            // l'utilisateur, on accepte même si le champ texte est
-            // vide. Sinon on demande une saisie manuelle.
-            final hasGps = _mapPinFromUser;
-            final hasText = _addressCtrl.text.trim().isNotEmpty;
-            if (!hasGps && !hasText) {
+            // Épingle OBLIGATOIRE : sans point précis, le prestataire ne peut
+            // pas se rendre chez le client (même après la caution). Un simple
+            // texte d'adresse ne suffit pas — on exige une position validée
+            // (tap sur la carte, « Ma position », ou adresse enregistrée
+            // géolocalisée).
+            if (!_mapPinFromUser) {
               showBabifixToast(
-        context,
-        type: BabifixToastType.success,
-        message: "Activez votre position ou renseignez une adresse.",
-      );
+                context,
+                type: BabifixToastType.info,
+                message: "Épinglez votre position exacte sur la carte "
+                    "(ou « Ma position ») pour que le prestataire puisse "
+                    "vous trouver.",
+              );
               return;
             }
             // Si pas de texte mais GPS dispo, on tente un libellé lisible
             // (jamais de coordonnées brutes affichées à l'utilisateur).
-            if (!hasText) {
+            if (_addressCtrl.text.trim().isEmpty) {
               _addressCtrl.text = 'Position sélectionnée sur la carte';
               _reverseGeocodeShort(_mapPin, overwrite: true);
             }

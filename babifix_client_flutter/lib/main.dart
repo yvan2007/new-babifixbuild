@@ -7198,6 +7198,68 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 ),
 
+              // ── Caution en séquestre (où est l'argent ?) ──
+              // Dès que la caution est réglée, le client voit clairement que
+              // l'argent est bloqué en sécurité (ni chez le presta, ni perdu),
+              // et qu'il est remboursable en cas de problème signalé.
+              if (r.cautionPayee)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF06B6D4).withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: const Color(0xFF06B6D4).withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.lock_rounded,
+                          color: Color(0xFF06B6D4), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Caution bloquée en séquestre',
+                                    style: TextStyle(
+                                        color: _textPrimary,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13),
+                                  ),
+                                ),
+                                if (r.cautionMontant > 0)
+                                  Text(
+                                    '${r.cautionMontant.toStringAsFixed(0)} FCFA',
+                                    style: const TextStyle(
+                                        color: Color(0xFF22D3EE),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 14),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Conservée en sécurité par BABIFIX — ni versée au '
+                              'prestataire, ni perdue. Déduite de votre devis, '
+                              'ou remboursée si vous signalez un problème justifié.',
+                              style: TextStyle(
+                                  color: _textSecondary,
+                                  fontSize: 11.5,
+                                  height: 1.35),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // ── Litige ouvert (si applicable) ──
               if (r.disputeOuverte)
                 Container(
@@ -7426,11 +7488,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
         },
       ));
     }
-    // Signaler un problème : possible tant que pas déjà en litige et résa avancée
-    if (!r.disputeOuverte && (isCompleted || meta.step >= 3)) {
+    // Signaler un problème : possible dès que la caution est réglée (litige +
+    // remboursement possible si souci pendant la visite) OU en fin de résa.
+    if (!r.disputeOuverte && (isCompleted || meta.step >= 3 || r.cautionPayee)) {
       actions.add(_resaActionBtn(
         icon: Icons.report_problem_outlined,
-        label: 'Signaler un problème',
+        label: r.cautionPayee && meta.step < 3
+            ? 'Signaler un problème (remboursement caution)'
+            : 'Signaler un problème',
         accent: const Color(0xFFEF4444),
         onTap: () {
           Navigator.pop(ctx);
