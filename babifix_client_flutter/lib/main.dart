@@ -6675,13 +6675,288 @@ class _ClientHomePageState extends State<ClientHomePage> {
     // visite, combien et pourquoi (montant + motif + déductible du devis).
     final confirm = await _showCautionInfoSheet(r);
     if (confirm != true) return;
-    final op = await _pickMobileMoneyOperator();
-    if (op == null) return;
-    await _sendPaymentAction(
-      r: r,
-      endpoint: 'pay-caution',
-      successMsg: 'Caution réglée. Le prestataire va organiser la visite.',
-      body: {'mobile_money_operator': op},
+    // Même expérience de paiement qu'un règlement normal : choix opérateur
+    // (logos), numéro Mobile Money, écran « Traitement… » puis succès. La
+    // sheet réalise l'appel pay-caution et renvoie true si réglé.
+    final paid = await _showCautionPaymentSheet(r);
+    if (paid == true) {
+      showBabifixToast(context,
+          type: BabifixToastType.success,
+          message: 'Caution réglée. Le prestataire va organiser la visite.');
+      await _loadRemoteData();
+    }
+  }
+
+  /// POST pay-caution — renvoie true si réglé (utilisé par la sheet de paiement).
+  Future<bool> _postCaution(ClientReservation r, String op) async {
+    if (authToken == null || r.reference.isEmpty) return false;
+    try {
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(r.reference)}/pay-caution',
+      );
+      final res = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'mobile_money_operator': op}),
+      );
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Sheet de paiement de la caution : reproduit l'UX d'un paiement Mobile
+  /// Money (opérateur + numéro + traitement + succès). Renvoie true si réglé.
+  Future<bool?> _showCautionPaymentSheet(ClientReservation r) {
+    const ops = <List<String>>[
+      ['ORANGE_MONEY', 'Orange Money'],
+      ['MTN_MOMO', 'MTN Mobile Money'],
+      ['WAVE', 'Wave'],
+      ['MOOV', 'Moov'],
+    ];
+    String selectedOp = 'ORANGE_MONEY';
+    final phoneCtrl = TextEditingController();
+    String phase = 'form'; // form | processing | success | error
+    String? errorMsg;
+    final montant = r.cautionMontant.toStringAsFixed(0);
+
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      backgroundColor: _cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          Future<void> pay() async {
+            final phone = phoneCtrl.text.trim();
+            if (phone.length != 10) {
+              setSheet(() => errorMsg =
+                  'Entrez un numéro Mobile Money à 10 chiffres (ex. 0700000000).');
+              return;
+            }
+            setSheet(() {
+              errorMsg = null;
+              phase = 'processing';
+            });
+            // Traitement simulé (comme un paiement Mobile Money réel) puis appel.
+            await Future.delayed(const Duration(milliseconds: 1600));
+            final ok = await _postCaution(r, selectedOp);
+            if (!ctx.mounted) return;
+            if (ok) {
+              setSheet(() => phase = 'success');
+              await Future.delayed(const Duration(milliseconds: 1200));
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            } else {
+              setSheet(() {
+                phase = 'error';
+                errorMsg = 'Paiement refusé. Vérifiez votre solde et réessayez.';
+              });
+            }
+          }
+
+          Widget body;
+          if (phase == 'processing') {
+            body = Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF4CC9F0)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Traitement du paiement…',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _textPrimary)),
+                const SizedBox(height: 6),
+                Text('Confirmez sur votre téléphone si demandé.',
+                    style: TextStyle(fontSize: 12.5, color: _textSecondary)),
+                const SizedBox(height: 12),
+              ],
+            );
+          } else if (phase == 'success') {
+            body = Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_rounded,
+                      color: Color(0xFF22C55E), size: 34),
+                ),
+                const SizedBox(height: 14),
+                Text('Caution réglée',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: _textPrimary)),
+                const SizedBox(height: 4),
+                Text('$montant FCFA bloqués en séquestre.',
+                    style: TextStyle(fontSize: 12.5, color: _textSecondary)),
+                const SizedBox(height: 12),
+              ],
+            );
+          } else {
+            body = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Payer la caution',
+                          style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: _textPrimary)),
+                    ),
+                    Text('$montant FCFA',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF22D3EE))),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text('Opérateur Mobile Money',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _textSecondary)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    for (final o in ops) ...[
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setSheet(() => selectedOp = o[0]),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: selectedOp == o[0]
+                                  ? const Color(0xFF4CC9F0).withValues(alpha: 0.12)
+                                  : _textSecondary.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: selectedOp == o[0]
+                                    ? const Color(0xFF4CC9F0)
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Center(
+                              child: SizedBox(
+                                height: 30,
+                                child: BabifixPaymentMethodLogo(
+                                    methodId: o[0], height: 30),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                  style: TextStyle(color: _textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Numéro Mobile Money',
+                    hintText: '0700000000',
+                    counterText: '',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                if (errorMsg != null) ...[
+                  const SizedBox(height: 8),
+                  Text(errorMsg!,
+                      style: const TextStyle(
+                          color: Color(0xFFEF4444), fontSize: 12.5)),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          side: BorderSide(
+                              color: _textSecondary.withValues(alpha: 0.3)),
+                        ),
+                        child: Text('Annuler',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: _textPrimary)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton(
+                        onPressed: pay,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: BabifixDesign.ciOrange,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                        ),
+                        child: Text('Payer $montant FCFA',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 15)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                  20, 16, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: _textSecondary.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  body,
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -6885,58 +7160,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
         );
       }
     }
-  }
-
-  Future<String?> _pickMobileMoneyOperator() async {
-    final op = await showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Opérateur mobile money'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 'ORANGE_MONEY'),
-            child: const ListTile(
-              leading: SizedBox(
-                  width: 34, height: 34,
-                  child: BabifixPaymentMethodLogo(methodId: 'ORANGE_MONEY', height: 34)),
-              title: Text('Orange Money'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 'MTN_MOMO'),
-            child: const ListTile(
-              leading: SizedBox(
-                  width: 34, height: 34,
-                  child: BabifixPaymentMethodLogo(methodId: 'MTN_MOMO', height: 34)),
-              title: Text('MTN Mobile Money'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 'WAVE'),
-            child: const ListTile(
-              leading: SizedBox(
-                  width: 34, height: 34,
-                  child: BabifixPaymentMethodLogo(methodId: 'WAVE', height: 34)),
-              title: Text('Wave'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 'MOOV'),
-            child: const ListTile(
-              leading: SizedBox(
-                  width: 34, height: 34,
-                  child: BabifixPaymentMethodLogo(methodId: 'MOOV', height: 34)),
-              title: Text('Moov'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-        ],
-      ),
-    );
-    return op;
   }
 
   String? _extractDetail(String body) {
