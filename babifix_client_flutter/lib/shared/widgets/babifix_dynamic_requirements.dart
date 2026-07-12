@@ -217,7 +217,7 @@ class _BabifixDynamicRequirementsState
           ),
           const SizedBox(height: 4),
           const Text(
-            'Pas besoin d’être exact — une estimation suffit pour le devis.',
+            'Pas besoin d’être exact, une estimation suffit pour le devis.',
             style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 10),

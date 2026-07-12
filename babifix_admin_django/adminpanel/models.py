@@ -387,7 +387,7 @@ class WalletTransaction(models.Model):
         indexes = [models.Index(fields=["provider", "-created_at"])]
 
     def __str__(self):
-        return f"{self.tx_type} {self.amount_fcfa} FCFA — {self.provider_id}"
+        return f"{self.tx_type} {self.amount_fcfa} FCFA · {self.provider_id}"
 
 
 class Client(models.Model):
@@ -1087,7 +1087,7 @@ class CategoryCommission(models.Model):
         verbose_name_plural = "Commissions catégories"
 
     def __str__(self):
-        return f"{self.category.nom} — {self.commission_rate}%"
+        return f"{self.category.nom} · {self.commission_rate}%"
 
 
 class Notification(models.Model):
@@ -1488,7 +1488,7 @@ class Rating(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"Rating {self.note} — {self.reservation_id}"
+        return f"Rating {self.note} · {self.reservation_id}"
 
 
 class Actualite(models.Model):
@@ -1581,7 +1581,7 @@ class AdminAuditLog(models.Model):
 
     def __str__(self):
         user = self.admin_user.username if self.admin_user else "système"
-        return f"[{self.action}] {user} — {self.target_label}"
+        return f"[{self.action}] {user} · {self.target_label}"
 
 
 def recalc_provider_rating_stats(provider: Provider) -> None:
@@ -1615,7 +1615,7 @@ class PrestataireAvailabilitySlot(models.Model):
         unique_together = ["provider", "jour_semaine", "heure_debut"]
 
     def __str__(self):
-        return f"{self.provider.nom} — Jour {self.jour_semaine} {self.heure_debut}-{self.heure_fin}"
+        return f"{self.provider.nom} · Jour {self.jour_semaine} {self.heure_debut}-{self.heure_fin}"
 
 
 class PrestataireUnavailability(models.Model):
@@ -1635,7 +1635,7 @@ class PrestataireUnavailability(models.Model):
         ordering = ["-date_debut"]
 
     def __str__(self):
-        return f"{self.provider.nom} — {self.date_debut} à {self.date_fin}"
+        return f"{self.provider.nom} · {self.date_debut} à {self.date_fin}"
 
 
 # Import des modèles v2 (ClientRating) — doit rester en bas pour éviter les imports circulaires
@@ -1952,7 +1952,7 @@ class ProSite(models.Model):
         ordering = ["pro_account", "nom"]
 
     def __str__(self):
-        return f"{self.nom} — {self.pro_account.raison_sociale}"
+        return f"{self.nom} · {self.pro_account.raison_sociale}"
 
 
 class ProInvoice(models.Model):
@@ -1987,7 +1987,7 @@ class ProInvoice(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Facture {self.reference} — {self.total_fcfa} FCFA"
+        return f"Facture {self.reference} · {self.total_fcfa} FCFA"
 
 
 class MetierPropose(models.Model):
@@ -2025,7 +2025,7 @@ class MetierPropose(models.Model):
         return len(self.emails or [])
 
     def __str__(self):
-        return f"{self.nom} ({self.votes} demande(s)) — {self.statut}"
+        return f"{self.nom} ({self.votes} demande(s)) · {self.statut}"
 
 
 class PlatformConfig(models.Model):

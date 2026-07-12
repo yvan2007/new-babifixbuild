@@ -15,9 +15,12 @@ from .models import Message, Provider, UserProfile
 def _strip_brand(title: str) -> str:
     """Retire un préfixe de marque déjà présent pour éviter le doublon."""
     t = (title or "").lstrip()
-    for prefix in ("BABIFIX PRO —", "BABIFIX PRO -", "BABIFIX —", "BABIFIX -", "BABIFIX"):
+    for prefix in (
+        "BABIFIX PRO ·", "BABIFIX PRO —", "BABIFIX PRO -",
+        "BABIFIX ·", "BABIFIX —", "BABIFIX -", "BABIFIX",
+    ):
         if t.startswith(prefix):
-            return t[len(prefix):].lstrip(" —-").strip()
+            return t[len(prefix):].lstrip(" ·—-").strip()
     return t.strip()
 
 
@@ -55,9 +58,9 @@ def _schedule(
         base = _strip_brand(title)
         for app_key, group_ids in groups.items():
             if app_key == "pro":
-                branded = f"BABIFIX PRO — {base}" if base else "BABIFIX PRO"
+                branded = f"BABIFIX PRO · {base}" if base else "BABIFIX PRO"
             elif app_key == "client":
-                branded = f"BABIFIX — {base}" if base else "BABIFIX"
+                branded = f"BABIFIX · {base}" if base else "BABIFIX"
             else:
                 branded = title  # admin / inconnu : on garde tel quel
             send_push_to_user_ids(group_ids, branded, body, data, app=app_key)
@@ -214,8 +217,8 @@ def on_provider_change(
         except Exception:
             pass
         _schedule_all_clients_push(
-            "BABIFIX — Nouveau prestataire",
-            f"{instance.nom} — {instance.specialite}",
+            "BABIFIX · Nouveau prestataire",
+            f"{instance.nom} · {instance.specialite}",
             {"type": "provider.approved", "provider_id": str(instance.pk)},
         )
 
@@ -225,17 +228,17 @@ def on_provider_change(
         return
     reason = (instance.refusal_reason or "").strip()
     if instance.statut == "Valide":
-        title = "BABIFIX — Demande acceptée"
+        title = "BABIFIX · Demande acceptée"
         body = "Votre dossier prestataire est validé. Accédez à votre tableau de bord."
     elif instance.statut == "Refuse":
-        title = "BABIFIX — Demande refusée"
+        title = "BABIFIX · Demande refusée"
         body = (
             reason
             if reason
             else "Votre dossier a été refusé. Consultez le motif dans l’app."
         )
     else:
-        title = "BABIFIX — Votre compte prestataire"
+        title = "BABIFIX · Votre compte prestataire"
         body = f"Statut : {instance.statut}"
 
     data = {
@@ -279,7 +282,7 @@ def on_actualite_published(
     except Exception:
         pass
     _schedule_clients_and_prestataires_push(
-        "BABIFIX — Actualité",
+        "BABIFIX · Actualité",
         instance.titre[:120],
         {"type": "actualite.published", "actualite_id": str(instance.pk)},
     )
@@ -310,9 +313,9 @@ def on_chat_message_created(instance: Message) -> None:
                 ref = r.reference
     except Exception:
         pass
-    title = "BABIFIX — Nouveau message"
+    title = "BABIFIX · Nouveau message"
     body = (
-        f"{peer_label} — réservation {ref}"
+        f"{peer_label} · réservation {ref}"
         if ref
         else f"Nouveau message de votre {peer_label.lower()}"
     )
@@ -356,7 +359,7 @@ def on_notification_created(instance) -> None:
         return
     _schedule(
         ids,
-        instance.title or 'BABIFIX — Notification',
+        instance.title or 'BABIFIX · Notification',
         instance.body or '',
         {
             'type': 'notification',
@@ -381,7 +384,7 @@ def on_rating_change(instance, created: bool) -> None:
         return
     _schedule(
         [uid],
-        "BABIFIX — Nouvel avis",
+        "BABIFIX · Nouvel avis",
         f"Note {instance.note}/5 sur une prestation",
         {
             "type": "rating.created",
@@ -412,8 +415,8 @@ def on_payment_change(
     ref = instance.reservation.reference if instance.reservation_id else ""
     _schedule(
         uids,
-        "BABIFIX — Paiement",
-        f"{instance.reference} — {instance.etat}",
+        "BABIFIX · Paiement",
+        f"{instance.reference} · {instance.etat}",
         {
             "type": "payment.updated",
             "reference": instance.reference,

@@ -325,7 +325,7 @@ def geniuspay_initiate(request):
             "checkout_url":   "",
             "status":         "valide",
             "message": "Solde payé !" if phase == "solde"
-            else "Acompte validé (simulation — API indisponible).",
+            else "Acompte validé (simulation, API indisponible).",
         })
 
     # Construire le payload GeniusPay
@@ -406,14 +406,14 @@ def geniuspay_initiate(request):
             if phase == "solde":
                 _schedule(
                     [payment.reservation.prestataire_user_id],
-                    "BABIFIX — Solde reçu",
+                    "BABIFIX · Solde reçu",
                     f"Le client a payé le solde pour {payment.reservation.reference}.",
                     {"type": "solde.valide", "reference": payment.reservation.reference},
                 )
             else:
                 _schedule(
                     [payment.reservation.prestataire_user_id],
-                    "BABIFIX — Acompte reçu",
+                    "BABIFIX · Acompte reçu",
                     f"Le client a payé l'acompte pour {payment.reservation.reference}. Réservation confirmée.",
                     {"type": "acompte.valide", "reference": payment.reservation.reference},
                 )
@@ -782,14 +782,14 @@ def geniuspay_webhook(request):
                 if phase == "solde":
                     _schedule(
                         [res.prestataire_user_id],
-                        "BABIFIX — Solde reçu",
+                        "BABIFIX · Solde reçu",
                         f"Le client a payé le solde pour {res.reference}.",
                         {"type": "solde.valide", "reference": res.reference},
                     )
                 else:
                     _schedule(
                         [res.prestataire_user_id],
-                        "BABIFIX — Acompte reçu",
+                        "BABIFIX · Acompte reçu",
                         f"Le client a payé l'acompte pour {res.reference}. Réservation confirmée.",
                         {"type": "acompte.valide", "reference": res.reference},
                     )

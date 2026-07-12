@@ -50,4 +50,4 @@ class ClientRating(models.Model):
         verbose_name_plural = 'Évaluations clients'
 
     def __str__(self):
-        return f'ClientRating {self.note} — {self.reservation_id}'
+        return f'ClientRating {self.note} · {self.reservation_id}'

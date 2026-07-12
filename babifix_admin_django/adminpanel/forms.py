@@ -93,8 +93,8 @@ class PaymentForm(forms.ModelForm):
 class CategoryForm(forms.ModelForm):
     icone_slug = forms.ChoiceField(
         label="Icône (bibliothèque BABIFIX)",
-        choices=[("", "— Choisir —")]
-        + [(s, f"{s} — {lb}") for s, lb in CATEGORY_ICON_SLUGS],
+        choices=[("", "Choisir…")]
+        + [(s, f"{s} · {lb}") for s, lb in CATEGORY_ICON_SLUGS],
         required=False,
     )
     # Devis intelligent (Phase 2). Le template est saisi en JSON brut dans un

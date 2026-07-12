@@ -191,7 +191,7 @@ class DevisCardWidget extends StatelessWidget {
                 ),
                 if (estim)
                   const Text(
-                    'Fourchette indicative — non payable',
+                    'Fourchette indicative, non payable',
                     style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                   )
                 else if (devis.dateProposee != null &&

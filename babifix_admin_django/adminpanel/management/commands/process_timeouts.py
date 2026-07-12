@@ -161,7 +161,7 @@ class Command(BaseCommand):
                         ):
                             _schedule(
                                 [r.assigned_provider.user_id],
-                                "Relance — intervention à démarrer",
+                                "Relance : intervention à démarrer",
                                 (
                                     f"L'acompte est versé pour {r.reference} "
                                     "depuis plus de 3 jours. Démarrez "

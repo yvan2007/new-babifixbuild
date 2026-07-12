@@ -1375,7 +1375,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Caution réglée — confirmez la visite de diagnostic.',
+                      'Caution réglée : confirmez la visite de diagnostic.',
                       style: TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w600,
                           color: Color(0xFF67E8F9)),
@@ -1415,7 +1415,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Visite effectuée — caution acquise.',
+                      'Visite effectuée, caution acquise.',
                       style: TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w700,
                           color: Color(0xFF4ADE80)),

@@ -74,9 +74,9 @@ class Command(BaseCommand):
         for prof in inactive:
             if _send(
                 prof.user.email,
-                "BABIFIX — De nouvelles missions vous attendent",
+                "BABIFIX · De nouvelles missions vous attendent",
                 "Cela fait quelques jours qu'on ne vous a pas vu sur BABIFIX. "
-                "Des clients recherchent des prestataires comme vous — "
+                "Des clients recherchent des prestataires comme vous, "
                 "reconnectez-vous pour ne manquer aucune demande.",
                 "Ouvrir BABIFIX Pro",
                 "Plus vous êtes actif, plus vous recevez de missions.",
@@ -93,7 +93,7 @@ class Command(BaseCommand):
             client = getattr(res, "client_user", None) if res else None
             if client and client.email and _send(
                 client.email,
-                "BABIFIX — Un devis attend votre réponse",
+                "BABIFIX · Un devis attend votre réponse",
                 "Un prestataire vous a envoyé un devis sur BABIFIX et attend "
                 "votre décision. Acceptez-le pour planifier votre intervention, "
                 "ou répondez directement dans l'application.",
@@ -111,7 +111,7 @@ class Command(BaseCommand):
             presta = getattr(res, "prestataire_user", None)
             if presta and presta.email and _send(
                 presta.email,
-                "BABIFIX — Une demande attend votre devis",
+                "BABIFIX · Une demande attend votre devis",
                 "Un client vous a envoyé une demande sur BABIFIX. "
                 "Envoyez-lui votre devis rapidement pour augmenter vos chances "
                 "de décrocher la mission.",

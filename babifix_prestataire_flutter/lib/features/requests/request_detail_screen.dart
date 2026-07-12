@@ -380,7 +380,7 @@ class RequestDetailScreen extends StatelessWidget {
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Visite effectuée — la caution vous est acquise.',
+                            'Visite effectuée, la caution vous est acquise.',
                             style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,

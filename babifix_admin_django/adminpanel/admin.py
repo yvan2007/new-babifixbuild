@@ -383,7 +383,7 @@ class MetierProposeAdmin(admin.ModelAdmin):
         self.message_user(request, f"{n} metier(s) rendu(s) disponible(s) et interesses notifies.")
 
 
-admin.site.site_header = "BABIFIX — Administration"
+admin.site.site_header = "BABIFIX · Administration"
 admin.site.site_title = "BABIFIX Admin"
 admin.site.index_title = "CRUD : prestataires, réservations, paiements, contenido…"
 

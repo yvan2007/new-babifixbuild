@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Proposer un métier — BABIFIX</title>
+  <title>Proposer un métier · BABIFIX</title>
   <link rel="icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
   <link rel="shortcut icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
   <style>
@@ -135,7 +135,7 @@
       .then(r => r.json().then(j => ({status:r.status, j})))
       .then(({status, j}) => {
         if(j.ok){
-          showMsg(j.already ? 'Vous aviez déjà soutenu ce métier — merci !' : 'Merci ! Votre proposition est enregistrée. Vous serez prévenu par email.', true);
+          showMsg(j.already ? 'Vous aviez déjà soutenu ce métier, merci !' : 'Merci ! Votre proposition est enregistrée. Vous serez prévenu par email.', true);
           nomEl.value=''; load();
         } else {
           showMsg('Erreur : ' + (j.error || 'réessayez'), false);

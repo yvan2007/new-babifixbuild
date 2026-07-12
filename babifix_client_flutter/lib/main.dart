@@ -7468,7 +7468,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              'Conservée en sécurité par BABIFIX — ni versée au '
+                              'Conservée en sécurité par BABIFIX : ni versée au '
                               'prestataire, ni perdue. Déduite de votre devis, '
                               'ou remboursée si vous signalez un problème justifié.',
                               style: TextStyle(
