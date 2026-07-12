@@ -3520,7 +3520,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               child: Material(
                 color: Colors.transparent,
                 child: Container(
-                  height: 160,
+                  height: 112,
                   decoration: BoxDecoration(
                     color: item.color,
                     image: DecorationImage(
@@ -3554,7 +3554,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ],
                           ),
                           child: Text(
-                            item.category.replaceAll('_', ' '),
+                            () {
+                              final s = item.category
+                                  .replaceAll('_', ' ')
+                                  .trim()
+                                  .toLowerCase();
+                              return s.isEmpty
+                                  ? s
+                                  : '${s[0].toUpperCase()}${s.substring(1)}';
+                            }(),
                             style: TextStyle(
                               color: BabifixDesign.navy,
                               fontWeight: FontWeight.w700,
@@ -3635,7 +3643,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.title,
+                    item.title.replaceAll('—', '·'),
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
@@ -3643,78 +3651,75 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       letterSpacing: -0.2,
                       height: 1.25,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 10),
-                  Row(
+                  const SizedBox(height: 8),
+                  // Note + vérifié + distance sur UNE seule ligne (carte
+                  // compacte). Le prix n'est plus affiché ici.
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Icon(
-                        Icons.star_rounded,
-                        size: 18,
-                        color: Colors.amber.shade600,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.star_rounded,
+                              size: 16, color: Colors.amber.shade600),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${item.rating}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _textPrimary,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 2),
-                      Text(
-                        '${item.rating}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: _textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (item.verified) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _isLight
-                            ? const Color(0xFFDCFCE7)
-                            : const Color(0xFF14532D).withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'Prestataire verifie',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: _isLight
-                              ? const Color(0xFF166534)
-                              : const Color(0xFF86EFAC),
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (item.distanceKm != null) ...[
-                    const SizedBox(height: 8),
-                    BabifixDistanceChip(
-                      distanceKm: item.distanceKm!,
-                      compact: true,
-                    ),
-                  ],
-                  // Tarif indicatif « à partir de » — même repère de prix que
-                  // sur la fiche, l'accueil et la maquette (accent orange).
-                  if (item.price > 0) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        const Icon(Icons.payments_outlined,
-                            size: 16, color: BabifixDesign.ciOrange),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Dès ${formatFcfa(item.price)}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: BabifixDesign.ciOrange,
+                      if (item.verified)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _isLight
+                                ? const Color(0xFFDCFCE7)
+                                : const Color(0xFF14532D)
+                                    .withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.verified_rounded,
+                                  size: 12,
+                                  color: _isLight
+                                      ? const Color(0xFF166534)
+                                      : const Color(0xFF86EFAC)),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Vérifié',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _isLight
+                                      ? const Color(0xFF166534)
+                                      : const Color(0xFF86EFAC),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ],
+                      if (item.distanceKm != null)
+                        BabifixDistanceChip(
+                          distanceKm: item.distanceKm!,
+                          compact: true,
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 14),
                   Row(
                     children: [
