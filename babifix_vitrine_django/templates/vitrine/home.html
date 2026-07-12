@@ -700,21 +700,14 @@ section[id], header[id] { scroll-margin-top: 80px; }
 .lc-body{ display:grid; grid-template-columns:1.05fr 1fr; }
 .lc-map{ position:relative; min-height:340px; border-right:1px solid rgba(255,255,255,.08);
   background:radial-gradient(circle at 44% 46%, rgba(76,201,240,.12), transparent 62%); overflow:hidden; }
-.lc-map-grid{ position:absolute; inset:0;
-  background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);
-  background-size:34px 34px;
-  -webkit-mask-image:radial-gradient(circle at 45% 46%, #000 52%, transparent 82%);
-  mask-image:radial-gradient(circle at 45% 46%, #000 52%, transparent 82%); }
-.lc-pin{ position:absolute; width:11px; height:11px; border-radius:50%; }
-.lc-pin::before{ content:''; position:absolute; inset:0; border-radius:50%; background:currentColor; }
-.lc-pin::after{ content:''; position:absolute; inset:0; border-radius:50%; background:currentColor;
-  opacity:.55; animation:lcPing 2.6s infinite; animation-delay:var(--d,0s); }
-@keyframes lcPing{ 0%{transform:scale(1); opacity:.55} 80%,100%{transform:scale(3.6); opacity:0} }
-.lc-pin1{ color:#4CC9F0; top:37%; left:33%; }
-.lc-pin2{ color:#E87722; top:57%; left:55%; --d:.5s; }
-.lc-pin3{ color:#22c55e; top:45%; left:63%; --d:1s; }
-.lc-pin4{ color:#4CC9F0; top:66%; left:37%; --d:1.5s; }
-.lc-pin5{ color:#E87722; top:29%; left:57%; --d:.8s; }
+.lc-ci{ position:absolute; inset:0; width:100%; height:100%; padding:22px; }
+.lc-ci-shape{ fill:rgba(76,201,240,.09); stroke:rgba(125,211,252,.6); stroke-width:.7;
+  stroke-linejoin:round; stroke-linecap:round;
+  filter:drop-shadow(0 0 6px rgba(76,201,240,.25)); }
+.ci-dot{ fill:currentColor; }
+.ci-ping{ fill:currentColor; opacity:.5; transform-box:fill-box; transform-origin:center;
+  animation:ciPing 2.6s infinite; animation-delay:var(--d,0s); }
+@keyframes ciPing{ 0%{transform:scale(1); opacity:.5} 80%,100%{transform:scale(4); opacity:0} }
 .lc-map-cap{ position:absolute; left:16px; bottom:14px; font-size:12px; color:#94a3b8; }
 .lc-map-city{ color:#fff; font-weight:700; }
 .lc-kpis{ display:grid; grid-template-columns:1fr 1fr; }
@@ -1753,15 +1746,18 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
         </div>
       </div>
       <div class="lc-body">
-        <!-- Carte radar (Abidjan) avec interventions qui pulsent -->
-        <div class="lc-map" role="img" aria-label="Carte des interventions en cours à Abidjan">
-          <div class="lc-map-grid"></div>
-          <span class="lc-pin lc-pin1"></span>
-          <span class="lc-pin lc-pin2"></span>
-          <span class="lc-pin lc-pin3"></span>
-          <span class="lc-pin lc-pin4"></span>
-          <span class="lc-pin lc-pin5"></span>
-          <div class="lc-map-cap"><span class="lc-map-city">Abidjan</span> · interventions en cours</div>
+        <!-- Vraie carte de la Côte d'Ivoire (SVG détouré) + interventions qui
+             pulsent sur de vraies villes. -->
+        <div class="lc-map" role="img" aria-label="Carte de la Côte d'Ivoire, interventions en cours">
+          <svg class="lc-ci" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <path class="lc-ci-shape" d="M9.8,8.5 L16.4,7.8 L27.9,9.3 L39,7 L45,8.5 L51,2 L57,10 L70,16 L88,13 L94,19 L100,35 L97,61 L94,88 L85,87 L75,85 L59,89 L41,90 L32,93 L20,98 L12,75 L5,60 L1,49 L7,35 L9,19 Z"/>
+            <g class="ci-pin" style="--d:0s;color:#4CC9F0"><circle class="ci-ping" cx="75" cy="84" r="2"/><circle class="ci-dot" cx="75" cy="84" r="1.9"/></g>
+            <g class="ci-pin" style="--d:.5s;color:#E87722"><circle class="ci-ping" cx="54" cy="61" r="2"/><circle class="ci-dot" cx="54" cy="61" r="1.9"/></g>
+            <g class="ci-pin" style="--d:1s;color:#22c55e"><circle class="ci-ping" cx="58" cy="47" r="2"/><circle class="ci-dot" cx="58" cy="47" r="1.9"/></g>
+            <g class="ci-pin" style="--d:1.5s;color:#4CC9F0"><circle class="ci-ping" cx="49" cy="20" r="2"/><circle class="ci-dot" cx="49" cy="20" r="1.9"/></g>
+            <g class="ci-pin" style="--d:.8s;color:#E87722"><circle class="ci-ping" cx="18" cy="52" r="2"/><circle class="ci-dot" cx="18" cy="52" r="1.9"/></g>
+          </svg>
+          <div class="lc-map-cap"><span class="lc-map-city">Côte d'Ivoire</span> · interventions en cours</div>
         </div>
         <!-- Widgets KPI (mêmes chiffres, présentation « instruments ») -->
         <div class="lc-kpis">
