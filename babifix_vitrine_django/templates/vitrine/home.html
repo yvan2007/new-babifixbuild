@@ -991,17 +991,26 @@ section[id], header[id] { scroll-margin-top: 80px; }
 .diff-card h4 { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
 .diff-card.featured h4 { color: #fff; }
 .diff-card p  { font-size: 13px; color: var(--c-mid); line-height: 1.6; }
-.feats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
+.feats-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
+/* Avantages : tuiles horizontales (cohérent avec le répertoire de métiers) */
 .feat-card {
-  background: #fff; border-radius: var(--r-md);
-  padding: 28px 22px; border: 1.5px solid #f1f5f9;
+  background: #fff; border-radius: 14px;
+  padding: 15px 16px; border: 1px solid #eef2f7;
   box-shadow: var(--sh-xs);
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+  column-gap: 13px; align-content: center;
   transition: transform var(--dur-mid) var(--ease-spring), box-shadow var(--dur-mid) ease;
 }
-.feat-card:hover { transform: translateY(-6px); box-shadow: var(--sh-md); }
-.feat-ico { font-size: 30px; margin-bottom: 12px; }
-.feat-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-.feat-card p  { font-size: 13px; color: var(--c-mid); line-height: 1.6; }
+.feat-card:hover { transform: translateY(-4px); box-shadow: var(--sh-md); }
+.feat-ico {
+  grid-row: 1 / span 2; align-self: center; margin-bottom: 0;
+  width: 46px; height: 46px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(76,201,240,.10); color: #0284c7;
+}
+.feat-ico .bx-ico svg { width: 22px; height: 22px; }
+.feat-card h3 { grid-column: 2; grid-row: 1; align-self: end; font-size: 14.5px; font-weight: 700; margin: 0; }
+.feat-card p  { grid-column: 2; grid-row: 2; align-self: start; font-size: 12.5px; color: var(--c-mid); line-height: 1.5; margin-top: 2px; }
 
 /* ================================================================
    TESTIMONIALS — Auto-scroll slider
@@ -1139,10 +1148,19 @@ section[id], header[id] { scroll-margin-top: 80px; }
 .faq-item.open { border-color: rgba(2,132,199,.28); box-shadow: var(--sh-sm); }
 .faq-trigger {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px; cursor: pointer; user-select: none; gap: 12px;
+  padding: 18px 22px; cursor: pointer; user-select: none; gap: 12px;
   font-size: 16px; font-weight: 700; color: var(--c-text);
   list-style: none; background: none; border: none; width: 100%; text-align: left;
 }
+/* « Questions du quartier » : chaque question posée par un habitant (Q) */
+.faq-trigger::before {
+  content: 'Q'; flex: 0 0 auto;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: #0284c7; color: #fff;
+  font-size: 14px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.faq-trigger > span:first-of-type { flex: 1; }
 .faq-chevron {
   width: 22px; height: 22px; flex-shrink: 0;
   background: rgba(2,132,199,.10); border-radius: 50%;
@@ -1156,8 +1174,9 @@ section[id], header[id] { scroll-margin-top: 80px; }
   transition: max-height 360ms var(--ease-out);
 }
 .faq-body p {
-  padding: 0 24px 22px;
-  font-size: 15px; color: var(--c-mid); line-height: 1.75; margin: 0;
+  margin: 0 22px 20px 52px; padding: 13px 16px;
+  background: #f4f9ff; border-left: 3px solid #4CC9F0; border-radius: 0 10px 10px 0;
+  font-size: 14.5px; color: var(--c-mid); line-height: 1.65;
 }
 
 /* ================================================================
@@ -1427,8 +1446,8 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   align-items:center;justify-content:center;font-size:30px;color:#0E7CA8;
   background:linear-gradient(135deg,#E8F8FF,#D4F0FC);box-shadow:0 10px 26px rgba(76,201,240,.22);}
 /* Cartes avantages : pastilles cyan */
-.feat-ico{width:54px;height:54px;border-radius:16px;margin:0 auto 14px;display:inline-flex;
-  align-items:center;justify-content:center;font-size:26px;color:#0E7CA8;
+.feat-ico{width:46px;height:46px;border-radius:12px;display:flex;
+  align-items:center;justify-content:center;color:#0E7CA8;
   background:linear-gradient(135deg,#E8F8FF,#D4F0FC);}
 /* Catégories : chaque icône prend la couleur de sa catégorie (rendu pro/coloré) */
 .cat-emoji{font-size:26px;color:var(--cat-solid,#0E7CA8);position:relative;z-index:1;}
