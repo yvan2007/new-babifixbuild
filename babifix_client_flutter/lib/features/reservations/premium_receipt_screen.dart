@@ -395,9 +395,10 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
   }
 
   Widget _buildFinancialSummary(Map<String, dynamic> res, double montant) {
-    final sousTotal = montant;
-    // Caution de visite : acompte 100 % déductible du devis (JAMAIS une
-    // commission). On l'affiche seulement si elle a réellement été versée.
+    // Sous-total = prestation COMPLÈTE (fournie par l'API `sous_total`) et non
+    // `montant` (déjà net de la caution), sinon le % de commission est faux.
+    final sousTotal = double.tryParse('${res['sous_total'] ?? ''}') ?? montant;
+    // Caution de visite : montant déductible du devis. Affichée si versée.
     final cautionPayee = res['caution_payee'] == true;
     final cautionMontant = cautionPayee
         ? (double.tryParse('${res['caution_montant'] ?? 0}') ?? 0)

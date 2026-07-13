@@ -245,6 +245,19 @@ def _res_receipt_extras(res: Reservation) -> dict:
         or timezone.now()
     )
 
+    # Financier exact : le SOUS-TOTAL du reçu = prestation complète (avant toute
+    # déduction de caution). `res.montant` est déjà NET de la caution une fois
+    # celle-ci déduite → l'utiliser comme sous-total gonflerait le % de
+    # commission. On reconstruit donc le total réel.
+    from decimal import Decimal as _D
+    _caution = res.caution_montant or _D("0")
+    if devis and getattr(devis, "total_ttc", None):
+        _sous_total = devis.total_ttc
+    else:
+        _sous_total = (res.montant or _D("0")) + (
+            _caution if res.caution_deduite else _D("0")
+        )
+
     # Identité du client (nom lisible + e-mail).
     cu = res.client_user
     client_nom = ""
@@ -275,6 +288,11 @@ def _res_receipt_extras(res: Reservation) -> dict:
             res.scheduled_date.isoformat() if res.scheduled_date else None
         ),
         "commission": str(res.commission or 0),
+        # Sous-total (prestation complète) + caution → reçu au calcul exact.
+        "sous_total": str(_sous_total),
+        "caution_payee": res.caution_payee,
+        "caution_montant": str(_caution),
+        "caution_deduite": res.caution_deduite,
         "montant_verse": str(res.montant_verse or 0),
         "montant_restant": str(res.montant_restant or 0),
         "acompte_valide": res.acompte_valide,
