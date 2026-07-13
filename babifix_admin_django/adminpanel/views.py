@@ -6749,6 +6749,56 @@ def api_prestataire_request_visit(request, reference):
     })
 
 
+# Annuler une demande de VISITE tant que la caution n'a pas été réglée.
+# Accessible au prestataire (il se rétracte / modifie) ET au client (il refuse).
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire", "client"])
+def api_cancel_visit_request(request, reference):
+    from decimal import Decimal
+    _bootstrap_data()
+    res = Reservation.objects.filter(reference=reference).first()
+    if not res:
+        return JsonResponse({"error": "not_found"}, status=404)
+    uid = int(request.api_user_id)
+    is_client = res.client_user_id == uid
+    prov = Provider.objects.filter(user_id=uid).first()
+    is_presta = bool(prov and res.assigned_provider_id == prov.id)
+    if not (is_client or is_presta):
+        return JsonResponse({"error": "not_authorized"}, status=403)
+    if res.caution_payee:
+        return JsonResponse(
+            {"error": "deja_paye",
+             "detail": "La caution est déjà réglée : passez par un signalement/remboursement."},
+            status=409,
+        )
+    if res.statut != Reservation.Status.VISITE_DIAGNOSTIC:
+        return JsonResponse(
+            {"error": "invalid_state", "detail": "Aucune demande de visite en attente."},
+            status=400,
+        )
+    res.caution_montant = Decimal("0")
+    res.caution_motif = ""
+    res.caution_payee = False
+    res.caution_deduite = False
+    # Retour à l'état « en cours » : le presta peut envoyer un devis direct.
+    res.statut = Reservation.Status.DEVIS_EN_COURS
+    res.save(update_fields=[
+        "caution_montant", "caution_motif", "caution_payee",
+        "caution_deduite", "statut",
+    ])
+    who = "Le client" if is_client else "Le prestataire"
+    target = ([res.prestataire_user_id] if is_client else
+              ([res.client_user_id] if res.client_user_id else []))
+    _schedule(
+        [t for t in target if t],
+        "Visite annulée",
+        f"{who} a annulé la demande de visite pour {res.reference}.",
+        {"type": "visit.cancelled", "reference": res.reference},
+    )
+    return JsonResponse({"ok": True, "statut": res.statut})
+
+
 # Prestataire : marquer la visite de diagnostic comme effectuée
 @csrf_exempt
 @require_http_methods(["POST"])
