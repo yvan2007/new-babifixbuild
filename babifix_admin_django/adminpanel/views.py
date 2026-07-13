@@ -6485,11 +6485,14 @@ def api_client_pay_caution(request, reference):
             status=400,
         )
 
-    # Caution de visite = ACOMPTE 100 % déductible du devis. Ce n'est PAS une
-    # commission : BABIFIX ne prélève RIEN dessus. La caution est conservée puis
-    # déduite du devis final (ou remboursée en cas de litige). Aucun
-    # PlatformRevenue n'est créé ici (la caution n'est pas un revenu).
-    caution_commission = Decimal("0")
+    from .models import PlatformRevenue, PlatformConfig
+    # Commission de VISITE : 12 % (configurable) prélevés sur la caution. C'est
+    # une commission DISTINCTE de celle du devis (18/13/8 %) — elle rémunère
+    # spécifiquement la mise en relation et la visite-diagnostic. Le MONTANT de
+    # la caution reste, lui, intégralement déduit du devis final (pas de surplus
+    # pour le client) ; les 12 % sont le revenu BABIFIX sur cette étape.
+    pct = Decimal(str(PlatformConfig.get_solo().caution_commission_pct)) / Decimal("100")
+    caution_commission = (montant * pct).quantize(Decimal("1"))
 
     with transaction.atomic():
         res.caution_payee = True
@@ -6497,7 +6500,7 @@ def api_client_pay_caution(request, reference):
         # La caution réglée débloque l'adresse et relance le devis.
         res.statut = Reservation.Status.DEVIS_EN_COURS
         res.save(update_fields=["caution_payee", "mobile_money_operator", "statut"])
-        Payment.objects.create(
+        pay = Payment.objects.create(
             reference=f"CAUTION-{res.reference}-{int(timezone.now().timestamp())}",
             client=res.client,
             prestataire=res.prestataire,
@@ -6507,6 +6510,13 @@ def api_client_pay_caution(request, reference):
             reservation=res,
             type_paiement=Payment.TypePaiement.MOBILE_MONEY,
             valide_par_admin=False,
+        )
+        PlatformRevenue.objects.create(
+            amount_fcfa=caution_commission,
+            source=PlatformRevenue.Source.COMMISSION,
+            reference=res.reference,
+            description=f"Commission visite (caution) {res.reference}",
+            payment=pay,
         )
 
     _schedule(
