@@ -20,6 +20,7 @@ import '../../shared/error_utils.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../auth/biometric_login_screen.dart';
 import '../booking/devis_kanban_screen.dart';
+import '../reservations/premium_receipt_screen.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/babifix_voice_note.dart';
 
@@ -946,6 +947,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
       appBar: AppBar(
         title: Text(widget.name),
         actions: [
+          if (widget.reservationReference != null &&
+              widget.reservationReference!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.receipt_long_outlined),
+              tooltip: 'Reçu',
+              color: Theme.of(context).primaryColor,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => PremiumReceiptScreen(
+                    reservationReference: widget.reservationReference!,
+                  ),
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.phone),
             tooltip: 'Appel audio',
