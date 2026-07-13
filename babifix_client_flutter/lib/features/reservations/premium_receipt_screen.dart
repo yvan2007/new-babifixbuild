@@ -396,28 +396,77 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
 
   Widget _buildFinancialSummary(Map<String, dynamic> res, double montant) {
     final sousTotal = montant;
-    final commission = double.tryParse('${res['commission'] ?? 0}') ?? (sousTotal * 0.18);
+    // Caution de visite : acompte 100 % déductible du devis (JAMAIS une
+    // commission). On l'affiche seulement si elle a réellement été versée.
+    final cautionPayee = res['caution_payee'] == true;
+    final cautionMontant = cautionPayee
+        ? (double.tryParse('${res['caution_montant'] ?? 0}') ?? 0)
+        : 0.0;
+    // Commission BABIFIX = uniquement sur la prestation (taux selon la formule
+    // du prestataire : 18 % / 13 % / 8 %). Fournie par l'API ; repli 18 %.
+    final commission = double.tryParse('${res['commission'] ?? 0}') ??
+        (sousTotal * 0.18);
+    final commissionPct = sousTotal > 0
+        ? (commission / sousTotal * 100).round()
+        : 18;
     final net = sousTotal - commission;
+    final resteClient =
+        (sousTotal - cautionMontant).clamp(0, double.infinity).toDouble();
 
     return _SectionCard(
       title: 'Résumé financier',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _SummaryRow(label: 'Sous-total', value: sousTotal),
-          const SizedBox(height: 6),
-          _SummaryRow(
-              label:
-                  'Commission BABIFIX (${sousTotal > 0 ? (commission / sousTotal * 100).round() : 18} %)',
-              value: commission,
-              color: BabifixDesign.warning),
-          const SizedBox(height: 6),
-          _SummaryRow(label: 'Net prestataire', value: net, color: BabifixDesign.success),
+          _SummaryRow(label: 'Sous-total prestation', value: sousTotal),
+          if (cautionMontant > 0) ...[
+            const SizedBox(height: 6),
+            _SummaryRow(
+                label: 'Caution de visite déjà versée',
+                value: -cautionMontant,
+                color: BabifixDesign.cyan),
+            const SizedBox(height: 6),
+            _SummaryRow(
+                label: 'Reste réglé par le client',
+                value: resteClient,
+                bold: true,
+                color: BabifixDesign.navy),
+          ],
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Divider(height: 1, color: Color(0xFFE2E8F0)),
           ),
-          _SummaryRow(label: 'MONTANT TOTAL', value: montant, bold: true, large: true, color: BabifixDesign.navy),
+          _SummaryRow(
+              label: 'Commission BABIFIX ($commissionPct %)',
+              value: commission,
+              color: BabifixDesign.warning),
+          const SizedBox(height: 6),
+          _SummaryRow(
+              label: 'Net reversé au prestataire',
+              value: net,
+              color: BabifixDesign.success),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+          ),
+          _SummaryRow(
+              label: 'TOTAL PRESTATION',
+              value: sousTotal,
+              bold: true,
+              large: true,
+              color: BabifixDesign.navy),
+          if (cautionMontant > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'La caution est intégralement déduite du devis, sans surplus.',
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: BabifixDesign.iconOnLight),
+              ),
+            ),
         ],
       ),
     );
