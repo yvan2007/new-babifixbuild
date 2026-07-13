@@ -497,6 +497,24 @@ class RequestDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ],
+                // Visite proposée mais caution pas encore payée → le presta peut
+                // se rétracter (annuler la demande) ; la résa repart en cours.
+                if (apiStatus == 'VISITE_DIAGNOSTIC' && !cautionPayee) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _cancelVisit(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFEF4444),
+                        side: const BorderSide(color: Color(0x55EF4444)),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                      ),
+                      icon: const Icon(Icons.cancel_outlined, size: 18),
+                      label: const Text('Annuler la demande de visite'),
+                    ),
+                  ),
+                ],
                 // Appel direct au client + raccourci historique
                 const SizedBox(height: 8),
                 Row(
@@ -720,6 +738,40 @@ class RequestDetailScreen extends StatelessWidget {
       showBabifixToast(context,
           type: BabifixToastType.success,
           message: 'Visite proposée au client.');
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!context.mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.error, message: 'Échec : $e');
+    }
+  }
+
+  Future<void> _cancelVisit(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Annuler la visite'),
+        content: const Text(
+          'Annuler la demande de visite ? La réservation repart en cours : '
+          'vous pourrez envoyer un devis direct.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Non')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Annuler la visite')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await DevisApi.cancelVisit(reference);
+      if (!context.mounted) return;
+      showBabifixToast(context,
+          type: BabifixToastType.success,
+          message: 'Demande de visite annulée.');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!context.mounted) return;

@@ -172,6 +172,15 @@ class DevisApi {
     _ensureOk(r);
   }
 
+  /// Annule la demande de visite TANT QUE la caution n'a pas été payée.
+  static Future<void> cancelVisit(String reference) async {
+    final r = await BabifixUserStore.authPost(
+      '/api/reservations/$reference/cancel-visit',
+      body: jsonEncode(const {}),
+    );
+    _ensureOk(r);
+  }
+
   /// Renvoie le brouillon de devis du prestataire (ou null s'il n'y en a pas).
   static Future<Map<String, dynamic>?> getDraft(String reference) async {
     final r = await BabifixUserStore.authGet(

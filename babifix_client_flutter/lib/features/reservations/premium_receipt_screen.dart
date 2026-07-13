@@ -456,11 +456,17 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
               bold: true,
               large: true,
               color: BabifixDesign.navy),
-          if (cautionMontant > 0)
+          if (cautionMontant > 0) ...[
+            const SizedBox(height: 8),
+            _SummaryRow(
+                label: 'dont commission de visite BABIFIX (12 %)',
+                value: (cautionMontant * 0.12).roundToDouble(),
+                color: BabifixDesign.iconOnLight),
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'La caution est intégralement déduite du devis, sans surplus.',
+                'La caution est intégralement déduite du devis, sans surplus. '
+                'La commission de visite (12 %) est distincte de celle du devis.',
                 textAlign: TextAlign.right,
                 style: TextStyle(
                     fontSize: 11,
@@ -468,6 +474,7 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
                     color: BabifixDesign.iconOnLight),
               ),
             ),
+          ],
         ],
       ),
     );
