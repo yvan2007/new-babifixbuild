@@ -318,6 +318,17 @@ class ProviderSubscriptionService:
                 feats.append(f"Badge « {config['badge']} »")
             return feats
 
+        def numeric_fields(config):
+            # Champs numériques lus par le TABLEAU COMPARATIF de l'app (sinon il
+            # retombe sur des défauts : 18 % / Standard / 3 partout).
+            quota = config.get("devis_quota")
+            return {
+                "commission_reduction": config["commission_reduction"],
+                "visibility_boost_pct": int((config["visibility_boost"] - 1) * 100),
+                # None (illimité) → -1 ; le comparatif de l'app affiche « Illimités ».
+                "max_active_devis": -1 if quota is None else quota,
+            }
+
         tiers = [{
             "id": STANDARD_TIER["id"],
             "name": STANDARD_TIER["name"],
@@ -328,6 +339,7 @@ class ProviderSubscriptionService:
             "free": True,
             "trial_available": False,
             "features": features(STANDARD_TIER),
+            **numeric_fields(STANDARD_TIER),
         }]
         tiers += [{
             "id": tier_id,
@@ -339,6 +351,7 @@ class ProviderSubscriptionService:
             "free": False,
             "trial_available": True,
             "features": features(config),
+            **numeric_fields(config),
         } for tier_id, config in PREMIUM_TIERS.items()]
         return tiers
 
