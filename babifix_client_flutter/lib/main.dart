@@ -4584,11 +4584,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         );
                       },
                     ),
-                    // Reçu PDF — disponible après paiement complet
-                    if (r.receiptAvailable)
+                    // Reçu : final après paiement, ou APERÇU dès qu'un devis
+                    // existe (le client peut voir le reçu AVANT d'accepter).
+                    if (r.receiptAvailable || r.canViewDevis || r.canAcceptDevis)
                       _QuickActionChip(
                         icon: Icons.receipt_long_outlined,
-                        label: 'Reçu',
+                        label: r.receiptAvailable ? 'Reçu' : 'Aperçu reçu',
                         color: const Color(0xFF6366F1),
                         onTap: () {
                           Navigator.of(context).push<void>(
