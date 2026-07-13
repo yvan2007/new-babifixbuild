@@ -421,11 +421,11 @@ class RequestDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ],
-                // Visio-diagnostic : AVANT d'accepter, le presta peut lancer un
-                // appel vidéo pour évaluer le chantier (photos insuffisantes).
-                // Affiché uniquement tant que la demande n'est pas acceptée
-                // (adresse encore approximative).
-                if (addressIsApproximate) ...[
+                // Visio-diagnostic + demande d'estimation/visite : uniquement
+                // AVANT tout engagement de visite. Dès que la caution est réglée
+                // OU la visite effectuée, ces boutons de DEMANDE disparaissent
+                // (inutile de re-demander une visite déjà en cours/faite).
+                if (addressIsApproximate && !cautionPayee && !visiteEffectuee) ...[
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
