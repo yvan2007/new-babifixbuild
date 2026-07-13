@@ -6965,6 +6965,41 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
+  /// Le client REFUSE la visite proposée (tant que la caution n'est pas payée).
+  /// Annule la demande côté serveur ; la réservation repart en cours.
+  Future<void> _declineVisit(ClientReservation r) async {
+    if (authToken == null || r.reference.isEmpty) return;
+    try {
+      final res = await http.post(
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/reservations/${Uri.encodeComponent(r.reference)}/cancel-visit',
+        ),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      );
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        showBabifixToast(context,
+            type: BabifixToastType.success,
+            message: 'Visite refusée. Le prestataire est prévenu.');
+        await _loadRemoteData();
+      } else {
+        showBabifixToast(context,
+            type: BabifixToastType.error,
+            message: _friendlyHttpError(res.statusCode));
+      }
+    } catch (_) {
+      if (mounted) {
+        showBabifixToast(context,
+            type: BabifixToastType.error,
+            message: 'Erreur réseau. Veuillez réessayer.');
+      }
+    }
+  }
+
   Future<bool?> _showCautionInfoSheet(ClientReservation r) {
     final montant = r.cautionMontant.toStringAsFixed(0);
     return showModalBottomSheet<bool>(
@@ -7105,6 +7140,20 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 2),
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx, false);
+                    _declineVisit(r);
+                  },
+                  child: const Text('Refuser cette visite',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFEF4444))),
+                ),
               ),
             ],
           ),
