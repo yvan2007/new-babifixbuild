@@ -279,6 +279,14 @@ class ProviderSubscriptionService:
         reduction = 0
         if sub:
             reduction = PREMIUM_TIERS.get(sub.tier, {}).get("commission_reduction", 0)
+        else:
+            # Repli : le palier premium porté par le PROFIL (`premium_tier`,
+            # source de vérité utilisée aussi par le matching et le classement)
+            # fait foi si aucun enregistrement d'abonnement n'existe. Sans cela,
+            # l'abonnement ne réduisait PAS la commission du devis.
+            tier = getattr(provider, "premium_tier", None)
+            if tier:
+                reduction = PREMIUM_TIERS.get(tier, {}).get("commission_reduction", 0)
         return max(5.0, base - reduction)
 
     @classmethod

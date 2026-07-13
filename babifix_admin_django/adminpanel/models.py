@@ -1754,6 +1754,18 @@ class Devis(models.Model):
                 next_n += 1
             self.reference = f"{prefix}{next_n:04d}"
 
+        # Tant que le devis est en BROUILLON, le taux de commission suit la
+        # formule d'abonnement du prestataire (18 / 13 / 8 %). Il est FIGÉ une
+        # fois le devis envoyé (le client ne subit plus de variation).
+        if self.statut == Devis.Statut.BROUILLON and self.prestataire_id:
+            try:
+                from decimal import Decimal as _D
+                from .services.wallet_service import _get_effective_commission_rate
+                _eff = _get_effective_commission_rate(self.prestataire)
+                self.commission_rate = int((_eff * _D("100")).quantize(_D("1")))
+            except Exception:
+                pass
+
         if self.pk:
             self.sous_total = sum(ligne.total for ligne in self.lignes.all())
             self.commission_montant = self.sous_total * self.commission_rate / 100
