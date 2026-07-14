@@ -686,6 +686,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           disponibilitesClient: it.disponibilitesClient,
           isUrgent: it.isUrgent,
           prixPropose: it.prixPropose,
+          audioProbleme: it.audioProbleme,
         ),
       ),
     ).then((_) => _loadRequests());

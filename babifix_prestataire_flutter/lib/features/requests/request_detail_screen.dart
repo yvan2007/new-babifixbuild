@@ -10,6 +10,7 @@ import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_mini_map.dart';
+import '../../shared/widgets/babifix_voice_note.dart';
 import '../call/call_history_screen.dart';
 import 'client_journal_viewer.dart';
 import 'execution_actions_widget.dart';
@@ -48,6 +49,7 @@ class RequestDetailScreen extends StatelessWidget {
     this.cautionPayee = false,
     this.visiteEffectuee = false,
     this.scheduledDate = '',
+    this.audioProbleme = '',
   });
 
   final String reference;
@@ -92,6 +94,9 @@ class RequestDetailScreen extends StatelessWidget {
   /// Date prévue (ISO yyyy-mm-dd) choisie par le client — pour bloquer le
   /// bouton « Démarrer » avant le jour J.
   final String scheduledDate;
+
+  /// Note vocale du client décrivant le besoin (URL). Vide si absente.
+  final String audioProbleme;
 
   @override
   Widget build(BuildContext context) {
@@ -229,8 +234,8 @@ class RequestDetailScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                 ],
 
-                // Client message / description
-                if (clientMessage.isNotEmpty) ...[
+                // Client message / description + note vocale
+                if (clientMessage.isNotEmpty || audioProbleme.isNotEmpty) ...[
                   _SectionCard(
                     icon: Icons.chat_bubble_rounded,
                     title: 'Message du client',
@@ -238,14 +243,33 @@ class RequestDetailScreen extends StatelessWidget {
                       colors: [Color(0xFF60A5FA), Color(0xFF4CC9F0)],
                     ),
                     children: [
-                      Text(
-                        clientMessage,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFFCBD5E1),
-                          height: 1.6,
+                      if (clientMessage.isNotEmpty)
+                        Text(
+                          clientMessage,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFFCBD5E1),
+                            height: 1.6,
+                          ),
                         ),
-                      ),
+                      // Note vocale enregistrée par le client (façon WhatsApp).
+                      if (audioProbleme.isNotEmpty) ...[
+                        if (clientMessage.isNotEmpty) const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Icon(Icons.mic_rounded,
+                                size: 16, color: Color(0xFF38BDF8)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: BabifixVoiceNotePlayer(
+                                url: MediaApi.absolute(audioProbleme),
+                                durationSeconds: 0,
+                                isMe: false,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -680,7 +704,7 @@ class RequestDetailScreen extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Le client règle une caution (déductible du devis) avant que '
-                  'vous receviez l’adresse exacte.',
+                  'vous receviez l’adresse exacte. Montant maximum : 5 000 FCFA.',
                   style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                 ),
               ),
@@ -691,6 +715,7 @@ class RequestDetailScreen extends StatelessWidget {
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
                   labelText: 'Montant de la caution',
+                  helperText: 'Maximum 5 000 FCFA',
                   suffixText: 'FCFA',
                   border: OutlineInputBorder(),
                 ),
@@ -726,6 +751,12 @@ class RequestDetailScreen extends StatelessWidget {
       showBabifixToast(context,
           type: BabifixToastType.info,
           message: 'Indiquez un montant de caution.');
+      return;
+    }
+    if (caution > 5000) {
+      showBabifixToast(context,
+          type: BabifixToastType.error,
+          message: 'La caution ne peut pas dépasser 5 000 FCFA.');
       return;
     }
     try {

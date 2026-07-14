@@ -6717,9 +6717,15 @@ def api_prestataire_request_visit(request, reference):
             {"error": "caution_invalide", "detail": "Indiquez un montant de caution."},
             status=400,
         )
-    # Garde-fou : caution plafonnée pour éviter l'abus.
-    if montant > Decimal("100000"):
-        montant = Decimal("100000")
+    # Garde-fou : caution de visite plafonnée à 5 000 FCFA (règle métier).
+    if montant > Decimal("5000"):
+        return JsonResponse(
+            {
+                "error": "caution_trop_elevee",
+                "detail": "La caution de visite ne peut pas dépasser 5 000 FCFA.",
+            },
+            status=400,
+        )
 
     res.caution_montant = montant
     res.caution_motif = motif
