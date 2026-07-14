@@ -274,29 +274,33 @@ def _res_receipt_extras(res: Reservation) -> dict:
         (_caution * _caution_pct).quantize(_D("1")) if res.caution_payee else _D("0")
     )
 
-    # Commission de devis : taux RÉEL figé sur le devis (18/13/8 %), applicable
-    # même avant paiement (aperçu du devis) où res.commission vaut encore 0.
-    _comm = res.commission or _D("0")
+    # Reste réglé par le client = sous-total − caution déjà versée (mobile).
+    _reste_client = _sous_total - (_caution if res.caution_payee else _D("0"))
+    if _reste_client < 0:
+        _reste_client = _D("0")
+
+    # Taux de commission de devis : RÉEL figé sur le devis (18/13/8 %).
     _comm_rate = None
     if devis is not None:
         try:
             _comm_rate = int(devis.commission_rate)
         except (TypeError, ValueError):
             _comm_rate = None
-    if (not _comm or _comm == 0) and _comm_rate:
-        _comm = (_sous_total * _D(_comm_rate) / _D("100")).quantize(_D("1"))
-    if not _comm_rate and _sous_total > 0 and _comm:
-        _comm_rate = int((_comm / _sous_total * _D("100")).quantize(_D("1")))
     if not _comm_rate:
         _comm_rate = 18
 
-    _net_presta = _sous_total - _comm - _caution_comm
+    # Commission de devis : calculée sur le RESTE réellement réglé via le devis
+    # (le montant de la caution supporte déjà sa propre commission de 12 % — il
+    # n'est PAS taxé une deuxième fois). C'est exactement ce que fait l'escrow
+    # au complètement (commission sur res.montant = reste). Sans caution,
+    # reste = sous-total → commission sur le total, comme avant.
+    _comm = (_reste_client * _D(_comm_rate) / _D("100")).quantize(_D("1"))
+
+    # Net prestataire = (caution − 12 %) + (reste − commission devis)
+    #                 = sous_total − commission_caution − commission_devis.
+    _net_presta = _sous_total - _caution_comm - _comm
     if _net_presta < 0:
         _net_presta = _D("0")
-    # Reste réglé par le client = sous-total − caution déjà versée (mobile).
-    _reste_client = _sous_total - (_caution if res.caution_payee else _D("0"))
-    if _reste_client < 0:
-        _reste_client = _D("0")
 
     # Identité du client (nom lisible + e-mail).
     cu = res.client_user

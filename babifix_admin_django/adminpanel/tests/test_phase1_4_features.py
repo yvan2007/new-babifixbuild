@@ -120,13 +120,29 @@ class Phase14FeaturesTest(TestCase):
         self.assertIn("Jardins", it["address_street"])
         self.assertTrue(it["caution_payee"])
 
-        # 5) Le presta déclare la visite effectuée
+        # 5) Le presta déclare la visite effectuée → sa part de caution
+        #    (5000 − 12 % = 4400) est créditée sur son solde (payée par mobile).
+        self.prov.refresh_from_db()
+        solde_avant = self.prov.solde_fcfa or Decimal("0")
         r = self._post(
             f"/api/prestataire/requests/{res.reference}/visite-done", self.presta_tok
         )
         self.assertEqual(r.status_code, 200, r.content)
         res.refresh_from_db()
         self.assertTrue(res.visite_effectuee)
+        self.assertEqual(r.json().get("caution_versee_presta"), 4400.0)
+        self.prov.refresh_from_db()
+        self.assertEqual(
+            (self.prov.solde_fcfa or Decimal("0")) - solde_avant, Decimal("4400")
+        )
+        # Idempotent : un 2e appel ne recrédite pas.
+        self._post(
+            f"/api/prestataire/requests/{res.reference}/visite-done", self.presta_tok
+        )
+        self.prov.refresh_from_db()
+        self.assertEqual(
+            (self.prov.solde_fcfa or Decimal("0")) - solde_avant, Decimal("4400")
+        )
 
         # 6) Devis ferme puis acceptation → caution déduite du montant
         r = self._post(
@@ -174,16 +190,17 @@ class Phase14FeaturesTest(TestCase):
         cfg.save()
 
         res = self._make_reservation(ref="RES-CFG")
+        # Caution plafonnée à 5 000 FCFA (règle métier).
         self._post(
             f"/api/prestataire/requests/{res.reference}/request-visit",
-            self.presta_tok, {"caution_montant": 10000},
+            self.presta_tok, {"caution_montant": 5000},
         )
         self._post(
             f"/api/client/reservations/{res.reference}/pay-caution",
             self.cli_tok, {"mobile_money_operator": "WAVE"},
         )
         pay = Payment.objects.get(reference__startswith=f"CAUTION-{res.reference}")
-        self.assertEqual(pay.commission, Decimal("2000"))  # 20 % de 10000
+        self.assertEqual(pay.commission, Decimal("1000"))  # 20 % de 5000
 
     def test_reliability_suspicious_cancellation(self):
         # Cancellation via l'endpoint LIVE (api_client_cancel_reservation).

@@ -6831,9 +6831,62 @@ def api_prestataire_visite_done(request, reference):
     if res.visite_effectuee:
         return JsonResponse({"ok": True, "visite_effectuee": True})
 
-    res.visite_effectuee = True
-    res.visite_effectuee_at = timezone.now()
-    res.save(update_fields=["visite_effectuee", "visite_effectuee_at"])
+    from decimal import Decimal
+    from .models import PlatformConfig, WalletTransaction
+
+    # Caution acquise au prestataire : elle a été réglée par mobile, on lui
+    # verse sa part = caution − commission de visite (12 %). BABIFIX garde les
+    # 12 % (déjà comptabilisés en revenu à l'encaissement de la caution). Ce
+    # crédit est distinct du règlement du devis (qui, lui, porte sur le RESTE au
+    # complètement) → aucun double paiement. Le garde `visite_effectuee`
+    # ci-dessus rend l'opération idempotente (une seule fois).
+    caution = res.caution_montant or Decimal("0")
+    part_presta = Decimal("0")
+    with transaction.atomic():
+        res.visite_effectuee = True
+        res.visite_effectuee_at = timezone.now()
+        res.save(update_fields=["visite_effectuee", "visite_effectuee_at"])
+
+        if caution > 0:
+            pct = Decimal(str(PlatformConfig.get_solo().caution_commission_pct)) / Decimal("100")
+            caution_comm = (caution * pct).quantize(Decimal("1"))
+            part_presta = caution - caution_comm
+            if part_presta > 0:
+                prov = Provider.objects.select_for_update().get(pk=provider.pk)
+                prov.solde_fcfa = (prov.solde_fcfa or Decimal("0")) + part_presta
+                prov.save(update_fields=["solde_fcfa"])
+                WalletTransaction.objects.create(
+                    provider=prov,
+                    tx_type="credit",
+                    amount_fcfa=part_presta,
+                    reference=res.reference,
+                    description=(
+                        f"Caution de visite acquise — {res.reference} "
+                        f"(net après commission visite {int(pct * 100)} %)"
+                    ),
+                    status="success",
+                )
+
+    # Notifie le presta du crédit (rafraîchit son solde en temps réel).
+    if part_presta > 0:
+        try:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"prestataire_{provider.user_id}",
+                {
+                    "type": "prestataire_notify",
+                    "event_type": "wallet.credited",
+                    "payload": {
+                        "net": float(part_presta),
+                        "reference": res.reference,
+                        "motif": "caution_visite",
+                    },
+                },
+            )
+        except Exception:
+            pass
 
     _schedule(
         [res.client_user_id] if res.client_user_id else [],
@@ -6841,7 +6894,11 @@ def api_prestataire_visite_done(request, reference):
         f"{provider.nom} a effectué la visite. Vous recevrez le devis sous peu.",
         {"type": "visit.done", "reference": res.reference},
     )
-    return JsonResponse({"ok": True, "visite_effectuee": True})
+    return JsonResponse({
+        "ok": True,
+        "visite_effectuee": True,
+        "caution_versee_presta": float(part_presta),
+    })
 
 
 # Prestataire : refuser la demande
