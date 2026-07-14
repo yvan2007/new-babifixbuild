@@ -10,11 +10,23 @@ import '../../babifix_design_system.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 import '../../user_store.dart';
+import '../payment/payment_screen.dart';
 
 class PremiumReceiptScreen extends StatefulWidget {
   final String reservationReference;
-  const PremiumReceiptScreen({super.key, required this.reservationReference});
+
+  /// Quand `true`, l'écran sert de DEVIS (avant acceptation) : en-tête « DEVIS »,
+  /// détail argent complet et boutons Accepter / Refuser si le devis est ENVOYE.
+  /// Quand `false` (défaut), c'est un REÇU en lecture seule.
+  final bool isQuote;
+
+  const PremiumReceiptScreen({
+    super.key,
+    required this.reservationReference,
+    this.isQuote = false,
+  });
 
   @override
   State<PremiumReceiptScreen> createState() => _PremiumReceiptScreenState();
@@ -25,6 +37,8 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
   Uint8List? _pdfBytes;
   bool _loading = true;
   String? _error;
+  bool _accepting = false;
+  bool _refusing = false;
 
   @override
   void initState() {
@@ -57,6 +71,122 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     final f = File('${dir.path}/recu_${widget.reservationReference}.pdf');
     await f.writeAsBytes(_pdfBytes!);
     await Share.shareXFiles([XFile(f.path)], subject: 'Reçu BABIFIX : ${widget.reservationReference}');
+  }
+
+  // ─── Actions DEVIS (mode isQuote) ──────────────────────────────────────────
+
+  /// Le devis est-il encore actionnable (accepter / refuser) ?
+  bool get _devisActionnable {
+    final res = (_data?['reservation'] as Map<String, dynamic>?) ?? _data ?? {};
+    return widget.isQuote && '${res['devis_statut'] ?? ''}' == 'ENVOYE';
+  }
+
+  Future<void> _acceptDevis() async {
+    if (_accepting) return;
+    setState(() => _accepting = true);
+    try {
+      final resp = await BabifixUserStore.authPost(
+        '/api/client/reservations/${widget.reservationReference}/devis/accept',
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final montant = (data['montant'] as num?)?.toInt() ?? 0;
+        final reservationId = (data['reservation_id'] as num?)?.toInt();
+        if (!mounted) return;
+        final res = (_data?['reservation'] as Map<String, dynamic>?) ?? _data ?? {};
+        final presta = (res['prestataire_data'] as Map<String, dynamic>?) ?? {};
+        showBabifixToast(context,
+            type: BabifixToastType.success,
+            message: 'Devis accepté ! Redirection vers le paiement...');
+        await Future.delayed(const Duration(milliseconds: 700));
+        if (!mounted) return;
+        if (reservationId != null && reservationId > 0) {
+          Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+            builder: (_) => PaymentScreen(
+              reservationId: reservationId,
+              amount: montant,
+              serviceTitle: 'Devis ${widget.reservationReference}',
+              providerName: '${presta['nom'] ?? 'Prestataire'}',
+            ),
+          ));
+        } else {
+          _load();
+        }
+      } else {
+        if (mounted) {
+          showBabifixToast(context,
+              type: BabifixToastType.error,
+              message: _errBody(resp.body) ?? 'Impossible d\'accepter le devis');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showBabifixToast(context,
+            type: BabifixToastType.error, message: 'Erreur : $e');
+      }
+    }
+    if (mounted) setState(() => _accepting = false);
+  }
+
+  Future<void> _refuseDevis() async {
+    if (_refusing) return;
+    final motifCtrl = TextEditingController();
+    final motif = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Refuser le devis'),
+        content: TextField(
+          controller: motifCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Motif du refus',
+            hintText: 'Pourquoi refusez-vous ce devis ?',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: BabifixDesign.error),
+            onPressed: () => Navigator.pop(ctx, motifCtrl.text),
+            child: const Text('Refuser'),
+          ),
+        ],
+      ),
+    );
+    if (motif == null || motif.trim().isEmpty) return;
+    setState(() => _refusing = true);
+    try {
+      final resp = await BabifixUserStore.authPost(
+        '/api/client/reservations/${widget.reservationReference}/devis/refuse',
+        body: jsonEncode({'motif': motif.trim()}),
+      );
+      if (mounted && resp.statusCode == 200) {
+        showBabifixToast(context,
+            type: BabifixToastType.error, message: 'Devis refusé');
+        _load();
+      } else if (mounted) {
+        showBabifixToast(context,
+            type: BabifixToastType.error,
+            message: _errBody(resp.body) ?? 'Refus impossible');
+      }
+    } catch (e) {
+      if (mounted) {
+        showBabifixToast(context,
+            type: BabifixToastType.error, message: 'Erreur : $e');
+      }
+    }
+    if (mounted) setState(() => _refusing = false);
+  }
+
+  String? _errBody(String body) {
+    try {
+      final d = jsonDecode(body) as Map<String, dynamic>;
+      final s = (d['detail'] ?? d['error'])?.toString();
+      if (s != null && s.isNotEmpty) return s;
+    } catch (_) {}
+    return null;
   }
 
   Color _statusColor(String s) {
@@ -130,8 +260,9 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
+      bottomNavigationBar: _devisActionnable ? _buildQuoteActions() : null,
       appBar: AppBar(
-        title: const Text('Reçu de paiement'),
+        title: Text(widget.isQuote ? 'Devis' : 'Reçu de paiement'),
         backgroundColor: Colors.white,
         foregroundColor: BabifixDesign.navy,
         elevation: 0,
@@ -274,7 +405,7 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text('REÇU DE PAIEMENT', style: TextStyle(
+                  Text(widget.isQuote ? 'DEVIS' : 'REÇU DE PAIEMENT', style: TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w700,
                     color: BabifixDesign.cyan, letterSpacing: 2,
                   )),
@@ -395,23 +526,30 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
   }
 
   Widget _buildFinancialSummary(Map<String, dynamic> res, double montant) {
-    // Sous-total = prestation COMPLÈTE (fournie par l'API `sous_total`) et non
-    // `montant` (déjà net de la caution), sinon le % de commission est faux.
+    // Tous les montants viennent du backend, déjà RÉCONCILIÉS :
+    //   sous_total = prestation complète (ce que paie le client au total)
+    //   caution_montant = avance déjà versée par mobile (déduite du devis)
+    //   commission = commission de devis (18/13/8 %)
+    //   caution_commission = commission de visite (12 % de la caution)
+    //   net_prestataire = sous_total − commission − caution_commission
+    //   reste_client = sous_total − caution_montant
     final sousTotal = double.tryParse('${res['sous_total'] ?? ''}') ?? montant;
-    // Caution de visite : montant déductible du devis. Affichée si versée.
     final cautionPayee = res['caution_payee'] == true;
     final cautionMontant = cautionPayee
         ? (double.tryParse('${res['caution_montant'] ?? 0}') ?? 0)
         : 0.0;
-    // Commission BABIFIX = uniquement sur la prestation (taux selon la formule
-    // du prestataire : 18 % / 13 % / 8 %). Fournie par l'API ; repli 18 %.
     final commission = double.tryParse('${res['commission'] ?? 0}') ??
         (sousTotal * 0.18);
-    final commissionPct = sousTotal > 0
-        ? (commission / sousTotal * 100).round()
-        : 18;
-    final net = sousTotal - commission;
-    final resteClient =
+    final commissionPct = (res['commission_rate'] is num)
+        ? (res['commission_rate'] as num).round()
+        : (sousTotal > 0 ? (commission / sousTotal * 100).round() : 18);
+    final cautionCommission =
+        double.tryParse('${res['caution_commission'] ?? 0}') ??
+            (cautionMontant * 0.12).roundToDouble();
+    // Net presta : on PRIVILÉGIE la valeur backend (déduction des 2 commissions).
+    final net = double.tryParse('${res['net_prestataire'] ?? ''}') ??
+        (sousTotal - commission - cautionCommission);
+    final resteClient = double.tryParse('${res['reste_client'] ?? ''}') ??
         (sousTotal - cautionMontant).clamp(0, double.infinity).toDouble();
 
     return _SectionCard(
@@ -423,12 +561,14 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
           if (cautionMontant > 0) ...[
             const SizedBox(height: 6),
             _SummaryRow(
-                label: 'Caution de visite déjà versée',
+                label: 'Caution de visite versée (mobile)',
                 value: -cautionMontant,
                 color: BabifixDesign.cyan),
             const SizedBox(height: 6),
             _SummaryRow(
-                label: 'Reste réglé par le client',
+                label: widget.isQuote
+                    ? 'Reste à régler (espèces ou mobile)'
+                    : 'Reste réglé par le client',
                 value: resteClient,
                 bold: true,
                 color: BabifixDesign.navy),
@@ -438,9 +578,16 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
             child: Divider(height: 1, color: Color(0xFFE2E8F0)),
           ),
           _SummaryRow(
-              label: 'Commission BABIFIX ($commissionPct %)',
+              label: 'Commission BABIFIX devis ($commissionPct %)',
               value: commission,
               color: BabifixDesign.warning),
+          if (cautionCommission > 0) ...[
+            const SizedBox(height: 6),
+            _SummaryRow(
+                label: 'Commission de visite (12 %)',
+                value: cautionCommission,
+                color: BabifixDesign.warning),
+          ],
           const SizedBox(height: 6),
           _SummaryRow(
               label: 'Net reversé au prestataire',
@@ -456,25 +603,71 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
               bold: true,
               large: true,
               color: BabifixDesign.navy),
-          if (cautionMontant > 0) ...[
-            const SizedBox(height: 8),
-            _SummaryRow(
-                label: 'dont commission de visite BABIFIX (12 %)',
-                value: (cautionMontant * 0.12).roundToDouble(),
-                color: BabifixDesign.iconOnLight),
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'La caution est intégralement déduite du devis, sans surplus. '
-                'La commission de visite (12 %) est distincte de celle du devis.',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontStyle: FontStyle.italic,
-                    color: BabifixDesign.iconOnLight),
-              ),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(
+              cautionMontant > 0
+                  ? 'Le client paie exactement le devis. La caution (versée par '
+                      'mobile) et les commissions sont déduites du devis, sans '
+                      'surplus. La caution n\'est pas remboursable, sauf litige '
+                      '(après analyse).'
+                  : 'Le client paie exactement le devis. La commission BABIFIX '
+                      'est déduite de la part du prestataire, sans surplus.',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: BabifixDesign.iconOnLight,
+                  height: 1.4),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuoteActions() {
+    return SafeArea(
+      minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _refusing || _accepting ? null : _refuseDevis,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: BabifixDesign.error,
+                side: BorderSide(color: BabifixDesign.error.withValues(alpha: 0.4)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _refusing
+                  ? const SizedBox(
+                      width: 18, height: 18, child: BabifixRingLoader.dark(size: 18))
+                  : const Text('Refuser',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: FilledButton(
+              onPressed: _accepting || _refusing ? null : _acceptDevis,
+              style: FilledButton.styleFrom(
+                backgroundColor: BabifixDesign.ciOrange,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _accepting
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: BabifixRingLoader.cyan(size: 18))
+                  : const Text('Accepter le devis',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+          ),
         ],
       ),
     );

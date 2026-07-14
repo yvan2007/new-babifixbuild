@@ -258,6 +258,46 @@ def _res_receipt_extras(res: Reservation) -> dict:
             _caution if res.caution_deduite else _D("0")
         )
 
+    # ── Calcul financier EXACT et RÉCONCILIÉ ────────────────────────────────
+    # Modèle validé : le client paie exactement le devis (sous-total). BABIFIX
+    # prélève DEUX commissions distinctes, toutes deux déduites du devis :
+    #   • commission de VISITE = 12 % de la caution (si caution versée) ;
+    #   • commission de DEVIS  = 18/13/8 % du sous-total (selon la formule presta).
+    # Le prestataire touche le RESTE : net = sous_total − comm_devis − comm_caution.
+    # Aucune de ces commissions ne s'ajoute à ce que règle le client.
+    try:
+        from .models import PlatformConfig
+        _caution_pct = _D(str(PlatformConfig.get_solo().caution_commission_pct)) / _D("100")
+    except Exception:
+        _caution_pct = _D("0.12")
+    _caution_comm = (
+        (_caution * _caution_pct).quantize(_D("1")) if res.caution_payee else _D("0")
+    )
+
+    # Commission de devis : taux RÉEL figé sur le devis (18/13/8 %), applicable
+    # même avant paiement (aperçu du devis) où res.commission vaut encore 0.
+    _comm = res.commission or _D("0")
+    _comm_rate = None
+    if devis is not None:
+        try:
+            _comm_rate = int(devis.commission_rate)
+        except (TypeError, ValueError):
+            _comm_rate = None
+    if (not _comm or _comm == 0) and _comm_rate:
+        _comm = (_sous_total * _D(_comm_rate) / _D("100")).quantize(_D("1"))
+    if not _comm_rate and _sous_total > 0 and _comm:
+        _comm_rate = int((_comm / _sous_total * _D("100")).quantize(_D("1")))
+    if not _comm_rate:
+        _comm_rate = 18
+
+    _net_presta = _sous_total - _comm - _caution_comm
+    if _net_presta < 0:
+        _net_presta = _D("0")
+    # Reste réglé par le client = sous-total − caution déjà versée (mobile).
+    _reste_client = _sous_total - (_caution if res.caution_payee else _D("0"))
+    if _reste_client < 0:
+        _reste_client = _D("0")
+
     # Identité du client (nom lisible + e-mail).
     cu = res.client_user
     client_nom = ""
@@ -287,12 +327,20 @@ def _res_receipt_extras(res: Reservation) -> dict:
         "scheduled_date": (
             res.scheduled_date.isoformat() if res.scheduled_date else None
         ),
-        "commission": str(res.commission or 0),
+        "commission": str(_comm),
+        "commission_rate": _comm_rate,
         # Sous-total (prestation complète) + caution → reçu au calcul exact.
         "sous_total": str(_sous_total),
         "caution_payee": res.caution_payee,
         "caution_montant": str(_caution),
+        "caution_commission": str(_caution_comm),
         "caution_deduite": res.caution_deduite,
+        # Net réellement reversé au presta (déduction des DEUX commissions).
+        "net_prestataire": str(_net_presta),
+        # Reste réglé par le client après déduction de la caution versée.
+        "reste_client": str(_reste_client),
+        # Statut du devis (ENVOYE → devis actionnable : accepter / refuser).
+        "devis_statut": (devis.statut if devis else None),
         "montant_verse": str(res.montant_verse or 0),
         "montant_restant": str(res.montant_restant or 0),
         "acompte_valide": res.acompte_valide,

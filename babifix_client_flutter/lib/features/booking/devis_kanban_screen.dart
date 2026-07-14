@@ -5,6 +5,8 @@
 /// - actions Accepter / Refuser (avec motif),
 /// - timeline 8 étapes,
 /// - bouton "Procéder au paiement" qui ouvre l'écran escrow C5.
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../../babifix_design_system.dart';
@@ -12,6 +14,7 @@ import '../../shared/widgets/babifix_suggestion_chips.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
+import '../../user_store.dart';
 import 'escrow_quote_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -36,6 +39,9 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
   bool _busy = false;
   String? _error;
   bool _acompteValide = false;
+  // Détail argent réconcilié (caution, reste, commissions, net) fourni par
+  // l'endpoint /detail — sert à afficher le règlement complet AVANT acceptation.
+  Map<String, dynamic>? _extras;
 
   @override
   void initState() {
@@ -58,9 +64,21 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
         final q = await EscrowApi.quote(widget.reservationReference);
         acompte = q.acompteValide;
       } catch (_) {}
+      // Détail argent réconcilié (facultatif : n'empêche pas l'affichage du devis).
+      Map<String, dynamic>? extras;
+      try {
+        final r = await BabifixUserStore.authGet(
+          '/api/client/reservations/${widget.reservationReference}/detail',
+        );
+        if (r.statusCode == 200) {
+          final body = jsonDecode(r.body) as Map<String, dynamic>;
+          extras = (body['reservation'] as Map<String, dynamic>?) ?? body;
+        }
+      } catch (_) {}
       setState(() {
         _devis = d;
         _acompteValide = acompte;
+        _extras = extras;
         _loading = false;
       });
     } on BabifixApiException catch (e) {
@@ -260,6 +278,10 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
         ),
         const SizedBox(height: 14),
         DevisCardWidget(devis: devis),
+        if (!devis.estEstimation && _extras != null) ...[
+          const SizedBox(height: 14),
+          _reglementCard(_extras!),
+        ],
         const SizedBox(height: 14),
         Text('Suivi de la demande',
             style: TextStyle(
@@ -270,6 +292,124 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
         TimelineReservationWidget(steps: steps),
         const SizedBox(height: 100),
       ],
+    );
+  }
+
+  /// Détail du règlement AVANT acceptation : sous-total, caution déjà versée
+  /// (mobile), reste à payer (espèces/mobile), part BABIFIX (2 commissions),
+  /// part prestataire, et mention « caution non remboursable sauf litige ».
+  Widget _reglementCard(Map<String, dynamic> ex) {
+    double d(String k, [double fb = 0]) =>
+        double.tryParse('${ex[k] ?? ''}') ?? fb;
+    final sousTotal = d('sous_total');
+    if (sousTotal <= 0) return const SizedBox.shrink();
+    final cautionPayee = ex['caution_payee'] == true;
+    final caution = cautionPayee ? d('caution_montant') : 0.0;
+    final commission = d('commission', sousTotal * 0.18);
+    final commissionPct = (ex['commission_rate'] is num)
+        ? (ex['commission_rate'] as num).round()
+        : (sousTotal > 0 ? (commission / sousTotal * 100).round() : 18);
+    final cautionCommission = d('caution_commission', (caution * 0.12));
+    final net = d('net_prestataire', sousTotal - commission - cautionCommission);
+    final reste = d('reste_client', sousTotal - caution);
+
+    Widget row(String label, double value,
+        {Color? color, bool bold = false, bool big = false, bool neg = false}) {
+      final txt = '${neg ? '− ' : ''}${fmtMoney(value.abs())}';
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: big ? 14 : 12.5,
+                      fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+                      color: color ?? Colors.grey.shade700)),
+            ),
+            Text(txt,
+                style: TextStyle(
+                    fontSize: big ? 18 : 13,
+                    fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+                    color: color ?? BabifixDesign.navy)),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(width: 3, height: 16, decoration: BoxDecoration(
+                  color: BabifixDesign.cyan,
+                  borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 8),
+              Text('Détail du règlement',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: BabifixDesign.navy,
+                      letterSpacing: 0.4)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          row('Sous-total prestation', sousTotal),
+          if (caution > 0) ...[
+            row('Caution de visite versée (mobile)', caution,
+                color: BabifixDesign.cyan, neg: true),
+            row('Reste à régler (espèces ou mobile)', reste,
+                bold: true, color: BabifixDesign.navy),
+          ],
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+          ),
+          row('Commission BABIFIX devis ($commissionPct %)', commission,
+              color: BabifixDesign.warning),
+          if (cautionCommission > 0)
+            row('Commission de visite (12 %)', cautionCommission,
+                color: BabifixDesign.warning),
+          row('Net reversé au prestataire', net, color: BabifixDesign.success),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+          ),
+          row('TOTAL PRESTATION', sousTotal, bold: true, big: true),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(
+              caution > 0
+                  ? 'Vous payez exactement le devis. La caution (versée par '
+                      'mobile) et les commissions BABIFIX sont déduites du devis, '
+                      'sans surplus. La caution n\'est pas remboursable, sauf '
+                      'litige (après analyse).'
+                  : 'Vous payez exactement le devis. La commission BABIFIX est '
+                      'prélevée sur la part du prestataire, sans surplus pour vous.',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  height: 1.4,
+                  color: Colors.grey.shade600),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
