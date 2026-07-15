@@ -5,7 +5,7 @@
   <div class="section-toolbar">
     <div class="toolbar-left">
       <h2 class="section-title">Paiements</h2>
-      <span class="section-count">{{ paiements|length }} resultat(s)</span>
+      <span class="section-count">{{ paiements|length }} paiement(s) · {{ paiements_groupes|length }} reservation(s)</span>
     </div>
   </div>
 
@@ -25,9 +25,20 @@
         </tr>
       </thead>
       <tbody>
-        {% for paiement in paiements %}
-        <tr class="data-row">
-          <td><span class="cell-ref">{{ paiement.reference }}</span></td>
+        {% for groupe in paiements_groupes %}
+        {# En-tete du bloc : une reservation = tous ses paiements regroupes. #}
+        <tr class="group-head-row">
+          <td colspan="9">
+            <div class="group-head">
+              <span class="cell-ref">{{ groupe.reference }}</span>
+              <span class="group-parties">{{ groupe.client|truncatechars:22 }} &rarr; {{ groupe.prestataire|truncatechars:22 }}</span>
+              <span class="group-count">{{ groupe.payments|length }} paiement(s)</span>
+            </div>
+          </td>
+        </tr>
+        {% for paiement in groupe.payments %}
+        <tr class="data-row data-row--grouped">
+          <td><span class="cell-ref cell-ref--sub">{{ paiement.reference }}</span></td>
           <td>{{ paiement.client|truncatechars:20 }}</td>
           <td>{{ paiement.prestataire|truncatechars:20 }}</td>
           <td><strong>{{ paiement.montant|floatformat:0 }} FCFA</strong></td>
@@ -56,6 +67,15 @@
           <td><span class="status-badge status-badge--{{ paiement.etat|lower|slugify }}">{{ paiement.get_etat_display }}</span></td>
           <td><span class="cell-date">{{ paiement.created_at|date:"d/m/Y H:i" }}</span></td>
         </tr>
+        {% endfor %}
+        {# Sous-total du bloc reservation. #}
+        <tr class="group-total-row">
+          <td colspan="3" class="group-total-label">Total reservation</td>
+          <td><strong>{{ groupe.total_montant|floatformat:0 }} FCFA</strong></td>
+          <td><span class="text-amber">{{ groupe.total_commission|floatformat:0 }} FCFA</span></td>
+          <td><span class="text-green">{{ groupe.total_net|floatformat:0 }} FCFA</span></td>
+          <td colspan="3"></td>
+        </tr>
         {% empty %}
         <tr><td colspan="9" class="empty-state">Aucun paiement</td></tr>
         {% endfor %}
@@ -74,4 +94,28 @@
   .mm-logo { width: 18px; height: 18px; object-fit: contain; border-radius: 4px; display: block; }
   .mm-name { font-size: 12px; font-weight: 600; }
   .mm-ref { font-size: 11px; color: #94a3b8; }
+
+  /* Regroupement par réservation : en-tête de bloc + sous-total. */
+  .group-head-row td {
+    background: rgba(76, 201, 240, 0.10);
+    border-top: 2px solid rgba(76, 201, 240, 0.35);
+    padding: 8px 12px;
+  }
+  .group-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .group-head .cell-ref { font-weight: 800; font-size: 13px; }
+  .group-parties { font-size: 12.5px; color: #cbd5e1; }
+  .group-count {
+    margin-left: auto; font-size: 11px; font-weight: 700; color: #4cc9f0;
+    padding: 2px 10px; border-radius: 999px;
+    background: rgba(76, 201, 240, 0.12);
+  }
+  .data-row--grouped td { background: transparent; }
+  .cell-ref--sub { font-size: 11.5px; color: #94a3b8; }
+  .group-total-row td {
+    background: rgba(148, 163, 184, 0.06);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    font-weight: 700; padding: 6px 12px;
+  }
+  .group-total-label { text-align: right; color: #94a3b8; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.4px; }
 </style>

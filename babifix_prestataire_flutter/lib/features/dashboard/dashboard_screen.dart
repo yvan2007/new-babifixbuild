@@ -101,10 +101,12 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
         if (mounted) setState(() => _loadingActive = false);
         return;
       }
+      // 60 s (et non 30) : le serveur Render se réveille après inactivité en
+      // ~40-60 s. Un timeout trop court laissait l'intervention en cours VIDE.
       final res = await http.get(
         Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests'),
         headers: {'Authorization': 'Bearer $tok'},
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 60));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final items = (data['items'] as List? ?? const [])
@@ -159,7 +161,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
           final res = await http.get(
             Uri.parse('${babifixApiBaseUrl()}/api/prestataire/me'),
             headers: {'Authorization': 'Bearer $tok'},
-          );
+          ).timeout(const Duration(seconds: 60));
           if (res.statusCode == 200) {
             final data = jsonDecode(res.body) as Map<String, dynamic>;
             final prov = data['provider'] as Map<String, dynamic>? ?? {};
@@ -293,7 +295,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
       final res = await http.get(
         Uri.parse('${babifixApiBaseUrl()}/api/prestataire/earnings/monthly/'),
         headers: {'Authorization': 'Bearer $tok'},
-      );
+      ).timeout(const Duration(seconds: 60));
       if (res.statusCode != 200) return;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final months = (data['months'] as List<dynamic>? ?? []);
@@ -328,7 +330,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
           'Content-Type': 'application/json',
         },
         body: jsonEncode({'disponible': value}),
-      );
+      ).timeout(const Duration(seconds: 60));
     } catch (_) {
       // revert on error
       if (mounted) setState(() => _isAvailable = !value);

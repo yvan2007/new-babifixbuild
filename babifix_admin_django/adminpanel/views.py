@@ -2379,6 +2379,40 @@ def dashboard(request):
             for c in clients:
                 c.fiabilite_score = 100
 
+    # Regroupement des paiements PAR RÉSERVATION : un bloc par réservation
+    # rassemble tout ce qui est lié (caution, acompte, solde, commissions) avec
+    # ses sous-totaux, au lieu d'une liste éclatée où l'on ne sait plus quoi va
+    # avec quoi. Les paiements sans réservation forment leur propre bloc.
+    paiements_groupes = []
+    if section in ("paiements", "dashboard"):
+        from collections import OrderedDict as _OD
+
+        _grp = _OD()
+        for _p in paiements:
+            _res = _p.reservation
+            _key = _res.reference if _res else (_p.reference or "—")
+            _g = _grp.get(_key)
+            if _g is None:
+                _g = {
+                    "reference": _key,
+                    "reservation": _res,
+                    "client": _p.client,
+                    "prestataire": _p.prestataire,
+                    "payments": [],
+                    "total_montant": 0.0,
+                    "total_commission": 0.0,
+                    "total_net": 0.0,
+                }
+                _grp[_key] = _g
+            _g["payments"].append(_p)
+            _g["total_montant"] += float(_p.montant or 0)
+            _g["total_commission"] += float(_p.commission or 0)
+            try:
+                _g["total_net"] += float(_p.net_prestataire or 0)
+            except (TypeError, ValueError):
+                pass
+        paiements_groupes = list(_grp.values())
+
     context = {
         "section": section,
         "page_heading": page_heading,
@@ -2392,6 +2426,7 @@ def dashboard(request):
         "litiges": litiges,
         "clients": clients,
         "paiements": paiements,
+        "paiements_groupes": paiements_groupes,
         "paiement_stats": paiement_stats,
         "paiement_filters": paiement_filters,
         "reservation_stats": reservation_stats,
