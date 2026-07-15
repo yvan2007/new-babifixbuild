@@ -1183,6 +1183,57 @@
       </div>
       {% endif %}
 
+      {# ── Radar anti-fuite : visites suspectes (caution payée + visite faite, aucun devis) ── #}
+      {% if radar_visites %}
+      <div class="radar-panel">
+        <div class="radar-head">
+          <span class="radar-icon" aria-hidden="true">&#x1F6A8;</span>
+          <div>
+            <strong>Radar anti-fuite &mdash; {{ radar_visites|length }} visite(s) a surveiller</strong>
+            <p>Caution payee + visite effectuee mais AUCUN devis envoye : forte presomption d'arrangement hors plateforme. Les cas confirmes penalisent automatiquement la fiabilite du prestataire.</p>
+          </div>
+        </div>
+        <div class="table-card" style="margin-top:10px;">
+          <table class="data-table radar-table">
+            <thead>
+              <tr>
+                <th>Reservation</th><th>Client</th><th>Prestataire</th>
+                <th>Statut</th><th>Signal</th><th>Motif</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in radar_visites %}
+              <tr class="data-row">
+                <td><span class="cell-ref">{{ v.reference }}</span></td>
+                <td>{{ v.client|truncatechars:20 }}</td>
+                <td>{{ v.prestataire|truncatechars:20 }}</td>
+                <td><span class="cell-date">{{ v.statut }}</span></td>
+                <td>
+                  {% if v.flagged %}<span class="radar-badge radar-badge--flag">Confirme</span>
+                  {% else %}<span class="radar-badge radar-badge--risk">A risque</span>{% endif %}
+                </td>
+                <td class="radar-motif">{{ v.motif }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <style>
+        .radar-panel { margin: 12px 0 18px; padding: 14px 16px;
+          border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 14px;
+          background: rgba(239, 68, 68, 0.06); }
+        .radar-head { display: flex; gap: 12px; align-items: flex-start; }
+        .radar-icon { font-size: 22px; line-height: 1.2; }
+        .radar-head strong { color: #ef4444; font-size: 14px; }
+        .radar-head p { margin: 4px 0 0; font-size: 12.5px; color: #94a3b8; }
+        .radar-badge { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+        .radar-badge--flag { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .radar-badge--risk { background: rgba(245,158,11,0.15); color: #f59e0b; }
+        .radar-motif { font-size: 12px; color: #cbd5e1; max-width: 320px; }
+      </style>
+      {% endif %}
+
       {# ── Mini-stats Réservations ── #}
       {% if reservation_stats %}
       <div class="pay-mini-stats">

@@ -2413,6 +2413,57 @@ def dashboard(request):
                 pass
         paiements_groupes = list(_grp.values())
 
+    # ── Radar anti-fuite : visites suspectes (caution payée + visite faite mais
+    # aucun devis → probable arrangement hors plateforme). On remonte à l'admin
+    # les cas DÉJÀ flaggés + ceux « à risque » (sans devis depuis > X jours).
+    radar_visites = []
+    if section in ("dashboard", "reservations"):
+        try:
+            from datetime import timedelta as _td
+            from django.db.models import Exists as _Exists, OuterRef as _OuterRef
+
+            _cfgr = PlatformConfig.get_solo()
+            _jours = int(getattr(_cfgr, "radar_visite_sans_devis_jours", 3) or 3)
+            _limite = timezone.now() - _td(days=_jours)
+            _devis_qs = Devis.objects.filter(reservation=_OuterRef("pk")).exclude(
+                statut="BROUILLON"
+            )
+            _base = Reservation.objects.annotate(_has_devis=_Exists(_devis_qs))
+            _flagged = _base.filter(visite_suspecte=True).order_by("-visite_suspecte_at")
+            _at_risk = (
+                _base.filter(
+                    caution_payee=True,
+                    visite_effectuee=True,
+                    _has_devis=False,
+                    visite_effectuee_at__lt=_limite,
+                )
+                .exclude(visite_suspecte=True)
+                .exclude(statut__in=["Terminee", "DONE", "Annulee", "CANCELLED"])
+                .order_by("-visite_effectuee_at")
+            )
+            for _r in list(_flagged[:50]):
+                radar_visites.append({
+                    "reference": _r.reference,
+                    "client": _r.client,
+                    "prestataire": _r.prestataire,
+                    "statut": _r.statut,
+                    "flagged": True,
+                    "motif": _r.visite_suspecte_motif or "Visite suspecte.",
+                    "date": _r.visite_suspecte_at or _r.visite_effectuee_at,
+                })
+            for _r in list(_at_risk[:50]):
+                radar_visites.append({
+                    "reference": _r.reference,
+                    "client": _r.client,
+                    "prestataire": _r.prestataire,
+                    "statut": _r.statut,
+                    "flagged": False,
+                    "motif": f"Caution payée + visite faite, aucun devis depuis plus de {_jours} j.",
+                    "date": _r.visite_effectuee_at,
+                })
+        except Exception:
+            radar_visites = []
+
     context = {
         "section": section,
         "page_heading": page_heading,
@@ -2427,6 +2478,7 @@ def dashboard(request):
         "clients": clients,
         "paiements": paiements,
         "paiements_groupes": paiements_groupes,
+        "radar_visites": radar_visites,
         "paiement_stats": paiement_stats,
         "paiement_filters": paiement_filters,
         "reservation_stats": reservation_stats,
@@ -6524,13 +6576,14 @@ def api_client_pay_caution(request, reference):
         )
 
     from .models import PlatformRevenue, PlatformConfig
-    # Commission de VISITE : 12 % (configurable) prélevés sur la caution. C'est
-    # une commission DISTINCTE de celle du devis (18/13/8 %) — elle rémunère
-    # spécifiquement la mise en relation et la visite-diagnostic. Le MONTANT de
-    # la caution reste, lui, intégralement déduit du devis final (pas de surplus
-    # pour le client) ; les 12 % sont le revenu BABIFIX sur cette étape.
-    pct = Decimal(str(PlatformConfig.get_solo().caution_commission_pct)) / Decimal("100")
-    caution_commission = (montant * pct).quantize(Decimal("1"))
+    cfg = PlatformConfig.get_solo()
+    # Phase 5 — le TRANSPORT (caution) revient à 100 % au prestataire : BABIFIX ne
+    # prélève plus aucun pourcentage sur la caution. À la place, un FRAIS FIXE de
+    # mise en relation est payé EN PLUS par le client (revenu BABIFIX garanti sur
+    # la visite, sans grignoter le défraiement du presta). Le client règle donc
+    # « caution (transport) + frais » par mobile.
+    frais = Decimal(str(cfg.frais_mise_en_relation_fcfa or 0))
+    total_client = montant + frais
 
     with transaction.atomic():
         res.caution_payee = True
@@ -6538,38 +6591,42 @@ def api_client_pay_caution(request, reference):
         # La caution réglée débloque l'adresse et relance le devis.
         res.statut = Reservation.Status.DEVIS_EN_COURS
         res.save(update_fields=["caution_payee", "mobile_money_operator", "statut"])
+        # Caution = transport, 100 % prestataire → commission 0.
         pay = Payment.objects.create(
             reference=f"CAUTION-{res.reference}-{int(timezone.now().timestamp())}",
             client=res.client,
             prestataire=res.prestataire,
             montant=montant,
-            commission=caution_commission,
+            commission=Decimal("0"),
             etat=Payment.State.COMPLETE,
             reservation=res,
             type_paiement=Payment.TypePaiement.MOBILE_MONEY,
             valide_par_admin=False,
         )
-        PlatformRevenue.objects.create(
-            amount_fcfa=caution_commission,
-            source=PlatformRevenue.Source.COMMISSION,
-            reference=res.reference,
-            description=f"Commission visite (caution) {res.reference}",
-            payment=pay,
-        )
+        # Frais fixe de mise en relation → revenu BABIFIX (payé en plus).
+        if frais > 0:
+            PlatformRevenue.objects.create(
+                amount_fcfa=frais,
+                source=PlatformRevenue.Source.COMMISSION,
+                reference=res.reference,
+                description=f"Frais de mise en relation (visite) {res.reference}",
+                payment=pay,
+            )
 
     _schedule(
         [res.prestataire_user_id] if res.prestataire_user_id else [],
         "Caution réglée",
         (
-            f"La caution de {int(montant)} FCFA est payée pour {res.reference}. "
+            f"Le transport de {int(montant)} FCFA est réglé pour {res.reference}. "
             "Vous pouvez organiser la visite puis envoyer le devis."
         ),
         {"type": "caution.paid", "reference": res.reference},
     )
     return JsonResponse({
         "ok": True,
-        "caution": str(montant),
-        "commission": str(caution_commission),
+        "caution": str(int(montant)),
+        "frais_mise_en_relation": str(int(frais)),
+        "total": str(int(total_client)),
         "statut": res.statut,
     })
 
@@ -6870,14 +6927,14 @@ def api_prestataire_visite_done(request, reference):
         return JsonResponse({"ok": True, "visite_effectuee": True})
 
     from decimal import Decimal
-    from .models import PlatformConfig, WalletTransaction
+    from .models import WalletTransaction
 
-    # Caution acquise au prestataire : elle a été réglée par mobile, on lui
-    # verse sa part = caution − commission de visite (12 %). BABIFIX garde les
-    # 12 % (déjà comptabilisés en revenu à l'encaissement de la caution). Ce
-    # crédit est distinct du règlement du devis (qui, lui, porte sur le RESTE au
-    # complètement) → aucun double paiement. Le garde `visite_effectuee`
-    # ci-dessus rend l'opération idempotente (une seule fois).
+    # Phase 5 — le TRANSPORT (caution) revient à 100 % au prestataire : payé par
+    # mobile, on lui crédite l'INTÉGRALITÉ sur son solde (plus de commission sur
+    # la caution ; BABIFIX se rémunère via le frais fixe de mise en relation payé
+    # par le client). Distinct du règlement du devis (qui porte sur le reste au
+    # complètement) → aucun double paiement. Le garde `visite_effectuee` ci-dessus
+    # rend l'opération idempotente (une seule fois).
     caution = res.caution_montant or Decimal("0")
     part_presta = Decimal("0")
     with transaction.atomic():
@@ -6886,24 +6943,18 @@ def api_prestataire_visite_done(request, reference):
         res.save(update_fields=["visite_effectuee", "visite_effectuee_at"])
 
         if caution > 0:
-            pct = Decimal(str(PlatformConfig.get_solo().caution_commission_pct)) / Decimal("100")
-            caution_comm = (caution * pct).quantize(Decimal("1"))
-            part_presta = caution - caution_comm
-            if part_presta > 0:
-                prov = Provider.objects.select_for_update().get(pk=provider.pk)
-                prov.solde_fcfa = (prov.solde_fcfa or Decimal("0")) + part_presta
-                prov.save(update_fields=["solde_fcfa"])
-                WalletTransaction.objects.create(
-                    provider=prov,
-                    tx_type="credit",
-                    amount_fcfa=part_presta,
-                    reference=res.reference,
-                    description=(
-                        f"Caution de visite acquise — {res.reference} "
-                        f"(net après commission visite {int(pct * 100)} %)"
-                    ),
-                    status="success",
-                )
+            part_presta = caution
+            prov = Provider.objects.select_for_update().get(pk=provider.pk)
+            prov.solde_fcfa = (prov.solde_fcfa or Decimal("0")) + part_presta
+            prov.save(update_fields=["solde_fcfa"])
+            WalletTransaction.objects.create(
+                provider=prov,
+                tx_type="credit",
+                amount_fcfa=part_presta,
+                reference=res.reference,
+                description=f"Transport de visite (caution) — {res.reference}",
+                status="success",
+            )
 
     # Notifie le presta du crédit (rafraîchit son solde en temps réel).
     if part_presta > 0:

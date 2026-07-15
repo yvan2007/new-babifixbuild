@@ -98,7 +98,8 @@ class Phase14FeaturesTest(TestCase):
         self.assertTrue(it["address_is_approximate"])
         self.assertEqual(it["address_street"], "")
 
-        # 3) Le client paie la caution → commission 12 % (défaut config)
+        # 3) Le client paie la caution (transport) → 100 % presta, + frais fixe
+        #    de mise en relation payé EN PLUS (revenu BABIFIX).
         r = self._post(
             f"/api/client/reservations/{res.reference}/pay-caution",
             self.cli_tok, {"mobile_money_operator": "ORANGE_MONEY"},
@@ -108,7 +109,10 @@ class Phase14FeaturesTest(TestCase):
         self.assertTrue(res.caution_payee)
         self.assertEqual(res.statut, "DEVIS_EN_COURS")
         pay = Payment.objects.get(reference__startswith=f"CAUTION-{res.reference}")
-        self.assertEqual(pay.commission, Decimal("600"))  # 12 % de 5000
+        self.assertEqual(pay.commission, Decimal("0"))  # transport 100 % presta
+        # Frais fixe (500 par défaut) facturé en plus + comptabilisé côté BABIFIX.
+        self.assertEqual(r.json().get("frais_mise_en_relation"), "500")
+        self.assertEqual(r.json().get("total"), "5500")  # 5000 + 500
         self.assertTrue(
             PlatformRevenue.objects.filter(reference=res.reference).exists()
         )
@@ -120,8 +124,8 @@ class Phase14FeaturesTest(TestCase):
         self.assertIn("Jardins", it["address_street"])
         self.assertTrue(it["caution_payee"])
 
-        # 5) Le presta déclare la visite effectuée → sa part de caution
-        #    (5000 − 12 % = 4400) est créditée sur son solde (payée par mobile).
+        # 5) Le presta déclare la visite effectuée → le TRANSPORT (5000) lui est
+        #    crédité INTÉGRALEMENT sur son solde (100 % presta, payé par mobile).
         self.prov.refresh_from_db()
         solde_avant = self.prov.solde_fcfa or Decimal("0")
         r = self._post(
@@ -130,10 +134,10 @@ class Phase14FeaturesTest(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         res.refresh_from_db()
         self.assertTrue(res.visite_effectuee)
-        self.assertEqual(r.json().get("caution_versee_presta"), 4400.0)
+        self.assertEqual(r.json().get("caution_versee_presta"), 5000.0)
         self.prov.refresh_from_db()
         self.assertEqual(
-            (self.prov.solde_fcfa or Decimal("0")) - solde_avant, Decimal("4400")
+            (self.prov.solde_fcfa or Decimal("0")) - solde_avant, Decimal("5000")
         )
         # Idempotent : un 2e appel ne recrédite pas.
         self._post(
@@ -141,7 +145,7 @@ class Phase14FeaturesTest(TestCase):
         )
         self.prov.refresh_from_db()
         self.assertEqual(
-            (self.prov.solde_fcfa or Decimal("0")) - solde_avant, Decimal("4400")
+            (self.prov.solde_fcfa or Decimal("0")) - solde_avant, Decimal("5000")
         )
 
         # 6) Devis ferme puis acceptation → caution déduite du montant
@@ -184,9 +188,11 @@ class Phase14FeaturesTest(TestCase):
         self.assertEqual(r.status_code, 409)
         self.assertEqual(r.json().get("error"), "estimation_only")
 
-    def test_caution_commission_configurable(self):
+    def test_frais_mise_en_relation_configurable(self):
+        # Phase 5 : plus de % sur la caution (transport 100 % presta). BABIFIX
+        # facture un FRAIS FIXE configurable, payé EN PLUS par le client.
         cfg = PlatformConfig.get_solo()
-        cfg.caution_commission_pct = 20
+        cfg.frais_mise_en_relation_fcfa = 800
         cfg.save()
 
         res = self._make_reservation(ref="RES-CFG")
@@ -195,12 +201,58 @@ class Phase14FeaturesTest(TestCase):
             f"/api/prestataire/requests/{res.reference}/request-visit",
             self.presta_tok, {"caution_montant": 5000},
         )
-        self._post(
+        r = self._post(
             f"/api/client/reservations/{res.reference}/pay-caution",
             self.cli_tok, {"mobile_money_operator": "WAVE"},
         )
         pay = Payment.objects.get(reference__startswith=f"CAUTION-{res.reference}")
-        self.assertEqual(pay.commission, Decimal("1000"))  # 20 % de 5000
+        self.assertEqual(pay.commission, Decimal("0"))  # transport 100 % presta
+        self.assertEqual(r.json().get("frais_mise_en_relation"), "800")
+        self.assertEqual(r.json().get("total"), "5800")  # 5000 + 800
+        # Le frais est comptabilisé comme revenu plateforme.
+        rev = PlatformRevenue.objects.filter(reference=res.reference).first()
+        self.assertIsNotNone(rev)
+        self.assertEqual(rev.amount_fcfa, Decimal("800"))
+
+    def test_radar_visite_suspecte_flag_et_malus(self):
+        """Radar : caution payée + visite faite + AUCUN devis → flag + malus presta."""
+        from django.utils import timezone as _tz
+        from adminpanel.services.reliability_service import ReliabilityService
+
+        res = self._make_reservation(ref="RES-RADAR", statut="DEVIS_EN_COURS")
+        res.caution_payee = True
+        res.caution_montant = Decimal("5000")
+        res.visite_effectuee = True
+        res.visite_effectuee_at = _tz.now()
+        res.save()
+
+        self.prov.refresh_from_db()
+        score_avant = int(self.prov.fiabilite_score or 100)
+
+        self.assertTrue(ReliabilityService.flag_visite_suspecte_if_leak(res))
+        res.refresh_from_db()
+        self.assertTrue(res.visite_suspecte)
+        self.assertTrue(res.visite_suspecte_motif)
+        self.prov.refresh_from_db()
+        self.assertEqual(int(self.prov.fiabilite_score), max(0, score_avant - 10))
+
+        # Idempotent : 2e appel ne reflague pas, ne repénalise pas.
+        self.assertFalse(ReliabilityService.flag_visite_suspecte_if_leak(res))
+        self.prov.refresh_from_db()
+        self.assertEqual(int(self.prov.fiabilite_score), max(0, score_avant - 10))
+
+    def test_radar_ignore_sans_caution(self):
+        """Pas de caution payée → pas de flag radar (aucune fuite possible)."""
+        from django.utils import timezone as _tz
+        from adminpanel.services.reliability_service import ReliabilityService
+
+        res = self._make_reservation(ref="RES-NORADAR", statut="DEVIS_EN_COURS")
+        res.visite_effectuee = True
+        res.visite_effectuee_at = _tz.now()
+        res.save()
+        self.assertFalse(ReliabilityService.flag_visite_suspecte_if_leak(res))
+        res.refresh_from_db()
+        self.assertFalse(res.visite_suspecte)
 
     def test_reliability_suspicious_cancellation(self):
         # Cancellation via l'endpoint LIVE (api_client_cancel_reservation).

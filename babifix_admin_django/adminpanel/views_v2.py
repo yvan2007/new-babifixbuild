@@ -258,23 +258,26 @@ def _res_receipt_extras(res: Reservation) -> dict:
             _caution if res.caution_deduite else _D("0")
         )
 
-    # ── Calcul financier EXACT et RÉCONCILIÉ ────────────────────────────────
-    # Modèle validé : le client paie exactement le devis (sous-total). BABIFIX
-    # prélève DEUX commissions distinctes, toutes deux déduites du devis :
-    #   • commission de VISITE = 12 % de la caution (si caution versée) ;
-    #   • commission de DEVIS  = 18/13/8 % du sous-total (selon la formule presta).
-    # Le prestataire touche le RESTE : net = sous_total − comm_devis − comm_caution.
-    # Aucune de ces commissions ne s'ajoute à ce que règle le client.
+    # ── Calcul financier EXACT et RÉCONCILIÉ (Phase 5) ──────────────────────
+    # Modèle : le TRANSPORT (caution) revient à 100 % au prestataire ; BABIFIX
+    # prend un FRAIS FIXE de mise en relation payé EN PLUS par le client à la
+    # visite. Sur le devis, la commission (18/13/8 %) porte sur le RESTE réglé
+    # via le devis (le transport, déjà versé au presta, en est déduit).
+    #   • Client paie au total : sous_total (devis) + frais de mise en relation.
+    #   • Prestataire touche    : transport + (reste − commission) = sous_total − commission.
+    #   • BABIFIX touche        : frais de mise en relation + commission devis.
     try:
         from .models import PlatformConfig
-        _caution_pct = _D(str(PlatformConfig.get_solo().caution_commission_pct)) / _D("100")
+        _frais_mer = _D(str(PlatformConfig.get_solo().frais_mise_en_relation_fcfa or 0))
     except Exception:
-        _caution_pct = _D("0.12")
-    _caution_comm = (
-        (_caution * _caution_pct).quantize(_D("1")) if res.caution_payee else _D("0")
-    )
+        _frais_mer = _D("500")
+    # Frais affiché seulement quand une visite payante a eu lieu.
+    _frais_mer = _frais_mer if res.caution_payee else _D("0")
+    # Commission sur la caution : SUPPRIMÉE (transport 100 % presta). Conservé à 0
+    # pour compatibilité d'affichage des anciennes apps.
+    _caution_comm = _D("0")
 
-    # Reste réglé par le client = sous-total − caution déjà versée (mobile).
+    # Reste réglé par le client sur le devis = sous-total − transport déjà versé.
     _reste_client = _sous_total - (_caution if res.caution_payee else _D("0"))
     if _reste_client < 0:
         _reste_client = _D("0")
@@ -289,18 +292,17 @@ def _res_receipt_extras(res: Reservation) -> dict:
     if not _comm_rate:
         _comm_rate = 18
 
-    # Commission de devis : calculée sur le RESTE réellement réglé via le devis
-    # (le montant de la caution supporte déjà sa propre commission de 12 % — il
-    # n'est PAS taxé une deuxième fois). C'est exactement ce que fait l'escrow
-    # au complètement (commission sur res.montant = reste). Sans caution,
-    # reste = sous-total → commission sur le total, comme avant.
+    # Commission de devis sur le RESTE (le transport n'est pas retaxé). Sans
+    # caution, reste = sous-total → commission sur le total, comme avant.
     _comm = (_reste_client * _D(_comm_rate) / _D("100")).quantize(_D("1"))
 
-    # Net prestataire = (caution − 12 %) + (reste − commission devis)
-    #                 = sous_total − commission_caution − commission_devis.
-    _net_presta = _sous_total - _caution_comm - _comm
+    # Net prestataire = transport (caution) + (reste − commission) = sous_total − commission.
+    _net_presta = _sous_total - _comm
     if _net_presta < 0:
         _net_presta = _D("0")
+
+    # Total réellement déboursé par le client = devis + frais de mise en relation.
+    _total_client = _sous_total + _frais_mer
 
     # Identité du client (nom lisible + e-mail).
     cu = res.client_user
@@ -339,9 +341,13 @@ def _res_receipt_extras(res: Reservation) -> dict:
         "caution_montant": str(_caution),
         "caution_commission": str(_caution_comm),
         "caution_deduite": res.caution_deduite,
-        # Net réellement reversé au presta (déduction des DEUX commissions).
+        # Frais fixe de mise en relation (payé EN PLUS par le client à la visite).
+        "frais_mise_en_relation": str(_frais_mer),
+        # Total réellement déboursé par le client = devis + frais.
+        "total_client": str(_total_client),
+        # Net réellement reversé au presta (transport + reste − commission devis).
         "net_prestataire": str(_net_presta),
-        # Reste réglé par le client après déduction de la caution versée.
+        # Reste réglé par le client sur le devis après déduction du transport.
         "reste_client": str(_reste_client),
         # Statut du devis (ENVOYE → devis actionnable : accepter / refuser).
         "devis_statut": (devis.statut if devis else None),

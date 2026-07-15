@@ -573,6 +573,19 @@ class Reservation(models.Model):
         default=False,
         help_text="Annulation flaggée comme suspecte (anti-désintermédiation).",
     )
+    # Radar anti-fuite (Phase 5) : caution payée + adresse exacte débloquée, mais
+    # AUCUN devis envoyé (souvent suivi d'une annulation) → forte présomption que
+    # le presta et le client se sont arrangés hors plateforme après la visite.
+    visite_suspecte = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Radar : caution payée mais aucun devis → visite jugée suspecte.",
+    )
+    visite_suspecte_at = models.DateTimeField(null=True, blank=True)
+    visite_suspecte_motif = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text="Détail du signalement radar (pour l'admin).",
+    )
     photos_probleme = models.JSONField(
         default=list, blank=True, help_text="URLs des photos du problème"
     )
@@ -2050,9 +2063,20 @@ class PlatformConfig(models.Model):
     """
 
     # Commission de visite (Phase 3) — % prélevé sur la caution.
+    # DEPRECATED (Phase 5) : on ne prélève plus de % sur la caution ; le transport
+    # revient à 100 % au prestataire et BABIFIX prend un frais fixe (ci-dessous).
+    # Champ conservé pour compat / anciennes réservations.
     caution_commission_pct = models.PositiveSmallIntegerField(
         default=12,
-        help_text="Commission BABIFIX sur la caution de visite (%). Défaut 12.",
+        help_text="[Déprécié] Commission BABIFIX sur la caution de visite (%).",
+    )
+
+    # Frais fixe de mise en relation (Phase 5) — payé par le CLIENT à la visite,
+    # 100 % BABIFIX. Remplace la commission prise sur la caution : le transport
+    # revient désormais intégralement au prestataire.
+    frais_mise_en_relation_fcfa = models.PositiveIntegerField(
+        default=500,
+        help_text="Frais fixe de mise en relation payé par le client à la visite (FCFA). Défaut 500.",
     )
 
     # Gating du score de fiabilité (Phase 4) — désactivé par défaut (permissif).
@@ -2073,6 +2097,13 @@ class PlatformConfig(models.Model):
     delta_client_annulation_tardive = models.IntegerField(default=-4)
     delta_presta_noshow = models.IntegerField(default=-12)
     delta_presta_annulation_tardive = models.IntegerField(default=-8)
+    # Radar anti-fuite (Phase 5) : malus prestataire quand une visite est jugée
+    # suspecte (caution payée, adresse débloquée, mais aucun devis → probable
+    # arrangement hors plateforme).
+    delta_presta_visite_suspecte = models.IntegerField(default=-10)
+    # Nombre de jours sans devis après caution payée avant de considérer la
+    # visite comme « à risque » dans le radar admin.
+    radar_visite_sans_devis_jours = models.PositiveSmallIntegerField(default=3)
 
     updated_at = models.DateTimeField(auto_now=True)
 
