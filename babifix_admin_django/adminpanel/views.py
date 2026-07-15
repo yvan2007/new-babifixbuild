@@ -4618,6 +4618,9 @@ def api_prestataire_requests(request):
                 )[:500],
                 "client_message": client_text,
                 "client_photos": client_photos,
+                # Note vocale du client (URL). Sans ça, le lecteur ne s'affichait
+                # jamais côté presta (liste ET détail).
+                "audio_probleme": item.audio_probleme or "",
                 "disponibilites_client": item.disponibilites_client or "",
                 "is_urgent": item.is_urgent,
                 "urgence_surcharge_pct": item.urgence_surcharge_pct or 0,

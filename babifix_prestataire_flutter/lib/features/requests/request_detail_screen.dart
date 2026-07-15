@@ -200,7 +200,10 @@ class RequestDetailScreen extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 // Urgency & requirements
-                if (isUrgent || disponibilitesClient.isNotEmpty || prixPropose != null) ...[
+                if (isUrgent ||
+                    disponibilitesClient.isNotEmpty ||
+                    scheduledDate.isNotEmpty ||
+                    prixPropose != null) ...[
                   _SectionCard(
                     icon: isUrgent ? Icons.flash_on_rounded : Icons.tune_rounded,
                     title: 'Exigences du client',
@@ -219,6 +222,19 @@ class RequestDetailScreen extends StatelessWidget {
                           label: 'Disponibilités',
                           value: disponibilitesClient,
                           icon: Icons.schedule_rounded,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      // Créneau/date choisi par le client (planning). Affiché même
+                      // si le texte libre « disponibilités » est vide, sinon le
+                      // planning du client n'apparaissait nulle part côté presta.
+                      if (scheduledDate.isNotEmpty) ...[
+                        _InfoRow(
+                          label: 'Date souhaitée',
+                          value: scheduledDate.length >= 10
+                              ? scheduledDate.substring(0, 10)
+                              : scheduledDate,
+                          icon: Icons.event_available_rounded,
                         ),
                         const SizedBox(height: 8),
                       ],
@@ -1160,6 +1176,12 @@ class _SafeImage extends StatelessWidget {
   Widget build(BuildContext context) {
     if (src.isEmpty) return _placeholder(size);
 
+    // Décodage borné : une photo plein format (plusieurs Mo) décodée à sa taille
+    // réelle sature la mémoire GPU → l'écran devenait NOIR quand l'image passait
+    // à l'écran (et redevenait normal une fois sortie). On borne la résolution de
+    // décodage à ~3× la taille d'affichage : net à l'écran, sans surcharge.
+    final int decodePx = (size * 3).ceil();
+
     if (src.startsWith('data:image/')) {
       try {
         final bytes = base64Decode(src.split(',').last);
@@ -1168,6 +1190,8 @@ class _SafeImage extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
+          cacheWidth: decodePx,
+          filterQuality: FilterQuality.low,
           errorBuilder: (_, __, ___) => _placeholder(size),
         );
       } catch (_) {
@@ -1181,6 +1205,8 @@ class _SafeImage extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
+        cacheWidth: decodePx,
+        filterQuality: FilterQuality.low,
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : Container(
@@ -1206,6 +1232,8 @@ class _SafeImage extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
+          cacheWidth: decodePx,
+          filterQuality: FilterQuality.low,
           errorBuilder: (_, __, ___) => _placeholder(size),
         );
       }
