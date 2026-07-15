@@ -6083,6 +6083,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
               canPayDeposit: jsonBool(item['can_pay_deposit']),
               canPayRemainder: jsonBool(item['can_pay_remainder']),
               cautionMontant: jsonDoubleNullable(item['caution_montant']) ?? 0,
+              fraisMiseEnRelation:
+                  jsonDoubleNullable(item['frais_mise_en_relation']) ?? 500,
               cautionMotif: '${item['caution_motif'] ?? ''}',
               cautionPayee: jsonBool(item['caution_payee']),
               canPayCaution: jsonBool(item['can_pay_caution']),
@@ -6714,6 +6716,27 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
   }
 
+  Widget _cautionBreakdownRow(String label, String value, {bool bold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: bold ? 13.5 : 12.5,
+                  fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+                  color: bold ? _textPrimary : _textSecondary)),
+        ),
+        const SizedBox(width: 10),
+        Text(value,
+            style: TextStyle(
+                fontSize: bold ? 15 : 13,
+                fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+                color: bold ? const Color(0xFF22D3EE) : _textPrimary)),
+      ],
+    );
+  }
+
   /// Sheet de paiement de la caution : reproduit l'UX d'un paiement Mobile
   /// Money (opérateur + numéro + traitement + succès). Renvoie true si réglé.
   Future<bool?> _showCautionPaymentSheet(ClientReservation r) {
@@ -6727,7 +6750,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final phoneCtrl = TextEditingController();
     String phase = 'form'; // form | processing | success | error
     String? errorMsg;
-    final montant = r.cautionMontant.toStringAsFixed(0);
+    // Phase 5 : le client règle le TRANSPORT (100 % presta) + un FRAIS FIXE de
+    // mise en relation (BABIFIX). Le total est ce qu'il débourse par mobile.
+    final transportVal = r.cautionMontant;
+    final fraisVal = r.fraisMiseEnRelation;
+    final totalVal = transportVal + fraisVal;
+    final transport = transportVal.toStringAsFixed(0);
+    final frais = fraisVal.toStringAsFixed(0);
+    final montant = totalVal.toStringAsFixed(0); // total réglé par le client
 
     return showModalBottomSheet<bool>(
       context: context,
@@ -6828,7 +6858,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text('Payer la caution',
+                      child: Text('Payer la visite',
                           style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
@@ -6840,6 +6870,40 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             fontWeight: FontWeight.w900,
                             color: Color(0xFF22D3EE))),
                   ],
+                ),
+                const SizedBox(height: 12),
+                // Détail : transport (100 % presta) + frais de mise en relation.
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: Column(
+                    children: [
+                      _cautionBreakdownRow(
+                          'Transport (versé au prestataire)', '$transport FCFA'),
+                      const SizedBox(height: 6),
+                      _cautionBreakdownRow(
+                          'Frais de mise en relation', '$frais FCFA'),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Divider(
+                            height: 1, color: Colors.white.withValues(alpha: 0.10)),
+                      ),
+                      _cautionBreakdownRow('Total à régler', '$montant FCFA',
+                          bold: true),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Le transport est intégralement reversé au prestataire et déduit '
+                  'de votre devis. Les frais de mise en relation reviennent à BABIFIX. '
+                  'Non remboursable sauf litige.',
+                  style: TextStyle(
+                      fontSize: 11, height: 1.4, color: _textSecondary),
                 ),
                 const SizedBox(height: 14),
                 Text('Opérateur Mobile Money',

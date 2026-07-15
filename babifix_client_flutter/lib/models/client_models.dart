@@ -161,6 +161,7 @@ class ClientReservation {
     this.providerName = '',
     this.scheduledDate = '',
     this.cautionMontant = 0,
+    this.fraisMiseEnRelation = 500,
     this.cautionMotif = '',
     this.cautionPayee = false,
     this.canPayCaution = false,
@@ -196,10 +197,13 @@ class ClientReservation {
   final String statusLabel;
 
   /// Caution de visite de diagnostic (Phase 3).
+  /// Phase 5 : la caution = TRANSPORT (100 % prestataire). Le client règle EN
+  /// PLUS un frais fixe de mise en relation (revenu BABIFIX).
   final double cautionMontant;
   final String cautionMotif;
   final bool cautionPayee;
   final bool canPayCaution;
+  final double fraisMiseEnRelation;
 
   /// Lieu d'intervention si enregistré (carte dans l'avis).
   final double? latitude;

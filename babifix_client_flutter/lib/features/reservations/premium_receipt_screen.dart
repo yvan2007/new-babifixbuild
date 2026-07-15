@@ -543,14 +543,15 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     final commissionPct = (res['commission_rate'] is num)
         ? (res['commission_rate'] as num).round()
         : (sousTotal > 0 ? (commission / sousTotal * 100).round() : 18);
-    final cautionCommission =
-        double.tryParse('${res['caution_commission'] ?? 0}') ??
-            (cautionMontant * 0.12).roundToDouble();
-    // Net presta : on PRIVILÉGIE la valeur backend (déduction des 2 commissions).
+    // Phase 5 : le transport (caution) revient à 100 % au presta ; frais fixe
+    // de mise en relation payé EN PLUS par le client (revenu BABIFIX).
+    final frais = double.tryParse('${res['frais_mise_en_relation'] ?? 0}') ?? 0;
     final net = double.tryParse('${res['net_prestataire'] ?? ''}') ??
-        (sousTotal - commission - cautionCommission);
+        (sousTotal - commission);
     final resteClient = double.tryParse('${res['reste_client'] ?? ''}') ??
         (sousTotal - cautionMontant).clamp(0, double.infinity).toDouble();
+    final totalClient = double.tryParse('${res['total_client'] ?? ''}') ??
+        (sousTotal + frais);
 
     return _SectionCard(
       title: 'Résumé financier',
@@ -561,7 +562,7 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
           if (cautionMontant > 0) ...[
             const SizedBox(height: 6),
             _SummaryRow(
-                label: 'Caution de visite versée (mobile)',
+                label: 'Transport versé au prestataire',
                 value: -cautionMontant,
                 color: BabifixDesign.cyan),
             const SizedBox(height: 6),
@@ -581,13 +582,6 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
               label: 'Commission BABIFIX devis ($commissionPct %)',
               value: commission,
               color: BabifixDesign.warning),
-          if (cautionCommission > 0) ...[
-            const SizedBox(height: 6),
-            _SummaryRow(
-                label: 'Commission de visite (12 %)',
-                value: cautionCommission,
-                color: BabifixDesign.warning),
-          ],
           const SizedBox(height: 6),
           _SummaryRow(
               label: 'Net reversé au prestataire',
@@ -603,14 +597,27 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
               bold: true,
               large: true,
               color: BabifixDesign.navy),
+          if (frais > 0) ...[
+            const SizedBox(height: 8),
+            _SummaryRow(
+                label: 'Frais de mise en relation (à la visite)',
+                value: frais,
+                color: BabifixDesign.warning),
+            const SizedBox(height: 4),
+            _SummaryRow(
+                label: 'Total payé par le client',
+                value: totalClient,
+                bold: true,
+                color: BabifixDesign.navy),
+          ],
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Text(
               cautionMontant > 0
-                  ? 'Le client paie exactement le devis. La caution (versée par '
-                      'mobile) et les commissions sont déduites du devis, sans '
-                      'surplus. La caution n\'est pas remboursable, sauf litige '
-                      '(après analyse).'
+                  ? 'Le transport (versé par mobile) revient à 100 % au '
+                      'prestataire et est déduit du devis. Les frais de mise en '
+                      'relation reviennent à BABIFIX. Non remboursable, sauf '
+                      'litige (après analyse).'
                   : 'Le client paie exactement le devis. La commission BABIFIX '
                       'est déduite de la part du prestataire, sans surplus.',
               textAlign: TextAlign.right,

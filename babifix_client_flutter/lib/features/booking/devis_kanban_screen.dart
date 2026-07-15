@@ -309,9 +309,11 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
     final commissionPct = (ex['commission_rate'] is num)
         ? (ex['commission_rate'] as num).round()
         : (sousTotal > 0 ? (commission / sousTotal * 100).round() : 18);
-    final cautionCommission = d('caution_commission', (caution * 0.12));
-    final net = d('net_prestataire', sousTotal - commission - cautionCommission);
+    // Phase 5 : transport 100 % presta ; frais fixe de mise en relation en plus.
+    final frais = cautionPayee ? d('frais_mise_en_relation', 500) : 0.0;
+    final net = d('net_prestataire', sousTotal - commission);
     final reste = d('reste_client', sousTotal - caution);
+    final totalClient = d('total_client', sousTotal + frais);
 
     Widget row(String label, double value,
         {Color? color, bool bold = false, bool big = false, bool neg = false}) {
@@ -371,7 +373,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
           const SizedBox(height: 12),
           row('Sous-total prestation', sousTotal),
           if (caution > 0) ...[
-            row('Caution de visite versée (mobile)', caution,
+            row('Transport versé au prestataire', caution,
                 color: BabifixDesign.cyan, neg: true),
             row('Reste à régler (espèces ou mobile)', reste,
                 bold: true, color: BabifixDesign.navy),
@@ -382,22 +384,26 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
           ),
           row('Commission BABIFIX devis ($commissionPct %)', commission,
               color: BabifixDesign.warning),
-          if (cautionCommission > 0)
-            row('Commission de visite (12 %)', cautionCommission,
-                color: BabifixDesign.warning),
           row('Net reversé au prestataire', net, color: BabifixDesign.success),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Divider(height: 1, color: Color(0xFFE2E8F0)),
           ),
           row('TOTAL PRESTATION', sousTotal, bold: true, big: true),
+          if (frais > 0) ...[
+            const SizedBox(height: 6),
+            row('Frais de mise en relation (à la visite)', frais,
+                color: BabifixDesign.warning),
+            row('Total payé par le client', totalClient,
+                bold: true, color: BabifixDesign.navy),
+          ],
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Text(
               caution > 0
-                  ? 'Vous payez exactement le devis. La caution (versée par '
-                      'mobile) et les commissions BABIFIX sont déduites du devis, '
-                      'sans surplus. La caution n\'est pas remboursable, sauf '
+                  ? 'Le transport (versé par mobile) revient à 100 % au '
+                      'prestataire et est déduit du devis. Les frais de mise en '
+                      'relation reviennent à BABIFIX. Non remboursable, sauf '
                       'litige (après analyse).'
                   : 'Vous payez exactement le devis. La commission BABIFIX est '
                       'prélevée sur la part du prestataire, sans surplus pour vous.',

@@ -129,6 +129,16 @@ def api_app_log_error(request):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _frais_mise_en_relation_config() -> float:
+    """Frais fixe de mise en relation (config plateforme) — pour l'app client,
+    affiché AVANT le paiement de la caution (transport + frais = total)."""
+    try:
+        from .models import PlatformConfig
+        return float(PlatformConfig.get_solo().frais_mise_en_relation_fcfa or 0)
+    except Exception:
+        return 500.0
+
+
 def _res_to_dict(res: Reservation, uid: int) -> dict:
     """Sérialise une Reservation pour l'API client."""
     has_rating = hasattr(res, "rating") and res.rating is not None
@@ -155,10 +165,14 @@ def _res_to_dict(res: Reservation, uid: int) -> dict:
         "cash_flow_status": res.cash_flow_status,
         "dispute_ouverte": res.dispute_ouverte,
         # Caution de visite de diagnostic (Phase 3). 0 / False = pas de visite.
+        # Phase 5 : la caution = TRANSPORT (100 % presta). Le client paie EN PLUS
+        # un frais fixe de mise en relation (config plateforme) → exposé ici pour
+        # l'afficher AVANT paiement (transport + frais = total).
         "caution_montant": float(res.caution_montant or 0),
         "caution_motif": res.caution_motif or "",
         "caution_payee": bool(res.caution_payee),
         "caution_deduite": bool(res.caution_deduite),
+        "frais_mise_en_relation": _frais_mise_en_relation_config(),
         "can_cancel": res.statut
         in ("En attente", "Confirmee", "DEMANDE_ENVOYEE", "DEVIS_EN_COURS",
             "DEVIS_ENVOYE", "VISITE_DIAGNOSTIC"),
