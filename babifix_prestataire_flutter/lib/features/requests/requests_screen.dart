@@ -1797,10 +1797,26 @@ class _RequestsScreenState extends State<RequestsScreen> {
     try {
       final url = '${babifixApiBaseUrl()}/api/prestataire/requests';
       debugPrint('📥 PRESTATAIRE LOAD REQUESTS — URL: $url');
-      final res = await http.get(
-        Uri.parse(url),
-        headers: {'Authorization': 'Bearer $authToken'},
-      );
+      // Serveur Render (offre gratuite) : après une période d'inactivité, le 1er
+      // appel réveille le serveur → « cold start » d'environ 40-60 s. Sans
+      // timeout, le spinner tournait à l'infini. On borne à 60 s et on réessaie
+      // UNE fois (le 2e appel tombe sur un serveur déjà chaud → réponse rapide).
+      // Le bloc finally coupe toujours le spinner et garde la dernière liste.
+      http.Response? res;
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          res = await http.get(
+            Uri.parse(url),
+            headers: {'Authorization': 'Bearer $authToken'},
+          ).timeout(const Duration(seconds: 60));
+          break;
+        } catch (e) {
+          debugPrint('⏱️ requests attempt ${attempt + 1} échec: $e');
+          if (attempt == 1) rethrow;
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      }
+      if (res == null) return;
       debugPrint('📥 RESPONSE — status: ${res.statusCode}, body: ${res.body}');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
