@@ -5379,6 +5379,59 @@ def api_prestataire_me(request):
     for pay in monthly_payments:
         pay_sum += _safe_decimal(pay.montant) - _safe_decimal(pay.commission)
     cat = prov.category
+
+    # ── Fiabilité + avertissement anti-contournement (Phase 5) ──────────────
+    from .models import PlatformConfig as _PC
+    _cfg = _PC.get_solo()
+    _seuil = int(getattr(_cfg, "fiabilite_seuil", 40) or 40)
+    _score = int(getattr(prov, "fiabilite_score", 100) or 100)
+    _suspectes = qs.filter(visite_suspecte=True).count()
+
+    if _score >= 80:
+        _niveau, _niveau_code = "Excellent", "excellent"
+    elif _score >= 60:
+        _niveau, _niveau_code = "Bon", "bon"
+    elif _score >= _seuil:
+        _niveau, _niveau_code = "Moyen", "moyen"
+    else:
+        _niveau, _niveau_code = "À risque", "risque"
+
+    _avert_actif = (_score < _seuil) or (_suspectes >= 1)
+    _avert_niveau = "critique" if (_score < _seuil or _suspectes >= 2) else "attention"
+    if _suspectes >= 1:
+        _avert_titre = "Contournement détecté"
+        _avert_msg = (
+            f"Nous avons repéré {_suspectes} visite(s) où la caution a été payée "
+            "mais aucun devis n'a été envoyé via BABIFIX. Traiter un client en "
+            "dehors de la plateforme après une visite est interdit et fait chuter "
+            "votre fiabilité. Envoyez toujours vos devis dans l'application. "
+            "En cas de récidive, votre compte pourra être suspendu."
+        )
+    elif _score < _seuil:
+        _avert_titre = "Votre fiabilité est basse"
+        _avert_msg = (
+            "Votre score est passé sous le seuil. Honorez vos rendez-vous et "
+            "envoyez vos devis via BABIFIX pour le remonter. Un score trop bas "
+            "peut entraîner une suspension de votre compte."
+        )
+    else:
+        _avert_titre = ""
+        _avert_msg = ""
+
+    _fiabilite = {
+        "score": _score,
+        "seuil": _seuil,
+        "niveau": _niveau,
+        "niveau_code": _niveau_code,
+        "visites_suspectes": _suspectes,
+        "avertissement": {
+            "actif": _avert_actif,
+            "niveau": _avert_niveau,
+            "titre": _avert_titre,
+            "message": _avert_msg,
+        },
+    }
+
     return JsonResponse(
         {
             "provider": {
@@ -5436,6 +5489,7 @@ def api_prestataire_me(request):
                 "chiffre_paiements": int(pay_sum),
                 "nb_paiements": monthly_payments.count(),
             },
+            "fiabilite": _fiabilite,
             "unread_chat_messages": _unread_messages_total_for_user(uid),
         }
     )

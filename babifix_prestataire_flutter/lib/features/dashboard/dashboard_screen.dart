@@ -69,6 +69,16 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   Map<String, dynamic>? _activeIntervention;
   bool _loadingActive = true;
 
+  // Fiabilité + avertissement anti-contournement (Phase 5).
+  int _fiabiliteScore = 100;
+  String _fiabiliteNiveau = 'Excellent';
+  String _fiabiliteNiveauCode = 'excellent';
+  int _visitesSuspectes = 0;
+  bool _avertActif = false;
+  String _avertNiveau = 'attention'; // attention | critique
+  String _avertTitre = '';
+  String _avertMessage = '';
+
   bool get _isLight => widget.paletteMode != AppPaletteMode.blue;
 
   @override
@@ -166,6 +176,8 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
             final data = jsonDecode(res.body) as Map<String, dynamic>;
             final prov = data['provider'] as Map<String, dynamic>? ?? {};
             final st = data['stats'] as Map<String, dynamic>? ?? {};
+            final fi = data['fiabilite'] as Map<String, dynamic>? ?? {};
+            final avert = fi['avertissement'] as Map<String, dynamic>? ?? {};
             final nom = '${prov['nom'] ?? 'Prestataire'}';
             final rc = (st['reservations_total'] as num?)?.toInt() ?? 0;
             final ch = (st['chiffre_paiements'] as num?)?.toInt() ?? 0;
@@ -184,6 +196,16 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
               _refusalReason = rr.isEmpty ? null : rr;
               _isAvailable = dispo == true || dispo == 1;
               _photoUrl = photo.isEmpty ? null : photo;
+              // Fiabilité + avertissement anti-contournement.
+              _fiabiliteScore = (fi['score'] as num?)?.toInt() ??
+                  (prov['fiabilite_score'] as num?)?.toInt() ?? 100;
+              _fiabiliteNiveau = '${fi['niveau'] ?? 'Excellent'}';
+              _fiabiliteNiveauCode = '${fi['niveau_code'] ?? 'excellent'}';
+              _visitesSuspectes = (fi['visites_suspectes'] as num?)?.toInt() ?? 0;
+              _avertActif = avert['actif'] == true;
+              _avertNiveau = '${avert['niveau'] ?? 'attention'}';
+              _avertTitre = '${avert['titre'] ?? ''}';
+              _avertMessage = '${avert['message'] ?? ''}';
               providerVille = '${prov['ville'] ?? ''}'.trim();
               _contratSigne = prov['contrat_signe'] == true;
               _aNumeroRetrait = prov['a_numero_retrait'] == true;
@@ -202,6 +224,185 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
 
   /// Checklist de démarrage : guide le prestataire pour activer son compte.
   /// Disparaît automatiquement quand toutes les étapes sont faites (ou ignorée).
+  Color _fiabiliteColor() {
+    switch (_fiabiliteNiveauCode) {
+      case 'excellent':
+        return const Color(0xFF22C55E);
+      case 'bon':
+        return const Color(0xFF06B6D4);
+      case 'moyen':
+        return const Color(0xFFF59E0B);
+      default:
+        return const Color(0xFFEF4444);
+    }
+  }
+
+  /// Carte de fiabilité : jauge + niveau + conseil. Toujours visible.
+  Widget _buildFiabiliteCard() {
+    final c = _fiabiliteColor();
+    final light = _isLight;
+    final bg = light ? Colors.white : const Color(0xFF152138);
+    final textPrimary = light ? const Color(0xFF0F172A) : Colors.white;
+    final textSec = light ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: c.withValues(alpha: 0.30)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: light ? 0.05 : 0.20),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: CircularProgressIndicator(
+                    value: _fiabiliteScore.clamp(0, 100) / 100.0,
+                    strokeWidth: 6,
+                    backgroundColor: c.withValues(alpha: 0.15),
+                    valueColor: AlwaysStoppedAnimation<Color>(c),
+                  ),
+                ),
+                Text('$_fiabiliteScore',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: textPrimary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('Fiabilité',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: textSec)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: c.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(999)),
+                      child: Text(_fiabiliteNiveau,
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: c)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _fiabiliteScore >= 80
+                      ? 'Excellent ! Continuez à honorer vos rendez-vous et à envoyer vos devis dans l\'application.'
+                      : _fiabiliteScore >= 60
+                          ? 'Bon niveau. Passez toujours vos devis via BABIFIX pour progresser.'
+                          : 'Votre score doit remonter : honorez vos visites et envoyez vos devis dans l\'app.',
+                  style: TextStyle(fontSize: 12, height: 1.35, color: textSec),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Carte d'avertissement anti-contournement (suspension si récidive).
+  Widget _buildAvertissementCard() {
+    final critique = _avertNiveau == 'critique';
+    final c = critique ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
+    final light = _isLight;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c.withValues(alpha: 0.18), c.withValues(alpha: 0.06)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.18), shape: BoxShape.circle),
+                child: Icon(
+                    critique
+                        ? Icons.gpp_maybe_rounded
+                        : Icons.warning_amber_rounded,
+                    color: c,
+                    size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _avertTitre.isEmpty ? 'Attention' : _avertTitre,
+                  style: TextStyle(
+                      fontSize: 15.5, fontWeight: FontWeight.w900, color: c),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _avertMessage,
+            style: TextStyle(
+                fontSize: 12.8,
+                height: 1.45,
+                color:
+                    light ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+          ),
+          if (_visitesSuspectes > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                  color: c.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.flag_rounded, size: 16, color: c),
+                  const SizedBox(width: 8),
+                  Text('$_visitesSuspectes visite(s) signalée(s)',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w800, color: c)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildOnboardingChecklist() {
     if (_loadingMe || _onboardingDismissed) return const SizedBox.shrink();
     final steps = <({bool done, String label, String target, IconData icon})>[
@@ -499,6 +700,16 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
             padding: const EdgeInsets.all(16),
             sliver: SliverList.list(
               children: [
+                // Avertissement anti-contournement (visible en haut si actif).
+                if (_avertActif && !_loadingMe) ...[
+                  _buildAvertissementCard(),
+                  const SizedBox(height: 14),
+                ],
+                // Carte de fiabilité, toujours visible.
+                if (!_loadingMe) ...[
+                  _buildFiabiliteCard(),
+                  const SizedBox(height: 18),
+                ],
                 Text(
                   'Prochaine intervention',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
