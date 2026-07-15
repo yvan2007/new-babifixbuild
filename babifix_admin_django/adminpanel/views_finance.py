@@ -376,9 +376,35 @@ def api_client_fidelite(request):
         "referral_code": stats.get("code") or "",
         "referral_credits": stats.get("credits_earned", 0),
         "filleuls_count": stats.get("filleuls", 0),
-        # Bonus : compteur de points cumulés (1 pt / 1 000 F dépensés)
+        # Points fidélité : cumul, valeur, seuil de conversion, crédit disponible.
         "points": points.get("points", 0),
+        "valeur_point_fcfa": points.get("valeur_point_fcfa", 10),
+        "seuil_conversion": points.get("seuil_conversion", 100),
+        "points_convertibles": points.get("convertible", False),
+        "credit_disponible_fcfa": points.get("credit_disponible_fcfa", 0.0),
+        "equivalent_fcfa": points.get("equivalent_fcfa", 0),
     }, status=200)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["client"])
+def api_client_fidelite_convert(request):
+    """POST {points} → convertit des points fidélité en crédit FCFA utilisable."""
+    from django.contrib.auth.models import User
+    from .services.fidelite_service import FideliteService
+
+    try:
+        user = User.objects.get(pk=request.api_user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "user_not_found"}, status=404)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    points = int(payload.get("points", 0) or 0)
+    out = FideliteService.convert_points(user, points)
+    return JsonResponse(out, status=200 if out.get("ok") else 400)
 
 
 # =============================================================================

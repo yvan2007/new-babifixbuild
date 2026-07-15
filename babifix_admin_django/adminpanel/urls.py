@@ -23,6 +23,7 @@ from .views_finance import (
     api_admin_business_kpis,
     kpi_dashboard_page,
     api_client_fidelite,
+    api_client_fidelite_convert,
     api_rating_voice_upload,
     api_admin_platform_revenue,
     api_admin_validate_withdrawal,
@@ -672,6 +673,7 @@ urlpatterns = [
     path("api/prestataire/contrat/", api_prestataire_contrat, name="api-prestataire-contrat"),
     path("api/prestataire/contrat/sign/", api_prestataire_contrat_sign, name="api-prestataire-contrat-sign"),
     path("api/client/fidelite/", api_client_fidelite, name="api-client-fidelite"),
+    path("api/client/fidelite/convert", api_client_fidelite_convert, name="api-client-fidelite-convert"),
 
     # ── Parrainage ────────────────────────────────────────────────────────────
     path("api/auth/referral/", api_referral, name="api-referral"),
@@ -682,6 +684,7 @@ urlpatterns = [
     path("api/prestataire/premium/calculator/", api_premium_calculator, name="api-premium-calculator"),
     path("api/prestataire/premium/pay/", geniuspay_premium_initiate, name="api-premium-pay"),
     path("api/client/fidelite/", api_client_fidelite, name="api-client-fidelite"),
+    path("api/client/fidelite/convert", api_client_fidelite_convert, name="api-client-fidelite-convert"),
     path("api/admin/business-kpis/", api_admin_business_kpis, name="api-admin-business-kpis"),
     path("dashboard/kpis/", kpi_dashboard_page, name="kpi-dashboard"),
     # B2B — BABIFIX Pro

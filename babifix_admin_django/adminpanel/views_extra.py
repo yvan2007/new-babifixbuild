@@ -1497,6 +1497,14 @@ def api_client_fidelite(request):
     except Exception:
         referral_code, referral_credits, filleuls_count, bonus_applique = "", 0, 0, False
 
+    # Points fidélité + crédit (convertible / disponible), via FideliteService.
+    try:
+        from django.contrib.auth.models import User as _U
+        from .services.fidelite_service import FideliteService
+        _pts = FideliteService.summary(_U.objects.get(pk=user_id))
+    except Exception:
+        _pts = {}
+
     return JsonResponse({
         "niveau": niveau,
         "couleur": couleur,
@@ -1508,6 +1516,13 @@ def api_client_fidelite(request):
         "referral_credits": referral_credits,
         "filleuls_count": filleuls_count,
         "bonus_premiere_reservation_applique": bonus_applique,
+        # Points fidélité + crédit (100 pts = 1 000 F ; utilisable en réduction).
+        "points": _pts.get("points", 0),
+        "valeur_point_fcfa": _pts.get("valeur_point_fcfa", 10),
+        "seuil_conversion": _pts.get("seuil_conversion", 100),
+        "points_convertibles": _pts.get("convertible", False),
+        "credit_disponible_fcfa": _pts.get("credit_disponible_fcfa", 0.0),
+        "equivalent_fcfa": _pts.get("equivalent_fcfa", 0),
         "garanties": [
             {
                 "icon": "verified_rounded",

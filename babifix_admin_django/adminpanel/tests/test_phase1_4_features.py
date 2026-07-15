@@ -285,6 +285,43 @@ class Phase14FeaturesTest(TestCase):
             self.assertTrue(r.json().get("suspended"))
             self.assertEqual(r.json().get("items"), [])
 
+    def test_fidelite_remise_appliquee_babifix_absorbe(self):
+        """Crédit fidélité → remise sur ce que paie le client ; presta net INCHANGÉ,
+        BABIFIX absorbe."""
+        from adminpanel.services.escrow_service import EscrowService
+
+        prof = UserProfile.objects.get(user=self.cli)
+        prof.fidelite_credit_fcfa = Decimal("2000")
+        prof.save()
+
+        res = self._make_reservation(ref="RES-FID")
+        res.payment_type = "MOBILE_MONEY"
+        res.save(update_fields=["payment_type"])
+
+        # Devis 50 000 (commission 18 % = 9 000 ; net presta 41 000).
+        r = self._post(
+            f"/api/prestataire/requests/{res.reference}/devis", self.presta_tok,
+            {"diagnostic": "Job", "lignes": [
+                {"type_ligne": "MAIN_OEUVRE", "description": "X", "quantite": 1,
+                 "prix_unitaire": 50000}]},
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        r = self._post(
+            f"/api/client/reservations/{res.reference}/devis/accept", self.cli_tok
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+
+        res.refresh_from_db()
+        # Remise = min(crédit 2000, commission 9000) = 2000, crédit consommé.
+        self.assertEqual(res.remise_fidelite, Decimal("2000"))
+        prof.refresh_from_db()
+        self.assertEqual(prof.fidelite_credit_fcfa, Decimal("0"))
+
+        # Le client paie total − remise ; le net presta reste sur le devis complet.
+        q = EscrowService.quote(res)
+        self.assertEqual(q.amount_due, Decimal("14400"))  # 30 % de (50000 − 2000)
+        self.assertEqual(q.net_prestataire, Decimal("41000"))  # inchangé (50000 − 9000)
+
     def test_reliability_suspicious_cancellation(self):
         # Cancellation via l'endpoint LIVE (api_client_cancel_reservation).
         res = self._make_reservation(ref="RES-REL", statut="VISITE_DIAGNOSTIC")

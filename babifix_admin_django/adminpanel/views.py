@@ -7861,6 +7861,35 @@ def api_client_accept_devis(request, reference):
             final_montant = Decimal("0")
         res.caution_deduite = True
         update_fields.append("caution_deduite")
+
+    # ── Fidélité : applique le crédit du client comme REMISE (BABIFIX absorbe) ──
+    # Plafonnée à la commission du devis → le revenu BABIFIX ne devient jamais
+    # négatif et le prestataire touche toujours son net plein. Uniquement hors
+    # espèces (l'escrow porte la remise sur les paiements mobiles).
+    from decimal import Decimal as _D2
+    try:
+        if (
+            res.payment_type != Reservation.PaymentType.ESPECES
+            and not res.remise_fidelite
+            and res.client_user_id
+        ):
+            prof = UserProfile.objects.filter(user_id=res.client_user_id).first()
+            credit = _D2(str(getattr(prof, "fidelite_credit_fcfa", 0) or 0)) if prof else _D2("0")
+            if credit > 0 and prof:
+                commission = _D2(str(devis.commission_montant or 0))
+                cap = commission if commission < final_montant else final_montant
+                applied = credit if credit < cap else cap
+                if applied > 0:
+                    res.remise_fidelite = applied
+                    update_fields.append("remise_fidelite")
+                    prof.fidelite_credit_fcfa = credit - applied
+                    prof.save(update_fields=["fidelite_credit_fcfa"])
+                    final_montant = final_montant - applied
+                    if final_montant < _D2("0"):
+                        final_montant = _D2("0")
+    except Exception:
+        logger.warning("fidelite remise apply failed for %s", res.reference, exc_info=True)
+
     res.montant = final_montant
     res.save(update_fields=update_fields)
 

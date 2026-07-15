@@ -118,6 +118,20 @@ def _latest_devis(reservation):
     return qs.filter(statut=Devis.Statut.ENVOYE).first()
 
 
+def _total_client_du(reservation, devis) -> Decimal:
+    """Total réellement dû par le CLIENT = total du devis − remise fidélité.
+
+    Fidélité (Phase 5) : BABIFIX ABSORBE la remise. Le net prestataire reste
+    basé sur le devis (inchangé) ; seule la part que règle le client, et donc le
+    revenu BABIFIX, diminuent. Un même helper est utilisé partout (devis, solde,
+    seuil de libération) pour rester cohérent.
+    """
+    total = Decimal(str(getattr(devis, "total_ttc", 0) or 0))
+    remise = Decimal(str(getattr(reservation, "remise_fidelite", 0) or 0))
+    reste = total - remise
+    return reste if reste > 0 else Decimal("0")
+
+
 @dataclass
 class EscrowQuote:
     """Ce que le client doit verser maintenant pour démarrer l'intervention."""
@@ -186,12 +200,15 @@ class EscrowService:
             # puis 70 % de solde à la fin (avant confirmation). Tout reste en
             # escrow jusqu'à la confirmation client (release_funds).
             montant_verse = Decimal(str(reservation.montant_verse or 0))
+            # Ce que le client règle au total = total − remise fidélité (BABIFIX
+            # absorbe). Le net prestataire, lui, reste sur le total du devis.
+            total_client = _total_client_du(reservation, devis)
             if not reservation.acompte_valide:
                 strategy = "MOBILE_DEPOSIT"  # phase 1 : acompte
-                amount_due = (total * MOBILE_DEPOSIT_RATE).quantize(Decimal("1"))
+                amount_due = (total_client * MOBILE_DEPOSIT_RATE).quantize(Decimal("1"))
             else:
                 strategy = "MOBILE_REMAINDER"  # phase 2 : solde restant
-                amount_due = total - montant_verse
+                amount_due = total_client - montant_verse
             if amount_due < 0:
                 amount_due = Decimal("0")
             # B12 — garde-fou montant minimum GeniusPay (sans dépasser le total).
@@ -249,7 +266,11 @@ class EscrowService:
         # Met à jour le reste dû (utile au flux Mobile 30 %/70 % : après
         # l'acompte il reste 70 % à payer en ligne avant la confirmation).
         _devis_total = _latest_devis(reservation)
-        _total_due = Decimal(str(_devis_total.total_ttc or 0)) if _devis_total else reservation.montant_verse
+        _total_due = (
+            _total_client_du(reservation, _devis_total)
+            if _devis_total
+            else reservation.montant_verse
+        )
         reservation.montant_restant = max(Decimal("0"), _total_due - reservation.montant_verse)
         update_fields = [
             "montant_verse",
@@ -446,9 +467,10 @@ class EscrowService:
         else:
             # Mobile : la plateforme libère le net vers le wallet presta et
             # acte la commission en PlatformRevenue.
-            # Sécurité argent : ne rien libérer tant que le TOTAL (acompte 30 %
-            # + solde 70 %) n'a pas été encaissé en escrow.
-            total_due = Decimal(str(devis.total_ttc or 0))
+            # Sécurité argent : ne rien libérer tant que le TOTAL dû par le client
+            # (acompte 30 % + solde 70 %, MOINS la remise fidélité absorbée par
+            # BABIFIX) n'a pas été encaissé en escrow.
+            total_due = _total_client_du(reservation, devis)
             montant_verse = Decimal(str(reservation.montant_verse or 0))
             if montant_verse + Decimal("1") < total_due:  # tolérance arrondi 1 XOF
                 logger.info(
@@ -505,8 +527,22 @@ class EscrowService:
                 ),
             )
 
+            # Fidélité : BABIFIX ABSORBE la remise offerte au client → écriture
+            # NÉGATIVE qui vient réduire son revenu (le presta a touché son net
+            # plein). Revenu net BABIFIX = commission − remise.
+            _remise_fid = Decimal(str(reservation.remise_fidelite or 0))
+            if _remise_fid > 0:
+                PlatformRevenue.objects.create(
+                    amount_fcfa=(-_remise_fid),
+                    source=PlatformRevenue.Source.COMMISSION,
+                    reference=reservation.reference,
+                    description=(
+                        f"Remise fidélité offerte au client — {reservation.reference}"
+                    ),
+                )
+
             result["released_to_provider"] = float(net)
-            result["platform_revenue"] = float(commission)
+            result["platform_revenue"] = float(commission - (reservation.remise_fidelite or 0))
             result["provider_balance"] = float(prov.solde_fcfa)
 
             # Notif temps réel

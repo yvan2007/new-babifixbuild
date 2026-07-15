@@ -20,6 +20,7 @@ class FideliteScreen extends StatefulWidget {
 class _FideliteScreenState extends State<FideliteScreen>
     with SingleTickerProviderStateMixin {
   bool _loading = true;
+  bool _converting = false;
   Map<String, dynamic>? _data;
   String? _error;
   late final AnimationController _fadeCtrl;
@@ -52,7 +53,7 @@ class _FideliteScreenState extends State<FideliteScreen>
       final res = await http.get(
         Uri.parse('${babifixApiBaseUrl()}/api/client/fidelite/'),
         headers: {'Authorization': 'Bearer $token'},
-      ).timeout(const Duration(seconds: 12));
+      ).timeout(const Duration(seconds: 45));
       if (res.statusCode == 200) {
         setState(() {
           _data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -162,6 +163,8 @@ class _FideliteScreenState extends State<FideliteScreen>
                       isLight: isLight,
                     ),
                     const SizedBox(height: 20),
+                    _buildPointsCard(cardBg, textPrimary, textSecondary, isLight),
+                    const SizedBox(height: 20),
                     _SectionHeader(
                       label: 'NIVEAUX DE FIDÉLITÉ',
                       icon: Icons.emoji_events_rounded,
@@ -182,6 +185,127 @@ class _FideliteScreenState extends State<FideliteScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildPointsCard(
+      Color cardBg, Color textPrimary, Color textSecondary, bool isLight) {
+    final d = _data ?? {};
+    final points = (d['points'] as num?)?.toInt() ?? 0;
+    final seuil = (d['seuil_conversion'] as num?)?.toInt() ?? 100;
+    final credit = (d['credit_disponible_fcfa'] as num?)?.toDouble() ?? 0;
+    final equivalent = (d['equivalent_fcfa'] as num?)?.toInt() ?? points * 10;
+    final convertible = d['points_convertibles'] == true || points >= seuil;
+    const cyan = Color(0xFF4CC9F0);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cyan.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.stars_rounded, color: cyan, size: 22),
+              const SizedBox(width: 8),
+              Text('Mes points',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: textPrimary)),
+              const Spacer(),
+              Text('$points pts',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w900, color: cyan)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('Soit ~$equivalent F de réduction · 100 pts = 1 000 F',
+              style: TextStyle(fontSize: 12, color: textSecondary)),
+          if (credit > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [
+                const Icon(Icons.account_balance_wallet_rounded,
+                    size: 16, color: Color(0xFF22C55E)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                      'Crédit disponible : ${credit.toStringAsFixed(0)} F — appliqué automatiquement à l\'acceptation de votre prochain devis (mobile).',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF16A34A))),
+                ),
+              ]),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: convertible && !_converting ? _convertPoints : null,
+              style: FilledButton.styleFrom(
+                  backgroundColor: cyan,
+                  padding: const EdgeInsets.symmetric(vertical: 13)),
+              icon: _converting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.redeem_rounded, size: 18),
+              label: Text(
+                  convertible
+                      ? 'Convertir mes points en crédit'
+                      : 'Atteignez $seuil pts pour convertir',
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _convertPoints() async {
+    final points = (_data?['points'] as num?)?.toInt() ?? 0;
+    if (points <= 0) return;
+    setState(() => _converting = true);
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      final res = await http
+          .post(
+            Uri.parse('${babifixApiBaseUrl()}/api/client/fidelite/convert'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'points': points}),
+          )
+          .timeout(const Duration(seconds: 45));
+      if (mounted) {
+        final ok = res.statusCode == 200;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              ok ? 'Points convertis en crédit !' : 'Conversion impossible.'),
+          backgroundColor:
+              ok ? const Color(0xFF16A34A) : const Color(0xFFEF4444),
+        ));
+        if (ok) await _load();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Erreur réseau, réessayez.')));
+      }
+    }
+    if (mounted) setState(() => _converting = false);
   }
 
   SliverAppBar _buildAppBar(bool isLight, Color textPrimary) {

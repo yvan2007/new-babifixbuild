@@ -546,12 +546,13 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     // Phase 5 : le transport (caution) revient à 100 % au presta ; frais fixe
     // de mise en relation payé EN PLUS par le client (revenu BABIFIX).
     final frais = double.tryParse('${res['frais_mise_en_relation'] ?? 0}') ?? 0;
+    final remiseFid = double.tryParse('${res['remise_fidelite'] ?? 0}') ?? 0;
     final net = double.tryParse('${res['net_prestataire'] ?? ''}') ??
         (sousTotal - commission);
     final resteClient = double.tryParse('${res['reste_client'] ?? ''}') ??
         (sousTotal - cautionMontant).clamp(0, double.infinity).toDouble();
     final totalClient = double.tryParse('${res['total_client'] ?? ''}') ??
-        (sousTotal + frais);
+        (sousTotal + frais - remiseFid);
 
     return _SectionCard(
       title: 'Résumé financier',
@@ -597,12 +598,20 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
               bold: true,
               large: true,
               color: BabifixDesign.navy),
-          if (frais > 0) ...[
+          if (frais > 0 || remiseFid > 0) ...[
             const SizedBox(height: 8),
-            _SummaryRow(
-                label: 'Frais de mise en relation (à la visite)',
-                value: frais,
-                color: BabifixDesign.warning),
+            if (frais > 0)
+              _SummaryRow(
+                  label: 'Frais de mise en relation (à la visite)',
+                  value: frais,
+                  color: BabifixDesign.warning),
+            if (remiseFid > 0) ...[
+              const SizedBox(height: 4),
+              _SummaryRow(
+                  label: 'Réduction fidélité',
+                  value: -remiseFid,
+                  color: BabifixDesign.success),
+            ],
             const SizedBox(height: 4),
             _SummaryRow(
                 label: 'Total payé par le client',

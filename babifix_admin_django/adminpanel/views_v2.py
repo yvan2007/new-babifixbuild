@@ -315,8 +315,12 @@ def _res_receipt_extras(res: Reservation) -> dict:
     if _net_presta < 0:
         _net_presta = _D("0")
 
-    # Total réellement déboursé par le client = devis + frais de mise en relation.
-    _total_client = _sous_total + _frais_mer
+    # Remise fidélité éventuelle (absorbée par BABIFIX) déduite de ce que paie
+    # le client. Total client = devis + frais − remise fidélité.
+    _remise_fid = res.remise_fidelite or _D("0")
+    _total_client = _sous_total + _frais_mer - _remise_fid
+    if _total_client < 0:
+        _total_client = _D("0")
 
     # Identité du client (nom lisible + e-mail).
     cu = res.client_user
@@ -357,7 +361,9 @@ def _res_receipt_extras(res: Reservation) -> dict:
         "caution_deduite": res.caution_deduite,
         # Frais fixe de mise en relation (payé EN PLUS par le client à la visite).
         "frais_mise_en_relation": str(_frais_mer),
-        # Total réellement déboursé par le client = devis + frais.
+        # Remise fidélité appliquée (absorbée par BABIFIX).
+        "remise_fidelite": str(_remise_fid),
+        # Total réellement déboursé par le client = devis + frais − remise.
         "total_client": str(_total_client),
         # Net réellement reversé au presta (transport + reste − commission devis).
         "net_prestataire": str(_net_presta),

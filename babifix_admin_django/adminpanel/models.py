@@ -634,6 +634,14 @@ class Reservation(models.Model):
         default=0,
         help_text="Montant restant dû à la fin de l'intervention",
     )
+    # Fidélité (Phase 5) : remise appliquée sur ce que paie le CLIENT, ABSORBÉE
+    # par BABIFIX (le net prestataire reste basé sur le devis complet).
+    remise_fidelite = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Remise fidélité (crédit) appliquée, absorbée par BABIFIX.",
+    )
     acompte_valide = models.BooleanField(
         default=False,
         help_text="L'acompte a été payé et bloqué, le prestataire peut commencer",
