@@ -4575,6 +4575,14 @@ def api_prestataire_requests(request):
     uid = request.api_user_id
     prov = _prestataire_provider_for_user(uid)
 
+    # Compte suspendu : plus aucune demande (ni consultation, ni acceptation).
+    if prov and prov.statut == Provider.Status.SUSPENDED:
+        return JsonResponse({
+            "items": [],
+            "suspended": True,
+            "message": (prov.refusal_reason or "Compte suspendu.").strip(),
+        })
+
     queryset = Reservation.objects.all()
     if prov:
         queryset = queryset.filter(
@@ -5396,27 +5404,42 @@ def api_prestataire_me(request):
     else:
         _niveau, _niveau_code = "À risque", "risque"
 
-    _avert_actif = (_score < _seuil) or (_suspectes >= 1)
-    _avert_niveau = "critique" if (_score < _seuil or _suspectes >= 2) else "attention"
-    if _suspectes >= 1:
-        _avert_titre = "Contournement détecté"
+    _suspendu = prov.statut == Provider.Status.SUSPENDED
+
+    if _suspendu:
+        _avert_actif = True
+        _avert_niveau = "suspendu"
+        _avert_titre = "Compte suspendu"
         _avert_msg = (
-            f"Nous avons repéré {_suspectes} visite(s) où la caution a été payée "
-            "mais aucun devis n'a été envoyé via BABIFIX. Traiter un client en "
-            "dehors de la plateforme après une visite est interdit et fait chuter "
-            "votre fiabilité. Envoyez toujours vos devis dans l'application. "
-            "En cas de récidive, votre compte pourra être suspendu."
-        )
-    elif _score < _seuil:
-        _avert_titre = "Votre fiabilité est basse"
-        _avert_msg = (
-            "Votre score est passé sous le seuil. Honorez vos rendez-vous et "
-            "envoyez vos devis via BABIFIX pour le remonter. Un score trop bas "
-            "peut entraîner une suspension de votre compte."
+            prov.refusal_reason
+            or "Votre compte a été suspendu suite à des contournements répétés "
+            "ou une fiabilité trop basse. Contactez l'administrateur pour le "
+            "réactiver."
         )
     else:
-        _avert_titre = ""
-        _avert_msg = ""
+        _avert_actif = (_score < _seuil) or (_suspectes >= 1)
+        _avert_niveau = (
+            "critique" if (_score < _seuil or _suspectes >= 2) else "attention"
+        )
+        if _suspectes >= 1:
+            _avert_titre = "Contournement détecté"
+            _avert_msg = (
+                f"Nous avons repéré {_suspectes} visite(s) où la caution a été "
+                "payée mais aucun devis n'a été envoyé via BABIFIX. Traiter un "
+                "client en dehors de la plateforme après une visite est interdit "
+                "et fait chuter votre fiabilité. Envoyez toujours vos devis dans "
+                "l'application. En cas de récidive, votre compte sera suspendu."
+            )
+        elif _score < _seuil:
+            _avert_titre = "Votre fiabilité est basse"
+            _avert_msg = (
+                "Votre score est passé sous le seuil. Honorez vos rendez-vous et "
+                "envoyez vos devis via BABIFIX pour le remonter. Un score trop "
+                "bas entraîne une suspension automatique de votre compte."
+            )
+        else:
+            _avert_titre = ""
+            _avert_msg = ""
 
     _fiabilite = {
         "score": _score,
@@ -5424,6 +5447,7 @@ def api_prestataire_me(request):
         "niveau": _niveau,
         "niveau_code": _niveau_code,
         "visites_suspectes": _suspectes,
+        "suspendu": _suspendu,
         "avertissement": {
             "actif": _avert_actif,
             "niveau": _avert_niveau,

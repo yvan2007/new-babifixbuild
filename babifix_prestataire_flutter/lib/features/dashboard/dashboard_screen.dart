@@ -329,8 +329,11 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
 
   /// Carte d'avertissement anti-contournement (suspension si récidive).
   Widget _buildAvertissementCard() {
-    final critique = _avertNiveau == 'critique';
-    final c = critique ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
+    final suspendu = _avertNiveau == 'suspendu';
+    final critique = suspendu || _avertNiveau == 'critique';
+    final c = suspendu
+        ? const Color(0xFFB91C1C)
+        : (critique ? const Color(0xFFEF4444) : const Color(0xFFF59E0B));
     final light = _isLight;
     return Container(
       padding: const EdgeInsets.all(16),
@@ -354,9 +357,11 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                 decoration: BoxDecoration(
                     color: c.withValues(alpha: 0.18), shape: BoxShape.circle),
                 child: Icon(
-                    critique
-                        ? Icons.gpp_maybe_rounded
-                        : Icons.warning_amber_rounded,
+                    suspendu
+                        ? Icons.lock_rounded
+                        : (critique
+                            ? Icons.gpp_maybe_rounded
+                            : Icons.warning_amber_rounded),
                     color: c,
                     size: 24),
               ),

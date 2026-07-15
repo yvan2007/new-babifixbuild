@@ -2105,6 +2105,19 @@ class PlatformConfig(models.Model):
     # visite comme « à risque » dans le radar admin.
     radar_visite_sans_devis_jours = models.PositiveSmallIntegerField(default=3)
 
+    # Suspension AUTOMATIQUE (Phase 5) : quand la fiabilité s'effondre ou que les
+    # visites suspectes s'accumulent, le compte prestataire est suspendu (login
+    # bloqué + plus de demandes). Réactivation = manuelle par l'admin.
+    auto_suspension_actif = models.BooleanField(default=True)
+    suspension_score_seuil = models.PositiveSmallIntegerField(
+        default=20,
+        help_text="Score de fiabilité sous lequel le compte est suspendu automatiquement.",
+    )
+    suspension_visites_suspectes = models.PositiveSmallIntegerField(
+        default=3,
+        help_text="Nombre de visites suspectes qui déclenche la suspension automatique.",
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

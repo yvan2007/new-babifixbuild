@@ -124,6 +124,9 @@ class ReliabilityService:
             # mais AUCUN devis envoyé → forte présomption d'arrangement hors
             # plateforme. On flague et on applique un malus au prestataire.
             cls.flag_visite_suspecte_if_leak(reservation)
+            # Suspension auto si le presta a franchi un seuil (no-show répétés…).
+            if by == "PRESTATAIRE":
+                cls.check_auto_suspension(reservation.assigned_provider)
         except Exception:
             logger.warning(
                 "reliability on_cancellation failed for %s",
@@ -185,9 +188,62 @@ class ReliabilityService:
                 getattr(reservation, "reference", "?"),
                 delta,
             )
+            # Suspension automatique si le seuil est franchi.
+            cls.check_auto_suspension(reservation.assigned_provider)
             return True
         except Exception:
             logger.warning("radar visite suspecte failed", exc_info=True)
+            return False
+
+    @classmethod
+    def check_auto_suspension(cls, provider) -> bool:
+        """Suspend AUTOMATIQUEMENT un prestataire dont la fiabilité s'effondre ou
+        qui accumule des visites suspectes. Bloque la connexion (user.is_active)
+        et le retrait des demandes. Réactivation = manuelle par l'admin.
+        Idempotent. Retourne True si une nouvelle suspension a été posée.
+        """
+        try:
+            if not provider:
+                return False
+            from adminpanel.models import Provider, Reservation
+
+            if provider.statut == Provider.Status.SUSPENDED:
+                return False
+            cfg = cls._cfg()
+            if cfg is not None and not getattr(cfg, "auto_suspension_actif", True):
+                return False
+            seuil = int(getattr(cfg, "suspension_score_seuil", 20) or 20) if cfg else 20
+            max_susp = (
+                int(getattr(cfg, "suspension_visites_suspectes", 3) or 3) if cfg else 3
+            )
+            score = int(getattr(provider, "fiabilite_score", 100) or 100)
+            nb_susp = Reservation.objects.filter(
+                assigned_provider=provider, visite_suspecte=True
+            ).count()
+
+            if score >= seuil and nb_susp < max_susp:
+                return False
+
+            provider.statut = Provider.Status.SUSPENDED
+            provider.refusal_reason = (
+                "Compte suspendu automatiquement : contournements repetes ou "
+                "fiabilite trop basse. Contactez l'administrateur pour reactiver."
+            )
+            provider.save(update_fields=["statut", "refusal_reason"])
+            # Bloque la connexion : le login verifie user.is_active.
+            if getattr(provider, "user_id", None):
+                from django.contrib.auth.models import User
+
+                User.objects.filter(pk=provider.user_id).update(is_active=False)
+            logger.warning(
+                "AUTO-SUSPENSION presta #%s (score=%s, visites_suspectes=%s)",
+                provider.pk,
+                score,
+                nb_susp,
+            )
+            return True
+        except Exception:
+            logger.warning("check_auto_suspension failed", exc_info=True)
             return False
 
     # ------------------------------------------------------------------ gating

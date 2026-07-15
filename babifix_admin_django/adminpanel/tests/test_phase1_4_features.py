@@ -254,6 +254,37 @@ class Phase14FeaturesTest(TestCase):
         res.refresh_from_db()
         self.assertFalse(res.visite_suspecte)
 
+    def test_auto_suspension_apres_visites_suspectes(self):
+        """3 visites suspectes → suspension automatique (login bloqué + demandes)."""
+        from django.utils import timezone as _tz
+        from adminpanel.services.reliability_service import ReliabilityService
+
+        cfg = PlatformConfig.get_solo()
+        cfg.auto_suspension_actif = True
+        cfg.suspension_visites_suspectes = 3
+        cfg.suspension_score_seuil = 20
+        cfg.save()
+
+        for i in range(3):
+            res = self._make_reservation(ref=f"RES-SUSP-{i}", statut="DEVIS_EN_COURS")
+            res.caution_payee = True
+            res.caution_montant = Decimal("5000")
+            res.visite_effectuee = True
+            res.visite_effectuee_at = _tz.now()
+            res.save()
+            ReliabilityService.flag_visite_suspecte_if_leak(res)
+
+        self.prov.refresh_from_db()
+        self.assertEqual(self.prov.statut, Provider.Status.SUSPENDED)
+        # Connexion bloquée : user.is_active passe à False.
+        self.presta.refresh_from_db()
+        self.assertFalse(self.presta.is_active)
+        # L'endpoint demandes renvoie « suspended » et aucune demande.
+        r = self._get("/api/prestataire/requests", self.presta_tok)
+        if r.status_code == 200:
+            self.assertTrue(r.json().get("suspended"))
+            self.assertEqual(r.json().get("items"), [])
+
     def test_reliability_suspicious_cancellation(self):
         # Cancellation via l'endpoint LIVE (api_client_cancel_reservation).
         res = self._make_reservation(ref="RES-REL", statut="VISITE_DIAGNOSTIC")
