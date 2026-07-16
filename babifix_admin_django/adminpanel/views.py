@@ -5360,6 +5360,15 @@ def api_messages_unread_total(request):
     return JsonResponse({"total": _unread_messages_total_for_user(uid)})
 
 
+def _contrat_version() -> str:
+    """Version en cours du contrat prestataire (source unique : views_extra)."""
+    try:
+        from .views_extra import CONTRAT_VERSION
+        return CONTRAT_VERSION
+    except Exception:
+        return "2.0"
+
+
 def _commission_rate_pct_for(provider) -> int:
     """Taux de commission EFFECTIF en % (entier) pour un prestataire, en
     déléguant à la même source que le devis (_get_effective_commission_rate)."""
@@ -5494,7 +5503,12 @@ def api_prestataire_me(request):
                 "years_experience": int(prov.years_experience or 0),
                 # Champs lus par l'app prestataire au boot pour décider de la
                 # route (contrat obligatoire / dashboard / KYC / premium).
-                "contrat_signe": bool(prov.contrat_accepte_at),
+                # Signé = accepté ET dans la version EN COURS. Sans le contrôle
+                # de version, un changement matériel de clause (ex. suspension
+                # automatique) s'appliquerait à des prestataires qui ne l'ont
+                # jamais signée → l'app redemande la signature.
+                "contrat_signe": bool(prov.contrat_accepte_at)
+                and (prov.contrat_version or "") == _contrat_version(),
                 "a_numero_retrait": bool((prov.wallet_phone or "").strip()),
                 "contrat_accepte_at": prov.contrat_accepte_at.isoformat()
                     if prov.contrat_accepte_at else None,

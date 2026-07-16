@@ -1554,6 +1554,53 @@ def api_client_fidelite(request):
 
 
 # ─── Contrat / Charte prestataire ────────────────────────────────────────────
+# Version du contrat. À INCRÉMENTER dès qu'une clause change matériellement :
+# `contrat_signe` compare cette valeur à celle signée par le prestataire, donc
+# un changement de version force une NOUVELLE signature.
+#
+# v2.0 — ajout des clauses qui manquaient alors que le code les appliquait déjà :
+#        visite/transport, séquestre, interdiction de contourner la plateforme,
+#        score de fiabilité et SUSPENSION AUTOMATIQUE. On ne peut pas suspendre
+#        un compte sur une règle absente du contrat signé.
+CONTRAT_VERSION = "2.0"
+
+
+def _platform_config():
+    """Config plateforme (seuils réels). Best-effort : None si indisponible."""
+    try:
+        from .models import PlatformConfig
+        return PlatformConfig.get_solo()
+    except Exception:
+        return None
+
+
+def _commission_effective_pct(provider) -> int:
+    """Taux RÉELLEMENT prélevé, en % entier.
+
+    Délègue à la même source que le devis (`_get_effective_commission_rate`) pour
+    que le contrat affiche EXACTEMENT ce qui est facturé.
+    """
+    try:
+        from decimal import Decimal
+        from .services.wallet_service import _get_effective_commission_rate
+        frac = _get_effective_commission_rate(provider)
+        return int((Decimal(str(frac)) * Decimal("100")).quantize(Decimal("1")))
+    except Exception:
+        return 18
+
+
+def _commission_base_pct(provider) -> int:
+    """Taux de base (avant réduction d'abonnement), pour l'affichage pédagogique."""
+    try:
+        from .services.referral_service import CATEGORY_COMMISSIONS
+        if provider.category:
+            slug = (provider.category.icone_slug or provider.category.nom or "").lower()
+            return int(CATEGORY_COMMISSIONS.get(slug, CATEGORY_COMMISSIONS["default"]))
+        return int(CATEGORY_COMMISSIONS["default"])
+    except Exception:
+        return 18
+
+
 @require_api_auth(["prestataire"])
 @require_GET
 def api_prestataire_contrat(request):
@@ -1569,18 +1616,19 @@ def api_prestataire_contrat(request):
     except Provider.DoesNotExist:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
-    # Taux commission (par catégorie si disponible)
-    commission_rate = 18
-    if provider.category:
-        from .services.referral_service import CATEGORY_COMMISSIONS
-        commission_rate = CATEGORY_COMMISSIONS.get(
-            (provider.category.icone_slug or provider.category.nom or "").lower(),
-            CATEGORY_COMMISSIONS["default"],
-        )
+    # Taux commission : MÊME source que le devis (source unique de vérité).
+    # AVANT : le contrat recalculait le taux depuis CATEGORY_COMMISSIONS sans la
+    # remise dégressive par volume → il pouvait AFFICHER un taux différent de
+    # celui réellement prélevé. Un contrat ne doit jamais mentir sur le prix.
+    commission_effective = _commission_effective_pct(provider)
+    commission_rate = _commission_base_pct(provider)
+    premium_reduction = max(0, commission_rate - commission_effective)
 
-    # Réduction commission selon tier premium
-    premium_reduction = {"bronze": 0, "silver": 5, "gold": 10}.get(provider.premium_tier or "", 0)
-    commission_effective = max(5, commission_rate - premium_reduction)
+    # Seuils réels lus depuis la config : le contrat ne peut plus diverger du code.
+    cfg = _platform_config()
+    frais_mer = int(getattr(cfg, "frais_mise_en_relation_fcfa", 500) or 500)
+    seuil_suspension = int(getattr(cfg, "suspension_score_seuil", 20) or 20)
+    max_visites_suspectes = int(getattr(cfg, "suspension_visites_suspectes", 3) or 3)
 
     # Stats prestataire
     nb_missions = Reservation.objects.filter(
@@ -1610,7 +1658,72 @@ def api_prestataire_contrat(request):
             },
             {
                 "titre": "Commission BABIFIX",
-                "contenu": f"BABIFIX prélève une commission de {commission_effective}% sur chaque prestation réalisée via la plateforme. Ce taux inclut les frais de paiement, d'assurance et de support client.",
+                "contenu": (
+                    f"BABIFIX prélève une commission de {commission_effective}% sur le montant "
+                    "du devis de chaque prestation réalisée via la plateforme. Cette commission "
+                    "est déduite de la part du prestataire : elle n'est JAMAIS ajoutée au prix "
+                    "payé par le client. Elle couvre les frais de paiement, la mise en relation "
+                    "et le support."
+                ),
+            },
+            {
+                "titre": "Abonnement Pro (commission réduite)",
+                "contenu": (
+                    f"Le taux de base est de {commission_rate}%. Un abonnement Pro le réduit : "
+                    "Silver (7 500 F/mois) et Gold (15 000 F/mois) donnent un taux dégressif. "
+                    "Le taux appliqué est figé au moment de l'envoi du devis et affiché dans "
+                    "l'application avant chaque envoi."
+                ),
+            },
+            {
+                "titre": "Visite de diagnostic et transport",
+                "contenu": (
+                    "Lorsqu'une visite est nécessaire, le client règle un défraiement de "
+                    "transport (plafonné à 5 000 F), qui vous est reversé À 100% : BABIFIX ne "
+                    "prélève aucune commission dessus. Il vous est crédité dès que vous "
+                    "déclarez la visite effectuée, même si le chantier ne se fait pas. "
+                    f"BABIFIX facture séparément au client {frais_mer} F de frais de mise en "
+                    "relation. Le transport est déduit du devis final : le client ne le paie "
+                    "jamais deux fois. Il n'est pas remboursable, sauf litige après analyse."
+                ),
+            },
+            {
+                "titre": "Paiement sécurisé (séquestre)",
+                "contenu": (
+                    "Les paiements en ligne sont bloqués en séquestre : acompte de 30% à "
+                    "l'acceptation du devis, solde de 70% en fin d'intervention. Les fonds "
+                    "vous sont libérés sur votre wallet APRÈS confirmation de la prestation "
+                    "par le client. En cas de litige ouvert, les fonds sont gelés jusqu'à "
+                    "la décision de BABIFIX."
+                ),
+            },
+            {
+                "titre": "Interdiction de contourner la plateforme",
+                "contenu": (
+                    "Toute prestation issue d'une mise en relation BABIFIX doit être devisée "
+                    "et réglée VIA la plateforme. Traiter directement avec un client rencontré "
+                    "grâce à BABIFIX, notamment après une visite de diagnostic payée, sans "
+                    "envoyer de devis sur l'application, constitue une faute grave."
+                ),
+            },
+            {
+                "titre": "Score de fiabilité et détection",
+                "contenu": (
+                    "Un score de fiabilité (0 à 100) est associé à votre compte et visible "
+                    "dans l'application. Une visite payée par le client puis déclarée "
+                    "effectuée SANS aucun devis envoyé est automatiquement signalée et fait "
+                    "baisser ce score. Les rendez-vous non honorés le font également baisser."
+                ),
+            },
+            {
+                "titre": "Suspension automatique",
+                "contenu": (
+                    f"Votre compte est suspendu AUTOMATIQUEMENT si votre score de fiabilité "
+                    f"descend sous {seuil_suspension}, ou si {max_visites_suspectes} visites "
+                    "suspectes sont constatées. La suspension bloque la connexion et l'accès "
+                    "aux demandes. La réactivation relève d'un examen par BABIFIX. Vous êtes "
+                    "averti dans l'application avant d'atteindre ces seuils."
+                ),
             },
             {
                 "titre": "Identité et vérification",
@@ -1626,16 +1739,35 @@ def api_prestataire_contrat(request):
             },
             {
                 "titre": "Paiements et retraits",
-                "contenu": "Les gains nets sont crédités sur le wallet BABIFIX après confirmation du paiement client. Les retraits sont traités sous 24–72 heures ouvrées.",
+                "contenu": "Les gains nets sont crédités sur le wallet BABIFIX après confirmation du paiement client. Les retraits vers Mobile Money sont traités sous 24–72 heures ouvrées.",
+            },
+            {
+                "titre": "Programme de fidélité client",
+                "contenu": (
+                    "Les remises de fidélité accordées aux clients sont intégralement à la "
+                    "charge de BABIFIX : elles sont déduites de la commission, jamais de votre "
+                    "rémunération. Votre net reste identique."
+                ),
             },
             {
                 "titre": "Résiliation",
                 "contenu": "Le prestataire peut résilier son compte à tout moment depuis les paramètres de l'app. BABIFIX se réserve le droit de suspendre un compte en cas de non-respect de la charte.",
             },
         ],
-        "contrat_version": "1.0",
+        "contrat_version": CONTRAT_VERSION,
         "contrat_accepte_at": provider.contrat_accepte_at.isoformat() if provider.contrat_accepte_at else None,
-        "contrat_signe": provider.contrat_accepte_at is not None,
+        # Signé = accepté ET dans la version EN COURS. Un changement matériel de
+        # clause (ex. suspension automatique) exige une nouvelle acceptation :
+        # on n'applique pas une règle à quelqu'un qui ne l'a jamais signée.
+        "contrat_signe": (
+            provider.contrat_accepte_at is not None
+            and (provider.contrat_version or "") == CONTRAT_VERSION
+        ),
+        "contrat_version_signee": provider.contrat_version or "",
+        "resignature_requise": (
+            provider.contrat_accepte_at is not None
+            and (provider.contrat_version or "") != CONTRAT_VERSION
+        ),
     })
 
 
@@ -1646,7 +1778,10 @@ def api_prestataire_contrat_sign(request):
     """
     POST /api/prestataire/contrat/sign/
     Enregistre l'acceptation du contrat BABIFIX côté serveur.
-    Body JSON : {"version": "1.0"}
+
+    La version signée est celle du SERVEUR (CONTRAT_VERSION), jamais celle
+    envoyée par le client : sinon une app obsolète (ou modifiée) pourrait
+    « signer » une ancienne version et échapper aux clauses en vigueur.
     """
     from django.utils import timezone
 
@@ -1656,12 +1791,7 @@ def api_prestataire_contrat_sign(request):
     except Provider.DoesNotExist:
         return JsonResponse({"error": "provider_not_found"}, status=404)
 
-    try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except (ValueError, UnicodeDecodeError):
-        payload = {}
-
-    version = str(payload.get("version") or "1.0")[:10]
+    version = CONTRAT_VERSION
     now = timezone.now()
     provider.contrat_accepte_at = now
     provider.contrat_version = version
