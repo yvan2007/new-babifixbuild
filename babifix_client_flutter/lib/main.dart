@@ -6336,6 +6336,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
     return out;
   }
 
+  /// Lit une valeur de `flowData` en chaîne propre ('' si absente/null).
+  static String _str(dynamic v) => (v ?? '').toString().trim();
+
   Future<bool> _createReservation(
     ClientService service, {
     Map<String, dynamic>? flowData,
@@ -6474,6 +6477,25 @@ class _ClientHomePageState extends State<ClientHomePage> {
         if (lon != null) 'longitude': lon,
         if (addressLabel.isNotEmpty) 'address_label': addressLabel,
         if (photoAttachments.isNotEmpty) 'photo_attachments': photoAttachments,
+        // ── Champs saisis dans le tunnel qui étaient PERDUS ICI ────────────
+        // Ce corps est reconstruit champ par champ à partir de `flowData` : tout
+        // ce qui n'est pas recopié explicitement est jeté en silence. Ces cinq
+        // champs étaient renseignés par le client, acceptés par l'API… mais
+        // n'arrivaient jamais au serveur. Conséquences observées :
+        //  • la note vocale était uploadée puis son URL jetée → aucun vocal
+        //    côté prestataire ;
+        //  • `scheduled_date` perdu → « le planning ne s'affiche pas ».
+        if (_str(flowData?['audio_probleme']).isNotEmpty)
+          'audio_probleme': _str(flowData?['audio_probleme']),
+        if (_str(flowData?['scheduled_date']).isNotEmpty)
+          'scheduled_date': _str(flowData?['scheduled_date']),
+        if (_str(flowData?['demande_type']).isNotEmpty)
+          'demande_type': _str(flowData?['demande_type']),
+        if (flowData?['reponses_exigences'] is Map &&
+            (flowData!['reponses_exigences'] as Map).isNotEmpty)
+          'reponses_exigences': flowData['reponses_exigences'],
+        if (flowData?['prix_propose'] != null)
+          'prix_propose': flowData?['prix_propose'],
       };
       debugPrint('📤 CREATE RESERVATION — URL: $uri');
       debugPrint('📤 BODY: provider_id=${body['provider_id'] ?? "null"}, title=${body['title']}, price=${body['price_fcfa']}');

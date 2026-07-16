@@ -634,34 +634,73 @@ class RequestDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: minCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Min',
-                        suffixText: 'FCFA',
-                        border: OutlineInputBorder(),
+              // Validation EN DIRECT. Avant : aucun retour tant qu'on n'avait
+              // pas appuyé sur « Envoyer », et surtout AUCUN contrôle que
+              // Min <= Max (on pouvait envoyer « 50 000 – 1 000 » au client).
+              StatefulBuilder(
+                builder: (ctx2, setField) {
+                  double? p(TextEditingController c) =>
+                      double.tryParse(c.text.replaceAll(',', '.').trim());
+                  final mn = p(minCtrl);
+                  final mx = p(maxCtrl);
+                  String? errMin;
+                  String? errMax;
+                  if (minCtrl.text.trim().isNotEmpty) {
+                    if (mn == null) {
+                      errMin = 'Invalide';
+                    } else if (mn <= 0) {
+                      errMin = '> 0 requis';
+                    }
+                  }
+                  if (maxCtrl.text.trim().isNotEmpty) {
+                    if (mx == null) {
+                      errMax = 'Invalide';
+                    } else if (mx <= 0) {
+                      errMax = '> 0 requis';
+                    } else if (mn != null && mn > 0 && mx < mn) {
+                      errMax = 'Doit être ≥ Min';
+                    }
+                  }
+                  final fmt = [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ];
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: minCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          inputFormatters: fmt,
+                          onChanged: (_) => setField(() {}),
+                          decoration: InputDecoration(
+                            labelText: 'Min',
+                            errorText: errMin,
+                            suffixText: 'FCFA',
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: maxCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Max',
-                        suffixText: 'FCFA',
-                        border: OutlineInputBorder(),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: maxCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          inputFormatters: fmt,
+                          onChanged: (_) => setField(() {}),
+                          decoration: InputDecoration(
+                            labelText: 'Max',
+                            errorText: errMax,
+                            suffixText: 'FCFA',
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -687,6 +726,14 @@ class RequestDetailScreen extends StatelessWidget {
           message: 'Renseignez le diagnostic et la fourchette.');
       return;
     }
+    // Garde-fou : une fourchette inversée partirait telle quelle au client.
+    if (max < min) {
+      showBabifixToast(context,
+          type: BabifixToastType.error,
+          message: 'Le maximum doit être supérieur ou égal au minimum.');
+      return;
+    }
+    _showLoader(context, 'Envoi de l\'estimation…');
     try {
       await DevisApi.createEstimation(
         reference: reference,
@@ -695,12 +742,14 @@ class RequestDetailScreen extends StatelessWidget {
         prixMax: max,
       );
       if (!context.mounted) return;
+      Navigator.of(context).pop(); // ferme le loader
       showBabifixToast(context,
           type: BabifixToastType.success,
           message: 'Estimation envoyée au client.');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!context.mounted) return;
+      Navigator.of(context).pop(); // ferme le loader
       showBabifixToast(context,
           type: BabifixToastType.error, message: 'Échec : $e');
     }
@@ -854,6 +903,30 @@ class RequestDetailScreen extends StatelessWidget {
     }
   }
 
+  /// Loader bloquant pendant un appel réseau.
+  ///
+  /// Indispensable : un appel peut prendre jusqu'à ~60 s (réveil du serveur).
+  /// Sans retour visuel, l'écran semble figé et on reclique en boucle.
+  void _showLoader(BuildContext context, String message) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: Text(message)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _markVisitDone(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -876,27 +949,7 @@ class RequestDetailScreen extends StatelessWidget {
     if (ok != true) return;
     if (!context.mounted) return;
 
-    // Retour visuel OBLIGATOIRE : l'appel peut prendre jusqu'à ~60 s (réveil du
-    // serveur). Sans ça, l'écran restait figé sans rien afficher et on recliquait
-    // « Confirmer » en boucle en croyant que le bouton était cassé.
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            SizedBox(width: 16),
-            Expanded(child: Text('Confirmation de la visite…')),
-          ],
-        ),
-      ),
-    );
-
+    _showLoader(context, 'Confirmation de la visite…');
     try {
       await DevisApi.visiteDone(reference);
       if (!context.mounted) return;

@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../../shared/error_utils.dart';
+
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../babifix_money.dart';
@@ -1387,19 +1389,28 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ),
             const SizedBox(height: 8),
+            // Hauteur 48 (au lieu de 44) : à 44 le libellé se faisait rogner sur
+            // les petits écrans. FittedBox garantit qu'il ne sera jamais coupé,
+            // quelle que soit la taille de police du téléphone.
             SizedBox(
               width: double.infinity,
-              height: 44,
+              height: 48,
               child: FilledButton.icon(
                 onPressed: () => _markVisitDoneFromList(it),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF06B6D4),
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: const Icon(Icons.fact_check_rounded, size: 20),
-                label: const Text('Visite effectuée',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Visite effectuée',
+                      maxLines: 1,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 14)),
+                ),
               ),
             ),
           ] else if (it.visiteEffectuee) ...[
@@ -1937,17 +1948,44 @@ class _RequestsScreenState extends State<RequestsScreen> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
+
+    // Retour visuel OBLIGATOIRE : l'appel peut durer jusqu'à ~60 s (réveil du
+    // serveur). Sans lui, rien ne bougeait à l'écran et on recliquait
+    // « Confirmer » en boucle en croyant le bouton cassé — or tant que la visite
+    // n'est pas confirmée, le TRANSPORT n'est pas crédité au prestataire.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            SizedBox(width: 16),
+            Expanded(child: Text('Confirmation de la visite…')),
+          ],
+        ),
+      ),
+    );
+
     try {
       await DevisApi.visiteDone(item.reference);
       if (!mounted) return;
+      Navigator.of(context).pop(); // ferme le loader
       showBabifixToast(context,
-          type: BabifixToastType.success, message: 'Visite confirmée.');
+          type: BabifixToastType.success,
+          message: 'Visite confirmée. Votre transport vous a été crédité.');
       _loadRequests();
     } catch (e) {
       if (!mounted) return;
+      Navigator.of(context).pop(); // ferme le loader
       showBabifixToast(context,
-          type: BabifixToastType.error, message: 'Échec : $e');
+          type: BabifixToastType.error,
+          message: 'Échec : ${userFriendlyError(e)}');
     }
   }
 
