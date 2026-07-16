@@ -86,3 +86,14 @@ class DashboardSmokeTest(TestCase):
         r = self.http.get("/?section=reservations")
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Radar anti-fuite")
+        self.assertContains(r, "RES-SMOKE-RADAR")
+
+    def test_radar_reste_visible_sans_visite_suspecte(self):
+        # Aucune visite suspecte → le panneau doit RESTER affiché, en état
+        # « rien à signaler ». Un panneau qui disparaît quand il n'y a rien ne
+        # permet pas de savoir si la surveillance tourne réellement.
+        self.res_radar.delete()
+        r = self.http.get("/?section=reservations")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Radar anti-fuite")
+        self.assertContains(r, "aucune visite suspecte")

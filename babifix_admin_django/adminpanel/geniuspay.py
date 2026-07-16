@@ -202,6 +202,133 @@ def _verify_webhook_signature(raw_body: bytes, timestamp: str, received_sig: str
 
 
 # ---------------------------------------------------------------------------
+# PAYOUT — versement SORTANT (retrait prestataire / remboursement client)
+# ---------------------------------------------------------------------------
+# Cette fonction manquait purement et simplement : WalletService.process_withdrawal
+# et EscrowService.process_client_refund l'importaient toutes les deux, d'où un
+# ImportError -> retraits prestataire et remboursements client cassés.
+#
+# Chemin de l'endpoint configurable SANS redéploiement (les agrégateurs le
+# nomment diversement : /payouts, /transfers, /disbursements...). À ajuster via
+# la variable d'env GENIUSPAY_PAYOUT_PATH selon la doc GeniusPay.
+GENIUSPAY_PAYOUT_PATH = os.getenv("GENIUSPAY_PAYOUT_PATH", "/payouts")
+
+# Opérateurs tels que STOCKÉS dans le wallet prestataire (minuscules) → GeniusPay.
+# Le wallet enregistre 'mtn'/'orange'/'wave'/'moov', alors que _OPERATOR_MAP
+# utilise les codes BABIFIX ('MTN_MOMO'…) : on accepte les DEUX conventions.
+_PAYOUT_OPERATOR_MAP = {
+    "mtn":    "mtn_money",
+    "orange": "orange_money",
+    "wave":   "wave",
+    "moov":   "pawapay",   # PawaPay route Moov
+}
+
+
+def _normalize_payout_operator(operator: str) -> str:
+    """Renvoie le code GeniusPay, quelle que soit la convention d'entrée."""
+    raw = (operator or "").strip()
+    if not raw:
+        return ""
+    if raw.upper() in _OPERATOR_MAP:
+        return _OPERATOR_MAP[raw.upper()]
+    return _PAYOUT_OPERATOR_MAP.get(raw.lower(), "")
+
+
+def geniuspay_send_payout(
+    *,
+    amount,
+    phone: str,
+    operator: str,
+    recipient_name: str = "",
+    reference: str = "",
+    description: str = "",
+) -> dict:
+    """Verse de l'argent VERS un bénéficiaire Mobile Money.
+
+    Utilisée par les RETRAITS prestataire et les REMBOURSEMENTS client.
+
+    Contrat de retour attendu par les appelants :
+      succès → {"ok": True, "status": "completed"|"pending", "external_reference": str}
+      échec  → {"ok": False, "error": str}
+
+    ⚠️ SÉCURITÉ ARGENT : l'appelant a DÉJÀ débité le solde et recrédite
+    immédiatement si on renvoie ok=False. On ne renvoie donc JAMAIS ok=True sans
+    confirmation de l'agrégateur (sauf mode simulation explicite) : en cas de
+    doute, on échoue → l'argent revient au prestataire, jamais l'inverse.
+    """
+    from decimal import Decimal
+
+    try:
+        montant = int(Decimal(str(amount or 0)))
+    except Exception:
+        return {"ok": False, "error": "montant_invalide"}
+    if montant <= 0:
+        return {"ok": False, "error": "montant_invalide"}
+
+    tel = (phone or "").strip()
+    if not tel:
+        return {"ok": False, "error": "telephone_manquant"}
+
+    op = _normalize_payout_operator(operator)
+    if not op:
+        return {"ok": False, "error": f"operateur_non_supporte:{operator}"}
+
+    ext_ref = reference or ("PAYOUT-" + uuid.uuid4().hex[:10].upper())
+
+    # Mode SIMULATION (DEBUG / clés sandbox / GENIUSPAY_SIMULATE) : versement
+    # auto-validé, exactement comme l'encaissement. Permet la démo de bout en
+    # bout (retrait → solde à jour) sans virement réel.
+    if settings.DEBUG or GENIUSPAY_SANDBOX:
+        logger.info(
+            "GeniusPay payout: SIMULATION — %s | %s XOF → %s (%s)",
+            ext_ref, montant, tel, op,
+        )
+        return {
+            "ok": True,
+            "status": "completed",
+            "external_reference": ext_ref,
+            "simulated": True,
+        }
+
+    payload = {
+        "amount": montant,
+        "currency": "XOF",
+        "payment_method": op,
+        "reference": ext_ref,
+        "description": description or "Versement BABIFIX",
+        "recipient": {
+            "name":    recipient_name or "Beneficiaire BABIFIX",
+            "phone":   tel,
+            "country": "CI",
+        },
+        "webhook_url": GENIUSPAY_WEBHOOK_URL or "",
+        "metadata": {"reference": ext_ref},
+    }
+
+    resp = _genius_request("POST", GENIUSPAY_PAYOUT_PATH, payload)
+
+    if not resp.get("success"):
+        err = resp.get("message") or resp.get("error") or "erreur_geniuspay"
+        logger.error("GeniusPay payout ECHEC %s — %s", ext_ref, err)
+        return {"ok": False, "error": str(err)[:300]}
+
+    data = resp.get("data") or {}
+    remote_ref = data.get("reference") or data.get("transaction_id") or ext_ref
+    raw_status = str(data.get("status") or resp.get("status") or "pending").lower()
+    # Seuls les statuts explicitement finaux valent "completed" ; tout le reste
+    # reste "pending" et sera confirmé par le webhook payout.*.
+    status = (
+        "completed"
+        if raw_status in ("completed", "success", "successful", "paid", "done")
+        else "pending"
+    )
+    logger.info(
+        "GeniusPay payout OK %s → %s (%s)", ext_ref, remote_ref, status
+    )
+    return {"ok": True, "status": status, "external_reference": remote_ref}
+
+
+# ---------------------------------------------------------------------------
 # POST /api/paiements/geniuspay/initiate/
 # ---------------------------------------------------------------------------
 @csrf_exempt

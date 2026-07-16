@@ -1184,15 +1184,22 @@
       {% endif %}
 
       {# ── Radar anti-fuite : visites suspectes (caution payée + visite faite, aucun devis) ── #}
-      {% if radar_visites %}
-      <div class="radar-panel">
+      {# Affiché EN PERMANENCE (même à zéro) : un panneau qui disparaît quand il #}
+      {# n'y a rien ne permet pas de savoir si la surveillance tourne vraiment.  #}
+      <div class="radar-panel{% if not radar_visites %} radar-panel--ok{% endif %}">
         <div class="radar-head">
-          <span class="radar-icon" aria-hidden="true">&#x1F6A8;</span>
+          <span class="radar-icon" aria-hidden="true">{% if radar_visites %}&#x1F6A8;{% else %}&#x1F6E1;{% endif %}</span>
           <div>
+            {% if radar_visites %}
             <strong>Radar anti-fuite &mdash; {{ radar_visites|length }} visite(s) a surveiller</strong>
             <p>Caution payee + visite effectuee mais AUCUN devis envoye : forte presomption d'arrangement hors plateforme. Les cas confirmes penalisent automatiquement la fiabilite du prestataire.</p>
+            {% else %}
+            <strong>Radar anti-fuite &mdash; actif, aucune visite suspecte</strong>
+            <p>Surveillance en cours : une visite payee et effectuee SANS devis envoye serait signalee ici, avec malus de fiabilite automatique pour le prestataire.</p>
+            {% endif %}
           </div>
         </div>
+        {% if radar_visites %}
         <div class="table-card" style="margin-top:10px;">
           <table class="data-table radar-table">
             <thead>
@@ -1218,11 +1225,16 @@
             </tbody>
           </table>
         </div>
+        {% endif %}
       </div>
       <style>
         .radar-panel { margin: 12px 0 18px; padding: 14px 16px;
           border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 14px;
           background: rgba(239, 68, 68, 0.06); }
+        /* Etat « rien a signaler » : vert et discret, mais TOUJOURS present. */
+        .radar-panel--ok { border-color: rgba(34, 197, 94, 0.35);
+          background: rgba(34, 197, 94, 0.06); }
+        .radar-panel--ok .radar-head strong { color: #22c55e; }
         .radar-head { display: flex; gap: 12px; align-items: flex-start; }
         .radar-icon { font-size: 22px; line-height: 1.2; }
         .radar-head strong { color: #ef4444; font-size: 14px; }
@@ -1232,7 +1244,6 @@
         .radar-badge--risk { background: rgba(245,158,11,0.15); color: #f59e0b; }
         .radar-motif { font-size: 12px; color: #cbd5e1; max-width: 320px; }
       </style>
-      {% endif %}
 
       {# ── Mini-stats Réservations ── #}
       {% if reservation_stats %}
