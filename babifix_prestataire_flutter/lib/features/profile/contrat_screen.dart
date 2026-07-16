@@ -51,6 +51,9 @@ class _ContratScreenState extends State<ContratScreen>
   Map<String, dynamic>? _data;
   String? _error;
   DateTime? _acceptedAt;
+  /// Le contrat a changé depuis la signature du prestataire → il doit re-signer.
+  /// Sert à lui EXPLIQUER pourquoi on le lui redemande (sinon c'est incompris).
+  bool _resignatureRequise = false;
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fade;
   // En mode obligatoire : devient `true` quand l'utilisateur a scrollé
@@ -112,11 +115,27 @@ class _ContratScreenState extends State<ContratScreen>
       _acceptedAt = DateTime.tryParse(stored);
     }
     await _load();
-    if (_data != null && _data!['contrat_accepte_at'] != null) {
-      final serverDate = DateTime.tryParse('${_data!['contrat_accepte_at']}');
-      if (serverDate != null && mounted) {
-        setState(() => _acceptedAt = serverDate);
+    if (_data != null) {
+      // Le SERVEUR fait autorité, via `contrat_signe`, qui tient compte de la
+      // VERSION du contrat. Une simple date d'acceptation ne suffit PAS : avoir
+      // signé la v1.0 ne vaut pas acceptation de la v2.0.
+      //
+      // Sans ce contrôle : le serveur force l'écran (« non signé » car version
+      // différente) pendant que l'écran cache le bouton (« déjà signé » car la
+      // date existe) → prestataire enfermé, sans retour ni moyen d'accepter.
+      final signeVersionCourante = _data!['contrat_signe'] == true;
+      final serverDate =
+          DateTime.tryParse('${_data!['contrat_accepte_at'] ?? ''}');
+      _resignatureRequise = _data!['resignature_requise'] == true;
+      if (mounted) {
+        setState(() => _acceptedAt = signeVersionCourante ? serverDate : null);
+      }
+      if (signeVersionCourante && serverDate != null) {
         await prefs.setString(_kAcceptedKey, serverDate.toIso8601String());
+      } else {
+        // Nouvelle version à signer → on purge le cache local, sinon il
+        // re-bloquerait l'écran au prochain lancement.
+        await prefs.remove(_kAcceptedKey);
       }
     }
     // Après le rendu du contenu : si tout tient à l'écran, on débloque le
@@ -276,6 +295,54 @@ class _ContratScreenState extends State<ContratScreen>
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
+                      // Le contrat a évolué depuis sa signature : on lui dit
+                      // POURQUOI on le lui redemande, sinon c'est vécu comme un bug.
+                      if (_resignatureRequise) ...[
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: _premiumGold.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: _premiumGold.withValues(alpha: 0.45)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.campaign_rounded,
+                                  color: _premiumGold, size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Le contrat a été mis à jour',
+                                      style: TextStyle(
+                                          color: _premiumGold,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'De nouvelles clauses ont été ajoutées : '
+                                      'défraiement de transport, paiement sécurisé, '
+                                      'score de fiabilité et suspension automatique. '
+                                      'Merci de les lire et de les accepter pour '
+                                      'continuer.',
+                                      style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12.5,
+                                          height: 1.4),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                       _StatsCard(data: _data!),
                       const SizedBox(height: 20),
                       _CommissionCard(data: _data!),
