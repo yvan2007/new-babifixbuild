@@ -18,16 +18,20 @@ jobs:
     steps:
       - name: Ping health endpoint (réveille le serveur si endormi)
         run: |
-          URL="https://new-babifixbuild.onrender.com/api/health"
+          # NOTE : slash final OBLIGATOIRE. Sans lui, Django (APPEND_SLASH)
+          # renvoie un 301 vers /api/health/ — jamais un 200 — et l'ancien test
+          # « = 200 » échouait donc systématiquement à tort.
+          URL="https://new-babifixbuild.onrender.com/api/health/"
           for i in 1 2 3 4; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 70 "$URL" || echo "000")
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$URL" || echo "000")
             echo "Tentative $i : HTTP $code"
-            if [ "$code" = "200" ]; then
-              echo "Serveur réveillé ✅"
+            # Toute réponse HTTP prouve que le serveur est debout (même un 4xx).
+            if [ "$code" != "000" ]; then
+              echo "Serveur réveillé ✅ (HTTP $code)"
               exit 0
             fi
             sleep 15
           done
-          echo "::warning::Le serveur n'a pas répondu 200 après 4 tentatives."
+          echo "::warning::Le serveur n'a répondu à aucune des 4 tentatives."
           # On ne fait pas échouer le job (keep-alive best-effort, pas un moniteur).
           exit 0
