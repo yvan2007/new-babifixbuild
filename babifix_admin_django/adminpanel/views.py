@@ -3079,7 +3079,9 @@ def api_public_providers(request):
         try:
             lat_f = float(lat)
             lon_f = float(lon)
-            from django.db.models import Q
+            # NE PAS réimporter Q ici : il est déjà importé au niveau module.
+            # Un import local rendait `Q` local à TOUTE la fonction, donc son
+            # usage plus haut (filtre texte) levait un UnboundLocalError → 500.
             if pub_is_adaptive:
                 # CATALOGUE (rayon « auto ») : BABIFIX est un marché NATIONAL à
                 # faible densité. On ne cache JAMAIS un prestataire à cause de la
@@ -3296,7 +3298,9 @@ def api_client_prestataires(request):
             lat_float = float(lat)
             lon_float = float(lon)
             approx_deg = max_radius / 111.0
-            from django.db.models import Q
+            # NE PAS réimporter Q ici (déjà importé au niveau module) : sinon `Q`
+            # devient local à toute la fonction et le filtre texte plus haut lève
+            # un UnboundLocalError → recherche prestataires en 500.
             qs = qs.filter(
                 Q(
                     latitude__isnull=False,
