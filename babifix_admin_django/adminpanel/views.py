@@ -2404,13 +2404,16 @@ def dashboard(request):
                     "total_net": 0.0,
                 }
                 _grp[_key] = _g
+            # Payment n'expose PAS d'attribut `net_prestataire` (le template le
+            # référençait, mais Django avale silencieusement les attributs
+            # manquants → colonne toujours vide). On le CALCULE ici et on
+            # l'attache à l'objet pour l'affichage.
+            _net_p = float(_p.montant or 0) - float(_p.commission or 0)
+            _p.net_calcule = _net_p
             _g["payments"].append(_p)
             _g["total_montant"] += float(_p.montant or 0)
             _g["total_commission"] += float(_p.commission or 0)
-            try:
-                _g["total_net"] += float(_p.net_prestataire or 0)
-            except (TypeError, ValueError):
-                pass
+            _g["total_net"] += _net_p
         paiements_groupes = list(_grp.values())
 
     # ── Radar anti-fuite : visites suspectes (caution payée + visite faite mais
@@ -2421,8 +2424,10 @@ def dashboard(request):
         try:
             from datetime import timedelta as _td
             from django.db.models import Exists as _Exists, OuterRef as _OuterRef
+            # PlatformConfig n'est PAS dans l'import module de ce fichier.
+            from .models import PlatformConfig as _PCfg
 
-            _cfgr = PlatformConfig.get_solo()
+            _cfgr = _PCfg.get_solo()
             _jours = int(getattr(_cfgr, "radar_visite_sans_devis_jours", 3) or 3)
             _limite = timezone.now() - _td(days=_jours)
             _devis_qs = Devis.objects.filter(reservation=_OuterRef("pk")).exclude(
@@ -2462,6 +2467,9 @@ def dashboard(request):
                     "date": _r.visite_effectuee_at,
                 })
         except Exception:
+            # On ne casse jamais le dashboard pour le radar, mais on TRACE :
+            # un except muet avait masqué un NameError (radar toujours vide).
+            logger.warning("radar visites suspectes indisponible", exc_info=True)
             radar_visites = []
 
     context = {

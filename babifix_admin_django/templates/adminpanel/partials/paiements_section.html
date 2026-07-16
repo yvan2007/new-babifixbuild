@@ -43,7 +43,8 @@
           <td>{{ paiement.prestataire|truncatechars:20 }}</td>
           <td><strong>{{ paiement.montant|floatformat:0 }} FCFA</strong></td>
           <td><span class="text-amber">{{ paiement.commission|floatformat:0 }} FCFA</span></td>
-          <td><span class="text-green">{{ paiement.net_prestataire|floatformat:0 }} FCFA</span></td>
+          {# net_calcule = montant − commission (Payment n'a pas de net_prestataire). #}
+          <td><span class="text-green">{{ paiement.net_calcule|floatformat:0 }} FCFA</span></td>
           <td>
             {# Moyen de paiement détaillé : type + opérateur Mobile Money (logo + nom). #}
             <div class="pay-cell">
