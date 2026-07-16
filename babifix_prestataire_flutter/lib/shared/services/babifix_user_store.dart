@@ -62,7 +62,7 @@ class BabifixUserStore {
         Uri.parse('${babifixApiBaseUrl()}/api/auth/refresh/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refresh': refresh}),
-      );
+      ).timeout(_kTimeout);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final newAccess = (data['access'] ?? data['token']) as String?;
@@ -74,6 +74,14 @@ class BabifixUserStore {
     } catch (_) {}
     return null;
   }
+
+  /// Timeout de TOUS les appels authentifiés.
+  ///
+  /// Sans lui, une requête se figeait INDÉFINIMENT quand le serveur Render
+  /// (offre gratuite) se réveille : l'utilisateur cliquait « Confirmer », rien
+  /// ne se passait, aucune erreur — il recliquait en boucle. 60 s couvre le
+  /// cold start (~50 s) tout en garantissant qu'on échoue TOUJOURS un jour.
+  static const Duration _kTimeout = Duration(seconds: 60);
 
   static Future<http.Response> authGet(
     String url, {
@@ -87,14 +95,14 @@ class BabifixUserStore {
         if (token != null) 'Authorization': 'Bearer $token',
         ...extraHeaders,
       },
-    );
+    ).timeout(_kTimeout);
     if (res.statusCode == 401) {
       final fresh = await refreshAccessToken();
       if (fresh != null) {
         res = await http.get(
           Uri.parse(fullUrl),
           headers: {'Authorization': 'Bearer $fresh', ...extraHeaders},
-        );
+        ).timeout(_kTimeout);
       }
     }
     return res;
@@ -112,7 +120,9 @@ class BabifixUserStore {
       'Content-Type': 'application/json',
       ...extraHeaders,
     };
-    var res = await http.post(Uri.parse(fullUrl), headers: headers, body: body);
+    var res = await http
+        .post(Uri.parse(fullUrl), headers: headers, body: body)
+        .timeout(_kTimeout);
     if (res.statusCode == 401) {
       final fresh = await refreshAccessToken();
       if (fresh != null) {
@@ -121,7 +131,9 @@ class BabifixUserStore {
           'Content-Type': 'application/json',
           ...extraHeaders,
         };
-        res = await http.post(Uri.parse(fullUrl), headers: h2, body: body);
+        res = await http
+            .post(Uri.parse(fullUrl), headers: h2, body: body)
+            .timeout(_kTimeout);
       }
     }
     return res;
@@ -219,7 +231,7 @@ class BabifixUserStore {
           'phone_e164': phone.trim(),
           'country_code': countryCode,
         }),
-      );
+      ).timeout(_kTimeout);
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final token = data['token'] as String?;
@@ -281,7 +293,7 @@ class BabifixUserStore {
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': key, 'password': password}),
-      );
+      ).timeout(_kTimeout);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         // Support both {"token": "..."} and {"access": "...", "refresh": "..."} formats

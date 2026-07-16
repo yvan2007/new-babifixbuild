@@ -1,6 +1,7 @@
 ﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -2411,6 +2412,32 @@ class _SafeImage extends StatelessWidget {
   final String src;
   final double size;
 
+  /// Bytes décodés, mis en cache par source.
+  ///
+  /// POURQUOI : `base64Decode` s'exécutait dans `build()`, donc à CHAQUE frame
+  /// de scroll de la liste, et renvoyait un NOUVEAU Uint8List à chaque fois.
+  /// `Image.memory` identifie une image par l'objet de bytes : un nouvel objet
+  /// = cache Flutter inutile = re-décodage permanent de plusieurs Mo pendant le
+  /// scroll → saturation mémoire → ÉCRAN NOIR. En réutilisant la MÊME instance,
+  /// le cache image fait enfin son travail.
+  /// (Dans un écran de détail, construit une seule fois, le bug ne se voyait
+  /// pas : d'où un écran noir uniquement dans la liste.)
+  static final Map<String, Uint8List> _bytesCache = <String, Uint8List>{};
+
+  static Uint8List? _decodeCached(String src) {
+    final hit = _bytesCache[src];
+    if (hit != null) return hit;
+    try {
+      final bytes = base64Decode(src.split(',').last);
+      // Borne mémoire : on ne garde pas indéfiniment les photos parcourues.
+      if (_bytesCache.length > 60) _bytesCache.clear();
+      _bytesCache[src] = bytes;
+      return bytes;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Widget _placeholder(double sz) => Container(
     width: sz,
     height: sz,
@@ -2430,22 +2457,20 @@ class _SafeImage extends StatelessWidget {
     // mémoire GPU au scroll → écran noir. cacheWidth/Height corrige ça.
     final int decodePx = (size * 3).round();
 
-    // Cas 1 : data URI base64
+    // Cas 1 : data URI base64 — bytes décodés UNE fois puis réutilisés.
     if (src.startsWith('data:image/')) {
-      try {
-        final bytes = base64Decode(src.split(',').last);
-        return Image.memory(
-          bytes,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          cacheWidth: decodePx,
-          cacheHeight: decodePx,
-          errorBuilder: (_, __, ___) => _placeholder(size),
-        );
-      } catch (_) {
-        return _placeholder(size);
-      }
+      final bytes = _decodeCached(src);
+      if (bytes == null) return _placeholder(size);
+      return Image.memory(
+        bytes,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        cacheWidth: decodePx,
+        cacheHeight: decodePx,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => _placeholder(size),
+      );
     }
 
     // Cas 2 : URL réseau

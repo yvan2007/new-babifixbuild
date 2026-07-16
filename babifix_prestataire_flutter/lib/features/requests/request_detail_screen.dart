@@ -2,9 +2,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../babifix_design_system.dart';
+import '../../shared/error_utils.dart';
 import '../../services/call_service.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -725,16 +727,41 @@ class RequestDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: cautionCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Montant de la caution',
-                  helperText: 'Maximum 5 000 FCFA',
-                  suffixText: 'FCFA',
-                  border: OutlineInputBorder(),
-                ),
+              // Validation EN DIRECT : avant, on pouvait taper 100 000 sans
+              // rien voir, et n'apprendre le refus qu'après l'appel serveur.
+              StatefulBuilder(
+                builder: (ctx2, setField) {
+                  final saisi = double.tryParse(
+                      cautionCtrl.text.replaceAll(',', '.').trim());
+                  String? err;
+                  if (cautionCtrl.text.trim().isNotEmpty) {
+                    if (saisi == null) {
+                      err = 'Entrez un montant valide.';
+                    } else if (saisi <= 0) {
+                      err = 'Le montant doit être supérieur à 0.';
+                    } else if (saisi > 5000) {
+                      err = 'Maximum 5 000 FCFA.';
+                    }
+                  }
+                  return TextField(
+                    controller: cautionCtrl,
+                    autofocus: true,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    // Empêche carrément de saisir autre chose que des chiffres.
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    onChanged: (_) => setField(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Montant de la caution',
+                      helperText: 'Transport, reversé à 100 % au prestataire',
+                      errorText: err,
+                      suffixText: 'FCFA',
+                      border: const OutlineInputBorder(),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 10),
               TextField(
@@ -847,16 +874,43 @@ class RequestDetailScreen extends StatelessWidget {
       ),
     );
     if (ok != true) return;
+    if (!context.mounted) return;
+
+    // Retour visuel OBLIGATOIRE : l'appel peut prendre jusqu'à ~60 s (réveil du
+    // serveur). Sans ça, l'écran restait figé sans rien afficher et on recliquait
+    // « Confirmer » en boucle en croyant que le bouton était cassé.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            SizedBox(width: 16),
+            Expanded(child: Text('Confirmation de la visite…')),
+          ],
+        ),
+      ),
+    );
+
     try {
       await DevisApi.visiteDone(reference);
       if (!context.mounted) return;
+      Navigator.of(context).pop(); // ferme le loader
       showBabifixToast(context,
-          type: BabifixToastType.success, message: 'Visite confirmée.');
+          type: BabifixToastType.success,
+          message: 'Visite confirmée. Votre transport vous a été crédité.');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!context.mounted) return;
+      Navigator.of(context).pop(); // ferme le loader
       showBabifixToast(context,
-          type: BabifixToastType.error, message: 'Échec : $e');
+          type: BabifixToastType.error,
+          message: 'Échec : ${userFriendlyError(e)}');
     }
   }
 
