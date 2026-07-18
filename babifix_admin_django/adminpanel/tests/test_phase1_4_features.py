@@ -368,6 +368,43 @@ class Phase14FeaturesTest(TestCase):
         self.assertEqual(q.cash_minimum_surplus, Decimal("140"))  # 500 - 360
         self.assertEqual(q.cash_remainder, Decimal("1500"))  # 1640 - 140
 
+    def test_escrow_quote_reconcilie_avec_caution_deja_payee_mobile_money(self):
+        """Même bug, même scénario (devis 5000, caution 3000 déjà payée), mais en
+        MOBILE_MONEY plutôt qu'en cash — pour vérifier que le correctif ne
+        dépend pas du type de paiement choisi par le client."""
+        from adminpanel.services.escrow_service import EscrowService
+
+        res = self._make_reservation(ref="RES-CAUT-PAY-MM", statut="DEVIS_EN_COURS")
+        res.payment_type = "MOBILE_MONEY"
+        res.caution_montant = Decimal("3000")
+        res.caution_payee = True
+        res.visite_effectuee = True
+        res.save()
+
+        r = self._post(
+            f"/api/prestataire/requests/{res.reference}/devis", self.presta_tok,
+            {"diagnostic": "Fuite", "lignes": [
+                {"type_ligne": "MAIN_OEUVRE", "description": "Réparation",
+                 "quantite": 1, "prix_unitaire": 5000}]},
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        r = self._post(
+            f"/api/client/reservations/{res.reference}/devis/accept", self.cli_tok
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+
+        res.refresh_from_db()
+        self.assertTrue(res.caution_deduite)
+        self.assertEqual(res.montant, Decimal("2000"))  # 5000 - 3000
+
+        # Acompte 30 % du RESTE réellement dû (2000), pas des 5000 F complets :
+        # 30 % de 2000 = 600 (au-dessus du minimum GeniusPay, pas de garde-fou).
+        q = EscrowService.quote(res)
+        self.assertEqual(q.strategy, "MOBILE_DEPOSIT")
+        self.assertEqual(q.commission_montant, Decimal("360"))  # 18 % de 2000
+        self.assertEqual(q.net_prestataire, Decimal("1640"))  # 2000 - 360
+        self.assertEqual(q.amount_due, Decimal("600"))  # 30 % de 2000
+
     def test_reliability_suspicious_cancellation(self):
         # Cancellation via l'endpoint LIVE (api_client_cancel_reservation).
         res = self._make_reservation(ref="RES-REL", statut="VISITE_DIAGNOSTIC")
