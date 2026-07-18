@@ -1439,163 +1439,128 @@ class _StepProbleme extends StatelessWidget {
               suggestions: babifixCategorySuggestions(providerSpecialite),
             ),
             const SizedBox(height: 16),
-            GestureDetector(
-              onTap: () async {
-                final picker = await _showImagePicker(context);
-                if (picker != null && picker.isNotEmpty) {
-                  onPhotosChanged([...photos, ...picker]);
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16),
+            // ── Pièces jointes optionnelles : photo / note vocale / vidéo ──
+            // Une seule rangée de 3 tuiles compactes (plutôt que 3 blocs
+            // empilés pleine largeur) : même fonctions, bien moins d'espace.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _AttachTile(
+                    icon: Icons.add_a_photo_outlined,
+                    label: photos.isEmpty ? 'Photos' : '${photos.length} photo(s)',
+                    active: photos.isNotEmpty,
+                    onTap: () async {
+                      final picker = await _showImagePicker(context);
+                      if (picker != null && picker.isNotEmpty) {
+                        onPhotosChanged([...photos, ...picker]);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _AttachTile(
+                    icon: Icons.mic_none_rounded,
+                    label: audioUrl.isEmpty ? 'Note vocale' : 'Note ajoutée',
+                    active: audioUrl.isNotEmpty,
+                    loading: audioUploading,
+                    // Le bouton (customChild) pilote lui-même le
+                    // démarrage/arrêt de l'enregistrement (tap = start/stop).
+                    customChild: !audioUploading && audioUrl.isEmpty
+                        ? BabifixVoiceRecorderButton(
+                            color: _kCyan, onRecorded: onVoiceRecorded)
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _AttachTile(
+                    icon: Icons.videocam_outlined,
+                    label: videoUrl.isEmpty ? 'Vidéo' : 'Vidéo ajoutée',
+                    active: videoUrl.isNotEmpty,
+                    loading: videoUploading,
+                    onTap: videoUploading || videoUrl.isNotEmpty
+                        ? null
+                        : () => _pickVideoSource(context, onPickVideo),
+                  ),
+                ),
+              ],
+            ),
+            // Détail compact : affiché seulement quand il y a quelque chose
+            // à écouter / voir / supprimer (sinon la tuile suffit).
+            if (audioUrl.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0D1525),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.add_a_photo_outlined,
-                      color: _kCyan.withValues(alpha: 0.8),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      photos.isEmpty
-                          ? 'Ajouter des photos (optionnel)'
-                          : '${photos.length} photo(s) ajoutée(s)',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
+                    Expanded(
+                      child: BabifixVoiceNotePlayer(
+                        url: MediaApi.absolute(audioUrl),
+                        durationSeconds: 0,
+                        isMe: true,
                       ),
+                    ),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: onAudioRemoved,
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.redAccent, size: 20),
+                      tooltip: 'Supprimer la note vocale',
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            // ── Note vocale (facultative) : décrire le besoin à la voix ──
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D1525),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
-              ),
-              child: audioUploading
-                  ? Row(
-                      children: const [
-                        SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: BabifixRingLoader.cyan(size: 28)),
-                        SizedBox(width: 12),
-                        Text('Envoi de la note vocale…',
-                            style: TextStyle(color: Colors.white70)),
-                      ],
-                    )
-                  : audioUrl.isEmpty
-                      ? Row(
-                          children: [
-                            BabifixVoiceRecorderButton(
-                                color: _kCyan, onRecorded: onVoiceRecorded),
-                            const Expanded(
-                              child: Text(
-                                'Ajouter une note vocale (optionnel)',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(
-                              child: BabifixVoiceNotePlayer(
-                                url: MediaApi.absolute(audioUrl),
-                                durationSeconds: 0,
-                                isMe: true,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: onAudioRemoved,
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.redAccent),
-                              tooltip: 'Supprimer la note vocale',
-                            ),
-                          ],
-                        ),
-            ),
-                  const SizedBox(height: 12),
-                  // ── Vidéo du problème (facultative, 30 s max) ──────────
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0D1525),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
+            ],
+            if (videoUrl.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1525),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.videocam_rounded,
+                        color: Colors.greenAccent, size: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('Vidéo ajoutée',
+                          style: TextStyle(color: Colors.white70, fontSize: 12.5)),
                     ),
-                    child: videoUploading
-                        ? Row(
-                            children: const [
-                              SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: BabifixRingLoader.cyan(size: 28)),
-                              SizedBox(width: 12),
-                              Text('Envoi de la vidéo…',
-                                  style: TextStyle(color: Colors.white70)),
-                            ],
-                          )
-                        : videoUrl.isEmpty
-                            ? Row(
-                                children: [
-                                  IconButton(
-                                    onPressed: () =>
-                                        onPickVideo(ImageSource.camera),
-                                    icon: Icon(Icons.videocam_outlined,
-                                        color: _kCyan),
-                                    tooltip: 'Filmer le problème',
-                                  ),
-                                  IconButton(
-                                    onPressed: () =>
-                                        onPickVideo(ImageSource.gallery),
-                                    icon: Icon(Icons.video_library_outlined,
-                                        color: _kCyan),
-                                    tooltip: 'Choisir une vidéo',
-                                  ),
-                                  const Expanded(
-                                    child: Text(
-                                      'Ajouter une vidéo (optionnel, 30 s max)',
-                                      style: TextStyle(color: Colors.white70),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                children: [
-                                  const Icon(Icons.videocam_rounded,
-                                      color: Colors.greenAccent),
-                                  const SizedBox(width: 10),
-                                  const Expanded(
-                                    child: Text('Vidéo ajoutée',
-                                        style:
-                                            TextStyle(color: Colors.white70)),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => launchUrl(
-                                      Uri.parse(MediaApi.absolute(videoUrl)),
-                                      mode: LaunchMode.externalApplication,
-                                    ),
-                                    child: const Text('Voir'),
-                                  ),
-                                  IconButton(
-                                    onPressed: onVideoRemoved,
-                                    icon: const Icon(Icons.delete_outline,
-                                        color: Colors.redAccent),
-                                    tooltip: 'Supprimer la vidéo',
-                                  ),
-                                ],
-                              ),
-                  ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => launchUrl(
+                        Uri.parse(MediaApi.absolute(videoUrl)),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      child: const Text('Voir', style: TextStyle(fontSize: 12.5)),
+                    ),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: onVideoRemoved,
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.redAccent, size: 20),
+                      tooltip: 'Supprimer la vidéo',
+                    ),
+                  ],
+                ),
+              ),
+            ],
                   // ── Exigences dynamiques de la catégorie (Phase 2) ──
                   // Rendu sur carte claire (l'étape est en fond navy). Vide =
                   // rien affiché (catégorie STANDARD → formulaire habituel).
@@ -1720,6 +1685,123 @@ class _StepProbleme extends StatelessWidget {
     } catch (e) {
       return null;
     }
+  }
+}
+
+/// Bottom sheet compact : choisir la source de la vidéo du problème
+/// (caméra ou galerie), au lieu de deux boutons côte à côte dans la tuile.
+Future<void> _pickVideoSource(
+  BuildContext context,
+  Future<void> Function(ImageSource source) onPickVideo,
+) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: const Color(0xFF0A1628),
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.videocam, color: _StepProbleme._kCyan),
+            title: const Text('Filmer le problème',
+                style: TextStyle(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(ctx);
+              onPickVideo(ImageSource.camera);
+            },
+          ),
+          ListTile(
+            leading:
+                const Icon(Icons.video_library, color: _StepProbleme._kCyan),
+            title: const Text('Choisir une vidéo',
+                style: TextStyle(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(ctx);
+              onPickVideo(ImageSource.gallery);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Tuile compacte pour une pièce jointe optionnelle (photo / note vocale /
+/// vidéo) : icône + libellé court, état "actif" en vert une fois ajoutée.
+/// Remplace les 3 blocs pleine largeur empilés d'avant — même fonctions,
+/// bien moins d'espace, aspect plus pro.
+class _AttachTile extends StatelessWidget {
+  const _AttachTile({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.active = false,
+    this.loading = false,
+    this.customChild,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool active;
+  final bool loading;
+  final Widget? customChild;
+
+  static const _kBlue = Color(0xFF4CC9F0);
+  static const _kCyan = Color(0xFF4CC9F0);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 76,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D1525),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: active
+                ? Colors.greenAccent.withValues(alpha: 0.5)
+                : _kBlue.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Center(
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: BabifixRingLoader.cyan(size: 22),
+                )
+              : customChild ??
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        active ? Icons.check_circle : icon,
+                        color: active
+                            ? Colors.greenAccent
+                            : _kCyan.withValues(alpha: 0.85),
+                        size: 20,
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.75),
+                        ),
+                      ),
+                    ],
+                  ),
+        ),
+      ),
+    );
   }
 }
 
