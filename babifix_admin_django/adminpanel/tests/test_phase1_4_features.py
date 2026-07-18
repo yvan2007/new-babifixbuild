@@ -322,6 +322,52 @@ class Phase14FeaturesTest(TestCase):
         self.assertEqual(q.amount_due, Decimal("14400"))  # 30 % de (50000 − 2000)
         self.assertEqual(q.net_prestataire, Decimal("41000"))  # inchangé (50000 − 9000)
 
+    def test_escrow_quote_reconcilie_avec_caution_deja_payee(self):
+        """Non-régression EXACTE du bug signalé : devis 5000, caution/transport
+        3000 déjà réglée par mobile. L'écran de PAIEMENT doit refléter le RESTE
+        (2000), pas redemander une commission sur les 5000 F complets comme si
+        rien n'avait encore été payé.
+        """
+        from adminpanel.services.escrow_service import EscrowService
+
+        # Statut réel après paiement de la caution (voir api_client_pay_caution) :
+        # DEVIS_EN_COURS, pas VISITE_DIAGNOSTIC.
+        res = self._make_reservation(ref="RES-CAUT-PAY", statut="DEVIS_EN_COURS")
+        res.payment_type = "ESPECES"
+        res.caution_montant = Decimal("3000")
+        res.caution_payee = True
+        res.visite_effectuee = True
+        res.save()
+
+        r = self._post(
+            f"/api/prestataire/requests/{res.reference}/devis", self.presta_tok,
+            {"diagnostic": "Fuite", "lignes": [
+                {"type_ligne": "MAIN_OEUVRE", "description": "Réparation",
+                 "quantite": 1, "prix_unitaire": 5000}]},
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        r = self._post(
+            f"/api/client/reservations/{res.reference}/devis/accept", self.cli_tok
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+
+        res.refresh_from_db()
+        self.assertTrue(res.caution_deduite)
+        self.assertEqual(res.montant, Decimal("2000"))  # 5000 - 3000, déjà correct
+
+        # AVANT LE CORRECTIF : le quote lisait devis.commission_montant (900,
+        # 18% de 5000 COMPLETS) et redemandait 4100 en cash, ignorant la
+        # caution déjà versée. Attendu maintenant : commission sur le RESTE
+        # (2000), donc 360 — porté à 500 par le garde-fou minimum GeniusPay
+        # (préexistant, sans rapport avec ce correctif), d'où un surplus de
+        # 140 F reversé au presta à la confirmation.
+        q = EscrowService.quote(res)
+        self.assertEqual(q.commission_montant, Decimal("360"))
+        self.assertEqual(q.net_prestataire, Decimal("1640"))  # 2000 - 360
+        self.assertEqual(q.amount_due, Decimal("500"))  # 360 -> mini 500 F
+        self.assertEqual(q.cash_minimum_surplus, Decimal("140"))  # 500 - 360
+        self.assertEqual(q.cash_remainder, Decimal("1500"))  # 1640 - 140
+
     def test_reliability_suspicious_cancellation(self):
         # Cancellation via l'endpoint LIVE (api_client_cancel_reservation).
         res = self._make_reservation(ref="RES-REL", statut="VISITE_DIAGNOSTIC")

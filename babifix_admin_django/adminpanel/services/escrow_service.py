@@ -118,18 +118,83 @@ def _latest_devis(reservation):
     return qs.filter(statut=Devis.Statut.ENVOYE).first()
 
 
-def _total_client_du(reservation, devis) -> Decimal:
-    """Total réellement dû par le CLIENT = total du devis − remise fidélité.
+def _reste_apres_caution(reservation, devis) -> Decimal:
+    """total_ttc du devis − caution/transport déjà versé (si déduite).
 
-    Fidélité (Phase 5) : BABIFIX ABSORBE la remise. Le net prestataire reste
-    basé sur le devis (inchangé) ; seule la part que règle le client, et donc le
-    revenu BABIFIX, diminuent. Un même helper est utilisé partout (devis, solde,
-    seuil de libération) pour rester cohérent.
+    Base de calcul de la commission ET du net prestataire. La remise
+    fidélité n'intervient JAMAIS ici : elle est absorbée par BABIFIX sur SA
+    propre part, jamais en réduisant ce que touche le prestataire (cf.
+    `_reconciled_commission_net`).
     """
     total = Decimal(str(getattr(devis, "total_ttc", 0) or 0))
-    remise = Decimal(str(getattr(reservation, "remise_fidelite", 0) or 0))
-    reste = total - remise
+    if getattr(reservation, "caution_deduite", False):
+        caution = Decimal(str(getattr(reservation, "caution_montant", 0) or 0))
+        reste = total - caution
+    else:
+        reste = total
     return reste if reste > 0 else Decimal("0")
+
+
+def _reconciled_commission_net(reservation, devis):
+    """Commission BABIFIX (brute) et net prestataire, sur le reste APRÈS
+    caution UNIQUEMENT — jamais après remise fidélité (celle-ci ne doit
+    jamais réduire le net du prestataire, elle est absorbée par BABIFIX ;
+    voir `_platform_commission_nette` pour ce qui est réellement comptabilisé
+    en revenu plateforme).
+
+    Remplace toute lecture directe de `devis.commission_montant` /
+    `devis.net_prestataire` : ces deux champs sont figés au moment de l'envoi
+    du devis et ne sont JAMAIS recalculés après une déduction de caution —
+    les utiliser tels quels aurait versé au prestataire un montant faux (et
+    prélevé une commission BABIFIX sur de l'argent déjà réglé séparément via
+    la caution).
+
+    Retourne (reste_apres_caution, commission_brute, net_presta).
+    """
+    reste = _reste_apres_caution(reservation, devis)
+    try:
+        rate = Decimal(str(devis.commission_rate or 18)) / Decimal("100")
+    except Exception:
+        rate = Decimal("0.18")
+    commission = (reste * rate).quantize(Decimal("1"))
+    net = reste - commission
+    if net < 0:
+        net = Decimal("0")
+    return reste, commission, net
+
+
+def _total_client_du(reservation, devis) -> Decimal:
+    """Total réellement dû par le CLIENT via l'escrow = reservation.montant.
+
+    `reservation.montant` est fixé à l'ACCEPTATION du devis et vaut déjà
+    total_ttc − caution/transport éventuel (réglé à part, à la visite) −
+    remise fidélité éventuelle (absorbée par BABIFIX). C'est la SEULE source
+    de vérité pour ce que le client doit encore régler via l'escrow.
+
+    BUG CORRIGÉ : cette fonction ne soustrayait QUE la remise fidélité du
+    total brut du devis, en ignorant complètement la caution déjà versée.
+    Résultat concret : un client ayant déjà payé 3 000 F de caution sur un
+    devis de 5 000 F se voyait redemander une commission ET un reste calculés
+    sur les 5 000 F complets (comme si rien n'avait encore été payé), au lieu
+    des 2 000 F réellement dus. Le reçu (déjà corrigé) affichait le bon
+    montant, mais l'écran de PAIEMENT (ce service) affichait l'ancien, faux —
+    d'où les deux montants contradictoires vus par le client.
+    """
+    reste = Decimal(str(getattr(reservation, "montant", 0) or 0))
+    if reste > 0:
+        return reste
+    # Repli : devis pas encore accepté (montant non initialisé).
+    reste_avant_remise = _reste_apres_caution(reservation, devis)
+    remise = Decimal(str(getattr(reservation, "remise_fidelite", 0) or 0))
+    reste = reste_avant_remise - remise
+    return reste if reste > 0 else Decimal("0")
+
+
+# NB : l'absorption de la remise fidélité par BABIFIX (commission nette
+# de revenu = commission brute − remise) est déjà actée par une écriture
+# PlatformRevenue négative séparée dans `release_funds` (le presta, lui,
+# touche toujours `net` inchangé, calculé sans la remise via
+# `_reconciled_commission_net` ci-dessus).
 
 
 @dataclass
@@ -174,12 +239,10 @@ class EscrowService:
                 devis_reference="",
             )
 
-        total = Decimal(str(devis.total_ttc or 0))
-        commission = Decimal(str(devis.commission_montant or 0))
-        net_prestataire_val = devis.net_prestataire
-        if net_prestataire_val is None or net_prestataire_val == 0:
-            net_prestataire_val = total - commission
-        net = Decimal(str(net_prestataire_val))
+        total = Decimal(str(devis.total_ttc or 0))  # total du devis (référence d'affichage)
+        # RECONCILIÉ : commission et net calculés sur le RESTE réellement dû
+        # (net de la caution déjà versée), pas sur `total` brut.
+        reste, commission, net = _reconciled_commission_net(reservation, devis)
 
         cash_minimum_surplus = Decimal("0")
         if reservation.payment_type == Reservation.PaymentType.ESPECES:
@@ -200,8 +263,11 @@ class EscrowService:
             # puis 70 % de solde à la fin (avant confirmation). Tout reste en
             # escrow jusqu'à la confirmation client (release_funds).
             montant_verse = Decimal(str(reservation.montant_verse or 0))
-            # Ce que le client règle au total = total − remise fidélité (BABIFIX
-            # absorbe). Le net prestataire, lui, reste sur le total du devis.
+            # ATTENTION : `reste` (calculé plus haut) exclut délibérément la
+            # remise fidélité — c'est la base de la commission/du net presta,
+            # que la remise ne doit jamais réduire. Ce que le CLIENT règle,
+            # lui, doit bien inclure la remise : `_total_client_du` est la
+            # seule source correcte ici (reste ET remise).
             total_client = _total_client_du(reservation, devis)
             if not reservation.acompte_valide:
                 strategy = "MOBILE_DEPOSIT"  # phase 1 : acompte
@@ -285,7 +351,7 @@ class EscrowService:
             # ici — ce sera fait dans release_funds.
             devis = _latest_devis(reservation)
             commission_due = (
-                Decimal(str(devis.commission_montant or 0)) if devis else gross
+                _reconciled_commission_net(reservation, devis)[1] if devis else gross
             )
             if commission_due > gross:
                 commission_due = gross
@@ -393,8 +459,10 @@ class EscrowService:
             )
             return {"error": "no_devis"}
 
-        commission = Decimal(str(devis.commission_montant or 0))
-        net = Decimal(str(devis.net_prestataire or 0))
+        # RECONCILIÉ : commission et net calculés sur le reste réellement dû
+        # (net de la caution). Point le plus critique : c'est CE net qui est
+        # réellement versé au wallet du prestataire ci-dessous.
+        _, commission, net = _reconciled_commission_net(reservation, devis)
 
         result = {
             "ok": True,
@@ -633,7 +701,10 @@ class EscrowService:
             return {"error": "decision_inconnue", "decision": decision}
 
         devis = _latest_devis(reservation)
-        net = Decimal(str(devis.net_prestataire or 0)) if devis else Decimal("0")
+        net = (
+            _reconciled_commission_net(reservation, devis)[2]
+            if devis else Decimal("0")
+        )
         paid = Decimal(str(reservation.montant_verse or 0))
 
         # ── Libérer au prestataire ──────────────────────────────────────────
