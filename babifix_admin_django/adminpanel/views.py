@@ -2609,6 +2609,7 @@ def api_client_home(request):
                 "demande_type": item.demande_type or "",
                 "demande_type_label": item.get_demande_type_display() if item.demande_type else "",
                 "audio_probleme": item.audio_probleme or "",
+                "video_probleme": item.video_probleme or "",
                 "reponses_exigences": item.reponses_exigences or {},
                 "caution_montant": float(item.caution_montant or 0),
                 "caution_motif": item.caution_motif or "",
@@ -4271,6 +4272,7 @@ def api_client_create_reservation(request):
         description_probleme=str(payload.get("description_probleme", "") or "")[:2000],
         demande_type=str(payload.get("demande_type", "") or "")[:20],
         audio_probleme=str(payload.get("audio_probleme", "") or "")[:500],
+        video_probleme=str(payload.get("video_probleme", "") or "")[:500],
         reponses_exigences=(
             payload.get("reponses_exigences")
             if isinstance(payload.get("reponses_exigences"), dict)
@@ -4728,6 +4730,7 @@ def api_prestataire_requests(request):
                 # Note vocale du client (URL). Sans ça, le lecteur ne s'affichait
                 # jamais côté presta (liste ET détail).
                 "audio_probleme": item.audio_probleme or "",
+                "video_probleme": item.video_probleme or "",
                 "disponibilites_client": item.disponibilites_client or "",
                 "is_urgent": item.is_urgent,
                 "urgence_surcharge_pct": item.urgence_surcharge_pct or 0,

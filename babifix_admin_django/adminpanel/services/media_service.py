@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 
 MAX_BYTES = 6 * 1024 * 1024  # 6 MiB
 MAX_AUDIO_BYTES = 15 * 1024 * 1024  # 15 MiB (note vocale ~2 min)
+# Vidéo du problème : capée à ~30 s CÔTÉ CLIENT (durée native du picker) pour
+# rester raisonnable sur un réseau mobile ivoirien. 40 MiB laisse de la marge
+# pour un H.264 720p de 30 s tout en écartant un fichier anormalement long.
+MAX_VIDEO_BYTES = 40 * 1024 * 1024  # 40 MiB (~30 s de vidéo compressée)
 MAX_DIMENSION = 1600
 ALLOWED_MIMES = {"image/jpeg", "image/png", "image/webp"}
 # Note vocale (record ^6.x → conteneur m4a/aac). On tolère aussi les variantes
@@ -41,6 +45,10 @@ ALLOWED_MIMES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_AUDIO_MIMES = {
     "audio/mp4", "audio/aac", "audio/m4a", "audio/x-m4a",
     "audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav", "audio/webm",
+}
+# Vidéo du problème (image_picker : .mp4 sur Android, .mov sur iOS).
+ALLOWED_VIDEO_MIMES = {
+    "video/mp4", "video/quicktime", "video/webm", "video/3gpp", "video/x-m4v",
 }
 
 _MIME_TO_EXT = {
@@ -60,6 +68,14 @@ _AUDIO_MIME_TO_EXT = {
     "audio/ogg": "ogg",
     "audio/wav": "wav",
     "audio/webm": "webm",
+}
+
+_VIDEO_MIME_TO_EXT = {
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+    "video/3gpp": "3gp",
+    "video/x-m4v": "m4v",
 }
 
 
@@ -210,15 +226,57 @@ class MediaService:
             return f"{settings.MEDIA_URL.rstrip('/')}/{saved.lstrip('/')}"
 
     @staticmethod
+    def store_video_bytes(content: bytes, ext: str, user_id: int) -> str:
+        """Sauvegarde une vidéo (problème filmé) telle quelle (pas de transcodage)."""
+        if not content:
+            raise MediaUploadError("empty_file")
+        if len(content) > MAX_VIDEO_BYTES:
+            raise MediaUploadError("file_too_large")
+        ext = (ext or "mp4").lstrip(".").lower()[:4] or "mp4"
+        now = timezone.now()
+        rel_dir = os.path.join(
+            "babifix_uploads", f"{now.year:04d}", f"{now.month:02d}",
+            str(int(user_id) or 0),
+        )
+        digest = hashlib.sha1(content).hexdigest()[:12]
+        filename = _safe_filename(f"vid{digest}", ext)
+        rel_path = f"{rel_dir}/{filename}".replace("\\", "/")
+
+        # Même storage que l'audio (RawMediaCloudinaryStorage) : Cloudinary
+        # refuse les fichiers non-image sur son storage par défaut.
+        storage = MediaService._audio_storage()
+        try:
+            _ensure_dir(rel_dir)
+        except Exception:
+            pass
+        saved = storage.save(rel_path, ContentFile(content))
+        try:
+            return storage.url(saved)
+        except Exception:
+            return f"{settings.MEDIA_URL.rstrip('/')}/{saved.lstrip('/')}"
+
+    @staticmethod
     def store_upload(uploaded_file, user_id: int) -> str:
         """Pour les InMemoryUploadedFile/TemporaryUploadedFile Django.
 
-        Accepte les images (redimensionnées) ET l'audio des notes vocales
-        (stocké tel quel). Certains clients n'envoient pas de content-type
-        fiable → on retombe sur l'extension du nom de fichier.
+        Accepte les images (redimensionnées), l'audio des notes vocales et les
+        vidéos du problème (stockées telles quelles). Certains clients
+        n'envoient pas de content-type fiable → on retombe sur l'extension du
+        nom de fichier.
         """
         mime = (uploaded_file.content_type or "").lower()
         name = (getattr(uploaded_file, "name", "") or "").lower()
+
+        # Vidéo (problème filmé) ?
+        is_video = mime in ALLOWED_VIDEO_MIMES or name.endswith(
+            (".mp4", ".mov", ".webm", ".3gp", ".m4v")
+        )
+        if is_video:
+            content = uploaded_file.read()
+            ext = _VIDEO_MIME_TO_EXT.get(mime)
+            if not ext and "." in name:
+                ext = name.rsplit(".", 1)[-1]
+            return MediaService.store_video_bytes(content, ext or "mp4", user_id)
 
         # Audio (note vocale) ?
         is_audio = mime in ALLOWED_AUDIO_MIMES or name.endswith(

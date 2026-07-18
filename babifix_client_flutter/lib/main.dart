@@ -6487,6 +6487,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
         //  • `scheduled_date` perdu → « le planning ne s'affiche pas ».
         if (_str(flowData?['audio_probleme']).isNotEmpty)
           'audio_probleme': _str(flowData?['audio_probleme']),
+        if (_str(flowData?['video_probleme']).isNotEmpty)
+          'video_probleme': _str(flowData?['video_probleme']),
         if (_str(flowData?['scheduled_date']).isNotEmpty)
           'scheduled_date': _str(flowData?['scheduled_date']),
         if (_str(flowData?['demande_type']).isNotEmpty)

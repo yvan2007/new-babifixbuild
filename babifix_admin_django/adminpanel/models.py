@@ -526,6 +526,14 @@ class Reservation(models.Model):
         default="",
         help_text="URL d'une note vocale décrivant le besoin (facultatif)",
     )
+    # Vidéo du client montrant le problème (URL du fichier vidéo). Optionnel,
+    # capée à ~30 s côté client pour rester raisonnable sur un réseau mobile.
+    video_probleme = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="URL d'une courte vidéo montrant le problème (facultatif)",
+    )
     # Réponses du client aux questions dynamiques de la catégorie
     # (Category.template_exigences). Dict {key: valeur}. Défaut vide =
     # aucune question posée (catégorie STANDARD) → rétrocompatible.

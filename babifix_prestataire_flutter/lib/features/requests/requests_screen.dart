@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../shared/error_utils.dart';
 
@@ -690,6 +691,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           isUrgent: it.isUrgent,
           prixPropose: it.prixPropose,
           audioProbleme: it.audioProbleme,
+          videoProbleme: it.videoProbleme,
         ),
       ),
     ).then((_) => _loadRequests());
@@ -920,6 +922,31 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   ),
                 ),
               ],
+            ),
+          ],
+          if (it.videoProbleme.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            // Ouverture EXTERNE (pas de lecteur embarqué) : dans une liste qui
+            // scrolle, un widget vidéo intégré reconstruirait/décoderait à
+            // chaque frame — même classe de bug que l'écran noir des photos.
+            InkWell(
+              onTap: () => launchUrl(
+                Uri.parse(MediaApi.absolute(it.videoProbleme)),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.videocam_rounded,
+                      size: 15, color: Color(0xFF38BDF8)),
+                  const SizedBox(width: 6),
+                  const Text('Vidéo du problème',
+                      style: TextStyle(
+                          color: Color(0xFF38BDF8),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline)),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -1880,6 +1907,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             clientMessage: '${e['client_message'] ?? ''}',
             demandeTypeLabel: '${e['demande_type_label'] ?? ''}',
             audioProbleme: '${e['audio_probleme'] ?? ''}',
+            videoProbleme: '${e['video_probleme'] ?? ''}',
             clientPhotos: photos,
             bookingId: (e['id'] as num?)?.toInt(),
             disponibilitesClient: '${e['disponibilites_client'] ?? ''}',
@@ -2363,6 +2391,9 @@ class _RequestItem {
   /// Note vocale du client décrivant le besoin (URL). Vide si absente.
   final String audioProbleme;
 
+  /// Courte vidéo du client montrant le problème (URL). Vide si absente.
+  final String videoProbleme;
+
   /// Photos envoyées par le client (base64 data URI ou URL HTTP)
   final List<String> clientPhotos;
 
@@ -2426,6 +2457,7 @@ class _RequestItem {
     this.clientMessage = '',
     this.demandeTypeLabel = '',
     this.audioProbleme = '',
+    this.videoProbleme = '',
     this.clientPhotos = const [],
     this.bookingId,
     this.disponibilitesClient = '',

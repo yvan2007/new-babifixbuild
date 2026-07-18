@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
@@ -76,6 +77,39 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         showBabifixToast(context,
             type: BabifixToastType.error,
             message: 'Envoi de la note vocale échoué.');
+      }
+    }
+  }
+
+  // Courte vidéo du problème (facultative) : URL après upload.
+  String _videoProblemeUrl = '';
+  bool _videoUploading = false;
+
+  Future<void> _pickVideo(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      // Durée bornée à 30 s CÔTÉ CLIENT : garde le fichier léger sur un réseau
+      // mobile, et évite qu'un client filme un long chantier au lieu de
+      // décrire un problème ponctuel.
+      final XFile? video = await picker.pickVideo(
+        source: source,
+        maxDuration: const Duration(seconds: 30),
+      );
+      if (video == null) return;
+      setState(() => _videoUploading = true);
+      final url = await MediaApi.uploadFile(video.path);
+      if (mounted) {
+        setState(() {
+          _videoProblemeUrl = url;
+          _videoUploading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _videoUploading = false);
+        showBabifixToast(context,
+            type: BabifixToastType.error,
+            message: 'Envoi de la vidéo échoué.');
       }
     }
   }
@@ -634,6 +668,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     if (_audioProblemeUrl.isNotEmpty) {
       data['audio_probleme'] = _audioProblemeUrl;
     }
+    if (_videoProblemeUrl.isNotEmpty) {
+      data['video_probleme'] = _videoProblemeUrl;
+    }
     // Réponses aux questions dynamiques de la catégorie (Phase 2). Absent si
     // aucune question → l'API reçoit un dict vide (comportement actuel).
     // Payload auto-descriptif {key: {label, value, unit}} : le prestataire
@@ -802,6 +839,10 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           audioUploading: _audioUploading,
           onVoiceRecorded: _onVoiceRecorded,
           onAudioRemoved: () => setState(() => _audioProblemeUrl = ''),
+          videoUrl: _videoProblemeUrl,
+          videoUploading: _videoUploading,
+          onPickVideo: _pickVideo,
+          onVideoRemoved: () => setState(() => _videoProblemeUrl = ''),
           // Questions dynamiques de la catégorie (Phase 2). Vide = rien affiché.
           exigencesTemplate: _exigTemplate,
           exigencesProfil: _exigProfil,
@@ -1140,6 +1181,10 @@ class _StepProbleme extends StatelessWidget {
     required this.audioUploading,
     required this.onVoiceRecorded,
     required this.onAudioRemoved,
+    required this.videoUrl,
+    required this.videoUploading,
+    required this.onPickVideo,
+    required this.onVideoRemoved,
     required this.exigencesTemplate,
     required this.exigencesProfil,
     required this.reponsesExigences,
@@ -1162,6 +1207,10 @@ class _StepProbleme extends StatelessWidget {
   final bool audioUploading;
   final void Function(String path, int durationSeconds) onVoiceRecorded;
   final VoidCallback onAudioRemoved;
+  final String videoUrl;
+  final bool videoUploading;
+  final Future<void> Function(ImageSource source) onPickVideo;
+  final VoidCallback onVideoRemoved;
   final List<Map<String, dynamic>> exigencesTemplate;
   final String exigencesProfil;
   final Map<String, dynamic> reponsesExigences;
@@ -1475,6 +1524,78 @@ class _StepProbleme extends StatelessWidget {
                           ],
                         ),
             ),
+                  const SizedBox(height: 12),
+                  // ── Vidéo du problème (facultative, 30 s max) ──────────
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D1525),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
+                    ),
+                    child: videoUploading
+                        ? Row(
+                            children: const [
+                              SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: BabifixRingLoader.cyan(size: 28)),
+                              SizedBox(width: 12),
+                              Text('Envoi de la vidéo…',
+                                  style: TextStyle(color: Colors.white70)),
+                            ],
+                          )
+                        : videoUrl.isEmpty
+                            ? Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: () =>
+                                        onPickVideo(ImageSource.camera),
+                                    icon: Icon(Icons.videocam_outlined,
+                                        color: _kCyan),
+                                    tooltip: 'Filmer le problème',
+                                  ),
+                                  IconButton(
+                                    onPressed: () =>
+                                        onPickVideo(ImageSource.gallery),
+                                    icon: Icon(Icons.video_library_outlined,
+                                        color: _kCyan),
+                                    tooltip: 'Choisir une vidéo',
+                                  ),
+                                  const Expanded(
+                                    child: Text(
+                                      'Ajouter une vidéo (optionnel, 30 s max)',
+                                      style: TextStyle(color: Colors.white70),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  const Icon(Icons.videocam_rounded,
+                                      color: Colors.greenAccent),
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Text('Vidéo ajoutée',
+                                        style:
+                                            TextStyle(color: Colors.white70)),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => launchUrl(
+                                      Uri.parse(MediaApi.absolute(videoUrl)),
+                                      mode: LaunchMode.externalApplication,
+                                    ),
+                                    child: const Text('Voir'),
+                                  ),
+                                  IconButton(
+                                    onPressed: onVideoRemoved,
+                                    icon: const Icon(Icons.delete_outline,
+                                        color: Colors.redAccent),
+                                    tooltip: 'Supprimer la vidéo',
+                                  ),
+                                ],
+                              ),
+                  ),
                   // ── Exigences dynamiques de la catégorie (Phase 2) ──
                   // Rendu sur carte claire (l'étape est en fond navy). Vide =
                   // rien affiché (catégorie STANDARD → formulaire habituel).

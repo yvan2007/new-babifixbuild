@@ -52,6 +52,7 @@ class RequestDetailScreen extends StatelessWidget {
     this.visiteEffectuee = false,
     this.scheduledDate = '',
     this.audioProbleme = '',
+    this.videoProbleme = '',
   });
 
   final String reference;
@@ -99,6 +100,9 @@ class RequestDetailScreen extends StatelessWidget {
 
   /// Note vocale du client décrivant le besoin (URL). Vide si absente.
   final String audioProbleme;
+
+  /// Courte vidéo du client montrant le problème (URL). Vide si absente.
+  final String videoProbleme;
 
   @override
   Widget build(BuildContext context) {
@@ -252,8 +256,10 @@ class RequestDetailScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                 ],
 
-                // Client message / description + note vocale
-                if (clientMessage.isNotEmpty || audioProbleme.isNotEmpty) ...[
+                // Client message / description + note vocale + vidéo
+                if (clientMessage.isNotEmpty ||
+                    audioProbleme.isNotEmpty ||
+                    videoProbleme.isNotEmpty) ...[
                   _SectionCard(
                     icon: Icons.chat_bubble_rounded,
                     title: 'Message du client',
@@ -286,6 +292,49 @@ class RequestDetailScreen extends StatelessWidget {
                               ),
                             ),
                           ],
+                        ),
+                      ],
+                      // Vidéo du problème, filmée par le client (30 s max).
+                      // Ouverture EXTERNE : cet écran est reconstruit une seule
+                      // fois (pas de scroll de liste), un lecteur embarqué
+                      // serait donc sûr ici, mais on reste cohérent avec le
+                      // choix fait dans la liste (léger, pas de dépendance
+                      // vidéo supplémentaire).
+                      if (videoProbleme.isNotEmpty) ...[
+                        if (clientMessage.isNotEmpty || audioProbleme.isNotEmpty)
+                          const SizedBox(height: 12),
+                        InkWell(
+                          onTap: () => launchUrl(
+                            Uri.parse(MediaApi.absolute(videoProbleme)),
+                            mode: LaunchMode.externalApplication,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F1D32),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: const Color(0xFF38BDF8)
+                                      .withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.videocam_rounded,
+                                    size: 18, color: Color(0xFF38BDF8)),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text('Vidéo du problème (30 s max)',
+                                      style: TextStyle(
+                                          color: Color(0xFFCBD5E1),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600)),
+                                ),
+                                const Icon(Icons.open_in_new_rounded,
+                                    size: 16, color: Color(0xFF38BDF8)),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ],
