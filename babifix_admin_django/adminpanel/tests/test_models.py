@@ -3,7 +3,6 @@ Tests unitaires — Modèles BABIFIX
 Cible : adminpanel/models.py
 Run : python manage.py test adminpanel.tests.test_models
 """
-import pytest
 from django.test import TestCase
 from django.contrib.auth.models import User
 
@@ -135,7 +134,10 @@ class ReservationModelTest(TestCase):
             montant='25000 FCFA',
         )
         self.assertEqual(r.reference, 'RES-001')
-        self.assertEqual(r.statut, Reservation.Status.PENDING)
+        # Défaut réel du modèle : le parcours devis (pas l'ancien statut
+        # PENDING, conservé uniquement pour compatibilité des anciennes
+        # données).
+        self.assertEqual(r.statut, Reservation.Status.DEMANDE_ENVOYEE)
         self.assertEqual(r.payment_type, Reservation.PaymentType.ESPECES)
 
     def test_reference_unique(self):
@@ -190,8 +192,8 @@ class PaymentModelTest(TestCase):
             reference='PAY-001',
             client='Aya',
             prestataire='Koffi',
-            montant='25000 FCFA',
-            commission='2500 FCFA',
+            montant='25000',
+            commission='2500',
             etat=Payment.State.PENDING,
             type_paiement=Payment.TypePaiement.MOBILE_MONEY,
         )

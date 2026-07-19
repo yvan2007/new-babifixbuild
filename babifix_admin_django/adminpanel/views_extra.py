@@ -17,7 +17,6 @@ import csv
 import json
 import logging
 
-from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from django.utils import timezone
@@ -217,8 +216,7 @@ def api_prestataire_availability(request):
 # =============================================================================
 # BULK ACTIONS ADMIN — POST /api/admin/prestataires/bulk-action/
 # =============================================================================
-@csrf_exempt
-@login_required
+@require_api_auth(["admin"])
 def api_admin_bulk_provider_action(request):
     if request.method != "POST":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
@@ -277,7 +275,7 @@ def api_admin_bulk_provider_action(request):
 # =============================================================================
 # JOURNAL AUDIT — GET /api/admin/audit-log/
 # =============================================================================
-@login_required
+@require_api_auth(["admin"])
 @require_GET
 def api_admin_audit_log(request):
     page = max(int(request.GET.get("page", 1)), 1)
@@ -307,7 +305,7 @@ class _EchoWriter:
         return value
 
 
-@login_required
+@require_api_auth(["admin"])
 @require_GET
 def api_admin_export_csv(request, kind):
     writer = _EchoWriter()

@@ -299,6 +299,18 @@ class Provider(models.Model):
         help_text="Date de suppression des images d'identité (minimisation des données).",
     )
 
+    def save(self, *args, **kwargs):
+        # is_approved doit TOUJOURS refléter statut=Valide. Avant ce correctif,
+        # c'était synchronisé à la main dans chaque vue admin qui touche au
+        # statut (accepter/refuser un prestataire, backfill…) : un seul point
+        # oublié laisse un prestataire visible côté client sans être vraiment
+        # approuvé, ou l'inverse. Calculé ici une fois pour toutes.
+        self.is_approved = self.statut == Provider.Status.VALID
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "is_approved" not in update_fields:
+            kwargs["update_fields"] = [*update_fields, "is_approved"]
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.nom
 

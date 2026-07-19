@@ -7455,6 +7455,13 @@ def api_client_demandes_list(request):
     if statut_filter:
         qs = qs.filter(statut=statut_filter)
 
+    total = qs.count()
+    page = max(int(request.GET.get("page", 1) or 1), 1)
+    page_size = int(request.GET.get("page_size", 20) or 20)
+    page_size = max(1, min(page_size, 100))
+    start = (page - 1) * page_size
+    qs = qs[start : start + page_size]
+
     results = []
     for res in qs:
         provider = res.assigned_provider
@@ -7487,7 +7494,12 @@ def api_client_demandes_list(request):
             }
         )
 
-    return JsonResponse({"demandes": results})
+    return JsonResponse({
+        "demandes": results,
+        "total": total,
+        "page": page,
+        "has_next": start + page_size < total,
+    })
 
 
 @csrf_exempt

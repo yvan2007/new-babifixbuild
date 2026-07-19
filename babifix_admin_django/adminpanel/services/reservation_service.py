@@ -294,13 +294,13 @@ class ReservationService:
         Returns:
             (peut_annuler, raison)
         """
-        if reservation.client_id != client.id:
+        if reservation.client_user_id != client.id:
             return False, "not_owner"
-        
+
         # Annulation possible si pas terminee
         if reservation.statut in {
-            Reservation.Statut.TERMINEE,
-            "Annulee",
+            Reservation.Status.DONE,
+            Reservation.Status.CANCELLED,
         }:
             return False, "already_finalized"
         
