@@ -314,6 +314,23 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) checkAppVersionGate(context, app: 'prestataire');
     });
+    // Tap sur une notification LOCALE (celle réellement visible en haut de
+    // l'écran quand l'app est ouverte/en arrière-plan) : brancher le plus
+    // tôt possible, indépendamment du login/JWT, pour ne rater aucun tap.
+    BabifixNotificationSoundService.setOnTap((payload) {
+      try {
+        final d = jsonDecode(payload);
+        if (d is Map) _navigateFromFcmData(Map<String, dynamic>.from(d));
+      } catch (_) {}
+    });
+    // App tuée puis relancée en tapant la notification (cold start) : le
+    // stream onMessageOpenedApp ne voit jamais cet évènement, seul
+    // getInitialMessage() le renvoie.
+    if (BabifixFcm.isReady) {
+      FirebaseMessaging.instance.getInitialMessage().then((msg) {
+        if (msg != null) _navigateFromFcmData(msg.data);
+      });
+    }
   }
 
   void _startCategoryPolling() {
@@ -787,32 +804,44 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         );
       }
     });
-    _fcmOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((msg) {
-      final d = msg.data;
-      final ty = '${d['type'] ?? ''}';
-      if (ty == 'provider.updated') {
-        _handleProviderStatus(
-          Map<String, String>.from(
-            d.map((k, v) => MapEntry(k.toString(), v.toString())),
-          ),
-        );
-      } else if (ty == 'actualite.published' && mounted) {
-        setState(() => current = 'actualites');
-      } else if (ty == 'chat.message' && mounted) {
-        setState(() => current = 'messages');
-      } else if (babifixEventTypeIsBookingRequest(ty) ||
-          ty.contains('reservation') ||
-          ty == 'prestation.updated' ||
-          ty.contains('dispute')) {
-        // Tap sur la notification → on ouvre l'onglet Demandes ET, si la
-        // référence est fournie, on ouvre DIRECTEMENT la bonne réservation.
-        final ref = '${d['reference'] ?? ''}';
-        if (mounted) setState(() => current = 'requests');
-        if (ref.isNotEmpty) babifixOpenReservationRef.value = ref;
-      }
-    });
+    _fcmOpenedSub =
+        FirebaseMessaging.onMessageOpenedApp.listen(_navigateFromFcmMessage);
     _connectPrestataireWs(jwt);
     _connectClientEventsWs(jwt);
+  }
+
+  /// Navigation déclenchée par un tap sur une notification, quelle que soit
+  /// son origine : `onMessageOpenedApp` (tap système, app en arrière-plan),
+  /// `getInitialMessage` (app tuée, relancée par le tap) OU la notification
+  /// LOCALE affichée par flutter_local_notifications (app au premier plan —
+  /// voir BabifixNotificationSoundService.setOnTap ci-dessous). Avant ce
+  /// correctif, seul le premier cas était câblé : taper la notification
+  /// visible à l'écran (le cas le plus fréquent) ne faisait RIEN.
+  void _navigateFromFcmMessage(RemoteMessage msg) =>
+      _navigateFromFcmData(msg.data);
+
+  void _navigateFromFcmData(Map<String, dynamic> d) {
+    final ty = '${d['type'] ?? ''}';
+    if (ty == 'provider.updated') {
+      _handleProviderStatus(
+        Map<String, String>.from(
+          d.map((k, v) => MapEntry(k.toString(), v.toString())),
+        ),
+      );
+    } else if (ty == 'actualite.published' && mounted) {
+      setState(() => current = 'actualites');
+    } else if (ty == 'chat.message' && mounted) {
+      setState(() => current = 'messages');
+    } else if (babifixEventTypeIsBookingRequest(ty) ||
+        ty.contains('reservation') ||
+        ty == 'prestation.updated' ||
+        ty.contains('dispute')) {
+      // Tap sur la notification → on ouvre l'onglet Demandes ET, si la
+      // référence est fournie, on ouvre DIRECTEMENT la bonne réservation.
+      final ref = '${d['reference'] ?? ''}';
+      if (mounted) setState(() => current = 'requests');
+      if (ref.isNotEmpty) babifixOpenReservationRef.value = ref;
+    }
   }
 
   /// Même flux que l'app client : actualités publiées en temps réel (JWT prestataire).

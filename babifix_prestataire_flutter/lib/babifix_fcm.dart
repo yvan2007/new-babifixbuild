@@ -21,7 +21,10 @@ Future<void> babifixFcmBackgroundHandler(RemoteMessage message) async {
     id: DateTime.now().millisecondsSinceEpoch % 100000,
     title: data['title'] ?? 'BABIFIX',
     body: data['body'] ?? '',
-    payload: data['route'] ?? data['type'] ?? '',
+    payload: jsonEncode({
+      'type': data['type'] ?? '',
+      'reference': data['reference'] ?? '',
+    }),
   );
 }
 
@@ -76,7 +79,10 @@ class BabifixFcm {
         id: DateTime.now().millisecondsSinceEpoch % 100000,
         title: data['title'] ?? 'BABIFIX',
         body: data['body'] ?? '',
-        payload: data['route'] ?? data['type'] ?? '',
+        payload: jsonEncode({
+          'type': data['type'] ?? '',
+          'reference': data['reference'] ?? '',
+        }),
       );
     }
     try {

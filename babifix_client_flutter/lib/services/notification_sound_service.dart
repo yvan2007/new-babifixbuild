@@ -11,6 +11,16 @@ class BabifixNotificationSoundService {
 
   static bool _initialized = false;
 
+  /// Appelé quand l'utilisateur tape la notification locale (celle
+  /// réellement affichée en foreground/background — voir showNotification).
+  /// Réglé par le shell principal AVANT tout affichage de notification pour
+  /// ne rater aucun tap. Si un tap survient avant que le callback ne soit
+  /// réglé (notification affichée puis app tuée puis relancée par le tap),
+  /// le payload est mémorisé dans [pendingPayload] et consommé au premier
+  /// réglage du callback.
+  static void Function(String payload)? onTap;
+  static String? pendingPayload;
+
   static Future<void> ensureInitialized() async {
     if (_initialized) return;
     if (kIsWeb) return;
@@ -79,8 +89,28 @@ class BabifixNotificationSoundService {
   }
 
   static void _onNotificationTap(NotificationResponse response) {
-    debugPrint(
-        'BABIFIX Notification tapped: ${response.payload}');
+    debugPrint('BABIFIX Notification tapped: ${response.payload}');
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+    final cb = onTap;
+    if (cb != null) {
+      cb(payload);
+    } else {
+      // Tap survenu avant l'initialisation complète de l'app (cold start) :
+      // mémorisé pour être rejoué dès que le callback sera prêt.
+      pendingPayload = payload;
+    }
+  }
+
+  /// Réglé le callback de navigation et rejoue immédiatement un tap qui
+  /// serait survenu avant (cold start).
+  static void setOnTap(void Function(String payload) callback) {
+    onTap = callback;
+    final pending = pendingPayload;
+    if (pending != null) {
+      pendingPayload = null;
+      callback(pending);
+    }
   }
 
   /// Affiche une notification locale avec son doux.

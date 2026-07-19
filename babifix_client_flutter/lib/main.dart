@@ -452,6 +452,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) checkAppVersionGate(context, app: 'client');
     });
+    // Tap sur une notification LOCALE (celle réellement visible en haut de
+    // l'écran quand l'app est ouverte/en arrière-plan) : avant ce correctif
+    // seul `onMessageOpenedApp` (tap système, rarement déclenché pour ce
+    // type de message) était câblé — le tap le plus fréquent ne faisait RIEN.
+    // Branché tôt, indépendamment du login, pour ne rater aucun tap.
+    BabifixNotificationSoundService.setOnTap((payload) {
+      try {
+        final d = jsonDecode(payload);
+        if (d is Map) _handleFcmNavigation(Map<String, dynamic>.from(d));
+      } catch (_) {}
+    });
   }
 
   Future<void> _restoreClientNotifsThenInit() async {
