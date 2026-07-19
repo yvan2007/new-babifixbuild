@@ -698,9 +698,17 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   Widget _buildCardTappable(_RequestItem it) {
-    return GestureDetector(
-      onTap: () => _openRequestDetail(it),
-      child: _buildCard(it),
+    // RepaintBoundary : isole le repaint de CETTE carte (dégradé + ombre +
+    // vignettes photo) du reste de la liste. Sans ça, Skia/Impeller peut
+    // repeindre la totalité de la Sliver à chaque frame de scroll dès qu'une
+    // seule image change de state (chargée, mise en cache…) — c'est ce genre
+    // de repaint en cascade sur une liste à images qui produit l'écran noir
+    // pendant le scroll.
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: () => _openRequestDetail(it),
+        child: _buildCard(it),
+      ),
     );
   }
 
@@ -1294,9 +1302,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     scrollDirection: Axis.horizontal,
                     itemCount: it.clientPhotos.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (ctx, i) => ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: _SafeImage(src: it.clientPhotos[i], size: 80),
+                    itemBuilder: (ctx, i) => RepaintBoundary(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: _SafeImage(src: it.clientPhotos[i], size: 80),
+                      ),
                     ),
                   ),
                 ),
@@ -2552,6 +2562,11 @@ class _SafeImage extends StatelessWidget {
         fit: BoxFit.cover,
         cacheWidth: decodePx,
         cacheHeight: decodePx,
+        // Sans ça, chaque rebuild (auto-refresh 20 s, retour de scroll) fait
+        // repasser par le loadingBuilder même si l'image est déjà en cache
+        // moteur — un flash vide/noir pendant une fraction de seconde,
+        // multiplié par le nombre de vignettes visibles.
+        gaplessPlayback: true,
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : Container(
