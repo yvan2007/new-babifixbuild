@@ -410,6 +410,14 @@ class MoneyBreakdownWidget extends StatelessWidget {
   final double netPrestataire;
   final bool compact;
   final bool showProviderNet;
+  // Par défaut "Total à payer" : correct pour un résumé de devis (ce que le
+  // client paiera AU TOTAL). Sur un écran de paiement en escrow Mobile Money,
+  // seul un ACOMPTE (30 %) est dû immédiatement — afficher "Total à payer"
+  // en gros et en gras juste à côté du montant réellement demandé induisait
+  // en erreur (« on me dit 18 % » : le client lisait la commission comme le
+  // montant dû, sans réaliser que "Total à payer" = devis complet, pas
+  // l'acompte). Passer un libellé différent (ex. "Total du devis") dans ce cas.
+  final String totalLabel;
 
   const MoneyBreakdownWidget({
     super.key,
@@ -421,6 +429,7 @@ class MoneyBreakdownWidget extends StatelessWidget {
     required this.netPrestataire,
     this.compact = false,
     this.showProviderNet = false,
+    this.totalLabel = 'Total à payer',
   });
 
   @override
@@ -448,7 +457,7 @@ class MoneyBreakdownWidget extends StatelessWidget {
           ],
           const Divider(height: 14),
           _row(
-            'Total à payer',
+            totalLabel,
             fmtMoney(totalTtc),
             bold: true,
             big: true,

@@ -393,6 +393,11 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                   commissionMontant: q.commissionMontant,
                   totalTtc: q.totalDevis,
                   netPrestataire: q.netPrestataire,
+                  // "Total à payer" par défaut suggérait que ce montant était
+                  // dû MAINTENANT (juste sous "Commission (X%)"), alors que
+                  // seul un acompte/solde partiel l'est en Mobile Money — le
+                  // vrai montant demandé est dans l'encart vert ci-dessous.
+                  totalLabel: 'Total du devis (référence)',
                 ),
                 const SizedBox(height: 14),
                 Container(
@@ -413,7 +418,11 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'À payer maintenant en Mobile Money',
+                              q.isCash
+                                  ? 'À payer maintenant (commission)'
+                                  : (isSoldePhase
+                                      ? 'À payer maintenant (solde, 70 %)'
+                                      : 'À payer maintenant (acompte, 30 %)'),
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.white60),
