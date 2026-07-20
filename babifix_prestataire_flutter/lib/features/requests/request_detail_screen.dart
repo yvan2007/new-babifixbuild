@@ -48,6 +48,7 @@ class RequestDetailScreen extends StatelessWidget {
     this.addressIsApproximate = true,
     this.distanceKm,
     this.reponsesExigences = const {},
+    this.cautionMontant = 0,
     this.cautionPayee = false,
     this.visiteEffectuee = false,
     this.scheduledDate = '',
@@ -90,7 +91,9 @@ class RequestDetailScreen extends StatelessWidget {
   /// Format {key: {label, value, unit?}}.
   final Map<String, dynamic> reponsesExigences;
 
-  /// Caution de visite (Phase 3).
+  /// Caution de visite (Phase 3). `cautionMontant` > 0 est la seule preuve
+  /// qu'une visite a réellement été demandée (voir requests_screen.dart).
+  final double cautionMontant;
   final bool cautionPayee;
   final bool visiteEffectuee;
 
@@ -438,7 +441,7 @@ class RequestDetailScreen extends StatelessWidget {
                   ),
                 // Caution réglée : le presta confirme la visite (détermine qui
                 // garde la caution en cas d'annulation).
-                if (cautionPayee && !visiteEffectuee) ...[
+                if (cautionMontant > 0 && cautionPayee && !visiteEffectuee) ...[
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
@@ -456,7 +459,7 @@ class RequestDetailScreen extends StatelessWidget {
                           style: TextStyle(fontWeight: FontWeight.w800)),
                     ),
                   ),
-                ] else if (visiteEffectuee) ...[
+                ] else if (cautionMontant > 0 && visiteEffectuee) ...[
                   const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(12),

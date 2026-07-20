@@ -677,6 +677,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           addressIsApproximate: it.addressIsApproximate,
           distanceKm: it.distanceKm,
           reponsesExigences: it.reponsesExigences,
+          cautionMontant: it.cautionMontant,
           cautionPayee: it.cautionPayee,
           visiteEffectuee: it.visiteEffectuee,
           description: it.description,
@@ -1399,7 +1400,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           // Les mêmes infos/actions que la page détail, directement sur la
           // carte : dès que le client a réglé la caution, le presta voit qu'il
           // doit confirmer la visite, sans avoir à ouvrir le détail.
-          if (it.cautionPayee && !it.visiteEffectuee) ...[
+          if (it.cautionMontant > 0 && it.cautionPayee && !it.visiteEffectuee) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
@@ -1450,7 +1451,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 ),
               ),
             ),
-          ] else if (it.visiteEffectuee) ...[
+          ] else if (it.cautionMontant > 0 && it.visiteEffectuee) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
@@ -1622,7 +1623,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   child: FilledButton.icon(
                     onPressed: it.acompteValide
                         ? () => _demarrerIntervention(it)
-                        : () => _showAcompteEnAttente(),
+                        : () => _showAcompteEnAttente(it.paymentType == 'ESPECES'),
                     icon: Icon(
                       it.acompteValide
                           ? Icons.play_arrow_rounded
@@ -1632,7 +1633,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     label: Text(
                       it.acompteValide
                           ? 'Démarrer la prestation'
-                          : 'En attente de l\'acompte',
+                          // ESPECES : le client règle la COMMISSION en ligne
+                          // (pas un acompte au sens mobile money) avant que
+                          // le presta puisse démarrer. Le mot « acompte » ne
+                          // s'applique qu'au flux Mobile Money — le mélanger
+                          // ici induit en erreur sur un job payé cash.
+                          : (it.paymentType == 'ESPECES'
+                              ? 'En attente du paiement de la commission'
+                              : 'En attente de l\'acompte'),
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     style: FilledButton.styleFrom(
@@ -1894,6 +1902,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             reponsesExigences: (e['reponses_exigences'] is Map)
                 ? Map<String, dynamic>.from(e['reponses_exigences'] as Map)
                 : const {},
+            cautionMontant: (e['caution_montant'] as num?)?.toDouble() ?? 0,
             cautionPayee: e['caution_payee'] == true,
             visiteEffectuee: e['visite_effectuee'] == true,
             // Adresse structurée pro (rue/quartier/ville/pays/repère + GPS).
@@ -2131,7 +2140,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
     return d0.difference(t0).inDays;
   }
 
-  Future<void> _showAcompteEnAttente() async {
+  Future<void> _showAcompteEnAttente(bool isCash) async {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2139,11 +2148,19 @@ class _RequestsScreenState extends State<RequestsScreen> {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         icon: Icon(Icons.hourglass_top_rounded,
             color: BabifixDesign.ciOrange, size: 52),
-        title: const Text('En attente de l\'acompte'),
-        content: const Text(
-          "Le client n'a pas encore versé l'acompte.\n\n"
-          "Le bouton « Démarrer la prestation » s'activera automatiquement "
-          "dès que l'acompte sera reçu.",
+        title: Text(isCash
+            ? 'En attente du paiement de la commission'
+            : 'En attente de l\'acompte'),
+        content: Text(
+          isCash
+              ? "Le client n'a pas encore réglé la commission en ligne "
+                  "(paiement cash : elle se règle avant l'intervention, le "
+                  "reste étant remis en espèces à la fin).\n\n"
+                  "Le bouton « Démarrer la prestation » s'activera "
+                  "automatiquement dès qu'elle sera reçue."
+              : "Le client n'a pas encore versé l'acompte.\n\n"
+                  "Le bouton « Démarrer la prestation » s'activera "
+                  "automatiquement dès que l'acompte sera reçu.",
           textAlign: TextAlign.center,
         ),
         actions: [
@@ -2373,7 +2390,12 @@ class _RequestItem {
   /// Format auto-descriptif {key: {label, value, unit?}}. Vide si aucune.
   final Map<String, dynamic> reponsesExigences;
 
-  /// Caution de visite (Phase 3).
+  /// Caution de visite (Phase 3). `cautionMontant` > 0 est la SEULE preuve
+  /// qu'une visite a réellement été demandée pour cette réservation — les
+  /// bannières caution/visite ne doivent jamais s'afficher sans ça, même si
+  /// cautionPayee/visiteEffectuee valent true par erreur (données de test,
+  /// incohérence) : on ne mélange pas cette option à un job qui ne l'a pas.
+  final double cautionMontant;
   final bool cautionPayee;
   final bool visiteEffectuee;
   final String description;
@@ -2452,6 +2474,7 @@ class _RequestItem {
     this.addressIsApproximate = false,
     this.distanceKm,
     this.reponsesExigences = const {},
+    this.cautionMontant = 0,
     this.cautionPayee = false,
     this.visiteEffectuee = false,
     required this.description,
