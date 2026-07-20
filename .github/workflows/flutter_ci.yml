@@ -39,7 +39,7 @@ jobs:
         run: |
           flutter build apk --debug \
             --dart-define=BABIFIX_ENV=development \
-            --dart-define=BABIFIX_API_BASE=https://api.babifix.app
+            --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -79,7 +79,7 @@ jobs:
         run: |
           flutter build apk --debug \
             --dart-define=BABIFIX_ENV=development \
-            --dart-define=BABIFIX_API_BASE=https://api.babifix.app
+            --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -113,7 +113,6 @@ jobs:
           flutter pub get
           flutter build apk --release \
             --dart-define=BABIFIX_ENV=production \
-            --dart-define=BABIFIX_API_BASE=${{ secrets.BABIFIX_API_BASE }} \
             --dart-define=BABIFIX_SENTRY_DSN=${{ secrets.BABIFIX_SENTRY_DSN }}
 
       - name: Build Prestataire Release APK
@@ -122,7 +121,6 @@ jobs:
           flutter pub get
           flutter build apk --release \
             --dart-define=BABIFIX_ENV=production \
-            --dart-define=BABIFIX_API_BASE=${{ secrets.BABIFIX_API_BASE }} \
             --dart-define=BABIFIX_SENTRY_DSN=${{ secrets.BABIFIX_SENTRY_DSN }}
 
       - name: Upload release APKs
