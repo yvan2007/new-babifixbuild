@@ -14,6 +14,7 @@ import os
 import uuid
 
 from django.conf import settings
+from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -189,12 +190,24 @@ def _genius_request(method: str, path: str, payload: dict | None = None) -> dict
 # Formula : HMAC-SHA256(timestamp + "." + json_body_string, secret_key)
 # ---------------------------------------------------------------------------
 def _verify_webhook_signature(raw_body: bytes, timestamp: str, received_sig: str) -> bool:
-    if not GENIUSPAY_SECRET_KEY:
+    # Lu à CHAQUE appel (pas GENIUSPAY_SECRET_KEY, figée une fois pour toutes à
+    # l'import du module) : @override_settings dans les tests ne modifie que
+    # django.conf.settings, jamais une constante déjà liée ailleurs — sans ça
+    # la vérif utilisait toujours la valeur au démarrage du process, rendant
+    # tout test de signature impossible à isoler (et masquant tout bug réel
+    # dans cette fonction elle-même).
+    # settings.GENIUSPAY_SECRET_KEY (pas os.getenv) : Django lit déjà la
+    # variable d'environnement UNE fois dans config/settings.py, et c'est
+    # SEULEMENT l'attribut sur l'objet settings qu'@override_settings peut
+    # patcher — os.getenv relit l'environnement brut du process et ignore
+    # toujours ce patch (c'est ce qui masquait ce chemin aux tests).
+    secret = getattr(settings, "GENIUSPAY_SECRET_KEY", "")
+    if not secret:
         logger.warning("GENIUSPAY_SECRET_KEY non configurée — signature ignorée en dev.")
         return True
     message = (timestamp + "." + raw_body.decode("utf-8")).encode("utf-8")
     expected = hmac.new(
-        GENIUSPAY_SECRET_KEY.encode("utf-8"),
+        secret.encode("utf-8"),
         message,
         hashlib.sha256,
     ).hexdigest()
@@ -880,22 +893,41 @@ def geniuspay_webhook(request):
         return JsonResponse({"message": "OK"})
 
     if event_type == "payment.success":
-        # Vérification montant
-        webhook_amount = transaction_data.get("amount")
-        if webhook_amount is not None:
-            try:
-                if int(float(payment.montant)) != int(float(webhook_amount)):
-                    logger.warning(
-                        "GeniusPay webhook — montant mismatch ref=%s : attendu=%s reçu=%s",
-                        reference, payment.montant, webhook_amount,
-                    )
-                    return JsonResponse({"error": "amount_mismatch"}, status=400)
-            except (TypeError, ValueError):
-                pass
+        # IDEMPOTENCE : les passerelles de paiement RÉ-ENVOIENT le même webhook
+        # tant qu'elles ne reçoivent pas un 200 (timeout, hoquet réseau...) —
+        # c'est un comportement NORMAL et attendu, pas une anomalie. Sans cette
+        # garde, un simple retry rejouait _apply_payment_phase/_activate_premium
+        # une 2e fois sur le MÊME paiement : le solde Mobile Money comptait le
+        # montant deux fois (pouvant déclencher une libération de fonds
+        # prématurée) et l'abonnement premium doublait sa ligne PlatformRevenue.
+        # select_for_update() verrouille la ligne le temps de la vérification +
+        # du traitement, pour couper aussi la course entre deux webhooks reçus
+        # en quasi-simultané.
+        with transaction.atomic():
+            payment = Payment.objects.select_for_update().get(pk=payment.pk)
+            if payment.etat == Payment.State.COMPLETE:
+                logger.info(
+                    "GeniusPay webhook — paiement %s déjà traité (retry ignoré)",
+                    reference,
+                )
+                return JsonResponse({"message": "OK", "already_processed": True})
 
-        payment.etat = Payment.State.COMPLETE
-        payment.valide_par_admin = False
-        payment.save(update_fields=["etat", "valide_par_admin"])
+            # Vérification montant
+            webhook_amount = transaction_data.get("amount")
+            if webhook_amount is not None:
+                try:
+                    if int(float(payment.montant)) != int(float(webhook_amount)):
+                        logger.warning(
+                            "GeniusPay webhook — montant mismatch ref=%s : attendu=%s reçu=%s",
+                            reference, payment.montant, webhook_amount,
+                        )
+                        return JsonResponse({"error": "amount_mismatch"}, status=400)
+                except (TypeError, ValueError):
+                    pass
+
+            payment.etat = Payment.State.COMPLETE
+            payment.valide_par_admin = False
+            payment.save(update_fields=["etat", "valide_par_admin"])
 
         phase = "acompte"
         if payment.reservation:

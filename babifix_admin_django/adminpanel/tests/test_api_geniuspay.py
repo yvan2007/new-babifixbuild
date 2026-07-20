@@ -9,6 +9,7 @@ import json
 import os
 import uuid
 import time
+from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
 from django.test import TestCase, Client as DjangoClient, override_settings
@@ -296,6 +297,37 @@ class GeniusPayWebhookTest(TestCase):
             HTTP_X_WEBHOOK_EVENT='payment.success',
         )
         self.assertIn(resp.status_code, [400, 403])
+
+    def test_webhook_success_is_idempotent_on_retry(self):
+        """Un webhook success rejoue deux fois (comportement NORMAL des
+        passerelles tant qu'elles n'ont pas reçu 200) ne doit compter le
+        montant qu'UNE fois -- sinon reservation.montant_verse double et peut
+        declencher une liberation de fonds prematuree."""
+        payload = {
+            'data': {
+                'reference': self.payment.reference_externe,
+                'amount': 15000,
+                'status': 'completed',
+            }
+        }
+        raw_body = json.dumps(payload).encode("utf-8")
+        timestamp = str(int(time.time()))
+        message = (timestamp + "." + raw_body.decode("utf-8")).encode("utf-8")
+        sig = hmac.new(b'test_webhook_secret', message, hashlib.sha256).hexdigest()
+
+        for _ in range(2):
+            resp = self.http.post(
+                '/api/paiements/geniuspay/webhook/',
+                data=raw_body,
+                content_type='application/json',
+                HTTP_X_WEBHOOK_SIGNATURE=sig,
+                HTTP_X_WEBHOOK_TIMESTAMP=timestamp,
+                HTTP_X_WEBHOOK_EVENT='payment.success',
+            )
+            self.assertIn(resp.status_code, [200, 201])
+
+        self.reservation.refresh_from_db()
+        self.assertEqual(self.reservation.montant_verse, Decimal("15000"))
 
     def test_webhook_failure_marks_payment_failed(self):
         payload = {
