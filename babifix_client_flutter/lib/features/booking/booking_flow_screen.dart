@@ -2091,7 +2091,10 @@ class _StepAddressState extends State<_StepAddress> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 68,
+          // 68 était trop court pour badge (30) + espace (6) + texte sur 2
+          // lignes (~24) + padding vertical (20) = ~80 → le texte débordait
+          // hors de la carte. 88 laisse une marge confortable.
+          height: 88,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: chips.length,
@@ -2124,8 +2127,8 @@ class _StepAddressState extends State<_StepAddress> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 84,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        width: 92,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(16),
