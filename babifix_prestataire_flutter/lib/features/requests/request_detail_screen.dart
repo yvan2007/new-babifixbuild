@@ -291,7 +291,12 @@ class RequestDetailScreen extends StatelessWidget {
                               child: BabifixVoiceNotePlayer(
                                 url: MediaApi.absolute(audioProbleme),
                                 durationSeconds: 0,
-                                isMe: false,
+                                // isMe:false = lecteur "navy", pensé pour une
+                                // bulle de chat claire. _SectionCard a un
+                                // fond sombre en dur (0xFF122236) -> quasi
+                                // invisible (navy sur navy). isMe:true =
+                                // blanc, lisible sur ce fond.
+                                isMe: true,
                               ),
                             ),
                           ],

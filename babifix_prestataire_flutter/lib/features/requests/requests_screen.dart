@@ -927,7 +927,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   child: BabifixVoiceNotePlayer(
                     url: MediaApi.absolute(it.audioProbleme),
                     durationSeconds: 0,
-                    isMe: false,
+                    // isMe:false donne un lecteur en couleur "navy", pensé
+                    // pour une bulle de chat CLAIRE. Cette carte a un fond
+                    // sombre en dur -> le lecteur devenait quasi invisible
+                    // (navy sur navy). isMe:true = blanc, lisible ici.
+                    isMe: true,
                   ),
                 ),
               ],
