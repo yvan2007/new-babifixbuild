@@ -262,22 +262,80 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0A1628),
-        title: const Text('Enregistrer ce lieu',
-            style: TextStyle(color: Colors.white, fontSize: 17)),
-        content: TextField(
-          controller: labelCtrl,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Maison, Bureau, Chez maman…',
-            hintStyle: TextStyle(color: Colors.white38),
-          ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: BabifixDesign.cyan.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.bookmark_add_rounded,
+                  color: BabifixDesign.cyan, size: 18),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Enregistrer ce lieu',
+                  style: TextStyle(color: Colors.white, fontSize: 17)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: labelCtrl,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Maison, Bureau, Chez maman…',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: BabifixDesign.cyan, width: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in ['Maison', 'Bureau', 'Chez maman'])
+                  ActionChip(
+                    label: Text(s, style: const TextStyle(fontSize: 12.5)),
+                    backgroundColor: Colors.white.withValues(alpha: 0.06),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    onPressed: () => labelCtrl.text = s,
+                  ),
+              ],
+            ),
+          ],
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Annuler')),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: BabifixDesign.cyan,
+              foregroundColor: BabifixDesign.navy,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             onPressed: () => Navigator.pop(ctx, labelCtrl.text.trim()),
             child: const Text('Enregistrer'),
           ),
@@ -2031,13 +2089,13 @@ class _StepAddressState extends State<_StepAddress> {
           'Choisissez votre position actuelle ou une adresse enregistrée.',
           style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.45)),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         SizedBox(
-          height: 38,
+          height: 68,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: chips.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
             itemBuilder: (_, i) => chips[i],
           ),
         ),
@@ -2045,6 +2103,9 @@ class _StepAddressState extends State<_StepAddress> {
     );
   }
 
+  /// Carte verticale (icône en badge rond + libellé dessous), au lieu d'une
+  /// simple puce texte — même niveau de finition que le carnet d'adresses
+  /// (Mes adresses) : un vrai badge, pas juste un contour fin peu visible.
   Widget _sourceChip({
     required IconData icon,
     required String label,
@@ -2052,31 +2113,53 @@ class _StepAddressState extends State<_StepAddress> {
     bool highlight = false,
     bool dashed = false,
   }) {
+    final accent = dashed ? _kCyan : (highlight ? _kBlue : Colors.white70);
     final bg = highlight
-        ? _kBlue.withValues(alpha: 0.18)
-        : Colors.white.withValues(alpha: 0.06);
+        ? _kBlue.withValues(alpha: 0.14)
+        : const Color(0xFF0D1525);
     final border = dashed
         ? _kCyan.withValues(alpha: 0.45)
-        : (highlight ? _kBlue : Colors.white.withValues(alpha: 0.14));
+        : (highlight ? _kBlue.withValues(alpha: 0.55) : Colors.white.withValues(alpha: 0.12));
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        width: 84,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: border, width: 1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: border,
+            width: highlight ? 1.4 : 1,
+            strokeAlign: BorderSide.strokeAlignInside,
+          ),
         ),
-        child: Row(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 15, color: highlight ? _kCyan : Colors.white70),
-            const SizedBox(width: 6),
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: highlight || dashed ? 0.18 : 0.10),
+                shape: BoxShape.circle,
+                border: dashed
+                    ? Border.all(color: accent.withValues(alpha: 0.6), width: 1.2)
+                    : null,
+              ),
+              child: Icon(icon, size: 15, color: accent),
+            ),
+            const SizedBox(height: 6),
             Text(
               label,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+                fontSize: 10.5,
+                height: 1.15,
+                fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
                 color: highlight ? Colors.white : Colors.white70,
               ),
             ),

@@ -6111,6 +6111,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   jsonDoubleNullable(item['frais_mise_en_relation']) ?? 500,
               cautionMotif: '${item['caution_motif'] ?? ''}',
               cautionPayee: jsonBool(item['caution_payee']),
+              visiteEffectuee: jsonBool(item['visite_effectuee']),
               canPayCaution: jsonBool(item['can_pay_caution']),
               needCashRemainder: jsonBool(item['need_cash_remainder']),
               receiptAvailable: jsonBool(item['receipt_available']),
@@ -7589,24 +7590,41 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 ),
 
               // ── Caution en séquestre (où est l'argent ?) ──
-              // Dès que la caution est réglée, le client voit clairement que
-              // l'argent est bloqué en sécurité (ni chez le presta, ni perdu),
-              // et qu'il est remboursable en cas de problème signalé.
+              // Dès que la caution est réglée, le client voit clairement OÙ
+              // est son argent MAINTENANT : en séquestre tant que la visite
+              // n'a pas eu lieu (le prestataire n'est payé qu'APRÈS l'avoir
+              // effectuée — voir api_prestataire_visite_done côté serveur),
+              // puis versée une fois la visite faite. Avant ce correctif, le
+              // message restait "bloquée en séquestre" même après le
+              // versement réel au prestataire — factuellement faux.
               if (r.cautionPayee)
                 Container(
                   margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF06B6D4).withValues(alpha: 0.10),
+                    color: (r.visiteEffectuee
+                            ? const Color(0xFF22C55E)
+                            : const Color(0xFF06B6D4))
+                        .withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: const Color(0xFF06B6D4).withValues(alpha: 0.35)),
+                        color: (r.visiteEffectuee
+                                ? const Color(0xFF22C55E)
+                                : const Color(0xFF06B6D4))
+                            .withValues(alpha: 0.35)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.lock_rounded,
-                          color: Color(0xFF06B6D4), size: 18),
+                      Icon(
+                        r.visiteEffectuee
+                            ? Icons.check_circle_rounded
+                            : Icons.lock_rounded,
+                        color: r.visiteEffectuee
+                            ? const Color(0xFF22C55E)
+                            : const Color(0xFF06B6D4),
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -7616,7 +7634,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    'Caution bloquée en séquestre',
+                                    r.visiteEffectuee
+                                        ? 'Caution versée au prestataire'
+                                        : 'Caution bloquée en séquestre',
                                     style: TextStyle(
                                         color: _textPrimary,
                                         fontWeight: FontWeight.w800,
@@ -7626,8 +7646,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                 if (r.cautionMontant > 0)
                                   Text(
                                     '${r.cautionMontant.toStringAsFixed(0)} FCFA',
-                                    style: const TextStyle(
-                                        color: Color(0xFF22D3EE),
+                                    style: TextStyle(
+                                        color: r.visiteEffectuee
+                                            ? const Color(0xFF4ADE80)
+                                            : const Color(0xFF22D3EE),
                                         fontWeight: FontWeight.w900,
                                         fontSize: 14),
                                   ),
@@ -7635,14 +7657,44 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              'Conservée en sécurité par BABIFIX : ni versée au '
-                              'prestataire, ni perdue. Déduite de votre devis, '
-                              'ou remboursée si vous signalez un problème justifié.',
+                              r.visiteEffectuee
+                                  ? 'Le prestataire a effectué la visite : cette '
+                                      'somme lui a été intégralement reversée '
+                                      '(déplacement rémunéré).'
+                                  : 'Conservée en sécurité par BABIFIX tant que le '
+                                      'prestataire n\'a pas encore fait la visite : '
+                                      'ni versée, ni perdue. Remboursable si vous '
+                                      'signalez un problème justifié.',
                               style: TextStyle(
                                   color: _textSecondary,
                                   fontSize: 11.5,
                                   height: 1.35),
                             ),
+                            if (!r.visiteEffectuee &&
+                                r.fraisMiseEnRelation > 0) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Icon(Icons.info_outline_rounded,
+                                      size: 13,
+                                      color: _textSecondary.withValues(alpha: 0.8)),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      'Distinct des ${r.fraisMiseEnRelation.toStringAsFixed(0)} '
+                                      'FCFA de frais de mise en relation, déjà '
+                                      'encaissés par BABIFIX (non remboursables, '
+                                      'sauf litige).',
+                                      style: TextStyle(
+                                          color: _textSecondary.withValues(alpha: 0.85),
+                                          fontSize: 10.5,
+                                          height: 1.3,
+                                          fontStyle: FontStyle.italic),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),

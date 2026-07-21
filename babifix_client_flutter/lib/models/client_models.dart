@@ -165,6 +165,7 @@ class ClientReservation {
     this.cautionMotif = '',
     this.cautionPayee = false,
     this.canPayCaution = false,
+    this.visiteEffectuee = false,
   });
 
   final String title;
@@ -204,6 +205,13 @@ class ClientReservation {
   final bool cautionPayee;
   final bool canPayCaution;
   final double fraisMiseEnRelation;
+
+  /// Le prestataire a déclaré avoir effectué la visite de diagnostic. AVANT
+  /// ça, la caution réglée par le client reste en ESCROW (pas encore versée
+  /// au prestataire) — sans exposer ce champ, le client n'avait aucun moyen
+  /// de savoir où était son argent entre le paiement de la caution et la
+  /// visite.
+  final bool visiteEffectuee;
 
   /// Lieu d'intervention si enregistré (carte dans l'avis).
   final double? latitude;
