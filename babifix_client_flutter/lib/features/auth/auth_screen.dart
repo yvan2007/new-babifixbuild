@@ -860,7 +860,11 @@ class _GradientButton extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         height: 54,
         decoration: BoxDecoration(
-          color: loading ? const Color(0xFF334155) : const Color(0xFF2563EB),
+          // Bleu pur (#2563EB) remplacé par le cyan de marque BABIFIX
+          // (#4CC9F0, même couleur que le bouton "Se connecter" de l'app
+          // presta) : l'ancien bleu tranchait avec le reste de la palette
+          // cyan/navy de l'app client au lieu de s'y fondre.
+          color: loading ? const Color(0xFF334155) : const Color(0xFF4CC9F0),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
