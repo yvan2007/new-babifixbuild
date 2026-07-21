@@ -277,7 +277,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        DevisCardWidget(devis: devis),
+        DevisCardWidget(devis: _reconciledDevisForCard(devis)),
         if (!devis.estEstimation && _extras != null) ...[
           const SizedBox(height: 14),
           _reglementCard(_extras!),
@@ -292,6 +292,27 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
         TimelineReservationWidget(steps: steps),
         const SizedBox(height: 100),
       ],
+    );
+  }
+
+  /// Si la caution a déjà été réglée, la carte devis (en haut) doit refléter
+  /// la MÊME commission réconciliée que _reglementCard (en dessous) — sinon
+  /// les deux cartes affichent deux chiffres différents pour "Commission
+  /// BABIFIX" sur le même écran. Sans caution réglée (ou sans _extras
+  /// disponibles), on garde le devis tel quel (rien à réconcilier).
+  Devis _reconciledDevisForCard(Devis d) {
+    final ex = _extras;
+    if (ex == null || ex['caution_payee'] != true) return d;
+    double v(String k, double fb) => double.tryParse('${ex[k] ?? ''}') ?? fb;
+    final commission = v('commission', d.commissionMontant);
+    final rate = (ex['commission_rate'] is num)
+        ? (ex['commission_rate'] as num).round()
+        : d.commissionRate;
+    final net = v('net_prestataire', d.netPrestataire);
+    return d.copyWithReconciled(
+      commissionRate: rate,
+      commissionMontant: commission,
+      netPrestataire: net,
     );
   }
 

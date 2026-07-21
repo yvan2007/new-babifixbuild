@@ -1178,6 +1178,7 @@ def api_payment_quote(request, reference):
         "devis_reference": quote.devis_reference,
         "total_devis": float(quote.total_devis),
         "commission_montant": float(quote.commission_montant),
+        "commission_rate": quote.commission_rate,
         "net_prestataire": float(quote.net_prestataire),
         "amount_due_online": float(quote.amount_due),
         "cash_remainder_due_to_provider": float(quote.cash_remainder),

@@ -212,6 +212,12 @@ class EscrowQuote:
     # B12 — Surplus prélevé en plus de la commission cash pour respecter
     # MIN_ONLINE_PAYMENT_XOF. Sera reversé au prestataire à la confirmation.
     cash_minimum_surplus: Decimal = Decimal("0")
+    # Taux RÉEL (ex. 18) utilisé par _reconciled_commission_net. Sans ce
+    # champ, le client devait reconstituer le taux en divisant
+    # commission_montant (calculée sur le RESTE après caution) par
+    # total_devis (le total BRUT) → un pourcentage faux (ex. 13 % au lieu
+    # de 18 %) dès qu'une caution avait été déduite.
+    commission_rate: int = 18
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +300,7 @@ class EscrowService:
             devis_id=devis.id,
             devis_reference=devis.reference,
             cash_minimum_surplus=cash_minimum_surplus.quantize(Decimal("1")),
+            commission_rate=int(devis.commission_rate or 18),
         )
 
     # ---------- Hook webhook GeniusPay -------------------------------------

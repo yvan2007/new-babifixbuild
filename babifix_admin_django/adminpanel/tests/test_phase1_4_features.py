@@ -365,6 +365,11 @@ class Phase14FeaturesTest(TestCase):
         self.assertEqual(q.commission_montant, Decimal("360"))
         self.assertEqual(q.net_prestataire, Decimal("1640"))  # 2000 - 360
         self.assertEqual(q.amount_due, Decimal("500"))  # 360 -> mini 500 F
+        # commission_rate doit rester le TAUX REEL (18), pas etre reconstitue
+        # par le client en divisant commission_montant (360, calculee sur le
+        # RESTE 2000) par total_devis (5000 COMPLETS) -- 360/5000 = 7 %, un
+        # faux taux. Voir EscrowQuote.commission_rate.
+        self.assertEqual(q.commission_rate, 18)
         self.assertEqual(q.cash_minimum_surplus, Decimal("140"))  # 500 - 360
         self.assertEqual(q.cash_remainder, Decimal("1500"))  # 1640 - 140
 

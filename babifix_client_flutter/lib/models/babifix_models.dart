@@ -226,6 +226,42 @@ class Devis {
 
   double sousTotalByType(DevisLineType t) =>
       lignesByType(t).fold<double>(0, (s, l) => s + l.total);
+
+  /// commissionRate/commissionMontant/netPrestataire sont figés au moment de
+  /// l'ENVOI du devis (avant toute déduction de caution/transport). Une fois
+  /// la caution réglée, le VRAI calcul se fait sur le reste — sans ça, la
+  /// carte devis affiche encore la commission d'origine (ex. 1 800 F) alors
+  /// que le détail du règlement, juste en dessous, affiche la vraie valeur
+  /// réconciliée (ex. 1 260 F) : deux chiffres différents pour la même
+  /// "Commission BABIFIX" sur le même écran.
+  Devis copyWithReconciled({
+    required int commissionRate,
+    required double commissionMontant,
+    required double netPrestataire,
+  }) {
+    return Devis(
+      id: id,
+      reference: reference,
+      diagnostic: diagnostic,
+      dateProposee: dateProposee,
+      heureDebut: heureDebut,
+      heureFin: heureFin,
+      sousTotal: sousTotal,
+      commissionRate: commissionRate,
+      commissionMontant: commissionMontant,
+      totalTtc: totalTtc,
+      netPrestataire: netPrestataire,
+      notePrestataire: notePrestataire,
+      validiteJours: validiteJours,
+      remise: remise,
+      statut: statut,
+      photosPrestataire: photosPrestataire,
+      lignes: lignes,
+      estEstimation: estEstimation,
+      prixMin: prixMin,
+      prixMax: prixMax,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -314,7 +350,15 @@ class EscrowQuote {
     required this.acompteValide,
     this.mobileMoneyOperator = '',
     this.fundsReleasedAt,
+    this.commissionRate = 18,
   });
+
+  /// Taux RÉEL (envoyé par le serveur, ex. 18). NE PAS le reconstituer en
+  /// divisant commissionMontant par totalDevis : depuis que la commission
+  /// est calculée sur le reste APRÈS caution (pas sur le total brut), ce
+  /// calcul donnait un pourcentage faux (13 % au lieu de 18 %) dès qu'une
+  /// caution avait été déduite.
+  final int commissionRate;
 
   factory EscrowQuote.fromJson(Map<String, dynamic> j) => EscrowQuote(
         reference: _asStr(j['reference']),
@@ -333,6 +377,7 @@ class EscrowQuote {
         acompteValide: j['acompte_valide'] == true,
         mobileMoneyOperator: _asStr(j['mobile_money_operator']),
         fundsReleasedAt: _asDate(j['funds_released_at']),
+        commissionRate: _asInt(j['commission_rate'], 18),
       );
 
   bool get isCash => strategy == EscrowStrategy.cashCommissionOnly;
