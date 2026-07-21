@@ -265,6 +265,11 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
           return BookingFlowScreen(
             serviceTitle: sid,
             servicePrice: 0,
+            // Sans providerId, l'étape "Disponibilités" ne peut interroger
+            // AUCUN calendrier réel (elle se tait entièrement, pas même un
+            // message "pas de créneaux") -- symétrique à serviceDetailBuilder
+            // ci-dessus qui traite déjà `id` comme un providerId.
+            providerId: int.tryParse(sid),
             onConfirm: (data) async {
               final token = await BabifixUserStore.getApiToken();
               if (token == null) return {'ok': false, 'error': 'Non connecté'};
@@ -1977,6 +1982,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                                 builder: (_) => BookingFlowScreen(
                                                   serviceTitle: service.title,
                                                   servicePrice: service.price,
+                                                  // Sans ça, l'étape "Disponibilités"
+                                                  // ne montre jamais le calendrier
+                                                  // du prestataire (ni même un
+                                                  // message de repli) : elle exige
+                                                  // un providerId non-null.
+                                                  providerId: p.id,
                                                   onConfirm: (data) async {
                                                     final created =
                                                         await _createReservation(
@@ -3750,6 +3761,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                       builder: (_) => BookingFlowScreen(
                                         serviceTitle: service.title,
                                         servicePrice: service.price,
+                                        providerId: item.providerId,
                                         onConfirm: (data) async {
                                           final ok = await _createReservation(
                                             service,
@@ -3787,6 +3799,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                     builder: (_) => BookingFlowScreen(
                                       serviceTitle: item.title,
                                       servicePrice: item.price,
+                                      providerId: item.providerId,
                                       onConfirm: (data) async {
                                         final ok = await _createReservation(
                                           item,
