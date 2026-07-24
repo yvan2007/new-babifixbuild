@@ -139,9 +139,11 @@ def _frais_mise_en_relation_config() -> float:
         return 500.0
 
 
-def _res_to_dict(res: Reservation, uid: int) -> dict:
+def _res_to_dict(res: Reservation, uid: int, frais_mise_en_relation: float | None = None) -> dict:
     """Sérialise une Reservation pour l'API client."""
     has_rating = hasattr(res, "rating") and res.rating is not None
+    if frais_mise_en_relation is None:
+        frais_mise_en_relation = _frais_mise_en_relation_config()
     return {
         "id": res.pk,
         "reference": res.reference,
@@ -172,7 +174,7 @@ def _res_to_dict(res: Reservation, uid: int) -> dict:
         "caution_motif": res.caution_motif or "",
         "caution_payee": bool(res.caution_payee),
         "caution_deduite": bool(res.caution_deduite),
-        "frais_mise_en_relation": _frais_mise_en_relation_config(),
+        "frais_mise_en_relation": frais_mise_en_relation,
         "can_cancel": res.statut
         in ("En attente", "Confirmee", "DEMANDE_ENVOYEE", "DEVIS_EN_COURS",
             "DEVIS_ENVOYE", "VISITE_DIAGNOSTIC"),
@@ -209,7 +211,10 @@ def api_client_reservations_list(request):
     )
     if statut_filter:
         qs = qs.filter(statut=statut_filter)
-    return JsonResponse({"reservations": [_res_to_dict(r, uid) for r in qs]})
+    frais_mise_en_relation = _frais_mise_en_relation_config()
+    return JsonResponse({
+        "reservations": [_res_to_dict(r, uid, frais_mise_en_relation) for r in qs]
+    })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
