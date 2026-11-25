@@ -212,6 +212,12 @@ def _bootstrap_data():
     """Toujours : paramètres système + contenu vitrine. Le reste = option démo."""
     SystemSetting.objects.get_or_create(pk=1)
     _ensure_site_content_defaults()
+    try:
+        if not Category.objects.filter(is_deleted=False).exists():
+            import_categories_from_catalog(dry_run=False)
+            _link_demo_categories()
+    except Exception:
+        pass
     if not _demo_seed_enabled():
         return
     if not Provider.objects.exists():
