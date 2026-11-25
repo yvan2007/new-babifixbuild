@@ -1,0 +1,4 @@
+#!/bin/sh
+# Hook pre-push BABIFIX : execute le garde-fou anti-regression avant tout push GitHub.
+echo "[BABIFIX pre-push] Controle anti-regression en cours..."
+powershell.exe -ExecutionPolicy Bypass -File "scripts/verify_all_babifix.ps1" -Fast

@@ -1,0 +1,35 @@
+#!/bin/sh
+# Hook pre-commit BABIFIX : bloque secrets, fichiers volumineux et tirets cadratins.
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+for f in $staged; do
+  case "$f" in
+    *.env|*.env.*)
+      case "$f" in
+        *.example) ;;
+        *) echo "BLOQUE pre-commit : secret .env interdit ($f)"; exit 1 ;;
+      esac
+      ;;
+    *firebase-adminsdk*.json|*.pem|*.key|*.p12|*/private_kyc/*|*.sqlite3|*.sqlite3-*)
+      echo "BLOQUE pre-commit : fichier sensible ou base locale interdit ($f)"
+      exit 1
+      ;;
+  esac
+done
+
+python -c "
+import subprocess, sys, pathlib
+files = subprocess.check_output(['git', 'diff', '--cached', '--name-only', '--diff-filter=ACM'], text=True).splitlines()
+bad = []
+for rel in files:
+    p = pathlib.Path(rel)
+    if p.is_file() and p.stat().st_size > 25 * 1024 * 1024:
+        bad.append(f'{rel}: taille > 25 Mo ({p.stat().st_size} o)')
+if bad:
+    print('BLOQUE pre-commit (fichiers trop lourds):')
+    for b in bad: print(' ', b)
+    sys.exit(1)
+"

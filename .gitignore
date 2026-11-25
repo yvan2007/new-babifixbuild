@@ -115,16 +115,40 @@ serviceAccountKey.json
 *.pem
 keys/*.pem
 
-# ─── Builds, médias locaux et fichiers temporaires ───
+
+# Donnees privees KYC / medias locaux / journaux SQLite WAL (Loi CI 2013-450)
+babifix_admin_django/private_kyc/
+babifix_admin_django/media/
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Repertoires de travail studio, rendus video et brouillons locaux
+scratch/
+corbeille/
+communication/
+hyperframes/
+hyperframes_*/
+campagne_*/
+video_*/
+reunions_direction/
+memory/
+projets/
 *.mp4
+*.mov
+*.avi
+
+# Fichiers locaux secrets/test/binaires/studio a ne jamais versionner
+babifix_admin_django/.jwt_secret_dev
+.tmp_chrome/
+COMPTES-TEST-LOCAL.txt
 APK/
 IPA/
-.tmp_chrome/
-corbeille/
-scratch/
-db.sqlite3*
-babifix_admin_django/media/
-babifix_admin_django/private_kyc/
-babifix_admin_django/.jwt_secret_dev
-
-
+.agents/
+BABIFIX.bat
+build_cannes_poster.py
+build_poster_html.py
+build_real_footage_reel.py
+build_video_storm.py
+render_ass_reel.py
+render_storm_mp4.py
+tools/
