@@ -1,152 +1,296 @@
-﻿{% load static %}
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Proposer un métier · BABIFIX</title>
-  <link rel="icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
-  <link rel="shortcut icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#0B1B34;color:#fff;min-height:100vh;
-      background:linear-gradient(160deg,#0B1B34 0%,#0E2844 100%);}
-    .wrap{max-width:760px;margin:0 auto;padding:32px 18px 60px;}
-    .top{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
-    .top img{width:46px;height:46px;border-radius:12px;}
-    .top b{font-size:20px;letter-spacing:1px;}
-    h1{font-size:28px;margin:18px 0 6px;}
-    .sub{color:#9fb3cc;line-height:1.6;margin-bottom:26px;}
-    .card{background:rgba(255,255,255,0.05);border:1px solid rgba(76,201,240,0.18);border-radius:16px;
-      padding:18px;margin-bottom:14px;}
-    .form-card{border-color:rgba(76,201,240,0.35);}
-    label{display:block;font-size:13px;color:#9fb3cc;margin:10px 0 5px;}
-    input{width:100%;padding:13px 14px;border-radius:11px;border:1px solid rgba(255,255,255,0.15);
-      background:#0E2844;color:#fff;font-size:15px;}
-    input:focus{outline:none;border-color:#4CC9F0;}
-    .btn{width:100%;margin-top:16px;padding:14px;border:none;border-radius:12px;background:#4CC9F0;
-      color:#0B1B34;font-weight:800;font-size:15px;cursor:pointer;}
-    .btn:disabled{opacity:.6;cursor:default;}
-    .msg{margin-top:12px;padding:11px 14px;border-radius:10px;font-size:14px;display:none;}
-    .msg.ok{display:block;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.4);color:#bbf7d0;}
-    .msg.err{display:block;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#fecaca;}
-    h2{font-size:17px;margin:30px 0 12px;color:#4CC9F0;}
-    .metier{display:flex;align-items:center;gap:14px;}
-    .metier .info{flex:1;min-width:0;}
-    .metier .nom{font-weight:700;font-size:15px;}
-    .bar{height:7px;border-radius:99px;background:rgba(255,255,255,.1);margin-top:7px;overflow:hidden;}
-    .bar i{display:block;height:100%;background:#4CC9F0;border-radius:99px;}
-    .count{font-size:12px;color:#9fb3cc;margin-top:5px;}
-    .badge{font-size:11px;font-weight:700;padding:4px 9px;border-radius:99px;white-space:nowrap;}
-    .badge.wait{background:rgba(245,158,11,.15);color:#fcd34d;}
-    .badge.ok{background:rgba(34,197,94,.18);color:#86efac;}
-    .join{background:transparent;border:1px solid #4CC9F0;color:#4CC9F0;border-radius:10px;
-      padding:9px 14px;font-weight:700;cursor:pointer;white-space:nowrap;}
-    .empty{color:#9fb3cc;text-align:center;padding:18px;}
-    a.back{color:#4CC9F0;text-decoration:none;font-size:14px;}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="top">
-      <img src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX">
-      <b>BABIFIX</b>
-    </div>
-    <a class="back" href="/">← Retour à l'accueil</a>
+{% extends 'vitrine/base.html' %}
 
-    <h1>Un métier manque ? Proposez-le 👷</h1>
-    <p class="sub">
-      Votre métier (ou celui que vous cherchez) n'est pas encore sur BABIFIX ?
-      Proposez-le ici. Dès qu'un métier atteint <b>5 demandes</b>, nous l'ajoutons -
-      et vous êtes <b>prévenu par email</b> quand il devient disponible.
+{% block title %}Proposer un métier · BABIFIX{% endblock %}
+
+{% block extra_css %}
+<style>
+.pm-wrap {
+  padding: 52px 0 84px;
+}
+.pm-grid {
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 28px;
+  align-items: start;
+}
+.pm-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.pm-ico {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--bx-orange-soft);
+  color: var(--bx-orange-bright);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pm-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bx-ink-2);
+  margin: 14px 0 6px;
+}
+.pm-input {
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: 12px;
+  border: 1px solid var(--bx-border-strong);
+  background: var(--bx-surface);
+  color: var(--bx-ink);
+  font-family: inherit;
+  font-size: 14.5px;
+}
+.pm-input:focus {
+  outline: none;
+  border-color: var(--bx-cyan);
+}
+.pm-msg {
+  margin-top: 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  min-height: 20px;
+}
+.pm-msg.ok { color: var(--bx-green); }
+.pm-msg.err { color: #dc2626; }
+.pm-list {
+  display: grid;
+  gap: 12px;
+}
+.pm-item {
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-border);
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: var(--bx-shadow-sm);
+}
+.pm-item-info { flex: 1; min-width: 0; }
+.pm-item-name {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--bx-ink);
+  margin-bottom: 8px;
+}
+.pm-bar {
+  height: 7px;
+  background: var(--bx-surface);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.pm-bar i {
+  display: block;
+  height: 100%;
+  background: var(--bx-cyan);
+}
+.pm-count {
+  font-size: 12px;
+  color: var(--bx-muted);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.pm-badge-ok {
+  background: var(--bx-green-soft);
+  color: var(--bx-green);
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.pm-join {
+  border: 1px solid var(--bx-cyan-ink);
+  background: transparent;
+  color: var(--bx-cyan-ink);
+  border-radius: 10px;
+  padding: 8px 13px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pm-join:hover {
+  background: var(--bx-cyan-soft);
+}
+@media (max-width: 880px) {
+  .pm-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="bx-sub-hero">
+  <div class="container">
+    <div class="pm-title-row">
+      <div class="pm-ico" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <div>
+        <span class="bx-pill orange" style="margin-bottom:6px;">Catalogue Participatif BABIFIX</span>
+        <h1 style="font-size:clamp(26px,3.6vw,40px);font-weight:900;color:var(--bx-ink);letter-spacing:-0.025em;">
+          Un métier manque ? Proposez-le
+        </h1>
+      </div>
+    </div>
+    <p style="font-size:15.5px;color:var(--bx-muted);max-width:680px;line-height:1.65;">
+      Dès qu'un corps de métier atteint <strong>5 demandes vérifiées</strong>, l'équipe BABIFIX étudie son ajout au catalogue officiel et prévient les demandeurs par email.
     </p>
-
-    <div class="card form-card">
-      <label for="nom">Métier proposé</label>
-      <input id="nom" placeholder="Ex : Soudeur, Coiffeur à domicile, Vitrier…" maxlength="120">
-      <label for="email">Votre email (pour vous prévenir)</label>
-      <input id="email" type="email" placeholder="vous@exemple.com">
-      <button class="btn" id="send">Proposer / Soutenir ce métier</button>
-      <div class="msg" id="msg"></div>
-    </div>
-
-    <h2>Métiers déjà proposés par la communauté</h2>
-    <div id="list"><p class="empty">Chargement…</p></div>
   </div>
+</section>
 
-  <script>
-    const API = "{{ api_base }}";
-    const listEl = document.getElementById('list');
-    const nomEl = document.getElementById('nom');
-    const emailEl = document.getElementById('email');
-    const btn = document.getElementById('send');
-    const msg = document.getElementById('msg');
+<section class="pm-wrap">
+  <div class="container">
+    <div class="pm-grid">
+      <form class="bx-card" id="pmForm">
+        <h2 style="font-size:20px;font-weight:800;color:var(--bx-ink);margin-bottom:6px;">Soumettre une proposition</h2>
+        <p style="font-size:13.5px;color:var(--bx-muted);margin-bottom:8px;">Client ou artisan, indiquez la spécialité souhaitée à Abidjan ou ailleurs en Côte d'Ivoire.</p>
 
-    function showMsg(text, ok){ msg.textContent = text; msg.className = 'msg ' + (ok ? 'ok' : 'err'); }
+        <label class="pm-label" for="pmNom">Métier proposé</label>
+        <input class="pm-input" id="pmNom" name="nom" placeholder="Ex : Soudeur ferronnerie, Vitrier, Technicien solaire..." maxlength="120" required>
 
-    function render(metiers, seuil){
-      if(!metiers || !metiers.length){ listEl.innerHTML = '<p class="empty">Aucun métier proposé pour l\'instant. Soyez le premier !</p>'; return; }
-      listEl.innerHTML = '';
-      metiers.forEach(function(m){
-        const pct = Math.min(100, Math.round((m.votes / (m.seuil || seuil)) * 100));
-        const dispo = m.statut === 'disponible';
-        const card = document.createElement('div');
-        card.className = 'card metier';
-        card.innerHTML =
-          '<div class="info">'+
-            '<div class="nom">'+escapeHtml(m.nom)+'</div>'+
-            '<div class="bar"><i style="width:'+pct+'%"></i></div>'+
-            '<div class="count">'+m.votes+' / '+(m.seuil||seuil)+' demandes</div>'+
-          '</div>'+
-          (dispo
-            ? '<span class="badge ok">✓ Disponible</span>'
-            : '<button class="join" data-nom="'+escapeAttr(m.nom)+'">Je suis intéressé(e)</button>');
-        listEl.appendChild(card);
-      });
-      document.querySelectorAll('.join').forEach(function(b){
-        b.addEventListener('click', function(){
-          nomEl.value = b.getAttribute('data-nom');
-          emailEl.focus();
-          window.scrollTo({top:0, behavior:'smooth'});
-        });
-      });
+        <label class="pm-label" for="pmEmail">Votre adresse email (pour vous alerter)</label>
+        <input class="pm-input" id="pmEmail" name="email" type="email" placeholder="vous@exemple.ci" required>
+
+        <button type="submit" class="bx-btn bx-btn-primary" id="pmSend" style="width:100%;margin-top:18px;">
+          Proposer / Soutenir ce métier
+        </button>
+        <div class="pm-msg" id="pmMsg" aria-live="polite"></div>
+      </form>
+
+      <div>
+        <h2 style="font-size:20px;font-weight:800;color:var(--bx-ink);margin-bottom:14px;">Métiers déjà proposés par la communauté</h2>
+        <div class="pm-list" id="pmList">
+          <div class="bx-card" style="text-align:center;color:var(--bx-muted);">Chargement des propositions...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var API = "{{ api_base|default:'' }}";
+  var listEl = document.getElementById('pmList');
+  var nomEl = document.getElementById('pmNom');
+  var emailEl = document.getElementById('pmEmail');
+  var btn = document.getElementById('pmSend');
+  var msg = document.getElementById('pmMsg');
+
+  try {
+    var preNom = new URLSearchParams(window.location.search).get('nom');
+    if (preNom && nomEl && !nomEl.value) nomEl.value = preNom;
+  } catch (e) {}
+
+  function showMsg(text, ok) {
+    msg.textContent = text;
+    msg.className = 'pm-msg ' + (ok ? 'ok' : 'err');
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function escapeAttr(s) {
+    return (s || '').replace(/"/g, '&quot;');
+  }
+
+  function render(metiers, seuil) {
+    if (!metiers || !metiers.length) {
+      listEl.innerHTML = '<div class="bx-card" style="text-align:center;color:var(--bx-muted);">Aucun métier proposé pour le moment. Soyez le premier à soumettre une spécialité.</div>';
+      return;
     }
+    listEl.innerHTML = '';
+    metiers.forEach(function (m) {
+      var targetSeuil = m.seuil || seuil || 5;
+      var pct = Math.min(100, Math.round((m.votes / targetSeuil) * 100));
+      var dispo = m.statut === 'disponible';
+      var card = document.createElement('div');
+      card.className = 'pm-item';
+      card.innerHTML =
+        '<div class="pm-item-info">' +
+          '<div class="pm-item-name">' + escapeHtml(m.nom) + '</div>' +
+          '<div class="pm-bar"><i style="width:' + pct + '%"></i></div>' +
+          '<div class="pm-count">' + m.votes + ' / ' + targetSeuil + ' demandes</div>' +
+        '</div>' +
+        (dispo
+          ? '<span class="pm-badge-ok">Disponible</span>'
+          : '<button type="button" class="pm-join" data-nom="' + escapeAttr(m.nom) + '">Soutenir</button>');
+      listEl.appendChild(card);
+    });
+    listEl.querySelectorAll('.pm-join').forEach(function (b) {
+      b.addEventListener('click', function () {
+        nomEl.value = b.getAttribute('data-nom');
+        if (formEl && formEl.scrollIntoView) {
+          formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        emailEl.focus();
+      });
+    });
+  }
 
-    function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-    function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
-
-    function load(){
-      fetch(API + '/api/public/metiers/')
-        .then(r => r.json())
-        .then(d => render(d.metiers, d.seuil || 5))
-        .catch(() => { listEl.innerHTML = '<p class="empty">Impossible de charger la liste pour le moment.</p>'; });
-    }
-
-    btn.addEventListener('click', function(){
-      const nom = nomEl.value.trim();
-      const email = emailEl.value.trim();
-      if(nom.length < 2){ showMsg('Indiquez le nom du métier.', false); return; }
-      if(!email.includes('@')){ showMsg('Entrez un email valide pour être prévenu.', false); return; }
-      btn.disabled = true; btn.textContent = 'Envoi…';
-      fetch(API + '/api/public/metiers/', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({nom:nom, email:email})
+  var formEl = document.getElementById('pmForm');
+  function load() {
+    fetch(API + '/api/public/metiers/')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.offline) {
+          listEl.innerHTML = '<div class="bx-card" style="text-align:center;color:var(--bx-muted);">Synchronisation communautaire momentanément hors ligne. Votre proposition reste enregistrable ci-contre dès rétablissement du service.</div>';
+          return;
+        }
+        render(d.metiers, d.seuil || 5);
       })
-      .then(r => r.json().then(j => ({status:r.status, j})))
-      .then(({status, j}) => {
-        if(j.ok){
-          showMsg(j.already ? 'Vous aviez déjà soutenu ce métier, merci !' : 'Merci ! Votre proposition est enregistrée. Vous serez prévenu par email.', true);
-          nomEl.value=''; load();
+      .catch(function () {
+        listEl.innerHTML = '<div class="bx-card" style="text-align:center;color:var(--bx-muted);">Impossible de charger la liste des propositions pour le moment.</div>';
+      });
+  }
+
+  if (formEl) {
+    formEl.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var nom = (nomEl.value || '').trim();
+      var email = (emailEl.value || '').trim();
+      if (nom.length < 2) { showMsg('Indiquez le nom du métier.', false); return; }
+      if (email.indexOf('@') === -1) { showMsg('Entrez un email valide pour être prévenu.', false); return; }
+      btn.disabled = true;
+      btn.textContent = 'Envoi...';
+      fetch(API + '/api/public/metiers/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom: nom, email: email })
+      })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+      .then(function (res) {
+        if (res.j && res.j.ok) {
+          showMsg(res.j.already ? 'Vous aviez déjà soutenu ce métier, merci !' : 'Merci ! Votre proposition est enregistrée.', true);
+          nomEl.value = '';
+          load();
         } else {
-          showMsg('Erreur : ' + (j.error || 'réessayez'), false);
+          showMsg((res.j && res.j.error) ? ('Erreur : ' + res.j.error) : 'Service temporairement indisponible.', false);
         }
       })
-      .catch(() => showMsg('Connexion impossible, réessayez.', false))
-      .finally(() => { btn.disabled=false; btn.textContent='Proposer / Soutenir ce métier'; });
+      .catch(function () { showMsg('Connexion impossible, réessayez.', false); })
+      .finally(function () {
+        btn.disabled = false;
+        btn.textContent = 'Proposer / Soutenir ce métier';
+      });
     });
+  }
 
-    load();
-  </script>
-{% include 'vitrine/_consent_analytics.html' %}
-</body>
-</html>
+  load();
+})();
+</script>
+{% endblock %}

@@ -21,10 +21,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "change-me-babifix-vitrine")
+_env = os.getenv("DJANGO_ENV", "development").lower()
+_secret_key = os.getenv("DJANGO_SECRET_KEY", "").strip()
+if _env == "production":
+    if not _secret_key or _secret_key == "change-me-babifix-vitrine":
+        raise RuntimeError(
+            "DJANGO_SECRET_KEY must be securely configured in production."
+        )
+    SECRET_KEY = _secret_key
+else:
+    SECRET_KEY = _secret_key or "dev-insecure-change-me-babifix-vitrine"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-_env = os.getenv("DJANGO_ENV", "development").lower()
 DEBUG = _env != "production" and os.getenv("DJANGO_DEBUG", "True").lower() in {
     "1",
     "true",
@@ -63,20 +71,28 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "vitrine",
+    "vitrine.apps.VitrineConfig",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    # WhiteNoise sert les fichiers statiques en production (juste après Security).
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
+    "vitrine.observability_middleware.BabifixVitrineObservabilityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "vitrine.security_middleware.BabifixVitrineSecurityHeadersMiddleware",
 ]
+
+BABIFIX_SLOW_REQUEST_MS = int(os.getenv("BABIFIX_SLOW_REQUEST_MS", "800"))
+VITRINE_TELEMETRY_SECRET = os.getenv(
+    "VITRINE_TELEMETRY_SECRET",
+    "" if _env == "production" else "babifix-dev-vitrine-telemetry-hmac-key",
+)
 
 ROOT_URLCONF = "config.urls"
 
@@ -102,12 +118,60 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+_vitrine_db_url = os.getenv("DATABASE_URL", "").strip()
+_vitrine_conn_max_age = int(os.getenv("DJANGO_CONN_MAX_AGE", "600"))
+if _vitrine_db_url:
+    try:
+        import dj_database_url  # type: ignore
+
+        DATABASES = {
+            "default": dj_database_url.config(
+                default=_vitrine_db_url,
+                conn_max_age=_vitrine_conn_max_age,
+                conn_health_checks=True,
+                ssl_require=_env == "production",
+            )
+        }
+    except ImportError:
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": BASE_DIR / "db.sqlite3",
+                "CONN_MAX_AGE": _vitrine_conn_max_age,
+            }
+        }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+            "CONN_MAX_AGE": _vitrine_conn_max_age,
+        }
     }
-}
+
+_redis_url = os.getenv("REDIS_URL", "").strip()
+if _redis_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _redis_url,
+            "KEY_PREFIX": "babifix_vitrine",
+            "TIMEOUT": 300,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "babifix-vitrine-cache",
+            "TIMEOUT": 300,
+        }
+    }
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = "Lax"
 
 
 # Password validation

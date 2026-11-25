@@ -22,5 +22,7 @@ urlpatterns = [
     path('', include('vitrine.urls')),
 ]
 
+handler400 = 'vitrine.views.error_400'
+handler403 = 'vitrine.views.error_403'
 handler404 = 'vitrine.views.error_404'
 handler500 = 'vitrine.views.error_500'

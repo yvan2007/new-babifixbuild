@@ -1,39 +1,350 @@
-{# Bandeau de consentement cookies + Google Analytics (chargé APRÈS accord). #}
+{# Carte éditoriale de consentement cookies + modale granulaire (Loi ivoirienne n°2013-450) #}
 <style>
-  #bx-cookie{position:fixed;left:0;right:0;bottom:0;z-index:9999;display:none;
-    background:#0B1B34;color:#fff;border-top:1px solid rgba(76,201,240,.35);
-    box-shadow:0 -8px 30px rgba(0,0,0,.35);font-family:'Segoe UI',system-ui,Arial,sans-serif;}
-  #bx-cookie .in{max-width:1080px;margin:0 auto;padding:16px 20px;display:flex;
-    align-items:center;gap:16px;flex-wrap:wrap;}
-  #bx-cookie p{flex:1;min-width:240px;font-size:13.5px;line-height:1.55;color:#cdd9ea;margin:0;}
-  #bx-cookie a{color:#4CC9F0;text-decoration:underline;}
-  #bx-cookie .acts{display:flex;gap:10px;flex-wrap:wrap;}
-  #bx-cookie button{border:none;cursor:pointer;font-weight:700;font-size:13px;
-    padding:11px 20px;border-radius:11px;}
-  #bx-cookie .ref{background:rgba(255,255,255,.1);color:#cdd9ea;}
-  #bx-cookie .acc{background:#4CC9F0;color:#0B1B34;}
+.cookie-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  width: calc(100% - 48px);
+  max-width: 440px;
+  z-index: 9990;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 22px;
+  padding: 22px 24px 20px;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 24px 60px rgba(15,23,42,.18), 0 4px 14px rgba(15,23,42,.08);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+.cookie-banner.visible {
+  display: flex;
+  animation: ckSlideUp .42s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes ckSlideUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cookie-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cookie-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cookie-ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: #0f172a;
+  color: #38bdf8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cookie-ico svg {
+  width: 20px;
+  height: 20px;
+}
+.cookie-title-wrap {
+  display: flex;
+  flex-direction: column;
+}
+.cookie-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+}
+.cookie-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+.cookie-law-pill {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  padding: 4px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.cookie-text {
+  font-size: 13px;
+  line-height: 1.58;
+  color: #334155;
+  margin: 0;
+}
+.cookie-text a {
+  color: #0369a1;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 700;
+}
+.cookie-actions {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr auto;
+  gap: 8px;
+  padding-top: 4px;
+}
+.cookie-btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+  white-space: nowrap;
+}
+.cookie-btn:hover { transform: translateY(-1px); }
+.cookie-btn.accept {
+  background: #0f172a;
+  color: #ffffff;
+}
+.cookie-btn.accept:hover { background: #1e293b; }
+.cookie-btn.decline {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+.cookie-btn.decline:hover { background: #f1f5f9; }
+.cookie-btn.customize {
+  background: #ffffff;
+  color: #334155;
+  border-color: #cbd5e1;
+  padding: 10px 12px;
+}
+.cookie-btn.customize:hover {
+  color: #0f172a;
+  border-color: #0f172a;
+}
+.cookie-btn.customize svg {
+  width: 15px;
+  height: 15px;
+}
+@media (max-width: 560px) {
+  .cookie-banner {
+    left: 14px;
+    bottom: 14px;
+    width: calc(100% - 28px);
+    padding: 18px;
+  }
+  .cookie-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cookie-btn.accept {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Modale des préférences cookies */
+.cookie-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9995;
+  background: rgba(15,23,42,.65);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease;
+}
+.cookie-modal-overlay.open { opacity: 1; pointer-events: auto; }
+.cookie-modal {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 24px;
+  padding: 28px 26px 24px;
+  width: 100%;
+  max-width: 520px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 32px 80px rgba(15,23,42,.28);
+  transform: translateY(20px) scale(.98);
+  transition: transform .3s cubic-bezier(.22,1,.36,1);
+}
+.cookie-modal-overlay.open .cookie-modal { transform: translateY(0) scale(1); }
+.cookie-modal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+.cookie-modal-overlay.open { display: flex; }
+.cookie-modal {
+  background: var(--bx-card-bg, #ffffff);
+  color: var(--bx-ink, #0f172a);
+  border: 1px solid var(--bx-border, #e2e8f0);
+  border-radius: 22px;
+  max-width: 490px;
+  width: 100%;
+  padding: 28px;
+  box-shadow: 0 28px 64px rgba(2, 6, 23, .38);
+}
+.cookie-modal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.cookie-modal h3 { color: var(--bx-ink, #0f172a); font-size: 18px; font-weight: 800; margin: 0; }
+.cookie-modal > p { color: var(--bx-muted, #475569); font-size: 13.5px; line-height: 1.58; margin: 0 0 18px; }
+.cookie-category {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--bx-border, #f1f5f9);
+}
+.cookie-category:last-of-type { border-bottom: none; }
+.cookie-cat-info h3 { color: var(--bx-ink, #0f172a); font-size: 14.5px; font-weight: 800; margin: 0 0 3px; }
+.cookie-cat-info p { color: var(--bx-muted, #475569); font-size: 12.5px; line-height: 1.45; margin: 0; }
+html[data-theme="sombre"] .cookie-modal { background: #10213d; border-color: rgba(148,163,184,0.22); }
+html[data-theme="sombre"] .cookie-btn.decline { background: #162a4b; color: #f8fafc; }
+html[data-theme="sombre"] .cookie-btn.customize { background: #0b172b; color: #e2e8f0; border-color: rgba(148,163,184,0.28); }
+.cookie-toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.cookie-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.cookie-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: #cbd5e1;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.cookie-toggle input:checked + .cookie-toggle-track { background: #0f172a; }
+.cookie-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform .2s;
+  pointer-events: none;
+}
+.cookie-toggle input:checked ~ .cookie-toggle-thumb { transform: translateX(20px); }
+.cookie-toggle input:disabled + .cookie-toggle-track { background: #0284c7; opacity: .85; cursor: default; }
+.cookie-modal-footer { margin-top: 22px; display: flex; gap: 10px; }
+.cookie-modal-footer .cookie-btn { flex: 1; text-align: center; }
 </style>
 
-<div id="bx-cookie" role="dialog" aria-label="Consentement cookies">
-  <div class="in">
-    <p>🍪 BABIFIX utilise des cookies de mesure d'audience pour améliorer le site.
-       Vous pouvez accepter ou refuser. <a href="/confidentialite/">En savoir plus</a>.</p>
-    <div class="acts">
-      <button class="ref" id="bx-ck-refuse">Refuser</button>
-      <button class="acc" id="bx-ck-accept">Accepter</button>
+<div class="cookie-banner" id="cookieBanner" role="dialog" aria-live="polite" aria-label="Préférences de confidentialité et cookies">
+  <div class="cookie-head">
+    <div class="cookie-brand">
+      <span class="cookie-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </span>
+      <div class="cookie-title-wrap">
+        <span class="cookie-title">Confidentialité &amp; témoins</span>
+        <span class="cookie-sub">Protection des données personnelles</span>
+      </div>
+    </div>
+    <span class="cookie-law-pill">Loi 2013-450 · CI</span>
+  </div>
+  <p class="cookie-text">
+    Nous utilisons des cookies techniques indispensables à la sécurité des réservations et, avec votre accord, une mesure d'audience anonymisée pour améliorer nos délais d'intervention. <a href="/politique-cookies/">En savoir plus</a>
+  </p>
+  <div class="cookie-actions">
+    <button type="button" class="cookie-btn accept" id="cookieAccept">Tout accepter</button>
+    <button type="button" class="cookie-btn decline" id="cookieDecline">Essentiels seuls</button>
+    <button type="button" class="cookie-btn customize" id="cookieCustomize" aria-haspopup="dialog" aria-label="Personnaliser les cookies">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+      Réglages
+    </button>
+  </div>
+</div>
+
+<div class="cookie-modal-overlay" id="cookieModal" role="dialog" aria-modal="true" aria-label="Préférences cookies">
+  <div class="cookie-modal">
+    <div class="cookie-modal-top">
+      <h3>Paramètres de confidentialité</h3>
+      <span class="cookie-law-pill">ARTCI · Loi 2013-450</span>
+    </div>
+    <p>Choisissez les traceurs autorisés lors de votre navigation sur BABIFIX. Les témoins techniques garantissent l'intégrité des sessions et restent toujours actifs.</p>
+
+    <div class="cookie-category">
+      <div class="cookie-cat-info">
+        <h3>Fonctionnement &amp; sécurité (requis)</h3>
+        <p>Protection CSRF, maintien de session et sécurité des transactions Mobile Money.</p>
+      </div>
+      <label class="cookie-toggle" aria-label="Cookies essentiels toujours actifs">
+        <input type="checkbox" checked disabled>
+        <span class="cookie-toggle-track"></span>
+        <span class="cookie-toggle-thumb"></span>
+      </label>
+    </div>
+
+    <div class="cookie-category">
+      <div class="cookie-cat-info">
+        <h3>Mesure d'audience anonymisée</h3>
+        <p>Statistiques de fréquentation agrégées pour optimiser la couverture par commune.</p>
+      </div>
+      <label class="cookie-toggle" aria-label="Autoriser les cookies analytiques">
+        <input type="checkbox" id="toggleAnalytics">
+        <span class="cookie-toggle-track"></span>
+        <span class="cookie-toggle-thumb"></span>
+      </label>
+    </div>
+
+    <div class="cookie-category">
+      <div class="cookie-cat-info">
+        <h3>Communication &amp; campagnes</h3>
+        <p>Mesure de pertinence de nos campagnes d'information locales en Côte d'Ivoire.</p>
+      </div>
+      <label class="cookie-toggle" aria-label="Autoriser les cookies marketing">
+        <input type="checkbox" id="toggleMarketing">
+        <span class="cookie-toggle-track"></span>
+        <span class="cookie-toggle-thumb"></span>
+      </label>
+    </div>
+
+    <div class="cookie-modal-footer">
+      <button type="button" class="cookie-btn decline" id="cookieModalClose">Annuler</button>
+      <button type="button" class="cookie-btn accept" id="cookieSavePrefs">Enregistrer mes choix</button>
     </div>
   </div>
 </div>
 
 <script>
 (function(){
-  var KEY = 'babifix_cookie_consent';
+  var KEY = 'babifix_consent_v2';
+  var LEGACY_KEY = 'babifix_cookie_consent';
   var GA_ID = "{{ ga_id }}";
-  var banner = document.getElementById('bx-cookie');
+  var banner = document.getElementById('cookieBanner');
+  var modal  = document.getElementById('cookieModal');
 
   function loadGA(){
-    if(!GA_ID) return;
-    if(window.__bxGAloaded) return; window.__bxGAloaded = true;
+    if(!GA_ID || window.__bxGAloaded) return;
+    window.__bxGAloaded = true;
     var s = document.createElement('script'); s.async = true;
     s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
     document.head.appendChild(s);
@@ -44,16 +355,65 @@
     gtag('config', GA_ID, { anonymize_ip: true });
   }
 
-  var choice = null;
-  try { choice = localStorage.getItem(KEY); } catch(e){}
+  function getConsent(){
+    try {
+      var raw = localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch(e){ return null; }
+  }
 
-  if(choice === 'accepted'){ loadGA(); }
-  else if(choice !== 'refused'){ if(banner) banner.style.display = 'block'; }
+  function saveConsent(obj){
+    try {
+      localStorage.setItem(KEY, JSON.stringify(obj));
+      localStorage.setItem(LEGACY_KEY, obj.analytics ? 'accepted' : 'refused');
+    } catch(e){}
+    if(obj && obj.analytics) loadGA();
+    if(banner) banner.classList.remove('visible');
+  }
 
-  function set(v){ try { localStorage.setItem(KEY, v); } catch(e){} if(banner) banner.style.display='none'; }
-  var a = document.getElementById('bx-ck-accept');
-  var r = document.getElementById('bx-ck-refuse');
-  if(a) a.addEventListener('click', function(){ set('accepted'); loadGA(); });
-  if(r) r.addEventListener('click', function(){ set('refused'); });
+  var stored = getConsent();
+  if(stored){
+    if(stored.analytics) loadGA();
+  } else if(banner){
+    banner.classList.add('visible');
+  }
+
+  var btnAccept = document.getElementById('cookieAccept');
+  var btnDecline = document.getElementById('cookieDecline');
+  var btnCust = document.getElementById('cookieCustomize');
+  var btnClose = document.getElementById('cookieModalClose');
+  var btnSave = document.getElementById('cookieSavePrefs');
+
+  if(btnAccept) btnAccept.addEventListener('click', function(){
+    saveConsent({ essential: true, analytics: true, marketing: true, date: new Date().toISOString() });
+  });
+  if(btnDecline) btnDecline.addEventListener('click', function(){
+    saveConsent({ essential: true, analytics: false, marketing: false, date: new Date().toISOString() });
+  });
+  if(btnCust) btnCust.addEventListener('click', function(){
+    var cur = getConsent() || {};
+    var tA = document.getElementById('toggleAnalytics');
+    var tM = document.getElementById('toggleMarketing');
+    if(tA) tA.checked = !!cur.analytics;
+    if(tM) tM.checked = !!cur.marketing;
+    if(modal) modal.classList.add('open');
+  });
+  if(btnClose) btnClose.addEventListener('click', function(){
+    if(modal) modal.classList.remove('open');
+  });
+  if(btnSave) btnSave.addEventListener('click', function(){
+    var tA = document.getElementById('toggleAnalytics');
+    var tM = document.getElementById('toggleMarketing');
+    saveConsent({
+      essential: true,
+      analytics: !!(tA && tA.checked),
+      marketing: !!(tM && tM.checked),
+      date: new Date().toISOString()
+    });
+    if(modal) modal.classList.remove('open');
+  });
+  if(modal) modal.addEventListener('click', function(e){
+    if(e.target === modal) modal.classList.remove('open');
+  });
 })();
 </script>

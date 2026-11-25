@@ -1,43 +1,46 @@
-﻿{% load static %}
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BABIFIX – Services à domicile en Côte d'Ivoire</title>
-  <link rel="icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
-  <link rel="shortcut icon" type="image/png" href="{% static 'vitrine/assets/babifix-logo.png' %}">
-  <link rel="apple-touch-icon" href="{% static 'vitrine/assets/babifix-logo.png' %}">
-  <meta name="description" content="Trouvez des prestataires vérifiés pour tous vos services à domicile en Côte d'Ivoire. Plomberie, électricité, ménage et plus. Payez en Mobile Money – Orange Money, MTN, Wave.">
+﻿{% extends 'vitrine/base.html' %}
+{% load static %}
+
+{% block title %}BABIFIX · Plombier, Electricien, Clim & Services a domicile en Cote d'Ivoire{% endblock %}
+
+{% block head_meta %}
+  <meta name="description" content="Trouvez un plombier, electricien, technicien climatisation, serrurier, menage ou nounou verifiee (CNI) a Abidjan et en Cote d'Ivoire. Devis clair et paiement securise Mobile Money.">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <link rel="canonical" href="{{ canonical_url|default:'https://babifix.ci/' }}">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://babifix.ci/">
-  <meta property="og:title" content="BABIFIX – Services à domicile en Côte d'Ivoire">
-  <meta property="og:description" content="Trouvez des prestataires vérifiés pour tous vos services à domicile en Côte d'Ivoire. Plomberie, électricité, ménage et plus. Payez en Mobile Money.">
+  <meta property="og:site_name" content="BABIFIX">
+  <meta property="og:url" content="{{ canonical_url|default:'https://babifix.ci/' }}">
+  <meta property="og:title" content="BABIFIX · Services a domicile verifies en Cote d'Ivoire">
+  <meta property="og:description" content="Artisans verifies CNI, devis ecrit transparent et paiement sous sequestre Wave, Orange Money, MTN MoMo et Moov a Abidjan et en Cote d'Ivoire.">
+  <meta property="og:image" content="{{ canonical_base|default:'https://babifix.ci' }}{% static 'vitrine/assets/babifix-logo.png' %}">
   <meta property="og:locale" content="fr_CI">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="canonical" href="https://babifix.ci/">
-  <meta name="robots" content="index, follow">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <meta name="twitter:title" content="BABIFIX · Services a domicile en Cote d'Ivoire">
+  <meta name="twitter:description" content="Plombier, electricien, climatisation, serrurier, menage et nounou verifies CNI a Abidjan. Paiement securise sous sequestre Mobile Money.">
+  <meta name="twitter:image" content="{{ canonical_base|default:'https://babifix.ci' }}{% static 'vitrine/assets/babifix-logo.png' %}">
+  <script type="application/ld+json">{{ home_jsonld }}</script>
+{% endblock %}
+
+
+{% block extra_css %}
 <style>
 /* ================================================================
-   BABIFIX DESIGN SYSTEM — Awwwards Edition
+   BABIFIX DESIGN SYSTEM · Awwwards Edition
 ================================================================ */
 :root {
-  --c-blue:    #0284c7;
+  --c-blue:    var(--bx-cyan, #0284c7);
   --c-sky:     #0ea5e9;
-  --c-orange:  #f97316;
-  --c-green:   #10b981;
+  --c-orange:  var(--bx-orange-bright, #E87722);
+  --c-green:   var(--bx-green, #047857);
   --c-dark:    #0f172a;
-  --c-navy:    #0c2340;
-  --c-white:   #ffffff;
-  --c-surface: #f8fafc;
-  --c-surf2:   #f0f9ff;
-  --c-border:  rgba(2,132,199,.10);
-  --c-text:    #0f172a;
-  --c-muted:   #94a3b8;
-  --c-mid:     #475569;
+  --c-navy:    var(--bx-navy, #0b1b34);
+  --c-white:   var(--bx-card-bg, #ffffff);
+  --c-surface: var(--bx-surface, #faf8f2);
+  --c-surf2:   var(--bx-surface-2, #f4efe3);
+  --c-border:  var(--bx-border, rgba(11,27,52,.10));
+  --c-text:    var(--bx-ink, #0b1b34);
+  --c-muted:   var(--bx-muted, #475569);
+  --c-mid:     var(--bx-ink-2, #334155);
   --r-sm:  12px;
   --r-md:  18px;
   --r-lg:  28px;
@@ -58,12 +61,899 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
-html, body { overflow-x: hidden; }
+html, body { overflow-x: clip; }
 body {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  color: var(--c-text);
-  background: #fff;
+  font-family: 'Lexend', 'Inter', 'Segoe UI', sans-serif;
+  color: var(--bx-ink, var(--c-text));
+  background: var(--bx-bg, #fff);
   -webkit-font-smoothing: antialiased;
+}
+html[data-theme="sombre"] .cats-section,
+html[data-theme="sombre"] .steps-section,
+html[data-theme="sombre"] .testi-section,
+html[data-theme="sombre"] .faq-section,
+html[data-theme="sombre"] /* ===== PARCOURS DEVIS SUR-MESURE & BOUCLIER SEQUESTRE ABIDJAN ===== */
+.parcours-section {
+  padding: 96px 0;
+  background: var(--bx-surface);
+  border-top: 1px solid var(--bx-border);
+  border-bottom: 1px solid var(--bx-border);
+}
+.parcours-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 28px;
+  align-items: stretch;
+}
+.parcours-form,
+.parcours-result {
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-border);
+  border-radius: 22px;
+  padding: 30px;
+  box-shadow: var(--bx-shadow-sm);
+}
+.parcours-field { margin-bottom: 18px; }
+.parcours-field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bx-muted);
+  margin-bottom: 8px;
+}
+.parcours-field select {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 15px;
+  border-radius: 12px;
+  border: 1px solid var(--bx-border-strong);
+  background: var(--bx-surface);
+  color: var(--bx-ink);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.parcours-urgency {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.parcours-u-btn {
+  min-height: 44px;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--bx-border-strong);
+  background: var(--bx-surface);
+  color: var(--bx-ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.parcours-u-btn:hover { transform: translateY(-1px); }
+.parcours-u-btn.active {
+  background: #0E3B2E;
+  color: #ffffff;
+  border-color: #0E3B2E;
+}
+html[data-theme="sombre"] .parcours-u-btn.active {
+  background: #4cc9f0;
+  color: #070d19;
+  border-color: #4cc9f0;
+}
+.parcours-note {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--bx-muted);
+  line-height: 1.55;
+}
+.parcours-result {
+  background: #0E3B2E;
+  color: #ffffff;
+  border-color: rgba(231, 196, 99, 0.34);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+html[data-theme="sombre"] .parcours-result {
+  background: #0c221d;
+  border-color: rgba(76, 201, 240, 0.28);
+}
+.parcours-res-kicker {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #E7C463;
+}
+.parcours-res-title {
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1.15;
+  margin: 10px 0 8px;
+}
+.parcours-res-meta {
+  font-size: 14px;
+  color: #e2e8f0;
+  margin: 0;
+  line-height: 1.55;
+}
+.parcours-breakdown {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 20px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.parcours-bk-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13.5px;
+  color: #e2e8f0;
+}
+.parcours-bk-row strong {
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.parcours-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.parcours-result .btn-primary {
+  background: #C2410C;
+  border-color: #C2410C;
+  color: #ffffff;
+}
+.parcours-result .btn-primary:hover {
+  background: #9A3412;
+  border-color: #9A3412;
+}
+.parcours-result .btn-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: none;
+}
+@media (max-width: 900px) {
+  .parcours-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .parcours-urgency { grid-template-columns: 1fr; }
+}
+
+/* ===== BOUCLIER SEQUESTRE & CARTE WALLET 3D SUR-MESURE ===== */
+.wal-section {
+  padding: 96px 0;
+  background: var(--bx-bg);
+}
+.wal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.05fr;
+  gap: 44px;
+  align-items: center;
+}
+.wal-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.wal-card-wrap {
+  perspective: 1400px;
+  width: 100%;
+  max-width: 452px;
+  --rx: 0deg;
+  --ry: 0deg;
+}
+.wal-card-tilt {
+  width: 100%;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform 180ms ease-out;
+}
+.wal-card {
+  position: relative;
+  width: 100%;
+  min-height: 286px;
+  aspect-ratio: 1.586 / 1;
+  transform-style: preserve-3d;
+  transition: transform 640ms cubic-bezier(.22, 1, .36, 1);
+  cursor: pointer;
+}
+.wal-card.is-flipped {
+  transform: rotateY(180deg);
+}
+.wal-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 22px;
+  padding: 22px 24px;
+  color: #ffffff;
+  background-color: #0e3b2e;
+  background-image: radial-gradient(340px circle at var(--mx, 50%) var(--my, 35%), rgba(110, 231, 183, 0.22), transparent 62%);
+  border: 1.5px solid rgba(110, 231, 183, 0.44);
+  box-shadow: 0 24px 52px -18px rgba(7, 13, 25, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+.wal-card[data-tier="silver"] .wal-face {
+  background-color: #22303d;
+  background-image: radial-gradient(340px circle at var(--mx, 50%) var(--my, 35%), rgba(226, 232, 240, 0.22), transparent 62%);
+  border-color: rgba(203, 213, 225, 0.56);
+}
+.wal-card[data-tier="gold"] .wal-face {
+  background-color: #121512;
+  background-image: radial-gradient(340px circle at var(--mx, 50%) var(--my, 35%), rgba(231, 196, 99, 0.26), transparent 62%);
+  border-color: rgba(231, 196, 99, 0.68);
+}
+.wal-face::after {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  pointer-events: none;
+}
+.wal-card[data-tier="gold"] .wal-face::after {
+  border-color: rgba(231, 196, 99, 0.24);
+}
+.wal-guilloche {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.28;
+  color: #6ee7b7;
+  transition: color 240ms ease, opacity 240ms ease;
+}
+.wal-card[data-tier="silver"] .wal-guilloche {
+  color: #cbd5e1;
+  opacity: 0.20;
+}
+.wal-card[data-tier="gold"] .wal-guilloche {
+  color: #e7c463;
+  opacity: 0.26;
+}
+.wal-pat-tier { display: none; }
+.wal-card[data-tier="standard"] .wal-pat-std { display: block; }
+.wal-card[data-tier="silver"] .wal-pat-sil { display: block; }
+.wal-card[data-tier="gold"] .wal-pat-gold { display: block; }
+.wal-back {
+  transform: rotateY(180deg);
+  padding: 0;
+}
+.wal-top,
+.wal-mid-chips,
+.wal-balance-block,
+.wal-bottom,
+.wal-back-inner,
+.wal-back-foot {
+  position: relative;
+  z-index: 2;
+}
+.wal-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.wal-brand-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.wal-crest {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #4cc9f0;
+}
+.wal-card[data-tier="gold"] .wal-crest {
+  background: rgba(231, 196, 99, 0.14);
+  border-color: rgba(231, 196, 99, 0.42);
+  color: #e7c463;
+}
+.wal-card[data-tier="silver"] .wal-crest {
+  color: #e2e8f0;
+}
+.wal-brand {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #f1f5f9;
+}
+.wal-tier-pill {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(76, 201, 240, 0.14);
+  border: 1px solid rgba(76, 201, 240, 0.34);
+  color: #7dd3fc;
+}
+.wal-card[data-tier="silver"] .wal-tier-pill {
+  background: rgba(226, 232, 240, 0.14);
+  border-color: rgba(226, 232, 240, 0.36);
+  color: #f8fafc;
+}
+.wal-card[data-tier="gold"] .wal-tier-pill {
+  background: rgba(231, 196, 99, 0.16);
+  border-color: rgba(231, 196, 99, 0.48);
+  color: #fde68a;
+}
+.wal-mid-chips {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+.wal-chip-nfc {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.wal-chip-svg {
+  width: 40px;
+  height: 29px;
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+.wal-nfc-svg {
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.62);
+}
+.wal-digits {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(241, 245, 249, 0.84);
+  font-variant-numeric: tabular-nums;
+}
+.wal-bal-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+.wal-bal {
+  font-size: 31px;
+  line-height: 1.08;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+}
+.wal-escrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: rgba(76, 201, 240, 0.12);
+  border: 1px solid rgba(76, 201, 240, 0.25);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #7dd3fc;
+  font-variant-numeric: tabular-nums;
+}
+.wal-card[data-tier="gold"] .wal-escrow {
+  background: rgba(231, 196, 99, 0.14);
+  border-color: rgba(231, 196, 99, 0.34);
+  color: #fde68a;
+}
+.wal-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+  font-size: 11.5px;
+  color: #cbd5e1;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.wal-holder-lbl {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 1px;
+}
+.wal-holder-name {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+}
+.wal-comm-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.wal-xof-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: rgba(34, 197, 94, 0.16);
+  border: 1px solid rgba(74, 222, 128, 0.42);
+  color: #86efac;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+/* Verso authentique */
+.wal-magstripe {
+  position: relative;
+  z-index: 2;
+  height: 36px;
+  margin-top: 18px;
+  background: #03050a;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: rgba(226, 232, 240, 0.72);
+}
+.wal-sign-row {
+  position: relative;
+  z-index: 2;
+  margin: 10px 22px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wal-signstrip {
+  flex: 1;
+  height: 26px;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #0f172a;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.wal-seal-wrap {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #e7c463;
+}
+.wal-back-inner {
+  flex: 1;
+  padding: 10px 22px 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+.wal-back-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wal-back-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+.wal-back-row strong {
+  color: #f8fafc;
+  font-weight: 700;
+  text-align: right;
+}
+.wal-op-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+.wal-op-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 10px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.wal-op-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.wal-qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.wal-qr-frame {
+  width: 66px;
+  height: 66px;
+  padding: 5px;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0b1b34;
+}
+.wal-qr-cap {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  color: #94a3b8;
+}
+.wal-back-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 22px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+.wal-hint {
+  font-size: 12px;
+  color: var(--bx-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.wal-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.wal-tiers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.wal-tier-btn,
+.wal-flip-btn {
+  border: 1px solid var(--bx-border-strong);
+  background: var(--bx-surface);
+  color: var(--bx-ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.wal-flip-btn:hover {
+  border-color: var(--bx-navy);
+  transform: translateY(-1px);
+}
+.wal-tier-btn.active {
+  background: var(--bx-navy);
+  color: #ffffff;
+  border-color: var(--bx-navy);
+}
+html[data-theme="sombre"] .wal-tier-btn.active {
+  background: #4cc9f0;
+  color: #070d19;
+  border-color: #4cc9f0;
+}
+.wal-points {
+  display: grid;
+  gap: 14px;
+}
+.wal-escrow-vault {
+  padding: 20px 22px;
+  border-radius: 18px;
+  background: var(--bx-card-bg);
+  border: 1px solid rgba(34, 197, 94, 0.34);
+  box-shadow: var(--bx-shadow-sm);
+}
+.wal-vault-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.wal-vault-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--bx-ink);
+}
+.wal-vault-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+  border: 1px solid rgba(22, 163, 74, 0.28);
+}
+html[data-theme="sombre"] .wal-vault-badge {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+  border-color: rgba(74, 222, 128, 0.34);
+}
+.wal-vault-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.wal-vstep {
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--bx-surface-2);
+  border: 1px solid var(--bx-border);
+}
+.wal-vstep-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--bx-navy);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+html[data-theme="sombre"] .wal-vstep-num {
+  background: #4cc9f0;
+  color: #070d19;
+}
+.wal-vstep strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--bx-ink);
+  margin-bottom: 2px;
+}
+.wal-vstep span {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--bx-muted);
+}
+.wal-pt {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 18px 22px;
+  border-radius: 18px;
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-border);
+  box-shadow: var(--bx-shadow-sm);
+}
+@media (max-width: 640px) {
+  .wal-vault-steps { grid-template-columns: 1fr; }
+  .wal-card { min-height: 270px; aspect-ratio: auto; }
+  .wal-bal { font-size: 26px; }
+}
+
+html[data-theme="sombre"] .btn-ghost {
+  color: var(--bx-ink);
+  border-color: var(--bx-border-strong);
+}
+html[data-theme="sombre"] .phone-status {
+  background: #0B1B34;
+  color: #ffffff;
+}
+html[data-theme="sombre"] .phone .phone-h,
+html[data-theme="sombre"] .phone .phone-provider-name,
+html[data-theme="sombre"] .phone .phone-card-label {
+  color: #0f172a;
+}
+html[data-theme="sombre"] .phone .phone-p,
+html[data-theme="sombre"] .phone .phone-provider-rating,
+html[data-theme="sombre"] .phone .phone-section-title {
+  color: #475569;
+}
+html[data-theme="sombre"] .phone .phone-provider,
+html[data-theme="sombre"] .phone .phone-card {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+html[data-theme="sombre"] .float-badge {
+  background: #10213d;
+  border-color: rgba(148, 163, 184, 0.28);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="sombre"] .float-badge .fb-title {
+  color: #f8fafc;
+}
+html[data-theme="sombre"] .float-badge .fb-sub {
+  color: #cbd5e1;
+}
+.vitrine-search-input {
+  width: 100%;
+  padding: 9px 14px 9px 36px;
+  border-radius: 99px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+}
+.vitrine-search-input::placeholder { color: #64748b; }
+.vitrine-search-results {
+  display: none;
+  margin: 0 0 20px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .05);
+}
+.vitrine-search-heading { font-size: 14px; color: #0f172a; }
+.vitrine-chip-cat {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 99px;
+  background: #f8fafc; border: 1px solid #cbd5e1;
+  color: #0f172a; font-size: 12.5px; font-weight: 700; text-decoration: none;
+}
+.vitrine-chip-cat-meta { color: #475569; font-weight: 600; font-size: 11px; }
+.vitrine-chip-prov {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 99px;
+  background: #eef6ff; border: 1px solid #bfdbfe;
+  color: #1e3a8a; font-size: 12.5px; font-weight: 700;
+}
+.vitrine-chip-sup {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 99px;
+  background: #fef3c7; border: 1px solid #fde68a;
+  color: #92400e; font-size: 12.5px; font-weight: 700;
+}
+.vitrine-search-hint { font-size: 12.5px; color: #475569; }
+.vitrine-propose-link { font-size: 13px; font-weight: 700; color: #c2410c; text-decoration: none; }
+html[data-theme="sombre"] .vitrine-search-input {
+  background: #0f203b;
+  border-color: rgba(148, 163, 184, 0.30);
+  color: #f8fafc;
+}
+html[data-theme="sombre"] .vitrine-search-input::placeholder { color: #94a3b8; }
+html[data-theme="sombre"] .vitrine-search-results {
+  background: #10213d;
+  border-color: rgba(148, 163, 184, 0.24);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+}
+html[data-theme="sombre"] .vitrine-search-heading { color: #f8fafc; }
+html[data-theme="sombre"] .vitrine-chip-cat {
+  background: rgba(15, 32, 59, 0.9);
+  border-color: rgba(76, 201, 240, 0.34);
+  color: #f8fafc;
+}
+html[data-theme="sombre"] .vitrine-chip-cat-meta { color: #cbd5e1; }
+html[data-theme="sombre"] .vitrine-chip-prov {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.36);
+  color: #7dd3fc;
+}
+html[data-theme="sombre"] .vitrine-chip-sup {
+  background: rgba(251, 191, 36, 0.16);
+  border-color: rgba(251, 191, 36, 0.36);
+  color: #fde68a;
+}
+html[data-theme="sombre"] .vitrine-search-hint { color: #cbd5e1; }
+html[data-theme="sombre"] .vitrine-propose-link { color: #fb923c; }
+
+html[data-theme="sombre"] .mm-name {
+  color: var(--bx-ink);
+}
+html[data-theme="sombre"] .test-card {
+  background: #10213d;
+  border-color: rgba(148, 163, 184, 0.24);
+}
+html[data-theme="sombre"] .test-card:nth-child(even) {
+  background: #0e1b33;
+  border-color: rgba(76, 201, 240, 0.24);
+}
+html[data-theme="sombre"] .test-text,
+html[data-theme="sombre"] .faq-body p,
+html[data-theme="sombre"] .cat-desc,
+html[data-theme="sombre"] .cat-subname,
+html[data-theme="sombre"] .how-body p,
+html[data-theme="sombre"] .notif-item p,
+html[data-theme="sombre"] .test-role,
+html[data-theme="sombre"] .test-city {
+  color: #cbd5e1;
+}
+html[data-theme="sombre"] .faq-body p {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(76, 201, 240, 0.28);
+}
+html[data-theme="sombre"] .cat-num,
+html[data-theme="sombre"] .section-sub,
+html[data-theme="sombre"] .hero-sub {
+  color: #cbd5e1;
+}
+html[data-theme="sombre"] .cat-tag,
+html[data-theme="sombre"] .cat-group-pill {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+html[data-theme="sombre"] .cat-arrow {
+  border-color: rgba(148, 163, 184, 0.32);
+  color: #f8fafc;
+}
+html[data-theme="sombre"] .cat-card:hover .cat-arrow {
+  background: #4cc9f0;
+  color: #070d19;
+  border-color: #4cc9f0;
+}
+html[data-theme="sombre"] .eyebrow {
+  background: rgba(76, 201, 240, 0.16);
+  color: #7dd3fc;
+}
+html[data-theme="sombre"] .eyebrow.orange {
+  background: rgba(232, 119, 34, 0.20);
+  color: #fdba74;
+}
+html[data-theme="sombre"] .btn-ghost {
+  color: var(--bx-ink);
+  border-color: var(--bx-border-strong);
+}
+@media (max-width: 900px) {
+  .parcours-grid,
+  .wal-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .parcours-urgency { grid-template-columns: 1fr; }
 }
 img { display: block; max-width: 100%; }
 a { text-decoration: none; color: inherit; }
@@ -238,9 +1128,9 @@ section[id], header[id] { scroll-margin-top: 80px; }
 ================================================================ */
 .hero {
   position: relative; overflow: hidden;
-  background: linear-gradient(150deg, #fff 0%, #f0f9ff 45%, #e0f2fe 100%);
-  padding: 130px 0 110px;
-  min-height: 100vh;
+  background: var(--bx-bg);
+  padding: 58px 0 80px;
+  min-height: auto;
   display: flex; align-items: center;
 }
 /* Animated gradient orbs */
@@ -391,7 +1281,7 @@ section[id], header[id] { scroll-margin-top: 80px; }
   to   { opacity: 1; transform: none; }
 }
 
-/* Trust strip — 3 cards */
+/* Trust strip · 3 cards */
 .trust {
   display: grid;
   grid-template-columns: auto 1fr 1fr;
@@ -510,7 +1400,7 @@ section[id], header[id] { scroll-margin-top: 80px; }
 .phone-emoji { font-size: 28px; line-height: 1; margin-bottom: 6px; }
 .phone-card-label { font-size: 9px; font-weight: 700; color: var(--c-text); }
 
-/* ── Maquette téléphone — rendu premium ── */
+/* ── Maquette téléphone · rendu premium ── */
 .phone-body { padding: 0 0 14px; }
 .ph-header {
   background: linear-gradient(150deg, #0B1B34 0%, #15376b 100%);
@@ -599,17 +1489,17 @@ section[id], header[id] { scroll-margin-top: 80px; }
    MOBILE MONEY MARQUEE BAR
 ================================================================ */
 .mm-bar {
-  background: #fff;
-  border-top: 1px solid #f1f5f9;
-  border-bottom: 1px solid #f1f5f9;
-  padding: 0; overflow: hidden; position: relative;
+  background: var(--bx-card-bg);
+  border-top: 1px solid var(--bx-border);
+  border-bottom: 1px solid var(--bx-border);
+  padding: 14px 24px; overflow: hidden; position: relative;
 }
 .mm-bar::before, .mm-bar::after {
   content: ''; position: absolute; top: 0; bottom: 0; z-index: 2; width: 100px;
   pointer-events: none;
 }
-.mm-bar::before { left: 0; background: linear-gradient(90deg,#fff,transparent); }
-.mm-bar::after  { right: 0; background: linear-gradient(-90deg,#fff,transparent); }
+.mm-bar::before { left: 0; background: linear-gradient(90deg,var(--bx-card-bg),transparent); }
+.mm-bar::after  { right: 0; background: linear-gradient(-90deg,var(--bx-card-bg),transparent); }
 .mm-track {
   display: flex; align-items: center;
   animation: marquee 24s linear infinite;
@@ -635,9 +1525,20 @@ section[id], header[id] { scroll-margin-top: 80px; }
 .mm-chip.mtn  { background: #FFCC00; color: #1a1a1a; }
 .mm-chip.wave { background: #1B9EDB; }
 .mm-chip.moov { background: #007AC1; }
-.mm-chip.cash { background: var(--c-green); }
-.mm-logo { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
-.mm-logo.mtn-logo { width: 60px; height: 60px; }
+.mm-chip.cash {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  border: 1px solid rgba(5, 150, 105, 0.24);
+  color: #047857;
+}
+html[data-theme="sombre"] .mm-chip.cash {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+.mm-logo { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
+.mm-logo.mtn-logo { width: 34px; height: 34px; }
 .mm-name { font-size: 13px; font-weight: 700; color: var(--c-text); }
 .mm-sub  { font-size: 11px; color: var(--c-muted); }
 
@@ -691,122 +1592,353 @@ section[id], header[id] { scroll-margin-top: 80px; }
   border-bottom:1px solid rgba(255,255,255,.08); background:rgba(0,0,0,.18); }
 .lc-live{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap;
   font-size:13px; font-weight:700; color:#7dd3fc; letter-spacing:.3px; }
-.lc-dot{ width:9px; height:9px; border-radius:50%; background:#22c55e; animation:lcPulse 1.8s infinite; }
-@keyframes lcPulse{ 0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 70%{box-shadow:0 0 0 8px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
+.lc-dot{ width:9px; height:9px; border-radius:50%; background:#10b981; animation: lcPulse 2s ease-out infinite; }
+@keyframes lcPulse{ 0%{box-shadow:0 0 0 0 rgba(16,185,129,.6)} 70%{box-shadow:0 0 0 9px rgba(16,185,129,0)} 100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} }
 .lc-ticker{ flex:1; overflow:hidden; min-width:0; }
 .lc-ticker-txt{ display:inline-block; font-size:13px; color:#cbd5e1; white-space:nowrap;
   overflow:hidden; text-overflow:ellipsis; max-width:100%; animation:lcTickIn .5s ease; }
 @keyframes lcTickIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
 .lc-body{ display:grid; grid-template-columns:1.05fr 1fr; }
-.lc-map{ position:relative; min-height:340px; border-right:1px solid rgba(255,255,255,.08);
-  background:radial-gradient(circle at 44% 46%, rgba(76,201,240,.12), transparent 62%); overflow:hidden; }
-.lc-ci{ position:absolute; inset:0; width:100%; height:100%; padding:24px; box-sizing:border-box;
-  filter:drop-shadow(0 0 9px rgba(76,201,240,.22)); }
-.lc-ci-shape{ fill:rgba(76,201,240,.10); stroke:#7dd3fc; stroke-width:1.4;
+.lc-map{ position:relative; min-height:360px; border-right:1px solid rgba(255,255,255,.08);
+  background: transparent; overflow:hidden; }
+.lc-ci{ position:absolute; inset:0; width:100%; height:100%; padding:24px 24px 36px; box-sizing:border-box;
+  filter: none; }
+.lc-ci-shape{ fill:rgba(76,201,240,.11); stroke:#7dd3fc; stroke-width:1.45;
   stroke-linejoin:round; stroke-linecap:round; vector-effect:non-scaling-stroke; }
-.ci-dot{ fill:currentColor; stroke:#0c2340; stroke-width:5; }
-.ci-lbl{ fill:#e2e8f0; font-size:36px; font-weight:600; paint-order:stroke;
-  stroke:#0c2340; stroke-width:6; stroke-linejoin:round; }
-.ci-ping{ fill:currentColor; opacity:.5; transform-box:fill-box; transform-origin:center;
-  animation:ciPing 2.6s infinite; animation-delay:var(--d,0s); }
-@keyframes ciPing{ 0%{transform:scale(1); opacity:.5} 80%,100%{transform:scale(4); opacity:0} }
-.lc-map-cap{ position:absolute; left:16px; bottom:14px; font-size:12px; color:#94a3b8; }
+.ci-pin{ cursor:pointer; transition: opacity .25s ease; }
+.ci-pin.is-standby{ opacity:.52; }
+.ci-pin.is-standby .ci-ping, .ci-pin.is-standby .ci-ping-ring2{ display:none; }
+.ci-dot{ fill:currentColor; stroke:#0c2340; stroke-width:5; transition: r .25s ease, stroke-width .25s ease; }
+.ci-pin.is-focused .ci-dot, .ci-pin:hover .ci-dot{ r:20; stroke:#ffffff; stroke-width:6; }
+.ci-lbl{ fill:#e2e8f0; font-size:34px; font-weight:700; paint-order:stroke;
+  stroke:#0c2340; stroke-width:7; stroke-linejoin:round; transition: fill .2s ease; }
+.ci-pin.is-focused .ci-lbl, .ci-pin:hover .ci-lbl{ fill:#ffffff; }
+.ci-count-pill{ fill:#0c2340; stroke:currentColor; stroke-width:3; }
+.ci-count-txt{ fill:#ffffff; font-size:24px; font-weight:800; text-anchor:middle; dominant-baseline:central; }
+.ci-ping{ fill:currentColor; opacity:.55; transform-box:fill-box; transform-origin:center;
+  animation: ciPing var(--ping-dur, 2.2s) cubic-bezier(.22,1,.36,1) infinite;
+  animation-delay:var(--d,0s); }
+.ci-ping-ring2{ fill:none; stroke:currentColor; stroke-width:3; opacity:.45; transform-box:fill-box; transform-origin:center;
+  animation: ciPingOuter var(--ping-dur, 2.2s) cubic-bezier(.22,1,.36,1) infinite;
+  animation-delay:calc(var(--d,0s) + .85s); }
+@keyframes ciPing{ 0%{transform:scale(1); opacity:.62} 80%,100%{transform:scale(4.2); opacity:0} }
+@keyframes ciPingOuter{ 0%{transform:scale(1); opacity:.5} 85%,100%{transform:scale(5.4); opacity:0} }
+@media (prefers-reduced-motion: reduce){
+  .lc-dot, .lc-kpi-live, .ci-ping, .ci-ping-ring2{ animation: none !important; }
+}
+.lc-map-cap{ position:absolute; left:16px; right:16px; bottom:12px; font-size:12px; color:#cbd5e1;
+  display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
 .lc-map-city{ color:#fff; font-weight:700; }
 .lc-kpis{ display:grid; grid-template-columns:1fr 1fr; }
 .lc-kpi{ padding:22px 20px; border-bottom:1px solid rgba(255,255,255,.07); border-right:1px solid rgba(255,255,255,.07); }
 .lc-kpi:nth-child(2n){ border-right:none; }
 .lc-kpi:nth-last-child(-n+2){ border-bottom:none; }
 .lc-kpi-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
-.lc-kpi-lbl{ font-size:12.5px; color:#94a3b8; font-weight:500; }
-.lc-kpi-live{ width:7px; height:7px; border-radius:50%; background:#22c55e; animation:lcPulse 1.8s infinite; flex:0 0 auto; }
-.lc-kpi-val{ font-size:clamp(26px,3.1vw,38px); font-weight:900; line-height:1; color:#fff; letter-spacing:-.5px; }
-.lc-spark{ display:flex; align-items:flex-end; gap:4px; height:26px; margin-top:14px; }
-.lc-spark i{ flex:1; background:#4CC9F0; border-radius:2px; opacity:.8; transform-origin:bottom; animation:lcBar 1.7s ease-in-out infinite; }
-.lc-spark.alt i{ background:#E87722; }
-.lc-spark i:nth-child(1){ height:40%; animation-delay:0s } .lc-spark i:nth-child(2){ height:62%; animation-delay:.15s }
-.lc-spark i:nth-child(3){ height:48%; animation-delay:.3s } .lc-spark i:nth-child(4){ height:78%; animation-delay:.45s }
-.lc-spark i:nth-child(5){ height:56%; animation-delay:.6s } .lc-spark i:nth-child(6){ height:90%; animation-delay:.75s }
-.lc-spark i:nth-child(7){ height:66%; animation-delay:.9s }
-@keyframes lcBar{ 0%,100%{ transform:scaleY(.7) } 50%{ transform:scaleY(1) } }
-.lc-stars{ color:#f59e0b; font-size:18px; letter-spacing:3px; margin-top:14px; }
-.lc-gauge{ margin-top:16px; height:8px; border-radius:4px; background:rgba(255,255,255,.10); overflow:hidden; }
-.lc-gauge span{ display:block; height:100%; background:linear-gradient(90deg,#22c55e,#4ade80); border-radius:4px; animation:lcGauge 1.4s ease both; }
-@keyframes lcGauge{ from{ width:0 !important } }
-@media (max-width:860px){
-  .lc-body{ grid-template-columns:1fr; }
-  .lc-map{ min-height:220px; border-right:none; border-bottom:1px solid rgba(255,255,255,.08); }
+.lc-kpi-lbl{ font-size:12.5px; color:#cbd5e1; font-weight:500; }
+.lc-kpi-live{ width:7px; height:7px; border-radius:50%; background:#10b981; flex:0 0 auto; animation: lcPulse 2.4s ease-out infinite; }
+.lc-kpi-val{ font-size:clamp(26px,3.1vw,38px); font-weight:900; line-height:1; color:#fff; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
+.lc-kpi-sub{ font-size:11.5px; color:#94a3b8; margin-top:8px; font-weight:500; }
+
+.svc-standards {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
 }
-@media (max-width:460px){
-  .lc-kpis{ grid-template-columns:1fr; }
-  .lc-kpi:nth-child(2n){ border-right:none; }
-  .lc-kpi{ border-right:none; }
-  .lc-kpi:nth-last-child(-n+2){ border-bottom:1px solid rgba(255,255,255,.07); }
-  .lc-kpi:last-child{ border-bottom:none; }
+.svc-std-item {
+  background: rgba(15,23,42,.55);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.svc-std-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.svc-std-idx {
+  font-size: 12px;
+  font-weight: 800;
+  color: #7dd3fc;
+  letter-spacing: 1px;
+}
+.svc-std-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: rgba(255,255,255,.07);
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+.svc-std-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+}
+.svc-std-desc {
+  font-size: 13.5px;
+  color: #cbd5e1;
+  line-height: 1.55;
+  margin: 0;
+}
+@media (max-width: 860px) {
+  .svc-standards { grid-template-columns: 1fr; }
 }
 
-/* ================================================================
-   CATEGORIES — Grille icônes professionnelles
-================================================================ */
 .cats-section {
-  padding: 100px 0;
-  background: var(--c-surface);
+  padding: 108px 24px;
+  background: var(--bx-surface, #f8fafc);
+  border-top: 1px solid var(--bx-border, #e2e8f0);
+  border-bottom: 1px solid var(--bx-border, #e2e8f0);
 }
+.cats-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--bx-border, #e2e8f0);
+}
+.cats-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cat-filter-btn {
+  appearance: none;
+  background: var(--bx-card-bg, #ffffff);
+  border: 1px solid var(--bx-border, #cbd5e1);
+  color: var(--bx-ink-soft, #334155);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 18px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.cat-filter-btn:hover {
+  border-color: var(--bx-ink, #0f172a);
+  color: var(--bx-ink, #0f172a);
+}
+.cat-filter-btn.active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+.cats-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bx-ink-soft, #334155);
+  background: var(--bx-card-bg, #ffffff);
+  border: 1px solid var(--bx-border, #e2e8f0);
+  padding: 8px 14px;
+  border-radius: 99px;
+}
+.cats-meta-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #047857;
+}
+
 .cats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px,1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 18px;
+}
+/* Repertoire de metiers : tuiles alignees a gauche, accent couleur par metier */
+.cat-card {
+  --sx: 50%;
+  --sy: 50%;
+  background: var(--bx-card-bg, #ffffff);
+  border-radius: 18px;
+  padding: 22px 24px;
+  text-align: left;
+  border: 1px solid var(--bx-border, #e2e8f0);
+  box-shadow: 0 2px 10px rgba(15,23,42,.03);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  transition: transform 0.28s cubic-bezier(.22,1,.36,1),
+              box-shadow 0.28s ease,
+              border-color 0.28s ease;
+  position: relative;
+  overflow: hidden;
+  background-image: radial-gradient(280px circle at var(--sx) var(--sy), rgba(194, 65, 12, 0.08), transparent 65%);
+}
+.cat-card:hover,
+.cat-card:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 38px rgba(15,23,42,.10);
+  border-color: var(--cat-solid, #C2410C);
+  outline: 2px solid transparent;
+}
+.cat-card:focus-visible {
+  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.35), 0 18px 38px rgba(15,23,42,.10);
+}
+.cat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cat-num {
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+  letter-spacing: 0.8px;
+  font-variant-numeric: tabular-nums;
+}
+.cat-group-pill {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  background: #f1f5f9;
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+.cat-arrow {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--bx-border, #e2e8f0);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bx-ink, #0f172a);
+  transition: transform 0.25s ease, background 0.25s ease, color 0.25s ease;
+}
+.cat-arrow svg { width: 14px; height: 14px; }
+.cat-card:hover .cat-arrow {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+  transform: translate(2px, -2px);
+}
+.cat-main {
+  display: flex;
+  align-items: center;
   gap: 14px;
 }
-/* Répertoire de métiers : tuiles alignées à gauche, accent couleur par métier
-   (plus « annuaire pro » qu'une grille de cartes centrées génériques). */
-.cat-card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 16px 18px 16px 20px;
-  text-align: left;
-  border: 1px solid #eef2f7;
-  box-shadow: var(--sh-xs);
-  cursor: pointer;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  column-gap: 14px;
-  align-content: center;
-  transition: transform var(--dur-mid) var(--ease-spring),
-              box-shadow var(--dur-mid) ease,
-              border-color var(--dur-mid) ease;
-  position: relative; overflow: hidden;
+.cat-svg-box {
+  color: var(--cat-solid, #0284c7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
-.cat-card::before {
-  content: '';
-  position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-  background: var(--cat-solid, #0284c7);
-}
-.cat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--sh-lg);
-  border-color: transparent;
+.cat-svg-box svg {
+  width: 34px;
+  height: 34px;
 }
 .cat-ico-wrap {
   width: 52px; height: 52px; border-radius: 14px;
   display: flex; align-items: center; justify-content: center;
-  grid-row: 1 / span 2; align-self: center;
   background: var(--cat-bg, #e0f2fe);
   transition: transform var(--dur-mid) var(--ease-spring);
 }
 .cat-card:hover .cat-ico-wrap { transform: scale(1.08) rotate(-4deg); }
 .cat-emoji { font-size: 26px; line-height: 1; }
+.cat-titles {
+  min-width: 0;
+  flex: 1;
+}
 .cat-name {
-  font-size: 15px; font-weight: 700; color: var(--c-text);
-  line-height: 1.25; align-self: end;
-  grid-column: 2; grid-row: 1;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--bx-ink, #0f172a);
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+.cat-subname {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin-top: 2px;
 }
 .cat-desc {
-  font-size: 12px; color: var(--c-muted); line-height: 1.4;
-  align-self: start; margin-top: 2px;
-  grid-column: 2; grid-row: 2;
+  font-size: 13.5px;
+  color: var(--bx-ink-soft, #334155);
+  line-height: 1.55;
+  margin: 0;
+}
+.cat-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bx-border, #f1f5f9);
+}
+.cat-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cat-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 3px 9px;
+  border-radius: 8px;
+}
+.cat-sla {
+  font-size: 12px;
+  font-weight: 700;
+  color: #047857;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.cat-sla::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #047857;
 }
 .cats-more {
-  display: flex; justify-content: center; margin-top: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 40px;
+  padding: 24px 28px;
+  background: var(--bx-card-bg, #ffffff);
+  border: 1px solid var(--bx-border, #e2e8f0);
+  border-radius: 18px;
+}
+.cats-more-copy strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--bx-ink, #0f172a);
+}
+.cats-more-copy span {
+  font-size: 13.5px;
+  color: var(--bx-ink-soft, #475569);
+}
+@media (max-width: 640px) {
+  .cats-grid { grid-template-columns: 1fr; }
 }
 
 /* ================================================================
@@ -1013,25 +2145,47 @@ section[id], header[id] { scroll-margin-top: 80px; }
 .feat-card p  { grid-column: 2; grid-row: 2; align-self: start; font-size: 12.5px; color: var(--c-mid); line-height: 1.5; margin-top: 2px; }
 
 /* ================================================================
-   TESTIMONIALS — Auto-scroll slider
+   TESTIMONIALS · Auto-scroll slider
 ================================================================ */
-.test-section { padding: 100px 0; background: #fff; overflow: hidden; }
+.test-section { padding: 100px 0; background: var(--bx-bg); overflow: hidden; }
 .test-track-wrap {
   overflow: hidden; position: relative; margin: 0 -6vw;
-  padding: 8px 0;
+  padding: 10px 0;
 }
 .test-track-wrap::before, .test-track-wrap::after {
-  content: ''; position: absolute; top: 0; bottom: 0; z-index: 2; width: 120px;
+  content: ''; position: absolute; top: 0; bottom: 0; z-index: 2; width: 110px;
   pointer-events: none;
 }
-.test-track-wrap::before { left: 0; background: linear-gradient(90deg,#fff,transparent); }
-.test-track-wrap::after  { right: 0; background: linear-gradient(-90deg,#fff,transparent); }
+.test-track-wrap::before { left: 0; background: linear-gradient(90deg,var(--bx-bg),transparent); }
+.test-track-wrap::after  { right: 0; background: linear-gradient(-90deg,var(--bx-bg),transparent); }
 .test-track {
   display: flex; gap: 24px;
-  animation: test-scroll 36s linear infinite;
+  flex-wrap: nowrap;
   width: max-content; padding: 0 6vw;
+  animation: test-scroll 46s linear infinite;
 }
 .test-track:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .test-track { animation: none; flex-wrap: wrap; justify-content: center; width: auto; }
+}
+@keyframes test-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+/* Témoignages en bulles de chat (Concept C) : coin « queue », teintes
+   alternées comme un échange, auteur en en-tête façon expéditeur. */
+.test-card {
+  width: 340px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: #f2fbf6; border: 1px solid #dcefe4;
+  border-radius: 6px 20px 20px 20px;
+  padding: 18px 20px; position: relative;
+  transition: transform var(--dur-mid) var(--ease-spring), box-shadow var(--dur-mid) ease;
+}
+.test-card:nth-child(even) {
+  background: #eef5fc; border-color: #dbe8f5;
+  border-radius: 20px 6px 20px 20px;
+}
 @keyframes test-scroll {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
@@ -1135,7 +2289,7 @@ section[id], header[id] { scroll-margin-top: 80px; }
 }
 
 /* ================================================================
-   FAQ — Spring accordion
+   FAQ · Spring accordion
 ================================================================ */
 .faq-section { padding: 100px 0; background: var(--c-surface); }
 .faq-inner { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
@@ -1499,73 +2653,12 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   background-size:cover !important; background-position:center 30% !important;
 }
 </style>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "BABIFIX",
-  "url": "{{ request.scheme }}://{{ request.get_host }}/",
-  "logo": "{{ request.scheme }}://{{ request.get_host }}{% load static %}{% static 'vitrine/assets/babifix-logo.png' %}",
-  "description": "Place de marché de services à domicile en Côte d'Ivoire : plomberie, électricité, ménage, jardinage et plus. Prestataires vérifiés, paiement Mobile Money sécurisé.",
-  "areaServed": { "@type": "Country", "name": "Côte d'Ivoire" },
-  "address": { "@type": "PostalAddress", "addressLocality": "Abidjan", "addressCountry": "CI" },
-  "email": "contact@babifix.ci",
-  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "2500" }
-}
-</script>
-</head>
-<body>
+{% endblock %}
 
-<!-- Progress bar -->
-<div id="progress-bar" role="progressbar" aria-label="Progression de la page"></div>
-
-<!-- ============================== NAV ============================== -->
-<header class="nav" id="accueil">
-  <div class="nav-inner">
-    <a class="brand" href="#accueil" aria-label="Accueil BABIFIX">
-      <img class="brand-logo" src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX">
-      <span class="brand-name">BABIFIX</span>
-    </a>
-
-    <nav class="nav-links" aria-label="Navigation principale">
-      <a href="#accueil" class="active">Accueil</a>
-      <a href="#categories">Catégories</a>
-      <a href="#comment-ca-marche">Comment ça marche</a>
-      <a href="#pour-les-prestataires">Prestataires</a>
-      <a href="#a-propos">Pourquoi nous</a>
-      <a href="#faq">FAQ</a>
-      <a href="#contact">Contact</a>
-    </nav>
-
-    <a class="nav-cta" href="{% if store_android_client %}{{ store_android_client }}{% elif store_ios_client %}{{ store_ios_client }}{% else %}/telecharger-app-client{% endif %}">
-      Télécharger l'app
-    </a>
-    <button class="burger" aria-label="Ouvrir le menu" aria-expanded="false" id="burger-btn">
-      <span></span><span></span><span></span>
-    </button>
-  </div>
-</header>
-
-<!-- Mobile overlay + drawer -->
-<div class="nav-overlay" id="nav-overlay" aria-hidden="true"></div>
-<nav class="nav-drawer" id="nav-drawer" aria-label="Menu mobile">
-  <button class="drawer-close" id="drawer-close" aria-label="Fermer le menu"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button>
-  <a class="drawer-link" href="#accueil">Accueil</a>
-  <a class="drawer-link" href="#categories">Catégories</a>
-  <a class="drawer-link" href="#comment-ca-marche">Comment ça marche</a>
-  <a class="drawer-link" href="#pour-les-prestataires">Prestataires</a>
-  <a class="drawer-link" href="#a-propos">Pourquoi nous</a>
-  <a class="drawer-link" href="#faq">FAQ</a>
-  <a class="drawer-link" href="#contact">Contact</a>
-  <a class="drawer-cta" href="{% if store_android_client %}{{ store_android_client }}{% elif store_ios_client %}{{ store_ios_client }}{% else %}/telecharger-app-client{% endif %}">
-    Télécharger l'app Client
-  </a>
-</nav>
-
-<main>
+{% block content %}
 
 <!-- ============================== HERO ============================== -->
-<section class="hero" aria-label="Présentation BABIFIX">
+<section class="hero" id="accueil" aria-label="Présentation BABIFIX">
   <div class="hero-orbs">
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
@@ -1621,28 +2714,28 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
           </div>
 
           <div class="trust" role="list" aria-label="Chiffres clés BABIFIX">
-            <!-- Avis étoiles -->
+            <!-- Confiance CNI -->
             <div class="trust-rating" role="listitem">
-              <div class="stars" aria-label="Note 5 étoiles sur 5">
+              <div class="stars" aria-label="Identité contrôlée">
                 {% for i in "12345" %}<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>{% endfor %}
               </div>
-              <p class="trust-txt">+2&nbsp;500 avis<br>5 étoiles</p>
+              <p class="trust-txt">Artisans CNI<br>vérifiés</p>
             </div>
             <!-- KPI 1 -->
             <div class="trust-kpi" role="listitem">
-              <p class="trust-kpi-val" aria-label="10 000 prestataires vérifiés">10K+</p>
+              <p class="trust-kpi-val" data-hero-providers>{% if live_stats.providers_count %}{{ live_stats.providers_count }}{% else %}Actif{% endif %}</p>
               <p class="trust-kpi-lbl">Prestataires<br>vérifiés</p>
             </div>
             <!-- KPI 2 -->
             <div class="trust-kpi" role="listitem">
-              <p class="trust-kpi-val" aria-label="50 000 services réalisés">50K+</p>
-              <p class="trust-kpi-lbl">Services<br>réalisés</p>
+              <p class="trust-kpi-val" data-hero-missions>{% if live_stats.reservations_total %}{{ live_stats.reservations_total }}{% else %}Direct{% endif %}</p>
+              <p class="trust-kpi-lbl">Missions &amp;<br>demandes</p>
             </div>
           </div>
         </div>
 
         <!-- Phone mockup -->
-        <div class="hero-right" aria-hidden="true">
+        <div class="hero-right">
           <div class="phone-wrap">
             <div class="phone">
               <div class="phone-status">
@@ -1660,17 +2753,17 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
                   <div class="ph-header-row">
                     <img class="phone-logo" src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX">
                     <div style="flex:1;">
-                      <div class="ph-hi-name">Bonjour 👋</div>
+                      <div class="ph-hi-name">Bonjour, Abidjan</div>
                       <div class="ph-hi-sub">Quel service aujourd'hui ?</div>
                     </div>
                     <div class="ph-bell">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
                     </div>
                   </div>
-                  <div class="ph-search">
+                  <button type="button" class="ph-search" onclick="window.babifixJumpSearch && window.babifixJumpSearch()" style="width:100%;border:none;cursor:pointer;text-align:left;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <span>Rechercher un service…</span>
-                  </div>
+                    <span>Rechercher un service ou métier…</span>
+                  </button>
                 </div>
 
                 <!-- Carte promo paiement -->
@@ -1765,7 +2858,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
     <div class="mm-item"><img src="{% static 'vitrine/payment-logos/mtn-momo.png' %}" alt="MTN MoMo" class="mm-logo mtn-logo"><div><div class="mm-name">MTN MoMo</div><div class="mm-sub">Paiement sécurisé</div></div></div>
     <div class="mm-item"><img src="{% static 'vitrine/payment-logos/wave.png' %}" alt="Wave" class="mm-logo"><div><div class="mm-name">Wave</div><div class="mm-sub">Paiement sécurisé</div></div></div>
     <div class="mm-item"><img src="{% static 'vitrine/payment-logos/moov-money.png' %}" alt="Moov Africa" class="mm-logo"><div><div class="mm-name">Moov Africa</div><div class="mm-sub">Paiement sécurisé</div></div></div>
-    <div class="mm-item"><div class="mm-chip cash"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span></div><div><div class="mm-name">Espèces</div><div class="mm-sub">Paiement direct</div></div></div>
+    <div class="mm-item"><div class="mm-chip cash" style="background:transparent;box-shadow:none;"><svg viewBox="0 0 44 32" width="42" height="30" fill="none" aria-hidden="true"><rect x="1" y="4" width="34" height="22" rx="4" fill="#059669"/><rect x="4" y="7" width="28" height="16" rx="2" stroke="#A7F3D0" stroke-width="1.2" stroke-dasharray="2 2"/><circle cx="18" cy="15" r="4.5" fill="#10B981" stroke="#ECFDF5" stroke-width="1.2"/><text x="18" y="17.2" text-anchor="middle" font-size="6.5" font-weight="800" fill="#ECFDF5" font-family="sans-serif">F</text><circle cx="34" cy="21" r="8" fill="#F59E0B" stroke="#FEF3C7" stroke-width="1.5"/><text x="34" y="23.5" text-anchor="middle" font-size="7" font-weight="900" fill="#78350F" font-family="sans-serif">CI</text></svg></div><div><div class="mm-name">Espèces</div><div class="mm-sub">Paiement direct</div></div></div>
     {% endfor %}
   </div>
 </div>
@@ -1785,49 +2878,49 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
       <div class="lc-top">
         <span class="lc-live"><span class="lc-dot"></span>En direct · Côte d'Ivoire</span>
         <div class="lc-ticker" id="lcTicker" aria-live="polite">
-          <span class="lc-ticker-txt">Plomberie réservée à Cocody · à l'instant</span>
+          <span class="lc-ticker-txt">{% if live_feed %}{{ live_feed.0.text }}{% else %}Réseau BABIFIX actif en Côte d'Ivoire{% endif %}</span>
         </div>
       </div>
       <div class="lc-body">
-        <!-- Vraie carte de la Côte d'Ivoire (SVG détouré) + interventions qui
-             pulsent sur de vraies villes. -->
+        <!-- Vraie carte de la Côte d'Ivoire (SVG détouré) + pings dynamiques des villes -->
         <div class="lc-map" role="img" aria-label="Carte de la Côte d'Ivoire, interventions en cours">
-          <svg class="lc-ci" viewBox="0 0 1024 1024" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <svg class="lc-ci" id="lcCiMap" viewBox="0 0 1024 1024" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
             <g transform="translate(0,1024) scale(0.1,-0.1)">
               <path class="lc-ci-shape" d="M3923 10213 c-51 -26 -53 -27 -88 -10 -51 24 -82 8 -90 -47 -3 -22 -9 -54 -11 -69 -5 -23 -2 -29 15 -34 26 -7 26 -7 -6 -50 -26 -33 -29 -35 -73 -29 -25 3 -84 25 -132 48 -73 34 -88 45 -93 69 -5 24 -50 67 -60 57 -2 -2 -15 -30 -29 -62 -21 -46 -28 -82 -32 -160 l-6 -101 46 -30 c25 -16 46 -32 46 -35 0 -3 -27 -35 -59 -72 l-59 -67 -38 33 -38 33 -80 -20 c-61 -14 -100 -17 -158 -13 l-77 6 -40 -54 -40 -54 29 -71 29 -71 -59 -40 c-33 -22 -65 -43 -73 -45 -7 -3 -26 13 -43 38 -18 25 -57 59 -95 82 -63 38 -65 39 -151 36 l-88 -3 0 27 c0 24 -3 26 -22 20 -13 -3 -44 -9 -70 -12 -51 -6 -56 -1 -37 40 8 17 8 35 0 64 -10 37 -16 43 -61 59 l-50 18 0 51 c0 43 -5 56 -27 78 l-28 26 -82 -29 c-94 -33 -128 -29 -171 22 l-24 28 -79 -61 c-88 -67 -95 -85 -59 -145 l21 -33 -34 -6 c-29 -6 -41 -20 -102 -115 -65 -102 -72 -109 -108 -114 -22 -4 -53 -17 -71 -30 -23 -17 -37 -21 -56 -15 -14 4 -30 7 -37 8 -6 1 -35 -37 -64 -84 -47 -77 -59 -90 -116 -122 -62 -34 -66 -39 -104 -121 -21 -46 -39 -89 -39 -93 0 -5 9 -9 19 -9 11 0 27 -3 36 -6 14 -6 14 -8 -2 -26 -17 -20 -17 -21 20 -52 38 -32 38 -34 28 -72 -5 -21 -17 -89 -25 -149 -9 -61 -22 -128 -31 -148 -8 -20 -18 -63 -21 -95 -5 -56 -4 -59 55 -158 l60 -101 73 -14 c59 -12 81 -13 113 -3 22 7 59 13 81 13 33 1 43 5 47 21 3 12 14 20 26 20 29 0 27 -44 -4 -95 -17 -26 -25 -55 -25 -84 0 -32 -9 -59 -35 -102 -31 -49 -35 -63 -27 -90 4 -18 19 -41 33 -51 23 -17 27 -18 62 -3 51 21 58 20 47 -10 -8 -21 -4 -28 28 -54 21 -16 59 -39 85 -52 26 -13 47 -26 47 -29 0 -4 -15 -13 -33 -22 -30 -15 -35 -14 -71 4 l-38 20 -37 -35 c-23 -23 -54 -40 -83 -48 -51 -12 -53 -16 -39 -66 8 -26 6 -37 -10 -57 -11 -13 -28 -67 -39 -121 l-20 -98 32 -37 c30 -35 36 -38 68 -32 19 4 53 5 75 3 22 -3 59 -5 82 -5 42 0 42 -1 67 -61 14 -33 42 -114 62 -180 24 -77 47 -133 66 -157 l29 -37 -30 -48 -30 -48 52 -54 52 -54 -40 7 c-22 3 -66 6 -97 6 l-57 0 -16 58 c-9 31 -18 64 -21 73 -4 13 -62 39 -88 39 -3 0 -6 -21 -6 -46 0 -45 -1 -46 -26 -40 -15 4 -39 9 -54 13 -22 4 -33 16 -49 55 l-21 50 -42 -8 c-53 -10 -49 -10 -244 -1 l-162 8 -23 -48 c-21 -42 -24 -61 -22 -147 1 -55 -2 -119 -7 -142 -14 -59 3 -98 56 -135 38 -26 50 -29 87 -24 39 6 43 4 59 -23 26 -44 71 -48 101 -10 19 25 26 28 47 20 22 -8 24 -14 25 -75 0 -66 0 -66 52 -119 42 -43 50 -56 42 -71 -10 -17 -12 -16 -39 3 -21 15 -44 20 -89 20 -34 0 -61 -2 -61 -4 0 -3 4 -16 10 -30 8 -22 1 -42 -50 -139 -33 -63 -60 -119 -60 -125 0 -6 16 -20 36 -32 29 -19 34 -27 30 -49 -3 -14 -7 -46 -11 -72 -4 -36 -12 -49 -34 -62 -23 -13 -32 -32 -51 -97 -16 -57 -35 -96 -62 -131 -22 -27 -44 -49 -49 -49 -5 0 -35 20 -66 44 l-58 44 -64 -10 c-57 -9 -66 -8 -91 10 l-27 20 -51 -39 c-62 -48 -67 -74 -19 -105 27 -18 35 -32 51 -95 11 -41 21 -104 23 -140 4 -58 8 -70 34 -95 24 -23 29 -36 29 -77 0 -69 27 -104 85 -113 25 -3 45 -9 45 -13 0 -3 -12 -38 -26 -78 l-26 -72 27 -81 c29 -87 26 -99 -18 -100 -24 0 -28 -17 -19 -70 6 -36 4 -51 -11 -78 -16 -28 -18 -40 -9 -89 l10 -57 -62 -68 c-36 -39 -65 -83 -72 -105 -8 -30 -17 -39 -40 -44 -17 -3 -62 -25 -102 -48 -63 -38 -72 -47 -72 -72 0 -18 -9 -36 -22 -48 -61 -51 -77 -68 -82 -87 -6 -20 -3 -21 42 -16 l49 4 43 -66 43 -66 27 17 c16 9 32 29 37 45 l8 29 41 -35 c53 -45 63 -80 33 -112 -23 -25 -20 -54 6 -54 9 0 34 9 56 21 l41 20 44 -36 c24 -20 71 -45 104 -57 34 -11 68 -30 79 -44 26 -33 99 -32 207 3 78 25 84 26 102 10 12 -11 35 -17 64 -17 38 0 53 -7 104 -47 33 -27 70 -55 83 -63 l23 -16 -21 -70 c-22 -73 -28 -164 -12 -164 6 0 26 9 45 21 l36 21 9 -25 c5 -14 15 -54 21 -89 9 -51 19 -70 48 -101 35 -37 99 -77 122 -77 5 0 10 7 10 16 0 13 7 11 36 -11 19 -15 47 -30 62 -34 18 -5 28 -15 30 -32 2 -13 13 -34 24 -46 l21 -22 25 20 26 20 38 -37 38 -38 15 37 c14 33 18 37 43 31 39 -9 46 -19 31 -45 -9 -16 -12 -55 -10 -113 2 -88 3 -89 51 -161 l49 -72 -30 -29 -29 -29 29 -36 30 -36 -50 -37 c-27 -21 -49 -42 -49 -48 0 -5 7 -22 15 -38 15 -28 14 -30 -5 -30 -24 0 -25 -11 -3 -68 16 -44 21 -46 64 -28 13 6 18 -1 23 -34 7 -44 -7 -82 -43 -114 -21 -19 -21 -19 -21 2 0 26 4 26 -53 6 l-47 -16 1 -91 c0 -112 -17 -170 -52 -175 -13 -2 -38 -14 -55 -28 -31 -22 -31 -25 -22 -68 7 -33 6 -52 -5 -79 -14 -32 -13 -37 9 -75 l24 -40 -50 -17 -50 -17 0 -88 c0 -84 1 -88 24 -94 13 -3 26 -16 30 -28 10 -39 6 -170 -8 -241 -11 -56 -11 -70 0 -85 17 -21 18 -112 2 -163 -10 -35 -9 -42 10 -62 20 -21 21 -24 6 -46 -15 -21 -15 -24 12 -53 27 -28 32 -30 90 -25 75 6 129 29 220 95 52 38 86 55 127 63 45 9 57 16 57 30 0 13 19 28 58 48 47 24 75 30 163 36 59 4 110 10 115 14 5 3 33 34 62 67 43 51 60 63 92 68 35 5 40 10 45 39 l7 33 151 18 c93 11 166 25 187 36 19 10 54 21 77 25 31 5 51 16 70 40 26 31 34 34 123 44 129 16 137 18 142 39 4 12 31 28 84 47 43 15 252 97 464 181 378 150 388 154 540 179 460 78 524 85 1085 120 450 29 572 39 670 60 66 13 243 36 395 50 151 13 380 37 508 51 l233 27 147 -36 c163 -41 197 -46 800 -121 412 -51 426 -52 499 -38 l75 14 32 -31 c42 -41 80 -41 129 0 l37 31 93 -11 c50 -6 104 -13 119 -16 22 -3 31 2 47 28 19 31 19 33 2 107 -10 41 -28 95 -39 120 -12 25 -22 62 -22 83 0 35 1 37 33 37 49 0 60 29 35 100 -10 30 -27 118 -38 195 -12 82 -25 142 -32 147 -7 4 -38 25 -68 46 l-54 40 -58 -39 c-56 -38 -59 -39 -83 -23 -22 14 -25 23 -25 75 l0 59 -51 0 -52 0 7 124 7 125 -39 68 c-30 51 -46 98 -66 186 -28 124 -81 321 -91 337 -3 6 -17 10 -30 10 -20 0 -26 7 -35 39 -23 85 -60 244 -96 407 l-37 171 52 76 53 76 -31 75 c-17 41 -31 81 -31 88 2 36 123 215 212 313 75 82 99 115 103 143 11 66 23 92 71 152 44 57 46 61 31 78 -24 26 -22 49 18 232 27 126 35 184 35 264 l0 104 77 163 c42 90 83 168 91 173 40 24 49 44 56 126 l8 82 28 -27 28 -26 56 79 c57 82 72 92 137 92 31 0 38 5 52 35 l17 36 -39 57 -39 58 23 28 c21 26 25 27 60 17 35 -9 43 -8 84 18 l46 28 -3 94 c-2 67 -22 186 -67 409 -96 472 -80 420 -123 420 l-36 0 28 29 28 29 -21 40 c-12 23 -21 57 -21 77 0 23 -9 48 -25 69 -17 23 -25 46 -25 74 0 38 -3 43 -42 66 -24 13 -64 27 -90 31 l-46 7 -5 62 c-2 33 -6 70 -8 81 -3 16 2 21 28 23 26 3 41 16 87 77 31 41 56 78 56 82 0 5 -18 30 -40 57 -22 26 -40 50 -40 52 0 3 14 31 30 64 33 65 35 87 17 174 l-12 58 -54 -63 c-30 -35 -58 -68 -63 -74 -5 -5 -47 29 -104 85 -87 87 -104 110 -196 273 -55 97 -104 180 -109 182 -5 3 -22 -1 -40 -10 -17 -9 -33 -14 -36 -11 -3 2 -26 47 -51 98 l-47 93 -47 3 -46 3 -7 50 c-4 27 -10 49 -14 49 -4 0 -27 -20 -51 -45 -35 -35 -51 -45 -77 -45 -28 0 -33 4 -33 23 0 21 -8 24 -102 40 -57 9 -161 22 -233 27 -129 11 -130 11 -165 45 l-35 34 -25 -19 c-18 -14 -41 -20 -84 -20 -53 0 -62 -3 -105 -39 l-47 -40 -72 11 -72 10 -76 -43 c-41 -24 -94 -60 -116 -81 l-41 -38 -78 13 -78 14 -35 -36 c-23 -23 -59 -44 -98 -57 l-63 -21 -41 -104 -42 -104 -41 -3 c-34 -3 -42 -7 -47 -28 -3 -13 -8 -24 -11 -24 -18 0 -45 26 -57 54 -17 40 -55 53 -112 37 -21 -6 -38 -9 -39 -8 0 1 -8 19 -18 41 -17 37 -17 39 3 73 11 19 18 39 15 44 -4 5 -24 9 -46 9 -36 0 -39 -2 -34 -22 7 -33 -36 -64 -64 -46 -16 9 -33 8 -92 -10 l-74 -22 -17 22 c-10 13 -23 36 -29 51 -12 29 -23 30 -73 11 -14 -5 -16 4 -16 64 0 48 -4 73 -14 81 -31 26 -209 111 -232 111 -23 0 -24 3 -24 57 0 45 -5 62 -22 81 l-23 24 23 15 c12 9 22 19 22 23 0 5 -20 21 -46 37 -46 28 -49 38 -29 85 7 17 5 17 -29 3 -35 -15 -36 -15 -36 8 0 13 -9 32 -21 43 -30 27 -49 68 -49 104 0 29 -1 30 -48 30 -36 0 -54 5 -67 20 -17 18 -16 21 5 55 19 31 21 39 10 65 -14 34 -22 37 -40 15 -16 -19 -33 -19 -71 1 -28 14 -40 13 -157 -6 l-127 -22 -36 21 c-20 12 -63 60 -100 110 -78 109 -126 139 -198 122 -35 -8 -49 -6 -68 6 -22 14 -28 14 -86 -12 -39 -18 -77 -27 -103 -26 -40 2 -45 -2 -127 -89 -71 -76 -86 -98 -89 -128 l-3 -37 -53 0 -52 0 -34 -60 -33 -60 -94 0 c-131 0 -164 8 -179 45 -7 17 -23 33 -35 36 -12 3 -29 21 -38 39 l-16 34 34 11 c41 13 95 82 95 120 0 15 -7 48 -16 74 -13 38 -14 53 -5 73 13 29 9 38 -28 58 -19 9 -42 12 -66 8 -34 -5 -38 -4 -32 11 4 10 7 27 7 37 0 13 10 24 29 30 23 8 31 18 36 47 4 20 13 44 21 53 14 15 12 19 -16 39 -30 21 -31 26 -25 66 6 41 4 45 -20 54 -52 20 -71 19 -122 -7z"/>
             </g>
-            <g class="ci-pin" style="--d:0s;color:#4CC9F0"><circle class="ci-ping" cx="755" cy="864" r="15"/><circle class="ci-dot" cx="755" cy="864" r="14"/><text class="ci-lbl" x="784" y="875">Abidjan</text></g>
-            <g class="ci-pin" style="--d:.5s;color:#E87722"><circle class="ci-ping" cx="554" cy="627" r="15"/><circle class="ci-dot" cx="554" cy="627" r="14"/><text class="ci-lbl" x="583" y="638">Yamoussoukro</text></g>
-            <g class="ci-pin" style="--d:1s;color:#22c55e"><circle class="ci-ping" cx="594" cy="488" r="15"/><circle class="ci-dot" cx="594" cy="488" r="14"/><text class="ci-lbl" x="623" y="499">Bouaké</text></g>
-            <g class="ci-pin" style="--d:1.5s;color:#4CC9F0"><circle class="ci-ping" cx="498" cy="205" r="15"/><circle class="ci-dot" cx="498" cy="205" r="14"/><text class="ci-lbl" x="527" y="216">Korhogo</text></g>
-            <g class="ci-pin" style="--d:.8s;color:#E87722"><circle class="ci-ping" cx="191" cy="533" r="15"/><circle class="ci-dot" cx="191" cy="533" r="14"/><text class="ci-lbl" x="150" y="500" text-anchor="end">Man</text></g>
+            {% for city in live_cities %}
+            <g class="ci-pin {% if city.has_activity %}ci-pin--active{% endif %}" data-city-key="{{ city.key }}" style="--d:{{ forloop.counter0 }}00ms;--pulse-sec:{{ city.pulse_sec|default:2.2 }}s;color:{{ city.color }};cursor:pointer;">
+              <circle class="ci-ping" cx="{{ city.svg_x }}" cy="{{ city.svg_y }}" r="15"/>
+              <circle class="ci-ping ci-ping-ring2" cx="{{ city.svg_x }}" cy="{{ city.svg_y }}" r="15"/>
+              <circle class="ci-dot" cx="{{ city.svg_x }}" cy="{{ city.svg_y }}" r="14"/>
+              <text class="ci-lbl" x="{{ city.label_x }}" y="{{ city.label_y }}" {% if city.anchor == 'end' %}text-anchor="end"{% endif %}>{{ city.name }}</text>
+            </g>
+            {% endfor %}
           </svg>
-          <div class="lc-map-cap"><span class="lc-map-city">Côte d'Ivoire</span> · interventions en cours</div>
+          <div class="lc-map-cap" id="lcMapCaption"><span class="lc-map-city">Côte d'Ivoire</span> · <span id="lcMapDetail">{{ live_stats.active_cities_count|default:5 }} pôles actifs en direct</span></div>
         </div>
-        <!-- Widgets KPI (mêmes chiffres, présentation « instruments ») -->
-        <div class="lc-kpis">
-          <div class="lc-kpi">
-            <div class="lc-kpi-head"><span class="lc-kpi-lbl">Prestataires vérifiés</span><span class="lc-kpi-live"></span></div>
-            <div class="lc-kpi-val" data-count="10000" data-suffix="+">10 000+</div>
-            <div class="lc-spark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <!-- Widgets KPI dynamiques alimentes par Admin -->
+        <div class="lc-kpis" id="lcKpisGrid">
+          {% for kpi in live_kpis %}
+          <div class="lc-kpi" data-kpi-kind="{{ kpi.kind }}">
+            <div class="lc-kpi-head"><span class="lc-kpi-lbl">{{ kpi.label }}</span><span class="lc-kpi-live"></span></div>
+            <div class="lc-kpi-val" data-kpi-val>{{ kpi.value }}</div>
+            {% if kpi.kind == 'rating' %}
+              <div class="lc-stars" aria-hidden="true">★★★★★</div>
+            {% elif kpi.kind == 'satisfaction' %}
+              <div class="lc-gauge"><span data-kpi-gauge style="width:{{ kpi.gauge_pct|default:100 }}%"></span></div>
+            {% elif kpi.kind == 'services' %}
+              <div class="lc-spark alt"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            {% else %}
+              <div class="lc-spark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            {% endif %}
+            {% if kpi.sub %}<div style="font-size:11.5px;color:#94a3b8;margin-top:6px;" data-kpi-sub>{{ kpi.sub }}</div>{% endif %}
           </div>
-          <div class="lc-kpi">
-            <div class="lc-kpi-head"><span class="lc-kpi-lbl">Services réalisés</span><span class="lc-kpi-live"></span></div>
-            <div class="lc-kpi-val" data-count="50000" data-suffix="+">50 000+</div>
-            <div class="lc-spark alt"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          </div>
-          <div class="lc-kpi">
-            <div class="lc-kpi-head"><span class="lc-kpi-lbl">Note moyenne client</span><span class="lc-kpi-live"></span></div>
-            <div class="lc-kpi-val" data-count-text="4,9 / 5">4,9 / 5</div>
-            <div class="lc-stars" aria-hidden="true">★★★★★</div>
-          </div>
-          <div class="lc-kpi">
-            <div class="lc-kpi-head"><span class="lc-kpi-lbl">Clients satisfaits</span><span class="lc-kpi-live"></span></div>
-            <div class="lc-kpi-val" data-count="95" data-suffix=" %">95 %</div>
-            <div class="lc-gauge"><span style="width:95%"></span></div>
-          </div>
+          {% endfor %}
         </div>
       </div>
+      {{ live_cities|json_script:"babifix-live-cities-data" }}
+      {{ live_feed|json_script:"babifix-live-feed-data" }}
     </div>
   </div>
 </section>
@@ -1841,13 +2934,50 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
       <p class="section-sub">Des professionnels qualifiés pour chaque besoin : plomberie, électricité, ménage, jardinage et bien plus encore</p>
     </div>
 
-    <div class="cats-grid stagger">
+    <div class="cats-toolbar">
+      <div class="cats-filters" role="tablist" aria-label="Filtrer par univers de métier">
+        <button type="button" class="cat-filter-btn active" data-filter="all" role="tab" aria-selected="true">Tous les métiers ({{ categories|length }})</button>
+        <button type="button" class="cat-filter-btn" data-filter="urgence" role="tab" aria-selected="false">Urgence &amp; Dépannage</button>
+        <button type="button" class="cat-filter-btn" data-filter="habitat" role="tab" aria-selected="false">Habitat &amp; Rénovation</button>
+        <button type="button" class="cat-filter-btn" data-filter="quotidien" role="tab" aria-selected="false">Maison &amp; Quotidien</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="position:relative;min-width:255px;flex:1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" width="16" height="16" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="vitrineCatSearch" class="vitrine-search-input" type="search" placeholder="Chercher un métier ou panne (nounou, fuite, clim...)" aria-label="Rechercher un métier ou service">
+        </div>
+        <div class="cats-meta-pill">
+          <span class="cats-meta-dot" aria-hidden="true"></span>
+          <span>{{ total_categories_count|default:"77" }} spécialités référencées</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="vitrineSearchResultsBox" class="vitrine-search-results">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+        <strong id="vitrineSearchHeading" class="vitrine-search-heading">Résultats de recherche</strong>
+        <a id="vitrineProposeMissingLink" href="/proposer-metier/" class="vitrine-propose-link">Votre métier manque ? Proposer un métier →</a>
+      </div>
+      <div id="vitrineSearchMatches" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    </div>
+
+    <div class="cats-grid stagger" id="catsGrid">
       {% if categories %}
         {% for c in categories %}
-        <article class="cat-card" id="cat-{{ c.id }}"
+        <article class="cat-card" id="cat-{{ c.id }}" data-group="{{ c.group }}"
+          data-slug="{{ c.svg_key|default:'plomberie' }}"
+          data-title="{{ c.short_nom }}"
+          role="button" tabindex="0"
+          data-search="{{ c.nom }} {{ c.short_nom }} {{ c.sub_nom }} {{ c.description }} {{ c.tags|join:' ' }} {{ c.search_keywords }}"
           style="--cat-color:{{ c.color|default:'#0284c7' }}22; --cat-bg:{{ c.color|default:'#0284c7' }}18; --cat-solid:{{ c.color|default:'#0284c7' }};">
           <div class="cat-ico-wrap" style="background:{{ c.color|default:'#0284c7' }}18;">
-            <span class="cat-emoji" role="img" aria-label="{{ c.nom }}">{% if c.icon_emoji %}{{ c.icon_emoji }}{% else %}<span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></span>{% endif %}</span>
+            {% if c.icone_slug %}
+              <img src="{% static 'category-icons/' %}{{ c.icone_slug }}.svg" alt="{{ c.nom }}" width="28" height="28" loading="lazy">
+            {% elif c.icon_emoji %}
+              <span class="cat-emoji" role="img" aria-label="{{ c.nom }}">{{ c.icon_emoji }}</span>
+            {% else %}
+              <span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></span>
+            {% endif %}
           </div>
           <h3 class="cat-name">{{ c.nom }}</h3>
           {% if c.description %}<p class="cat-desc">{{ c.description }}</p>{% endif %}
@@ -1919,10 +3049,259 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
     </div>
 
     <div class="cats-more">
-      <a class="btn btn-primary" href="{% if store_android_client %}{{ store_android_client }}{% elif store_ios_client %}{{ store_ios_client }}{% else %}/telecharger-app-client{% endif %}">
-        Voir tous les services dans l'app
-      </a>
+      <div class="cats-more-copy">
+        <strong>Vous recherchez une spécialité spécifique (forage, toiture, domotique, piscine, traiteur) ?</strong>
+        <span>Retrouvez l'intégralité des {{ total_categories_count|default:"77" }} corps de métiers, ou proposez une nouvelle spécialité à ouvrir sur BABIFIX.</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <a class="btn btn-outline" href="{% url 'vitrine-proposer-metier' %}" style="border:1px solid #cbd5e1;background:#ffffff;color:#0f172a;padding:11px 18px;border-radius:12px;font-weight:700;text-decoration:none;">
+          Proposer un métier manquant
+        </a>
+        <a class="btn btn-primary" href="{% if store_android_client %}{{ store_android_client }}{% elif store_ios_client %}{{ store_ios_client }}{% else %}/telecharger-app-client{% endif %}">
+          Explorer les {{ total_categories_count|default:"77" }} métiers dans l'app
+        </a>
+      </div>
     </div>
+  </div>
+</section>
+
+<!-- ============================== PARCOURS DEVIS & SEQUESTRE ============================== -->
+<section class="parcours-section reveal" id="parcours-devis" aria-label="Configurer votre demande et bouclier séquestre Abidjan">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Devis sur mesure · Abidjan</span>
+      <h2 class="section-title"><em class="bx-serif" style="font-style:italic;font-weight:700;">Préparez</em> votre intervention sous séquestre</h2>
+      <p class="section-sub">Choisissez votre corps de métier, votre urgence et votre commune. Un artisan vérifié examine votre besoin et vous transmet un devis numérique chiffré avant toute intervention.</p>
+    </div>
+
+    <div class="parcours-grid">
+      <div class="parcours-form">
+        <div class="parcours-field">
+          <label for="parcoursTrade">Corps de métier</label>
+          <select id="parcoursTrade" name="trade">
+            <option value="plomberie">Plomberie &amp; sanitaires</option>
+            <option value="electricite">Électricité &amp; tableaux</option>
+            <option value="climatisation">Froid &amp; Climatisation</option>
+            <option value="serrurerie">Serrurerie &amp; ouvertures</option>
+            <option value="menuiserie">Menuiserie &amp; ébénisterie</option>
+            <option value="peinture">Peinture &amp; finitions</option>
+            <option value="nettoyage">Nettoyage &amp; désinfection</option>
+            <option value="bricolage">Multiservices &amp; bricolage</option>
+          </select>
+        </div>
+
+        <div class="parcours-field">
+          <label>Cadence d'intervention</label>
+          <div class="parcours-urgency" role="radiogroup" aria-label="Cadence d'intervention">
+            <button type="button" class="parcours-u-btn active" data-urgency="standard" aria-pressed="true">Planifiée</button>
+            <button type="button" class="parcours-u-btn" data-urgency="urgent" aria-pressed="false">Urgence &lt; 2 h</button>
+            <button type="button" class="parcours-u-btn" data-urgency="weekend" aria-pressed="false">Soir / Week-end</button>
+          </div>
+        </div>
+
+        <div class="parcours-field">
+          <label for="parcoursCommune">Commune à Abidjan</label>
+          <select id="parcoursCommune" name="commune">
+            <option value="cocody">Cocody (Riviera, Angré, Deux Plateaux)</option>
+            <option value="plateau">Plateau &amp; Marcory</option>
+            <option value="yopougon">Yopougon</option>
+            <option value="koumassi">Koumassi &amp; Treichville</option>
+            <option value="abobo">Abobo &amp; Adjamé</option>
+            <option value="portbouet">Port-Bouët &amp; Bingerville</option>
+            <option value="songon">Songon &amp; Anyama</option>
+          </select>
+        </div>
+
+        <p class="parcours-note">Aucune tarification automatique au hasard : l'artisan détaille son diagnostic et sa main-d'oeuvre dans un devis écrit, sécurisé en compte séquestre.</p>
+      </div>
+
+      <div class="parcours-result" aria-live="polite">
+        <div>
+          <div class="parcours-res-kicker" id="parcoursKicker">Prise en charge certifiée BABIFIX</div>
+          <div class="parcours-res-title" id="parcoursTitle">Devis sur mesure chiffré par l'artisan avant intervention</div>
+          <p class="parcours-res-meta" id="parcoursMetaText">Plomberie &amp; sanitaires · Planifiée à Cocody · Délai moyen d'arrivée constaté : 35 min</p>
+        </div>
+
+        <div class="parcours-breakdown">
+          <div class="parcours-bk-row"><span>Délai d'arrivée estimé sur zone</span><strong id="parcoursEta">35 min</strong></div>
+          <div class="parcours-bk-row"><span>Chiffrage des travaux</span><strong>Devis écrit après diagnostic</strong></div>
+          <div class="parcours-bk-row"><span>Protection séquestre BABIFIX</span><strong>Incluse (Wave, Orange, MTN, Moov)</strong></div>
+          <div class="parcours-bk-row"><span>Déblocage des fonds</span><strong>Uniquement via votre code OTP</strong></div>
+        </div>
+
+        <div class="parcours-cta-row">
+          <a class="btn btn-primary" href="{% url 'vitrine-download-client' %}">
+            Demander un devis dans l'app
+          </a>
+          <a class="btn btn-secondary" href="#wallet-sequestre">Découvrir le séquestre</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================== BOUCLIER SEQUESTRE & WALLET 3D ============================== -->
+<section class="wal-section reveal" id="wallet-sequestre" aria-label="Bouclier Séquestre et Wallet Pro">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Bouclier Séquestre &amp; Wallet Pro</span>
+      <h2 class="section-title">Paiements protégés &amp; Wallet 3D interactif</h2>
+      <p class="section-sub">Découvrez la carte Wallet du prestataire et la protection sous séquestre pour chaque mission.</p>
+    </div>
+    <div class="wal-grid">
+      <div class="wal-stage">
+        <div class="wal-card-wrap" id="walCardWrap">
+          <div class="wal-card-tilt" id="walCardTilt">
+            <div class="wal-card" id="homeWalletCard" data-tier="gold">
+              <div class="wal-face wal-front">
+                <!-- Gravure guilloche vectorielle par palier -->
+                <svg class="wal-guilloche" viewBox="0 0 440 278" fill="none" aria-hidden="true">
+                  <g class="wal-pat-tier wal-pat-gold" stroke="currentColor" stroke-width="0.9">
+                    <circle cx="388" cy="48" r="36"/><circle cx="388" cy="48" r="68"/><circle cx="388" cy="48" r="100"/><circle cx="388" cy="48" r="132"/><circle cx="388" cy="48" r="164"/><circle cx="388" cy="48" r="196"/>
+                    <circle cx="56" cy="246" r="28"/><circle cx="56" cy="246" r="56"/><circle cx="56" cy="246" r="84"/>
+                    <path d="M-20 210 L240 -10 M60 290 L380 -10 M170 290 L460 10" stroke-opacity="0.45"/>
+                  </g>
+                  <g class="wal-pat-tier wal-pat-sil" stroke="currentColor" stroke-width="0.95">
+                    <path d="M0 32 Q190 54 440 16 M0 68 Q190 90 440 52 M0 104 Q190 126 440 88 M0 140 Q190 162 440 124 M0 176 Q190 198 440 160 M0 212 Q190 234 440 196 M0 248 Q190 270 440 232"/>
+                  </g>
+                  <g class="wal-pat-tier wal-pat-std" stroke="currentColor" stroke-width="0.85">
+                    <path d="M40 0 V278 M96 0 V278 M152 0 V278 M208 0 V278 M264 0 V278 M320 0 V278 M376 0 V278 M0 52 H440 M0 108 H440 M0 164 H440 M0 220 H440"/>
+                    <circle cx="372" cy="68" r="58" stroke-width="1.2"/>
+                  </g>
+                </svg>
+
+                <div class="wal-top">
+                  <span class="wal-brand-group">
+                    <span class="wal-crest" aria-hidden="true">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 21 7 21 17 12 22 3 17 3 7"/></svg>
+                    </span>
+                    <span class="wal-brand">BABIFIX WALLET</span>
+                  </span>
+                  <span class="wal-tier-pill" id="walTierBadge">PRO GOLD · 8 %</span>
+                </div>
+
+                <div class="wal-mid-chips">
+                  <div class="wal-chip-nfc">
+                    <svg class="wal-chip-svg" viewBox="0 0 42 30" fill="none" aria-hidden="true">
+                      <rect x="0.75" y="0.75" width="40.5" height="28.5" rx="5.5" fill="#D4AF37" fill-opacity="0.92" stroke="#F8E18C" stroke-width="1"/>
+                      <path d="M1 10.5 H14.5 M27.5 10.5 H41 M1 19.5 H14.5 M27.5 19.5 H41 M14.5 1 V29 M27.5 1 V29 M14.5 15 H27.5" stroke="#5B4411" stroke-width="1.15"/>
+                    </svg>
+                    <svg class="wal-nfc-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                      <path d="M7.5 9.5a4.5 4.5 0 0 1 0 5"/>
+                      <path d="M11 7a8 8 0 0 1 0 10"/>
+                      <path d="M14.5 4.5a11.5 11.5 0 0 1 0 15"/>
+                    </svg>
+                  </div>
+                  <span class="wal-digits">4592 •••• •••• 8421</span>
+                </div>
+
+                <div class="wal-balance-block">
+                  <div class="wal-bal-lbl">Solde disponible · Retrait immédiat</div>
+                  <div class="wal-bal" id="walBalance">384 500 FCFA</div>
+                  <div class="wal-escrow" id="walEscrow">En séquestre protégé : + 65 000 FCFA</div>
+                </div>
+
+                <div class="wal-bottom">
+                  <div>
+                    <span class="wal-holder-lbl">Artisan titulaire</span>
+                    <span class="wal-holder-name">KOUASSI JEAN · BF-CI-8421</span>
+                  </div>
+                  <div class="wal-comm-wrap">
+                    <span id="walCommLabel">Commission : 8 %</span>
+                    <span class="wal-xof-badge">XOF ✓</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="wal-face wal-back">
+                <div class="wal-magstripe">
+                  <span>REF : BFX-PRO-8421</span>
+                  <span>VERSO SÉCURISÉ</span>
+                </div>
+                <div class="wal-sign-row">
+                  <div class="wal-signstrip">
+                    <span>TITULAIRE VÉRIFIÉ · KYC CNI</span>
+                    <span>PIN ACTIF</span>
+                  </div>
+                  <span class="wal-seal-wrap" aria-hidden="true" title="Prestataire Vérifié BABIFIX CI">
+                    <svg width="42" height="42" viewBox="0 0 44 44" fill="none">
+                      <circle cx="22" cy="22" r="19" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/>
+                      <circle cx="22" cy="22" r="14.5" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.2"/>
+                      <path d="M16 22.5 L20.2 26.5 L28.5 17.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                </div>
+                <div class="wal-back-inner">
+                  <div class="wal-back-specs">
+                    <div class="wal-back-row"><span>Canaux de paiement</span><strong>Wave · Orange · MTN · Moov</strong></div>
+                    <div class="wal-back-row"><span>Statut KYC &amp; CNI</span><strong>Vérifié · Cantonné</strong></div>
+                    <div class="wal-back-row"><span>Arbitrage litige</span><strong>Gel séquestre &lt; 24 h</strong></div>
+                    <div class="wal-op-pills">
+                      <span class="wal-op-pill"><span class="wal-op-dot" style="background:#38BDF8"></span>Wave</span>
+                      <span class="wal-op-pill"><span class="wal-op-dot" style="background:#FB923C"></span>Orange</span>
+                      <span class="wal-op-pill"><span class="wal-op-dot" style="background:#FACC15"></span>MTN</span>
+                      <span class="wal-op-pill"><span class="wal-op-dot" style="background:#60A5FA"></span>Moov</span>
+                    </div>
+                  </div>
+                  <div class="wal-qr-box">
+                    <div class="wal-qr-frame">
+                      <svg viewBox="0 0 36 36" fill="currentColor" aria-hidden="true">
+                        <path d="M2 2h10v10H2zm2 2v6h6V4zm2 2h2v2H6zM24 2h10v10H24zm2 2v6h6V4zm2 2h2v2h-2zM2 24h10v10H2zm2 2v6h6v-6zm2 2h2v2H6z"/>
+                        <path d="M14 2h4v4h-4zm4 4h4v4h-4zm-4 6h6v4h-6zm8 2h4v4h-4zm4 0h4v6h-4zm-10 4h4v6h-4zm-12 0h4v4H4zm18 4h6v4h-6zm-6 4h4v6h-4zm6 4h6v4h-6zm6-4h4v4h-4z"/>
+                      </svg>
+                    </div>
+                    <span class="wal-qr-cap">CONTRÔLE ID</span>
+                  </div>
+                </div>
+                <div class="wal-back-foot">
+                  <span>Conforme Loi 2013-450</span>
+                  <span>BABIFIX CI · ABIDJAN</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <span class="wal-hint">Cliquez ou survolez la carte pour inspecter les gravures 3D</span>
+
+        <div class="wal-controls">
+          <div class="wal-tiers" role="group" aria-label="Paliers du Wallet BABIFIX">
+            <button type="button" class="wal-tier-btn" data-waltier="standard">Standard ({{ platform_cfg.std_rate|default:18 }} %)</button>
+            <button type="button" class="wal-tier-btn" data-waltier="silver">Pro Silver ({{ platform_cfg.silver_rate|default:13 }} %)</button>
+            <button type="button" class="wal-tier-btn active" data-waltier="gold">Pro Gold ({{ platform_cfg.gold_rate|default:8 }} %)</button>
+          </div>
+          <button type="button" class="wal-flip-btn" id="homeWalletFlipBtn">Retourner la carte</button>
+        </div>
+      </div>
+
+      <div class="wal-points">
+        <div class="wal-escrow-vault">
+          <div class="wal-vault-head">
+            <span class="wal-vault-title">
+              <span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+              Coffret Séquestre Client · Parcours des fonds
+            </span>
+            <span class="wal-vault-badge">100 % cantonné</span>
+          </div>
+          <div class="wal-vault-steps">
+            <div class="wal-vstep">
+              <span class="wal-vstep-num">1</span>
+              <strong>Dépôt protégé</strong>
+              <span>Acompte ou total versé sur le compte séquestre bloqué BABIFIX.</span>
+            </div>
+            <div class="wal-vstep">
+              <span class="wal-vstep-num">2</span>
+              <strong>Chantier suivi</strong>
+              <span>Fonds intouchables pendant l'intervention géolocalisée.</span>
+            </div>
+            <div class="wal-vstep">
+              <span class="wal-vstep-num">3</span>
+              <strong>Validation QR</strong>
+              <span>Libération immédiate au Wallet dès confirmation du client.</span>
+            </div>
+          </div>
+        </div>
   </div>
 </section>
 
@@ -1976,28 +3355,28 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
         <p class="section-sub" style="text-align:left;margin:0 0 28px;">BABIFIX vous alerte en temps réel à chaque étape de votre prestation : confirmation, arrivée du prestataire, et bien plus encore.</p>
         <ul class="notif-list">
           <li class="notif-item stagger">
-            <span class="notif-icon-wrap" style="background:#EFF6FF"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></span></span>
+            <span class="notif-icon-wrap" style="background:#EFF6FF;color:#0369A1;"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></span></span>
             <div>
               <strong>Confirmation instantanée</strong>
               <p>Recevez une notification dès que votre réservation est acceptée par le prestataire.</p>
             </div>
           </li>
-<li class="notif-item stagger">
-            <span class="notif-icon-wrap" style="background:#FFF7ED"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></span></span>
+          <li class="notif-item stagger">
+            <span class="notif-icon-wrap" style="background:#FFF7ED;color:#C2410C;"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></span></span>
             <div>
               <strong>Notification intervention démarrée</strong>
               <p>Soyez notifié quand le prestataire commence l'intervention sur place.</p>
             </div>
           </li>
           <li class="notif-item stagger">
-            <span class="notif-icon-wrap" style="background:#F0FDF4"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg></span></span>
+            <span class="notif-icon-wrap" style="background:#F0FDF4;color:#047857;"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg></span></span>
             <div>
               <strong>Messages prioritaires</strong>
               <p>Badge de messages non lus, notifications push et alertes en app pour ne rien manquer.</p>
             </div>
           </li>
           <li class="notif-item stagger">
-            <span class="notif-icon-wrap" style="background:#FDF4FF"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></svg></span></span>
+            <span class="notif-icon-wrap" style="background:#FDF4FF;color:#7E22CE;"><span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></svg></span></span>
             <div>
               <strong>Rappel de notation</strong>
               <p>Un rappel discret après la prestation pour noter et aider la communauté.</p>
@@ -2047,7 +3426,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   </div>
 </section>
 
-<!-- (section galerie photos retirée — images illustratives à venir) -->
+<!-- (section galerie photos retirée · images illustratives à venir) -->
 
 <style>
 /* ── Section Galerie ── */
@@ -2077,7 +3456,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
               box-shadow var(--dur-mid) var(--ease-out);
   will-change: transform;
 }
-/* Léger zoom de l'image au survol — détail "taste", pas de glow gratuit */
+/* Léger zoom de l'image au survol · détail "taste", pas de glow gratuit */
 .gal-card img {
   transition: transform var(--dur-slow) var(--ease-out);
 }
@@ -2123,7 +3502,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   background: linear-gradient(135deg, var(--c-blue) 0%, var(--c-sky) 50%, var(--c-orange) 100%);
 }
 .gal-card.gal-fallback::before {
-  content: "<span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>";
+  content: "";
   position: absolute;
   inset: 0;
   display: flex;
@@ -2333,7 +3712,7 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
           <div class="prov-earn">240 000<small> FCFA</small><span>ce mois</span></div>
         </div>
         <div style="text-align:center;margin-top:12px;">
-          <a class="btn btn-white" style="font-size:13px;padding:11px 22px;" href="/devenir-prestataire">
+          <a class="btn btn-white" style="font-size:13px;padding:11px 22px;" href="{% url 'vitrine-devenir-prestataire' %}">
             Créer mon profil gratuitement <span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
           </a>
         </div>
@@ -2354,10 +3733,11 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
       <div class="contact-info reveal-left">
         <h3>Coordonnées</h3>
         <ul class="c-list">
-          <li><span class="c-lbl">Email</span><a href="mailto:contact@babifix.ci">contact@babifix.ci</a></li>
-          <li><span class="c-lbl">Téléphone / WhatsApp</span><a href="tel:+2250700000000">+225 07 00 00 00 00</a></li>
+          <li><span class="c-lbl">Email officiel</span><a href="mailto:{{ support_email|default:'contact@babifix.ci' }}">{{ support_email|default:"contact@babifix.ci" }}</a></li>
+          {% if support_phone %}<li><span class="c-lbl">Téléphone</span><span>{{ support_phone }}</span></li>{% endif %}
+          <li><span class="c-lbl">Réponse support</span><span>Directe sous 48 h</span></li>
           <li><span class="c-lbl">Adresse</span><span>Abidjan, Côte d'Ivoire</span></li>
-          <li><span class="c-lbl">Horaires</span><span>Lun – Sam : 8 h – 18 h (GMT)</span></li>
+          <li><span class="c-lbl">Horaires</span><span>Lun - Sam : 8 h - 18 h (GMT)</span></li>
         </ul>
         <div class="c-map" aria-label="Carte Abidjan">
           <iframe title="Abidjan, Côte d'Ivoire" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
@@ -2442,14 +3822,14 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
             <span>Mon paiement est-il sécurisé ?</span>
             <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
           </button>
-          <div class="faq-body"><p>Oui. BABIFIX utilise un système de paiement post-prestation : vous confirmez la qualité du service après l'intervention, puis vous procédez au paiement via Mobile Money ou espèces. En cas de litige, notre équipe intervient.</p></div>
+          <div class="faq-body"><p>Oui. BABIFIX fonctionne par devis numérique préalable et compte séquestre : dès validation du devis, l'acompte réglé via Orange Money, MTN MoMo, Wave ou Moov est cantonné sur un compte protégé et n'est libéré au prestataire qu'après votre confirmation de fin de travaux. En cas de litige, notre support arbitre sous 24 h.</p></div>
         </div>
         <div class="faq-item">
           <button class="faq-trigger" aria-expanded="false">
             <span>Comment devenir prestataire sur BABIFIX ?</span>
             <span class="faq-chevron"><svg viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
           </button>
-          <div class="faq-body"><p>Téléchargez l'application prestataire BABIFIX, créez votre profil, soumettez vos pièces (CNI, justificatifs). Notre équipe examine votre dossier sous 48–72 h. Validé, vous commencez à recevoir des demandes.</p></div>
+          <div class="faq-body"><p>Téléchargez l'application prestataire BABIFIX, créez votre profil, soumettez vos pièces (CNI, justificatifs). Notre équipe examine votre dossier sous 48-72 h. Validé, vous commencez à recevoir des demandes.</p></div>
         </div>
         <div class="faq-item">
           <button class="faq-trigger" aria-expanded="false">
@@ -2504,101 +3884,10 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
     </div>
   </div>
 </section>
+{% endblock %}
 
-</main>
-
-<!-- ============================== FOOTER ============================== -->
-<footer class="footer">
-  <div class="footer-top">
-    <div>
-      <div class="footer-brand-logo">
-        <img class="brand-logo" src="{% static 'vitrine/assets/babifix-logo.png' %}" alt="BABIFIX">
-        <span class="footer-brand-name">BABIFIX</span>
-      </div>
-      <p class="footer-desc">La première plateforme de services à domicile en Côte d'Ivoire. Prestataires vérifiés, paiement Mobile Money, chat en temps réel.</p>
-      <div class="footer-contacts">
-        <span>contact@babifix.ci</span>
-        <span>+225 07 00 00 00 00</span>
-        <span>Abidjan, Côte d'Ivoire <span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></span></span>
-      </div>
-      <div class="footer-badges">
-        <img src="{% static 'vitrine/payment-logos/orange-money.png' %}" alt="Orange Money" class="footer-payment-logo">
-        <img src="{% static 'vitrine/payment-logos/mtn-momo.png' %}" alt="MTN MoMo" class="footer-payment-logo">
-        <img src="{% static 'vitrine/payment-logos/wave.png' %}" alt="Wave" class="footer-payment-logo">
-        <img src="{% static 'vitrine/payment-logos/moov-money.png' %}" alt="Moov Africa" class="footer-payment-logo">
-      </div>
-      <div class="footer-social">
-        <a class="soc" href="#" aria-label="Facebook">f</a>
-        <a class="soc" href="#" aria-label="Instagram">ig</a>
-        <a class="soc" href="#" aria-label="Twitter/X">x</a>
-        <a class="soc" href="#" aria-label="LinkedIn">in</a>
-        <a class="soc" href="https://wa.me/2250700000000" aria-label="WhatsApp">wa</a>
-      </div>
-      <div style="margin-top:14px;font-size:11px;color:#334155;line-height:1.5;">Conforme à la Loi ivoirienne n°2013-450 (ARTCI).</div>
-    </div>
-
-    <div class="foot-col">
-      <h3>Services</h3>
-      {% if categories %}{% for c in categories %}{% if forloop.counter <= 6 %}
-      <a href="#cat-{{ c.id }}">{{ c.nom }}</a>
-      {% endif %}{% endfor %}{% else %}
-      <a href="#categories">Plomberie</a>
-      <a href="#categories">Électricité</a>
-      <a href="#categories">Ménage</a>
-      <a href="#categories">Jardinage</a>
-      <a href="#categories">Peinture</a>
-      <a href="#categories">Climatisation</a>
-      {% endif %}
-      <a href="#categories">Toutes les catégories <span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></a>
-    </div>
-
-    <div class="foot-col">
-      <h3>Entreprise</h3>
-      <a href="#a-propos">À propos de BABIFIX</a>
-      <a href="#pour-les-prestataires">Devenir prestataire</a>
-      <a href="#services">Nos engagements</a>
-      <a href="#comment-ca-marche">Comment ça marche</a>
-      <a href="mailto:contact@babifix.ci">Partenariats</a>
-      <a href="mailto:contact@babifix.ci">Presse / médias</a>
-    </div>
-
-    <div class="foot-col">
-      <h3>Support</h3>
-      <a href="#faq">FAQ / Centre d'aide</a>
-      <a href="#contact">Contactez-nous</a>
-      <a href="mailto:contact@babifix.ci">Support client</a>
-      <a href="#faq">Politique de remboursement</a>
-      <a href="#faq">Conditions d'utilisation</a>
-      <a href="#faq">Politique de confidentialité</a>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <div class="footer-copy">© 2026 BABIFIX. Tous droits réservés · Abidjan, Côte d'Ivoire <span class="bx-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></span></div>
-    <div class="footer-extra">
-      <a href="/proposer-metier/">Proposer un métier</a>
-      <a href="#faq">CGU</a>
-      <a href="#faq">Confidentialité</a>
-      <a href="#faq">Aide</a>
-      <a href="mailto:contact@babifix.ci">contact@babifix.ci</a>
-    </div>
-  </div>
-</footer>
-
-<!-- ============================== WHATSAPP FLOATING BUTTON ============================== -->
-<a class="wa-float" href="https://wa.me/2250700000000?text=Bonjour%20BABIFIX%2C%20j%27ai%20une%20question%20%F0%9F%98%8A" target="_blank" rel="noopener" aria-label="Nous contacter sur WhatsApp">
-  <div class="wa-icon-wrap">
-    <svg class="wa-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-      <path d="M11.998 2C6.477 2 2.002 6.477 2.002 12c0 1.938.524 3.75 1.437 5.306L2 22l4.799-1.416A9.94 9.94 0 0 0 11.998 22c5.522 0 9.997-4.477 9.997-10S17.52 2 11.998 2zm0 18.257a8.234 8.234 0 0 1-4.176-1.136l-.3-.177-3.105.916.882-3.218-.196-.31A8.241 8.241 0 0 1 3.757 12c0-4.548 3.699-8.243 8.241-8.243S20.24 7.452 20.24 12c0 4.547-3.7 8.257-8.242 8.257z"/>
-    </svg>
-  </div>
-  <div class="wa-text-wrap">
-    <span class="wa-label">Contactez-nous</span>
-    <span class="wa-number">WhatsApp</span>
-  </div>
-</a>
-
-<!-- ============================== SCRIPTS ============================== -->
+{% block extra_js %}
+{{ raw_categories_json|json_script:"vitrine-all-categories-data" }}
 <script>
 (function () {
   'use strict';
@@ -2612,55 +3901,6 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   }
   window.addEventListener('scroll', updateBar, { passive: true });
 
-  /* --- Nav scroll shrink + active links --- */
-  var nav = document.querySelector('.nav');
-  var sections = Array.from(document.querySelectorAll('section[id], header[id]'));
-  var navLinks = Array.from(document.querySelectorAll('.nav-links a[href^="#"]'));
-
-  function onScroll() {
-    updateBar();
-    nav.classList.toggle('scrolled', window.scrollY > 50);
-    // active link
-    var scrollMid = window.scrollY + window.innerHeight * 0.4;
-    var active = sections.reduce(function(acc, s) {
-      return s.offsetTop <= scrollMid ? s : acc;
-    }, sections[0]);
-    if (active) {
-      navLinks.forEach(function(a) {
-        var isActive = a.getAttribute('href') === '#' + active.id;
-        a.classList.toggle('active', isActive);
-      });
-    }
-  }
-  window.addEventListener('scroll', onScroll, { passive: true });
-
-  /* --- Mobile drawer --- */
-  var burgerBtn = document.getElementById('burger-btn');
-  var overlay   = document.getElementById('nav-overlay');
-  var drawer    = document.getElementById('nav-drawer');
-  var drawerClose = document.getElementById('drawer-close');
-
-  function openDrawer() {
-    burgerBtn.classList.add('open');
-    overlay.classList.add('open');
-    drawer.classList.add('open');
-    burgerBtn.setAttribute('aria-expanded', 'true');
-    overlay.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-  }
-  function closeDrawer() {
-    burgerBtn.classList.remove('open');
-    overlay.classList.remove('open');
-    drawer.classList.remove('open');
-    burgerBtn.setAttribute('aria-expanded', 'false');
-    overlay.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-  }
-  burgerBtn.addEventListener('click', openDrawer);
-  overlay.addEventListener('click', closeDrawer);
-  drawerClose.addEventListener('click', closeDrawer);
-  drawer.querySelectorAll('a').forEach(function(a) { a.addEventListener('click', closeDrawer); });
-
   /* --- Hero word rotator with sliding comma --- */
   (function() {
     var rotator = document.getElementById('heroRotator');
@@ -2671,19 +3911,20 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
     var current = 0;
 
     function slideCommaTo(wordEl) {
+      if (!comma) return;
       var clone = document.createElement('span');
       clone.style.visibility = 'hidden';
-      clone.style.position = 'absolute'
-      clone.style.left = '0'
-      clone.style.top = '0'
-      clone.style.fontSize = getComputedStyle(wordEl).fontSize
-      clone.style.fontWeight = '900'
-      clone.style.whiteSpace = 'nowrap'
-      clone.textContent = wordEl.textContent
-      rotator.appendChild(clone)
-      var w = clone.getBoundingClientRect().width
-      rotator.removeChild(clone)
-      comma.style.left = w + 'px'
+      clone.style.position = 'absolute';
+      clone.style.left = '0';
+      clone.style.top = '0';
+      clone.style.fontSize = getComputedStyle(wordEl).fontSize;
+      clone.style.fontWeight = '900';
+      clone.style.whiteSpace = 'nowrap';
+      clone.textContent = wordEl.textContent;
+      rotator.appendChild(clone);
+      var w = clone.getBoundingClientRect().width;
+      rotator.removeChild(clone);
+      comma.style.left = w + 'px';
     }
 
     function next() {
@@ -2698,6 +3939,9 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
     }
 
     slideCommaTo(words[0]);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function() { slideCommaTo(words[current]); });
+    }
     setInterval(next, 2800);
   })();
 
@@ -2754,23 +3998,79 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
   var statsSection = document.querySelector('.stats-section');
   if (statsSection) statsObs.observe(statsSection);
 
-  /* --- Console vivante : ticker d'activité rotatif --- */
+  /* --- Console vivante : ticker dynamique, pings interactifs & polling 20s --- */
   (function(){
-    var el = document.getElementById('lcTicker');
-    if (!el) return;
-    var msgs = [
-      'Plomberie réservée à Cocody · à l’instant',
-      'Électricien confirmé à Yopougon · il y a 1 min',
-      'Ménage terminé à Marcory · il y a 2 min',
-      'Devis accepté à Abobo · il y a 3 min',
-      'Climatisation réservée au Plateau · il y a 4 min',
-      'Coiffure à domicile à Treichville · il y a 5 min'
-    ];
-    var i = 0;
-    setInterval(function(){
-      i = (i + 1) % msgs.length;
-      el.innerHTML = '<span class="lc-ticker-txt">' + msgs[i] + '</span>';
-    }, 3200);
+    var tickerEl = document.getElementById('lcTicker');
+    var citiesDataEl = document.getElementById('babifix-live-cities-data');
+    var feedDataEl = document.getElementById('babifix-live-feed-data');
+    var mapDetailEl = document.getElementById('lcMapDetail');
+    var mapCityEl = document.querySelector('#lcMapCaption .lc-map-city');
+    var feedList = [];
+    var citiesList = [];
+    try { feedList = feedDataEl ? JSON.parse(feedDataEl.textContent) : []; } catch(e) {}
+    try { citiesList = citiesDataEl ? JSON.parse(citiesDataEl.textContent) : []; } catch(e) {}
+
+    function bindCityInteractions() {
+      var mapSvg = document.getElementById('lcCiMap');
+      if (!mapSvg) return;
+      mapSvg.querySelectorAll('.ci-pin').forEach(function(pin) {
+        var key = pin.getAttribute('data-city-key');
+        var info = citiesList.find(function(c){ return c.key === key; });
+        if (!info) return;
+        function showInfo() {
+          if (mapCityEl) mapCityEl.textContent = info.name;
+          if (mapDetailEl) mapDetailEl.textContent = info.providers_count + ' prestataire(s) · ' + info.reservations_count + ' mission(s)';
+        }
+        pin.addEventListener('mouseenter', showInfo);
+        pin.addEventListener('click', showInfo);
+      });
+    }
+    bindCityInteractions();
+
+    var idx = 0;
+    if (tickerEl && feedList.length) {
+      setInterval(function(){
+        idx = (idx + 1) % feedList.length;
+        var item = feedList[idx];
+        tickerEl.innerHTML = '<span class="lc-ticker-txt"></span>';
+        tickerEl.firstChild.textContent = item.text || '';
+      }, 3500);
+    }
+
+    function refreshLiveConsole() {
+      fetch('/api/live-console/', { headers: { 'Accept': 'application/json' } })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data){
+          if (!data) return;
+          if (Array.isArray(data.live_feed) && data.live_feed.length) {
+            feedList = data.live_feed;
+          }
+          if (Array.isArray(data.cities) && data.cities.length) {
+            citiesList = data.cities;
+          }
+          if (Array.isArray(data.kpis)) {
+            var cards = document.querySelectorAll('#lcKpisGrid .lc-kpi');
+            data.kpis.forEach(function(kpi, kIdx){
+              var card = cards[kIdx];
+              if (!card) return;
+              var valEl = card.querySelector('[data-kpi-val]');
+              var subEl = card.querySelector('[data-kpi-sub]');
+              var gaugeEl = card.querySelector('[data-kpi-gauge]');
+              if (valEl) valEl.textContent = kpi.value;
+              if (subEl && kpi.sub) subEl.textContent = kpi.sub;
+              if (gaugeEl && typeof kpi.gauge_pct === 'number') gaugeEl.style.width = kpi.gauge_pct + '%';
+            });
+          }
+          if (data.stats) {
+            var hp = document.querySelector('[data-hero-providers]');
+            var hm = document.querySelector('[data-hero-missions]');
+            if (hp && data.stats.providers_count) hp.textContent = data.stats.providers_count;
+            if (hm && data.stats.reservations_total) hm.textContent = data.stats.reservations_total;
+          }
+        })
+        .catch(function(){});
+    }
+    setInterval(refreshLiveConsole, 20000);
   })();
 
   /* --- FAQ spring accordion --- */
@@ -2801,283 +4101,282 @@ body.js-ready .stagger.visible > *:nth-child(n+9){ opacity:1;transform:none;tran
     });
   });
 
-})();
-</script>
+  /* --- Filtre interactif & Recherche universelle du répertoire des métiers --- */
+  window.babifixJumpSearch = function() {
+    var sec = document.getElementById('categories');
+    var inp = document.getElementById('vitrineCatSearch');
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(function() { if (inp) inp.focus(); }, 350);
+  };
+  (function() {
+    var filterBtns = document.querySelectorAll('.cat-filter-btn[data-filter]');
+    var cards = document.querySelectorAll('#catsGrid .cat-card[data-group]');
+    var searchInp = document.getElementById('vitrineCatSearch');
+    var resultsBox = document.getElementById('vitrineSearchResultsBox');
+    var matchesEl = document.getElementById('vitrineSearchMatches');
+    var headingEl = document.getElementById('vitrineSearchHeading');
+    var proposeLink = document.getElementById('vitrineProposeMissingLink');
+    var activeGroup = 'all';
+    var allCats = [];
+    try {
+      var scriptEl = document.getElementById('vitrine-all-categories-data');
+      if (scriptEl) allCats = JSON.parse(scriptEl.textContent || '[]') || [];
+    } catch (e) { allCats = []; }
 
-<!-- ═══════════════════════════════════════════════════════════════
-     COOKIE CONSENT BANNER (RGPD / Loi ivoirienne n°2013-450)
-════════════════════════════════════════════════════════════════ -->
-<style>
-/* Cookie Banner */
-.cookie-banner {
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 9000;
-  background: rgba(15,23,42,.96);
-  backdrop-filter: blur(16px);
-  border-top: 1px solid rgba(255,255,255,.08);
-  padding: 20px 24px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-  transform: translateY(110%);
-  transition: transform .45s cubic-bezier(.34,1.56,.64,1);
-  box-shadow: 0 -8px 40px rgba(0,0,0,.35);
-}
-.cookie-banner.visible { transform: translateY(0); }
-.cookie-text {
-  flex: 1;
-  min-width: 260px;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: #cbd5e1;
-}
-.cookie-text strong { color: #e2e8f0; }
-.cookie-text a { color: var(--c-sky); text-decoration: underline; }
-.cookie-actions {
-  display: flex;
-  gap: 10px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-.cookie-btn {
-  padding: 9px 20px;
-  border-radius: 10px;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: opacity .18s ease, transform .18s ease;
-  white-space: nowrap;
-}
-.cookie-btn:hover { opacity: .85; transform: translateY(-1px); }
-.cookie-btn.accept {
-  background: linear-gradient(135deg, var(--c-blue), var(--c-sky));
-  color: #fff;
-}
-.cookie-btn.decline {
-  background: rgba(255,255,255,.08);
-  color: #94a3b8;
-  border: 1px solid rgba(255,255,255,.12);
-}
-.cookie-btn.customize {
-  background: transparent;
-  color: var(--c-sky);
-  border: 1px solid rgba(14,165,233,.4);
-}
-@media (max-width: 560px) {
-  .cookie-banner { flex-direction: column; align-items: flex-start; padding: 16px; }
-  .cookie-actions { width: 100%; }
-  .cookie-btn { flex: 1; text-align: center; }
-}
-
-/* Cookie modal */
-.cookie-modal-overlay {
-  position: fixed; inset: 0;
-  z-index: 9100;
-  background: rgba(0,0,0,.65);
-  backdrop-filter: blur(6px);
-  display: flex; align-items: flex-end; justify-content: center;
-  opacity: 0; pointer-events: none;
-  transition: opacity .3s ease;
-}
-.cookie-modal-overlay.open { opacity: 1; pointer-events: auto; }
-.cookie-modal {
-  background: #1e293b;
-  border-radius: 20px 20px 0 0;
-  padding: 28px 24px 36px;
-  width: 100%;
-  max-width: 560px;
-  border: 1px solid rgba(255,255,255,.08);
-  transform: translateY(40px);
-  transition: transform .35s cubic-bezier(.34,1.56,.64,1);
-}
-.cookie-modal-overlay.open .cookie-modal { transform: translateY(0); }
-.cookie-modal h3 { color: #f1f5f9; font-size: 18px; margin: 0 0 8px; }
-.cookie-modal p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 20px; }
-.cookie-category {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255,255,255,.07);
-}
-.cookie-category:last-of-type { border-bottom: none; }
-.cookie-cat-info h4 { color: #e2e8f0; font-size: 14px; margin: 0 0 2px; }
-.cookie-cat-info p { color: #64748b; font-size: 12.5px; margin: 0; }
-.cookie-toggle {
-  position: relative; width: 42px; height: 24px; flex-shrink: 0;
-}
-.cookie-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-.cookie-toggle-track {
-  position: absolute; inset: 0;
-  background: #334155;
-  border-radius: 99px;
-  cursor: pointer;
-  transition: background .2s;
-}
-.cookie-toggle input:checked + .cookie-toggle-track { background: var(--c-sky); }
-.cookie-toggle-thumb {
-  position: absolute;
-  top: 3px; left: 3px;
-  width: 18px; height: 18px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform .2s;
-  pointer-events: none;
-}
-.cookie-toggle input:checked ~ .cookie-toggle-thumb { transform: translateX(18px); }
-.cookie-toggle input:disabled + .cookie-toggle-track { background: var(--c-sky); opacity: .6; cursor: default; }
-.cookie-modal-footer { margin-top: 20px; display: flex; gap: 10px; }
-.cookie-modal-footer .cookie-btn { flex: 1; text-align: center; }
-</style>
-
-<!-- Banner HTML -->
-<div class="cookie-banner" id="cookieBanner" role="dialog" aria-live="polite" aria-label="Consentement aux cookies">
-  <div class="cookie-text">
-    <strong>Votre vie privée compte.</strong><br>
-    Nous utilisons des cookies essentiels au fonctionnement du site et, avec votre accord, des cookies analytiques pour améliorer votre expérience. Conformément à la <a href="#" aria-label="Politique de confidentialité BABIFIX">Loi ivoirienne n°2013-450</a> sur la protection des données personnelles.
-  </div>
-  <div class="cookie-actions">
-    <button class="cookie-btn customize" id="cookieCustomize" aria-haspopup="dialog">Personnaliser</button>
-    <button class="cookie-btn decline" id="cookieDecline">Refuser</button>
-    <button class="cookie-btn accept" id="cookieAccept">Tout accepter</button>
-  </div>
-</div>
-
-<!-- Preferences modal -->
-<div class="cookie-modal-overlay" id="cookieModal" role="dialog" aria-modal="true" aria-label="Préférences cookies">
-  <div class="cookie-modal">
-    <h3>Préférences de confidentialité</h3>
-    <p>Choisissez les catégories de cookies que vous souhaitez autoriser. Les cookies essentiels sont toujours actifs.</p>
-
-    <div class="cookie-category">
-      <div class="cookie-cat-info">
-        <h4>Essentiels</h4>
-        <p>Indispensables au fonctionnement du site (session, sécurité).</p>
-      </div>
-      <label class="cookie-toggle">
-        <input type="checkbox" checked disabled>
-        <span class="cookie-toggle-track"></span>
-        <span class="cookie-toggle-thumb"></span>
-      </label>
-    </div>
-
-    <div class="cookie-category">
-      <div class="cookie-cat-info">
-        <h4>Analytiques</h4>
-        <p>Mesure d'audience anonymisée pour améliorer le service.</p>
-      </div>
-      <label class="cookie-toggle">
-        <input type="checkbox" id="toggleAnalytics">
-        <span class="cookie-toggle-track"></span>
-        <span class="cookie-toggle-thumb"></span>
-      </label>
-    </div>
-
-    <div class="cookie-category">
-      <div class="cookie-cat-info">
-        <h4>Marketing</h4>
-        <p>Publicités pertinentes et suivi des conversions.</p>
-      </div>
-      <label class="cookie-toggle">
-        <input type="checkbox" id="toggleMarketing">
-        <span class="cookie-toggle-track"></span>
-        <span class="cookie-toggle-thumb"></span>
-      </label>
-    </div>
-
-    <div class="cookie-modal-footer">
-      <button class="cookie-btn decline" id="cookieModalClose">Fermer</button>
-      <button class="cookie-btn accept" id="cookieSavePrefs">Enregistrer mes choix</button>
-    </div>
-  </div>
-</div>
-
-<script>
-(function() {
-  var COOKIE_KEY = 'babifix_cookie_consent';
-  var banner = document.getElementById('cookieBanner');
-  var modal  = document.getElementById('cookieModal');
-
-  function getConsent() {
-    try { return JSON.parse(localStorage.getItem(COOKIE_KEY)); } catch(e) { return null; }
-  }
-  function setConsent(obj) {
-    localStorage.setItem(COOKIE_KEY, JSON.stringify(obj));
-  }
-  function hideBanner() {
-    banner.classList.remove('visible');
-    setTimeout(function() { banner.style.display = 'none'; }, 500);
-  }
-  function applyConsent(consent) {
-    // Analytics (e.g., GA4) — only load if accepted
-    if (consent && consent.analytics) {
-      // Insert analytics script here if needed
+    function norm(s) {
+      return (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     }
-  }
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
+    }
 
-  // Show banner if no consent stored yet
-  var stored = getConsent();
-  if (!stored) {
-    setTimeout(function() { banner.classList.add('visible'); }, 900);
-  } else {
-    applyConsent(stored);
-  }
+    var searchTimer = null;
+    function applyFilterAndSearch() {
+      var qRaw = searchInp ? searchInp.value.trim() : '';
+      var qNorm = norm(qRaw);
+      var tokens = qNorm ? qNorm.split(/\s+/) : [];
+      var visibleCards = 0;
 
-  // Accept all
-  document.getElementById('cookieAccept').addEventListener('click', function() {
-    var c = { essential: true, analytics: true, marketing: true, date: new Date().toISOString() };
-    setConsent(c);
-    applyConsent(c);
-    hideBanner();
-  });
+      cards.forEach(function(card) {
+        var gMatch = (activeGroup === 'all' || card.getAttribute('data-group') === activeGroup);
+        var txt = norm(card.getAttribute('data-search') || card.textContent);
+        var qMatch = !tokens.length || tokens.every(function(t) { return txt.indexOf(t) !== -1; });
+        var show = gMatch && qMatch;
+        card.style.display = show ? '' : 'none';
+        if (show) visibleCards++;
+      });
 
-  // Decline non-essential
-  document.getElementById('cookieDecline').addEventListener('click', function() {
-    var c = { essential: true, analytics: false, marketing: false, date: new Date().toISOString() };
-    setConsent(c);
-    hideBanner();
-  });
+      if (!resultsBox || !matchesEl) return;
+      if (!qNorm) {
+        resultsBox.style.display = 'none';
+        return;
+      }
 
-  // Open preferences modal
-  document.getElementById('cookieCustomize').addEventListener('click', function() {
-    var stored = getConsent() || {};
-    document.getElementById('toggleAnalytics').checked = !!stored.analytics;
-    document.getElementById('toggleMarketing').checked = !!stored.marketing;
-    modal.classList.add('open');
-  });
+      if (proposeLink) {
+        proposeLink.href = '/proposer-metier/?nom=' + encodeURIComponent(qRaw);
+      }
 
-  // Close modal without saving
-  document.getElementById('cookieModalClose').addEventListener('click', function() {
-    modal.classList.remove('open');
-  });
+      var localMatches = allCats.filter(function(c) {
+        var h = norm((c.nom || '') + ' ' + (c.search_keywords || '') + ' ' + (c.groupe || ''));
+        return tokens.every(function(t) { return h.indexOf(t) !== -1; });
+      }).slice(0, 12);
 
-  // Save custom preferences
-  document.getElementById('cookieSavePrefs').addEventListener('click', function() {
-    var c = {
-      essential: true,
-      analytics: document.getElementById('toggleAnalytics').checked,
-      marketing: document.getElementById('toggleMarketing').checked,
-      date: new Date().toISOString()
+      function renderLiveMatches(catsList, provList, supList) {
+        var chips = [];
+        catsList.forEach(function(c) {
+          var extra = c.regime_kyc === 'SENSIBLE_CASIER' ? ' · Casier verifie' : '';
+          chips.push('<a href="/telecharger-app-client" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;background:#f8fafc;border:1px solid #cbd5e1;color:#0f172a;font-size:12.5px;font-weight:700;text-decoration:none;">' + esc(c.nom) + '<span style="color:#64748b;font-weight:600;font-size:11px;">' + esc((c.groupe || 'Metier') + extra) + '</span></a>');
+        });
+        (provList || []).slice(0, 4).forEach(function(p) {
+          chips.push('<span style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:99px;background:#eef6ff;border:1px solid #bfdbfe;color:#1e3a8a;font-size:12.5px;font-weight:700;">Artisan : ' + esc(p.nom) + ' (' + esc(p.ville || 'Abidjan') + ')</span>');
+        });
+        (supList || []).slice(0, 4).forEach(function(s) {
+          chips.push('<span style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:99px;background:#fef3c7;border:1px solid #fde68a;color:#92400e;font-size:12.5px;font-weight:700;">Fourniture : ' + esc(s.nom) + '</span>');
+        });
+
+        resultsBox.style.display = 'block';
+        if (chips.length || visibleCards > 0) {
+          headingEl.textContent = (chips.length + visibleCards) + ' résultat(s) pour « ' + qRaw + ' »';
+          matchesEl.innerHTML = chips.length ? chips.join('') : '<span style="font-size:12.5px;color:#475569;">Correspondance directe dans la grille ci-dessous.</span>';
+        } else {
+          headingEl.textContent = 'Aucun métier exact trouvé pour « ' + qRaw + ' »';
+          matchesEl.innerHTML = '<span style="font-size:13px;color:#64748b;">Cette spécialité manque encore ? Ajoutez-la en un clic : <a href="/proposer-metier/?nom=' + encodeURIComponent(qRaw) + '" style="font-weight:800;color:#e87722;">Proposer « ' + esc(qRaw) + ' » maintenant</a>.</span>';
+        }
+      }
+
+      renderLiveMatches(localMatches, [], []);
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function() {
+        fetch('/api/public/search/?q=' + encodeURIComponent(qRaw))
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (searchInp && norm(searchInp.value) === qNorm && d && !d.offline) {
+              renderLiveMatches((d.categories && d.categories.length) ? d.categories : localMatches, d.providers, d.supplies);
+            }
+          })
+          .catch(function() {});
+      }, 180);
+    }
+
+    filterBtns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        activeGroup = btn.getAttribute('data-filter') || 'all';
+        filterBtns.forEach(function(b) {
+          var active = b === btn;
+          b.classList.toggle('active', active);
+          b.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        applyFilterAndSearch();
+      });
+    });
+    if (searchInp) {
+      searchInp.addEventListener('input', applyFilterAndSearch);
+    }
+    var reducedCatsMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    cards.forEach(function(card) {
+      if (!reducedCatsMotion) {
+        card.addEventListener('mousemove', function(e) {
+          var r = card.getBoundingClientRect();
+          card.style.setProperty('--sx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+          card.style.setProperty('--sy', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
+        });
+      }
+      function activateCard() {
+        var slug = (card.getAttribute('data-slug') || '').toLowerCase();
+        var title = card.getAttribute('data-title') || '';
+        var tradeSel = document.getElementById('parcoursTrade');
+        var section = document.getElementById('parcours-devis');
+        if (tradeSel && slug) {
+          var matched = Array.prototype.some.call(tradeSel.options, function(opt) {
+            return opt.value === slug || slug.indexOf(opt.value) !== -1;
+          });
+          if (matched) {
+            Array.prototype.forEach.call(tradeSel.options, function(opt) {
+              if (opt.value === slug || slug.indexOf(opt.value) !== -1) tradeSel.value = opt.value;
+            });
+            tradeSel.dispatchEvent(new Event('change'));
+          }
+        }
+        if (searchInp && title && !tradeSel) searchInp.value = title;
+        if (section) section.scrollIntoView({ behavior: reducedCatsMotion ? 'auto' : 'smooth', block: 'start' });
+      }
+      card.addEventListener('click', activateCard);
+      card.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activateCard();
+        }
+      });
+    });
+  })();
+
+  /* --- Parcours Devis sur mesure & Bouclier Sequestre Abidjan --- */
+  (function() {
+    var tradeSel = document.getElementById('parcoursTrade');
+    var commSel = document.getElementById('parcoursCommune');
+    var uBtns = document.querySelectorAll('.parcours-u-btn[data-urgency]');
+    var titleEl = document.getElementById('parcoursTitle');
+    var metaEl = document.getElementById('parcoursMetaText');
+    var etaEl = document.getElementById('parcoursEta');
+    if (!tradeSel || !commSel || !metaEl) return;
+
+    var tradeInfo = {
+      plomberie: { label: 'Plomberie & sanitaires', note: 'Devis sur mesure chiffré par l\'artisan avant intervention' },
+      electricite: { label: 'Électricité & tableaux', note: 'Diagnostic sécurité et devis détaillé avant mise sous tension' },
+      climatisation: { label: 'Froid & Climatisation', note: 'Contrôle split, gaz et main-d\'oeuvre chiffrés avant pose' },
+      serrurerie: { label: 'Serrurerie & ouvertures', note: 'Ouverture soignée et devis validé avant remplacement de cylindre' },
+      menuiserie: { label: 'Menuiserie & ébénisterie', note: 'Prise de cotes sur place et devis écrit sous séquestre' },
+      peinture: { label: 'Peinture & finitions', note: 'Évaluation surfaces et teintes arrêtée sur devis numérique' },
+      nettoyage: { label: 'Nettoyage & désinfection', note: 'Périmètre des pièces et produits inclus détaillés avant passage' },
+      bricolage: { label: 'Multiservices & bricolage', note: 'Liste des tâches validée ensemble sur devis avant travaux' }
     };
-    setConsent(c);
-    applyConsent(c);
-    modal.classList.remove('open');
-    hideBanner();
-  });
+    var commData = {
+      cocody: { label: 'Cocody', eta: '35 min' },
+      plateau: { label: 'Plateau & Marcory', eta: '30 min' },
+      yopougon: { label: 'Yopougon', eta: '40 min' },
+      koumassi: { label: 'Koumassi & Treichville', eta: '35 min' },
+      abobo: { label: 'Abobo & Adjamé', eta: '40 min' },
+      portbouet: { label: 'Port-Bouët & Bingerville', eta: '45 min' },
+      songon: { label: 'Songon & Anyama', eta: '50 min' }
+    };
+    var urgData = {
+      standard: { label: 'Planifiée' },
+      urgent: { label: 'Urgence < 2 h' },
+      weekend: { label: 'Soir / Week-end' }
+    };
+    var activeUrgency = 'standard';
 
-  // Close modal on outside click
-  modal.addEventListener('click', function(e) {
-    if (e.target === modal) modal.classList.remove('open');
-  });
+    function renderParcours() {
+      var t = tradeInfo[tradeSel.value] || tradeInfo.plomberie;
+      var c = commData[commSel.value] || commData.cocody;
+      var u = urgData[activeUrgency] || urgData.standard;
+      if (titleEl) titleEl.textContent = t.note;
+      if (etaEl) etaEl.textContent = c.eta;
+      metaEl.textContent = t.label + ' · ' + u.label + ' à ' + c.label + ' · Délai moyen d\'arrivée constaté : ' + c.eta;
+    }
 
-  // Keyboard accessibility
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') modal.classList.remove('open');
-  });
+    tradeSel.addEventListener('change', renderParcours);
+    commSel.addEventListener('change', renderParcours);
+    uBtns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        activeUrgency = btn.getAttribute('data-urgency') || 'standard';
+        uBtns.forEach(function(b) {
+          var on = b === btn;
+          b.classList.toggle('active', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        renderParcours();
+      });
+    });
+    renderParcours();
+  })();
+
+  /* --- Wallet 3D interactif avec inclinaison souris & reflet speculaire --- */
+  (function() {
+    var wrap = document.getElementById('walCardWrap');
+    var card = document.getElementById('homeWalletCard');
+    var flipBtn = document.getElementById('homeWalletFlipBtn');
+    var tierBtns = document.querySelectorAll('.wal-tier-btn[data-waltier]');
+    var badge = document.getElementById('walTierBadge');
+    var bal = document.getElementById('walBalance');
+    var esc = document.getElementById('walEscrow');
+    var comm = document.getElementById('walCommLabel');
+    if (!card) return;
+
+    var tiers = {
+      standard: { pill: 'STANDARD · {{ platform_cfg.std_rate|default:18 }} %', bal: '142 000 FCFA', esc: 'En séquestre protégé : + 35 000 FCFA', comm: 'Commission : {{ platform_cfg.std_rate|default:18 }} %' },
+      silver: { pill: 'PRO SILVER · {{ platform_cfg.silver_rate|default:13 }} %', bal: '258 000 FCFA', esc: 'En séquestre protégé : + 48 000 FCFA', comm: 'Commission : {{ platform_cfg.silver_rate|default:13 }} %' },
+      gold: { pill: 'PRO GOLD · {{ platform_cfg.gold_rate|default:8 }} %', bal: '384 500 FCFA', esc: 'En séquestre protégé : + 65 000 FCFA', comm: 'Commission : {{ platform_cfg.gold_rate|default:8 }} %' }
+    };
+
+    function toggleFlip() {
+      var flipped = card.classList.toggle('is-flipped');
+      if (flipBtn) {
+        flipBtn.textContent = flipped ? 'Voir le recto' : 'Retourner la carte';
+      }
+    }
+    card.addEventListener('click', toggleFlip);
+    if (flipBtn) flipBtn.addEventListener('click', toggleFlip);
+
+    var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (wrap && !reducedMotion) {
+      wrap.addEventListener('mousemove', function(e) {
+        var r = wrap.getBoundingClientRect();
+        var relX = (e.clientX - r.left) / r.width;
+        var relY = (e.clientY - r.top) / r.height;
+        var px = relX - 0.5;
+        var py = relY - 0.5;
+        wrap.style.setProperty('--rx', (-py * 9).toFixed(2) + 'deg');
+        wrap.style.setProperty('--ry', (px * 11).toFixed(2) + 'deg');
+        wrap.style.setProperty('--mx', (relX * 100).toFixed(1) + '%');
+        wrap.style.setProperty('--my', (relY * 100).toFixed(1) + '%');
+      });
+      wrap.addEventListener('mouseleave', function() {
+        wrap.style.setProperty('--rx', '0deg');
+        wrap.style.setProperty('--ry', '0deg');
+        wrap.style.setProperty('--mx', '50%');
+        wrap.style.setProperty('--my', '35%');
+      });
+    }
+
+    tierBtns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var key = btn.getAttribute('data-waltier') || 'gold';
+        var cfg = tiers[key] || tiers.gold;
+        card.setAttribute('data-tier', key);
+        if (badge) badge.textContent = cfg.pill;
+        if (bal) bal.textContent = cfg.bal;
+        if (esc) esc.textContent = cfg.esc;
+        if (comm) comm.textContent = cfg.comm;
+        tierBtns.forEach(function(b) {
+          b.classList.toggle('active', b === btn);
+        });
+      });
+    });
+  })();
+
 })();
 </script>
-
-{% include 'vitrine/_consent_analytics.html' %}
-</body>
-</html>
+{% endblock %}
