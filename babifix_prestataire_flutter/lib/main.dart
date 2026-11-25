@@ -66,7 +66,6 @@ Future<void> main() async {
     await dotenv.load(fileName: ".env");
   } catch (_) {}
 
-  await babifixResolveLocalApiBaseUrl();
   try {
     await BabifixFcm.ensureInitialized();
   } catch (_) {}
