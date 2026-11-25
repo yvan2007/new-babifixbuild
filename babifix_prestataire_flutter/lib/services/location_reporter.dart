@@ -44,8 +44,12 @@ class LocationReporter with WidgetsBindingObserver {
     }
   }
 
-  /// Force l'envoi immédiat (ignore le throttle).
+  /// Force l envoi immediat (ignore le throttle).
   Future<void> pushNow({bool forceFlush = false}) async {
+    // Si l artisan n est pas connecte, aucun interet de sonder le GPS au lancement.
+    final token = await BabifixUserStore.getApiToken();
+    if (token == null || token.isEmpty) return;
+
     if (!forceFlush && _lastPushAt != null) {
       final since = DateTime.now().difference(_lastPushAt!);
       if (since < const Duration(minutes: 5)) return;
@@ -69,9 +73,9 @@ class LocationReporter with WidgetsBindingObserver {
         ),
       ).timeout(const Duration(seconds: 10));
 
-      // GARDE-FOU CÔTE D'IVOIRE : on ne rapporte JAMAIS une position hors CIV
-      // (ex. GPS d'émulateur à Shanghai) — sinon la position enregistrée du
-      // prestataire serait écrasée au login et il se retrouverait « en Chine ».
+      // GARDE-FOU COTE D IVOIRE : on ne rapporte JAMAIS une position hors CIV
+      // (ex. GPS d emulateur a Shanghai) : sinon la position enregistree du
+      // prestataire serait ecrasee au login et il se retrouverait "en Chine".
       const latMin = 4.0, latMax = 11.0, lonMin = -9.0, lonMax = -2.0;
       if (pos.latitude < latMin ||
           pos.latitude > latMax ||

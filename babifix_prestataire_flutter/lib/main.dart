@@ -66,14 +66,17 @@ Future<void> main() async {
     await dotenv.load(fileName: ".env");
   } catch (_) {}
 
-  await BabifixFcm.ensureInitialized();
+  await babifixResolveLocalApiBaseUrl();
+  try {
+    await BabifixFcm.ensureInitialized();
+  } catch (_) {}
 
-  // Géolocalisation auto : push la position GPS du prestataire au backend
-  // dès l'ouverture de l'app + à chaque resume foreground. Non bloquant.
-  // ignore: unawaited_futures
-  LocationReporter.instance.attach();
+  // Geolocation attachee de facon differee pour ne jamais bloquer le splash iOS.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    LocationReporter.instance.attach();
+  });
 
-  // Zego SDK temporairement désactivé — voir services/zego_call_service.dart
+  // Zego SDK temporairement desactive : voir services/zego_call_service.dart
   // if (isZegoConfigured) {
   //   ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
   // }

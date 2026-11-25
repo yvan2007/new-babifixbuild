@@ -110,11 +110,14 @@ class BabifixFcm {
     }
   }
 
-  /// À appeler après un login API réussi (JWT).
+  /// A appeler apres un login API reussi (JWT).
   static Future<void> registerTokenWithBackend(String apiBearerToken) async {
     if (apiBearerToken.isEmpty || kIsWeb) return;
+    if (!_initOK) {
+      debugPrint('BABIFIX FCM: non initialise, enregistrement du token ignore.');
+      return;
+    }
     try {
-      await ensureInitialized();
       final tok = await FirebaseMessaging.instance.getToken();
       if (tok == null || tok.isEmpty) return;
 
