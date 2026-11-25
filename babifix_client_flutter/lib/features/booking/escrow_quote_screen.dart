@@ -5,17 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../babifix_design_system.dart';
-import '../../babifix_money.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/services/geniuspay_service.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_payment_error_banner.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/services/pending_payment_store.dart';
-import '../../shared/widgets/babifix_snackbar.dart';
 
 const _kOperators = [
   _OpDef('ORANGE_MONEY', 'Orange Money', Color(0xFFFF6600)),
@@ -155,7 +154,6 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
       if (!mounted) return;
 
       if (r.statusCode >= 400) {
-        final err = r.body;
         setState(() {
           _paying = false;
           _error = 'Erreur de paiement.';
@@ -242,15 +240,6 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
     setState(() { _polling = false; _pollCount = 0; });
   }
 
-  void _snack(String s) {
-    if (!mounted) return;
-    showBabifixToast(
-      context,
-      type: BabifixToastType.info,
-      message: s,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final text = Colors.white;
@@ -299,13 +288,12 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
           Text(_error ?? '', textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 12),
-          ElevatedButton(
+          BabifixButton(
+            label: 'Réessayer',
+            backgroundColor: BabifixDesign.ciBlue,
+            width: 170,
+            height: 46,
             onPressed: _load,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BabifixDesign.ciBlue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Réessayer'),
           ),
         ],
       ),
@@ -333,37 +321,63 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: color.withValues(alpha: 0.30)),
+                    color: const Color(0xFF102241),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: color.withValues(alpha: 0.42)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(
-                            q.isCash
-                                ? Icons.handshake
-                                : Icons.lock_outline,
-                            color: color, size: 26,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: Icon(
                               q.isCash
-                                  ? 'Paiement cash en main propre'
-                                  : 'Paiement Mobile Money',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: color,
-                              ),
+                                  ? Icons.handshake_rounded
+                                  : Icons.verified_user_rounded,
+                              color: color,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  q.isCash
+                                      ? 'Paiement cash encadré'
+                                      : 'Coffret Séquestre BABIFIX',
+                                  style: const TextStyle(
+                                    fontSize: 15.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  q.isCash
+                                      ? 'Commission sécurisée en ligne'
+                                      : (isSoldePhase
+                                          ? 'Phase 2 · Solde final protégé'
+                                          : 'Phase 1 · Acompte 30 % cantonné'),
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: color,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 11),
                       Text(
                         q.isCash
                             ? "Vous versez maintenant uniquement la commission "
@@ -377,7 +391,8 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                                 : "Vous payez l'acompte (30 %) maintenant. Le solde "
                                     "(70 %) sera payé en ligne à la fin, avant votre "
                                     "confirmation. L'argent reste sécurisé chez BABIFIX.",
-                        style: const TextStyle(fontSize: 13, height: 1.4, color: Colors.white70),
+                        style: const TextStyle(
+                            fontSize: 12.8, height: 1.45, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -385,36 +400,34 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                 const SizedBox(height: 14),
                 MoneyBreakdownWidget(
                   sousTotal: q.totalDevis,
-                  // Taux RÉEL envoyé par le serveur (reflète le tarif premium
-                  // du prestataire, ex. 8 % en GOLD). NE PAS le reconstituer
-                  // en divisant commissionMontant par totalDevis : la
-                  // commission est calculée sur le reste APRÈS caution, pas
-                  // sur le total brut — cette division donnait un pourcentage
-                  // faux (13 % au lieu de 18 %) dès qu'une caution existait.
                   commissionRate: q.commissionRate,
                   commissionMontant: q.commissionMontant,
                   totalTtc: q.totalDevis,
                   netPrestataire: q.netPrestataire,
-                  // "Total à payer" par défaut suggérait que ce montant était
-                  // dû MAINTENANT (juste sous "Commission (X%)"), alors que
-                  // seul un acompte/solde partiel l'est en Mobile Money — le
-                  // vrai montant demandé est dans l'encart vert ci-dessous.
                   totalLabel: 'Total du devis (référence)',
                 ),
                 const SizedBox(height: 14),
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: BabifixDesign.ciGreen.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFF0A241E),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                        color: BabifixDesign.ciGreen.withValues(alpha: 0.30)),
+                        color: BabifixDesign.ciGreen.withValues(alpha: 0.45)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.payment,
-                          color: BabifixDesign.ciGreen, size: 24),
-                      const SizedBox(width: 10),
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: BabifixDesign.ciGreen.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.lock_rounded,
+                            color: BabifixDesign.ciGreen, size: 22),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,19 +436,21 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                               q.isCash
                                   ? 'À payer maintenant (commission)'
                                   : (isSoldePhase
-                                      ? 'À payer maintenant (solde, 70 %)'
-                                      : 'À payer maintenant (acompte, 30 %)'),
-                              style: TextStyle(
+                                      ? 'À sécuriser maintenant (solde, 70 %)'
+                                      : 'À sécuriser maintenant (acompte, 30 %)'),
+                              style: const TextStyle(
                                   fontSize: 12,
-                                  color: Colors.white60),
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w600),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 3),
                             Text(
                               fmtMoney(q.amountDueOnline),
                               style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: BabifixDesign.ciGreen),
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w900,
+                                  color: BabifixDesign.ciGreen,
+                                  fontFeatures: BabifixDesign.tabularFigures),
                             ),
                           ],
                         ),
@@ -669,32 +684,18 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-            child: SizedBox(
+            child: BabifixButton(
+              label: alreadyPaid
+                  ? 'Déjà payé'
+                  : 'Payer ${fmtMoney(q.amountDueOnline)}',
+              loadingLabel: 'Paiement en cours...',
+              isLoading: _paying,
+              icon: Icons.mobile_friendly_rounded,
+              backgroundColor: BabifixDesign.ciGreen,
+              foregroundColor: BabifixDesign.navy,
               width: double.infinity,
-              child: FilledButton.icon(
-                onPressed:
-                    (!canPayNow || _paying) ? null : _pay,
-                icon: _paying
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: BabifixRingLoader.cyan(size: 28))
-                    : const Icon(Icons.mobile_friendly_rounded, size: 22),
-                label: Text(
-                  alreadyPaid
-                      ? 'Déjà payé'
-                      : _paying
-                          ? 'Paiement en cours…'
-                          : 'Payer ${fmtMoney(q.amountDueOnline)}',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: BabifixDesign.ciGreen,
-                  foregroundColor: BabifixDesign.navy,
-                  minimumSize: const Size(double.infinity, 58),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18)),
-                ),
-              ),
+              height: 56,
+              onPressed: (!canPayNow || _paying) ? null : _pay,
             ),
           ),
         ),
@@ -896,14 +897,7 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
           ),
         ),
         if (active)
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-            ),
-          ),
+          BabifixRingLoader.mono(size: 16, color: color),
       ],
     );
   }
@@ -1016,20 +1010,14 @@ class _EscrowQuoteScreenState extends State<EscrowQuoteScreen>
                 ),
               ),
               const SizedBox(height: 40),
-              SizedBox(
+              BabifixButton(
+                label: 'Terminé',
+                icon: Icons.check_circle_outline_rounded,
+                backgroundColor: BabifixDesign.ciGreen,
+                foregroundColor: BabifixDesign.navy,
                 width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  icon: const Icon(Icons.check_circle_outline_rounded),
-                  label: const Text('Terminé'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: BabifixDesign.ciGreen,
-                    foregroundColor: BabifixDesign.navy,
-                    minimumSize: const Size(double.infinity, 54),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                  ),
-                ),
+                height: 54,
+                onPressed: () => Navigator.of(context).pop(true),
               ),
             ],
           ),

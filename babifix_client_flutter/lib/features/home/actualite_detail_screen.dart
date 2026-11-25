@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../babifix_api_config.dart';
 import '../../models/client_models.dart';
 
 class ActualiteDetailScreen extends StatelessWidget {
@@ -40,7 +41,7 @@ class ActualiteDetailScreen extends StatelessWidget {
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: Image.network(
-                  item.imageUrl,
+                  babifixResolveMediaUrl(item.imageUrl),
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: const Color(0xFFE2E8F0),

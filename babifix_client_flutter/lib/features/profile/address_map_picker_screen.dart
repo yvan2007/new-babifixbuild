@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../shared/geo_utils.dart';
 import '../../shared/services/nominatim_geocode.dart';
+import '../../shared/services/smart_gps.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
+import '../../user_store.dart';
 
 /// Résultat retourné par le picker d'adresse.
 class PickedAddress {
@@ -67,34 +67,29 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen> {
   Future<void> _autoLocate() async {
     setState(() => _locatingMe = true);
     try {
-      // Demande la permission si nécessaire.
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        if (mounted) setState(() => _locatingMe = false);
-        _scheduleReverse(); // on garde Abidjan par défaut
-        return;
-      }
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings:
-            const LocationSettings(accuracy: LocationAccuracy.high),
-      );
+      final gps = await acquireSmartGps(forceFresh: false);
       if (!mounted) return;
-      // Garde-fou : si la position est hors Côte d'Ivoire (cas typique d'un
-      // émulateur qui renvoie Mountain View), on retombe sur Abidjan.
-      final LatLng target = isInCotedIvoire(pos.latitude, pos.longitude)
-          ? LatLng(pos.latitude, pos.longitude)
-          : const LatLng(kAbidjanLat, kAbidjanLon);
+      LatLng target;
+      if (gps.ok && gps.inCoteIvoire) {
+        target = gps.position!;
+      } else {
+        final saved = await BabifixUserStore.loadAddressCoords();
+        target = saved != null
+            ? LatLng(saved.lat, saved.lng)
+            : (gps.position ?? BabifixOsmLocationPicker.defaultCenter);
+      }
       setState(() {
         _pin = target;
         _locatingMe = false;
       });
       _scheduleReverse();
     } catch (_) {
-      if (mounted) setState(() => _locatingMe = false);
+      final saved = await BabifixUserStore.loadAddressCoords();
+      if (!mounted) return;
+      setState(() {
+        if (saved != null) _pin = LatLng(saved.lat, saved.lng);
+        _locatingMe = false;
+      });
       _scheduleReverse();
     }
   }
@@ -122,12 +117,15 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen> {
   }
 
   Future<void> _doReverse() async {
-    // Reverse geocoding non implémenté (nominatim_geocode n'expose que nominatimSearch).
-    // Branche-toi ici quand tu ajouteras une fonction `nominatimReverse(lat, lon)`.
+    if (!mounted) return;
+    setState(() => _resolving = true);
+    final place = await nominatimReverse(_pin.latitude, _pin.longitude);
     if (!mounted) return;
     setState(() {
       _resolving = false;
-      _resolvedAddress = '${_pin.latitude.toStringAsFixed(5)}, ${_pin.longitude.toStringAsFixed(5)}';
+      _resolvedAddress = (place != null && place.displayName.trim().isNotEmpty)
+          ? place.displayName.trim()
+          : '${_pin.latitude.toStringAsFixed(5)}, ${_pin.longitude.toStringAsFixed(5)}';
     });
   }
 
@@ -198,7 +196,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen> {
           // ── Carte plein écran ─────────────────────────────────────────────
           Positioned.fill(
             bottom: 180, // place pour le panneau bas
-            top: 70,     // place pour la barre de recherche
+            top: 70,    // place pour la barre de recherche
             child: BabifixOsmLocationPicker(
               marker: _pin,
               onMarkerMoved: _onPinMoved,

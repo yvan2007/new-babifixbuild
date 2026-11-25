@@ -2,6 +2,8 @@
 /// défaut (jugées peu pro). Carte navy flottante, coins arrondis, liseré
 /// coloré + icône dans une pastille, titre + message. Variantes
 /// success / error / info / warning aux couleurs principales du projet.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 enum BabifixToastType { success, error, info, warning }
@@ -42,35 +44,116 @@ _ToastConfig _configFor(BabifixToastType type) {
   }
 }
 
-/// Affiche une notification BABIFIX professionnelle (flottante, navy + accent).
+OverlayEntry? _activeToastEntry;
+Timer? _activeToastTimer;
+
+void _dismissTopToast() {
+  _activeToastTimer?.cancel();
+  _activeToastTimer = null;
+  try {
+    _activeToastEntry?.remove();
+  } catch (_) {}
+  _activeToastEntry = null;
+}
+
+/// Affiche une capsule discrete en HAUT de l'ecran qui disparait seule.
 void showBabifixToast(
   BuildContext context, {
   required String message,
   BabifixToastType type = BabifixToastType.info,
   String? title,
-  Duration duration = const Duration(seconds: 3),
+  Duration duration = const Duration(milliseconds: 2600),
 }) {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  if (messenger == null) return;
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
   final cfg = _configFor(type);
-  messenger
-    ..clearSnackBars()
-    ..showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        duration: duration,
-        padding: EdgeInsets.zero,
-        margin: const EdgeInsets.fromLTRB(14, 0, 14, 16),
-        dismissDirection: DismissDirection.horizontal,
-        content: _BabifixToastCard(
-          message: message,
-          title: title ?? cfg.defaultTitle,
-          cfg: cfg,
+  _dismissTopToast();
+
+  final entry = OverlayEntry(
+    builder: (ctx) => _BabifixTopToastWrapper(
+      message: message,
+      title: title ?? cfg.defaultTitle,
+      cfg: cfg,
+      onDismiss: _dismissTopToast,
+    ),
+  );
+  _activeToastEntry = entry;
+  overlay.insert(entry);
+  _activeToastTimer = Timer(duration, _dismissTopToast);
+}
+
+class _BabifixTopToastWrapper extends StatefulWidget {
+  const _BabifixTopToastWrapper({
+    required this.message,
+    required this.title,
+    required this.cfg,
+    required this.onDismiss,
+  });
+
+  final String message;
+  final String title;
+  final _ToastConfig cfg;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_BabifixTopToastWrapper> createState() => _BabifixTopToastWrapperState();
+}
+
+class _BabifixTopToastWrapperState extends State<_BabifixTopToastWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    )..forward();
+    _slide = Tween<Offset>(begin: const Offset(0, -1.0), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _fade = Tween<double>(begin: 0, end: 1).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top;
+    return Positioned(
+      top: top + 10,
+      left: 16,
+      right: 16,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _fade,
+          child: Dismissible(
+            key: ValueKey('bx-toast-${widget.title}-${widget.message}'),
+            direction: DismissDirection.up,
+            onDismissed: (_) => widget.onDismiss(),
+            child: Material(
+              color: Colors.transparent,
+              child: GestureDetector(
+                onTap: widget.onDismiss,
+                child: _BabifixToastCard(
+                  message: widget.message,
+                  title: widget.title,
+                  cfg: widget.cfg,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
+  }
 }
 
 class _BabifixToastCard extends StatelessWidget {

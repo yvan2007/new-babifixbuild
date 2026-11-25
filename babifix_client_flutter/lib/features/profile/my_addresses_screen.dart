@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_page_route.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 import '../../user_store.dart';
 import 'address_map_picker_screen.dart';
 
@@ -58,7 +61,7 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
   Future<void> _addAddress() async {
     // 1) Choisir le lieu sur la carte (réutilise le picker existant).
     final picked = await Navigator.of(context).push<PickedAddress>(
-      MaterialPageRoute(builder: (_) => const AddressMapPickerScreen()),
+      babifixRoute((_) => const AddressMapPickerScreen()),
     );
     if (picked == null || !mounted) return;
 
@@ -158,7 +161,8 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Annuler')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: BabifixDesign.error),
+            style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,backgroundColor: BabifixDesign.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Supprimer'),
           ),
@@ -175,18 +179,23 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
   }
 
   void _snack(String msg, Color c) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: c),
+    showBabifixToast(
+      context,
+      type: c == BabifixDesign.error
+          ? BabifixToastType.error
+          : BabifixToastType.success,
+      message: msg,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Mes adresses'),
-        backgroundColor: BabifixDesign.navy,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _busy ? null : _addAddress,
@@ -196,7 +205,7 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
         label: const Text('Ajouter'),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BabifixRingLoader.cyan(size: 32))
           : _addresses.isEmpty
               ? _emptyState()
               : RefreshIndicator(
@@ -212,6 +221,8 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
   }
 
   Widget _emptyState() {
+    final fg = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -219,10 +230,10 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.location_off_rounded,
-                size: 64, color: BabifixDesign.navy.withValues(alpha: 0.25)),
+                size: 64, color: sub.withValues(alpha: 0.45)),
             const SizedBox(height: 16),
-            const Text('Aucune adresse enregistrée',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+            Text('Aucune adresse enregistrée',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: fg)),
             const SizedBox(height: 8),
             Text(
               'Enregistrez votre Maison, votre Bureau… pour réserver une '
@@ -231,7 +242,7 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
               style: TextStyle(
                 fontSize: 13,
                 height: 1.5,
-                color: BabifixDesign.navy.withValues(alpha: 0.6),
+                color: sub,
               ),
             ),
           ],
@@ -241,81 +252,102 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
   }
 
   Widget _addressCard(Map<String, dynamic> a) {
+    final isDark = BabifixDesign.isDark(context);
+    final fg = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
+    final accent = isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep;
     final isDefault = a['is_default'] == true;
     final label = '${a['label'] ?? ''}';
     final addr = '${a['address_label'] ?? ''}';
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isDefault ? null : () => _setDefault(a),
+          borderRadius: BorderRadius.circular(16),
+          child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
           color: isDefault
-              ? BabifixDesign.cyan
-              : BabifixDesign.navy.withValues(alpha: 0.08),
-          width: isDefault ? 1.6 : 1,
+              ? accent.withValues(alpha: isDark ? 0.14 : 0.06)
+              : BabifixDesign.surfaceOf(context),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDefault ? accent : BabifixDesign.borderOf(context),
+            width: isDefault ? 1.8 : 1,
+          ),
+          boxShadow: isDark ? null : BabifixDesign.cardShadow(true),
         ),
-        boxShadow: BabifixDesign.cardShadow(true),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: BabifixDesign.cyan.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(_iconFor(label), color: accent),
               ),
-              child: Icon(_iconFor(label), color: BabifixDesign.navy),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 15)),
-                      ),
-                      if (isDefault) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: BabifixDesign.cyan.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text('Par défaut',
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: BabifixDesign.navy)),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  color: fg)),
                         ),
+                        if (isDefault) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: BabifixDesign.success.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.check_circle_rounded,
+                                    size: 12, color: BabifixDesign.success),
+                                const SizedBox(width: 4),
+                                Text('Sélectionnée',
+                                    style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: isDark
+                                            ? BabifixDesign.success
+                                            : const Color(0xFF15803D))),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
+                    ),
+                    if (addr.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(addr,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12.5, color: sub)),
                     ],
-                  ),
-                  if (addr.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(addr,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            color: BabifixDesign.navy.withValues(alpha: 0.6))),
                   ],
-                ],
+                ),
               ),
-            ),
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert_rounded,
-                  color: BabifixDesign.navy.withValues(alpha: 0.5)),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert_rounded, color: sub),
               onSelected: (v) {
                 if (v == 'default') _setDefault(a);
                 if (v == 'delete') _delete(a);
@@ -344,6 +376,9 @@ class _MyAddressesScreenState extends State<MyAddressesScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+  ),
+  );
   }
 }

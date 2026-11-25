@@ -161,7 +161,7 @@ class Devis {
   final DevisStatus statut;
   final List<String> photosPrestataire;
   final List<LigneDevis> lignes;
-  // Devis en 2 temps : estimation (fourchette indicative, non payable).
+  // Devis en 2 temps : demande initiale / devis ferme chiffre.
   final bool estEstimation;
   final double prixMin;
   final double prixMax;

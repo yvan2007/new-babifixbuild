@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../models/client_models.dart';
 import '../../babifix_money.dart';
+import '../../shared/widgets/babifix_button.dart';
 
 class ServiceDetailScreen extends StatelessWidget {
   const ServiceDetailScreen({
@@ -40,9 +42,21 @@ class ServiceDetailScreen extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    service.imageUrl.startsWith('http')
-                        ? Image.network(service.imageUrl, fit: BoxFit.cover)
-                        : Image.asset(service.imageUrl, fit: BoxFit.cover),
+                    babifixResolveMediaUrl(service.imageUrl).startsWith('http')
+                        ? Image.network(
+                            babifixResolveMediaUrl(service.imageUrl),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Image.asset(
+                              'assets/images/service-plomberie.jpg',
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Image.asset(
+                            service.imageUrl.isNotEmpty
+                                ? service.imageUrl
+                                : 'assets/images/service-plomberie.jpg',
+                            fit: BoxFit.cover,
+                          ),
                     DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -220,30 +234,12 @@ class ServiceDetailScreen extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: FilledButton(
-            onPressed: onReserve,
-            style: FilledButton.styleFrom(
-              backgroundColor: BabifixDesign.cyan,
-              foregroundColor: BabifixDesign.navy,
-              minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.calendar_month_rounded, size: 22),
-                SizedBox(width: 8),
-                Text(
-                  'Réserver ce service',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+          child: BabifixButton(
+            label: 'Réserver ce service',
+            icon: Icons.calendar_month_rounded,
+            width: double.infinity,
+            height: 54,
+            onPressed: onReserve == null ? null : () => onReserve!(),
           ),
         ),
       ),

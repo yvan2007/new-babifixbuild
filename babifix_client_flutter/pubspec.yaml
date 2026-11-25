@@ -80,27 +80,26 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  integration_test:
-    sdk: flutter
+  # integration_test:
+  #   sdk: flutter
   mockito: ^5.4.4
   build_runner: ^2.4.9
   flutter_launcher_icons: ^0.14.2
-
-# Icônes d'application BABIFIX (logo sur fond navy) — iOS uniquement ici
-# (Android déjà configuré). Génère : dart run flutter_launcher_icons
-flutter_launcher_icons:
-  ios: true
-  android: false
-  remove_alpha_ios: true
-  background_color_ios: "#0B1B34"
-  image_path: "assets/images/logo_babifix.png"
-
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+# Icones d'application BABIFIX (logo sur fond navy) : iOS uniquement ici
+# (Android deja configure). Genere : dart run flutter_launcher_icons
+flutter_launcher_icons:
+  ios: true
+  android: false
+  remove_alpha_ios: true
+  background_color_ios: "#0B1B34"
+  image_path: "assets/images/logo_babifix.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -116,11 +115,13 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/category-icons/
     - assets/illustrations/
     - assets/illustrations/icons/
     - assets/payment_logos/
     - assets/animations/
     - assets/lottie/
+    - assets/audio/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../user_store.dart';
-import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/babifix_suggestion_chips.dart';
 
@@ -173,6 +173,7 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
             FilledButton(
               onPressed: () => Navigator.pop(context),
               style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
                   backgroundColor: BabifixDesign.ciOrange),
               child: const Text('Retour'),
             ),
@@ -358,27 +359,12 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
           ),
           const SizedBox(height: 24),
           // ── Bouton ───────────────────────────────────────────────────
-          SizedBox(
+          BabifixButton(
+            label: 'Envoyer mon évaluation',
+            isLoading: _submitting,
             width: double.infinity,
             height: 52,
-            child: FilledButton(
-              onPressed: _submitting ? null : _submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: BabifixDesign.ciOrange,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                        BabifixDesign.radiusMD)),
-              ),
-              child: _submitting
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: BabifixRingLoader.cyan(size: 28))
-                  : const Text('Envoyer mon évaluation',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700)),
-            ),
+            onPressed: _submitting ? null : _submit,
           ),
         ],
       ),

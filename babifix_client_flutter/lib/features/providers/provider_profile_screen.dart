@@ -13,6 +13,7 @@ import '../../models/client_models.dart';
 import '../../services/zego_call_service.dart';
 import '../../user_store.dart';
 import '../booking/booking_flow_screen.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +137,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
           if (token == null || token.isEmpty) {
             return {'ok': false, 'error': 'Non connecté'};
           }
-          debugPrint('📤 PROVIDER PROFILE — provider_id: ${widget.providerId}, title: ${data['title']}');
+          debugPrint('📤 PROVIDER PROFILE : provider_id: ${widget.providerId}, title: ${data['title']}');
           try {
             final uri = Uri.parse(
               '${babifixApiBaseUrl()}/api/client/reservations',
@@ -169,7 +170,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
               uri.toString(),
               body: jsonEncode(body),
             );
-            debugPrint('📥 RESPONSE — status: ${res.statusCode}, body: ${res.body}');
+            debugPrint('📥 RESPONSE : status: ${res.statusCode}, body: ${res.body}');
             if (res.statusCode == 201) {
               final respJson = jsonDecode(res.body) as Map<String, dynamic>;
               return {
@@ -214,8 +215,12 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
     final isCertified = (p['is_certified'] ?? false) as bool;
     final isPremium = (p['is_premium'] ?? false) as bool;
     final premiumTier = (p['premium_tier'] ?? '') as String;
-    final photoUrl = (p['photo_portrait_url'] ?? p['photo_url'] ?? '') as String;
-    final portfolioPhotos = (p['portfolio_photos'] as List? ?? []);
+    final photoUrl = babifixResolveMediaUrl(
+      (p['photo_portrait_url'] ?? p['photo_url'] ?? '') as String,
+    );
+    final portfolioPhotos = (p['portfolio_photos'] as List? ?? [])
+        .map((e) => e is String ? babifixResolveMediaUrl(e) : e)
+        .toList();
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D1117) : const Color(0xFFF0F2F5),
@@ -809,21 +814,13 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
                    ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton.icon(
+                    child: BabifixButton(
+                      label: disponible
+                          ? 'Réserver : devis sur mesure'
+                          : 'Indisponible',
+                      icon: Icons.calendar_month_rounded,
+                      height: 52,
                       onPressed: disponible ? _openReservation : null,
-                      icon: const Icon(Icons.calendar_month_rounded, size: 20),
-                      label: Text(
-                        disponible
-                            ? 'Réserver : devis sur mesure'
-                            : 'Indisponible',
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: disponible ? BabifixDesign.cyan : Colors.grey.shade300,
-                        foregroundColor: disponible ? BabifixDesign.navy : Colors.grey.shade600,
-                        minimumSize: const Size(0, 54),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
                     ),
                   ),
                 ],
@@ -892,14 +889,14 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
                 style: const TextStyle(color: Colors.white60, fontSize: 15),
               ),
               const SizedBox(height: 28),
-              FilledButton.icon(
+              BabifixButton(
+                label: 'Réessayer',
+                icon: Icons.refresh_rounded,
+                backgroundColor: BabifixDesign.cyan,
+                foregroundColor: BabifixDesign.navy,
+                width: 180,
+                height: 46,
                 onPressed: _load,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Réessayer'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: BabifixDesign.cyan,
-                  foregroundColor: BabifixDesign.navy,
-                ),
               ),
             ],
           ),

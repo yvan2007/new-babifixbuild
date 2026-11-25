@@ -1,8 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -10,22 +10,82 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
-import '../../user_store.dart';
-import '../auth/auth_screen.dart';
-import '../../shared/widgets/babifix_suggestion_chips.dart';
+import '../../services/babifix_api.dart';
+import '../chat/chat_room_screen.dart';
+import '../../shared/geo_utils.dart';
+import '../../shared/services/nominatim_geocode.dart';
+import '../../shared/services/smart_gps.dart';
 import '../../shared/widgets/address_search_field.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_dynamic_requirements.dart';
 import '../../shared/widgets/babifix_osm_map.dart';
+import '../../shared/widgets/babifix_page_route.dart';
+import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_sheet.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/babifix_suggestion_chips.dart';
+import '../../shared/widgets/babifix_voice_note.dart';
 import '../../shared/widgets/gps_location_card.dart';
 import '../../shared/widgets/payment_method_logo.dart';
-import '../../shared/widgets/babifix_ring_loader.dart';
-import '../../shared/widgets/babifix_snackbar.dart';
-import '../../shared/widgets/babifix_voice_note.dart';
-import '../../shared/widgets/babifix_dynamic_requirements.dart';
-import '../../services/babifix_api.dart';
-import '../../shared/geo_utils.dart';
+import '../../user_store.dart';
+import '../auth/auth_screen.dart';
 
-/// Flow de réservation en 4 étapes :
-/// 0 → Date & heure  1 → Adresse  2 → Récapitulatif  3 → Confirmation
+/// Palette adaptative (clair sobre par defaut ou sombre selon le theme actif).
+class _BookingPalette {
+  const _BookingPalette({
+    required this.isLight,
+    required this.pageBg,
+    required this.cardBg,
+    required this.softBg,
+    required this.border,
+    required this.textPrimary,
+    required this.textMuted,
+    required this.accent,
+    required this.accentSoft,
+    required this.accentOnFill,
+    required this.success,
+    required this.danger,
+  });
+
+  final bool isLight;
+  final Color pageBg;
+  final Color cardBg;
+  final Color softBg;
+  final Color border;
+  final Color textPrimary;
+  final Color textMuted;
+  final Color accent;
+  final Color accentSoft;
+  final Color accentOnFill;
+  final Color success;
+  final Color danger;
+
+  factory _BookingPalette.of(BuildContext context) {
+    final light = Theme.of(context).brightness == Brightness.light;
+    final whiteMode = BabifixDesign.isWhiteMode(context);
+    return _BookingPalette(
+      isLight: light,
+      pageBg: light
+          ? (whiteMode ? BabifixDesign.bgWhite : BabifixDesign.bgLight)
+          : BabifixDesign.obsidian,
+      cardBg: light ? BabifixDesign.bgWhite : BabifixDesign.navySurface,
+      softBg: light ? BabifixDesign.bgSoft : BabifixDesign.navyElevated,
+      border: light ? BabifixDesign.borderLight : BabifixDesign.borderDark,
+      textPrimary: light ? BabifixDesign.textStrongLight : BabifixDesign.textStrongDark,
+      textMuted: light ? BabifixDesign.textMutedLight : BabifixDesign.textMutedDark,
+      accent: light ? BabifixDesign.cyanDeep : BabifixDesign.cyan,
+      accentSoft: light
+          ? const Color(0xFFE0F2FE)
+          : BabifixDesign.cyan.withValues(alpha: 0.14),
+      accentOnFill: light ? Colors.white : BabifixDesign.navy,
+      success: light ? BabifixDesign.emeraldForest : const Color(0xFF4ADE80),
+      danger: light ? const Color(0xFFB91C1C) : const Color(0xFFFCA5A5),
+    );
+  }
+}
+
+/// Flow de reservation en 4 etapes :
+/// 0 -> Besoin  1 -> Adresse  2 -> Disponibilite & paiement  3 -> Confirmation
 class BookingFlowScreen extends StatefulWidget {
   const BookingFlowScreen({
     super.key,
@@ -47,7 +107,7 @@ class BookingFlowScreen extends StatefulWidget {
   final String? providerSpecialite;
   final int? providerId;
   final Future<Map<String, dynamic>?> Function(Map<String, dynamic> data)?
-  onConfirm;
+      onConfirm;
 
   @override
   State<BookingFlowScreen> createState() => _BookingFlowScreenState();
@@ -57,9 +117,83 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   int _step = 0;
 
   final _problemeCtrl = TextEditingController();
-  // Note vocale décrivant le besoin (facultative) : URL après upload.
   String _audioProblemeUrl = '';
   bool _audioUploading = false;
+  String _videoProblemeUrl = '';
+  bool _videoUploading = false;
+  String _demandeType = '';
+
+  static const List<(String, String, IconData)> _demandeTypes = [
+    ('panne', 'Panne / reparation', Icons.build_rounded),
+    ('maintenance', 'Maintenance', Icons.handyman_rounded),
+    ('renovation', 'Renovation', Icons.format_paint_rounded),
+    ('installation', 'Installation', Icons.add_home_work_rounded),
+    ('conseil', 'Devis / conseil', Icons.request_quote_rounded),
+    ('autre', 'Autre besoin', Icons.more_horiz_rounded),
+  ];
+
+  final _addressCtrl = TextEditingController();
+  final _repereCtrl = TextEditingController();
+  final _msgCtrl = TextEditingController();
+  bool _submitting = false;
+  String _paymentType = 'ESPECES';
+  bool _isUrgent = false;
+  Map<String, dynamic>? _sosPreview;
+  int _alertedSosCount = 0;
+  String _disponibilites = '';
+  bool _checkingAvailability = false;
+  bool? _providerAvailable;
+  String _availabilityMessage = '';
+  DateTime? _selectedDate;
+  List<Map<String, dynamic>> _availableCreneaux = [];
+  String _reservationReference = '';
+
+  List<Map<String, dynamic>> _exigTemplate = [];
+  String _exigProfil = 'STANDARD';
+  final Map<String, dynamic> _reponsesExigences = {};
+
+  LatLng _mapPin = BabifixOsmLocationPicker.defaultCenter;
+  bool _mapPinFromUser = false;
+  bool _gpsAutoTried = false;
+  GpsLocationState _gpsState = GpsLocationState.idle;
+  List<Uint8List> _photos = [];
+  List<Map<String, dynamic>> _savedAddresses = [];
+  dynamic _selectedSavedAddressId;
+
+  static const _steps = ['Besoin', 'Adresse', 'Creneau', 'Envoye'];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoLocate());
+    _loadSavedAddresses();
+    _loadRequirements();
+    _loadSosPreview();
+  }
+
+  Future<void> _loadSosPreview() async {
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      if (token == null || token.isEmpty) return;
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/client/sos/preview/?title=${Uri.encodeComponent(widget.serviceTitle)}',
+      );
+      final resp = await http.get(uri, headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 6));
+      if (resp.statusCode == 200 && mounted) {
+        final j = jsonDecode(resp.body) as Map<String, dynamic>;
+        setState(() => _sosPreview = j);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _problemeCtrl.dispose();
+    _addressCtrl.dispose();
+    _repereCtrl.dispose();
+    _msgCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _onVoiceRecorded(String path, int durationSeconds) async {
     setState(() => _audioUploading = true);
@@ -74,23 +208,18 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _audioUploading = false);
-        showBabifixToast(context,
-            type: BabifixToastType.error,
-            message: 'Envoi de la note vocale échoué.');
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Envoi de la note vocale echoue.',
+        );
       }
     }
   }
 
-  // Courte vidéo du problème (facultative) : URL après upload.
-  String _videoProblemeUrl = '';
-  bool _videoUploading = false;
-
   Future<void> _pickVideo(ImageSource source) async {
     try {
       final picker = ImagePicker();
-      // Durée bornée à 30 s CÔTÉ CLIENT : garde le fichier léger sur un réseau
-      // mobile, et évite qu'un client filme un long chantier au lieu de
-      // décrire un problème ponctuel.
       final XFile? video = await picker.pickVideo(
         source: source,
         maxDuration: const Duration(seconds: 30),
@@ -107,79 +236,15 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _videoUploading = false);
-        showBabifixToast(context,
-            type: BabifixToastType.error,
-            message: 'Envoi de la vidéo échoué.');
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Envoi de la video echoue.',
+        );
       }
     }
   }
-  // Nature de la demande (facultatif) : panne, maintenance, rénovation… Plus
-  // précis qu'un texte libre. Vide = non précisé.
-  String _demandeType = '';
-  static const List<(String, String, IconData)> _demandeTypes = [
-    ('panne', 'Panne / réparation', Icons.build_rounded),
-    ('maintenance', 'Maintenance / entretien', Icons.handyman_rounded),
-    ('renovation', 'Réaménagement / rénovation', Icons.format_paint_rounded),
-    ('installation', 'Installation / pose', Icons.add_home_work_rounded),
-    ('conseil', 'Devis / conseil', Icons.request_quote_rounded),
-    ('autre', 'Autre', Icons.more_horiz_rounded),
-  ];
-  final _addressCtrl = TextEditingController();
-  // Point de repère libre saisi par le client (ex : « à côté de la pharmacie
-  // Saint-Joseph », « en face de l'école Sainte-Marie »). Affiché en
-  // surbrillance dans la fiche prestataire — c'est souvent la donnée la
-  // plus utile pour trouver le client sur place.
-  final _repereCtrl = TextEditingController();
-  final _msgCtrl = TextEditingController();
-  final _prixProposeCtrl = TextEditingController();
-  bool _submitting = false;
-  String _paymentType = 'ESPECES';
-  String _mmOperator = 'ORANGE_MONEY';
-  bool _isUrgent = false;
-  String _disponibilites = '';
-  bool _checkingAvailability = false;
-  bool? _providerAvailable;
-  String _availabilityMessage = '';
-  // Date prévue choisie par le client (envoyée comme scheduled_date) → sert à
-  // empêcher le presta de démarrer avant le jour prévu.
-  DateTime? _selectedDate;
-  List<Map<String, dynamic>> _availableCreneaux = [];
-  String _reservationReference = '';
 
-  // Devis intelligent (Phase 2) : questions dynamiques propres à la catégorie
-  // du prestataire. Vide = catégorie STANDARD → formulaire habituel.
-  List<Map<String, dynamic>> _exigTemplate = [];
-  String _exigProfil = 'STANDARD';
-  final Map<String, dynamic> _reponsesExigences = {};
-
-  LatLng _mapPin = BabifixOsmLocationPicker.defaultCenter;
-
-  /// `true` après un tap sur la carte ou « Ma position » — sinon on n'envoie pas lat/lng à l'API.
-  bool _mapPinFromUser = false;
-  bool _gpsAutoTried = false;
-  bool _resolvingGps = false;
-  GpsLocationState _gpsState = GpsLocationState.idle;
-  List<Uint8List> _photos = [];
-
-  static const _steps = ['Problème', 'Adresse', 'Disponibilité', 'Envoyé'];
-
-  @override
-  // Carnet d'adresses du client (Maison, Bureau…).
-  List<Map<String, dynamic>> _savedAddresses = [];
-
-  void initState() {
-    super.initState();
-    // GPS automatique — non bloquant.
-    // Si l'utilisateur autorise, on récupère sa position + ville en
-    // reverse-geocoding et on pré-remplit le champ adresse. Il pourra
-    // toujours saisir une autre adresse à la main (non obligatoire).
-    WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoLocate());
-    _loadSavedAddresses();
-    _loadRequirements();
-  }
-
-  /// Construit le payload auto-descriptif des réponses aux exigences :
-  /// {key: {label, value, unit?}}. Ignore les réponses vides.
   Map<String, dynamic> _buildReponsesExigences() {
     if (_exigTemplate.isEmpty || _reponsesExigences.isEmpty) return {};
     final out = <String, dynamic>{};
@@ -199,14 +264,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     return out;
   }
 
-  /// Charge les questions dynamiques de la catégorie du prestataire choisi.
-  /// Best-effort : en cas d'échec, template vide → formulaire habituel.
   Future<void> _loadRequirements() async {
     final pid = widget.providerId;
     if (pid == null) return;
     try {
-      final r =
-          await BabifixUserStore.authGet('/api/providers/$pid/requirements/');
+      final r = await BabifixUserStore.authGet('/api/providers/$pid/requirements/');
       if (r.statusCode == 200 && mounted) {
         final d = jsonDecode(r.body) as Map<String, dynamic>;
         final tpl = (d['template_exigences'] as List?) ?? const [];
@@ -227,58 +289,59 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       if (r.statusCode == 200 && mounted) {
         final d = jsonDecode(r.body) as Map<String, dynamic>;
         setState(() {
-          _savedAddresses =
-              List<Map<String, dynamic>>.from(d['addresses'] ?? []);
+          _savedAddresses = List<Map<String, dynamic>>.from(d['addresses'] ?? []);
         });
       }
     } catch (_) {}
   }
 
-  /// Le client choisit une adresse enregistrée → on place le pin dessus.
   void _applySavedAddress(Map<String, dynamic> a) {
     final lat = (a['latitude'] as num?)?.toDouble();
     final lon = (a['longitude'] as num?)?.toDouble();
     if (lat == null || lon == null) return;
     setState(() {
+      _selectedSavedAddressId = a['id'] ?? '${a['label'] ?? ''}:${lat}_$lon';
       _mapPin = LatLng(lat, lon);
       _mapPinFromUser = true;
       _addressCtrl.text = '${a['address_label'] ?? a['label'] ?? ''}'.trim();
       _repereCtrl.text = '${a['address_repere'] ?? ''}'.trim();
     });
-    _mapCtrlMoveSafe(_mapPin);
-    showBabifixToast(context,
-        type: BabifixToastType.success,
-        message: 'Adresse « ${a['label']} » sélectionnée.');
+    showBabifixToast(
+      context,
+      type: BabifixToastType.success,
+      message: 'Localite « ${a['label']} » selectionnee.',
+    );
   }
 
-  void _mapCtrlMoveSafe(LatLng p) {
-    // La carte se recadrera via mapPin (passé en paramètre au widget enfant).
-  }
-
-  /// Enregistre le lieu actuellement choisi (pin) dans le carnet.
   Future<void> _saveCurrentLocation() async {
+    final pal = _BookingPalette.of(context);
     final labelCtrl = TextEditingController();
     final label = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1628),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: pal.cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(
           children: [
             Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: BabifixDesign.cyan.withValues(alpha: 0.15),
+                color: pal.accentSoft,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.bookmark_add_rounded,
-                  color: BabifixDesign.cyan, size: 18),
+              child: Icon(Icons.bookmark_add_rounded, color: pal.accent, size: 18),
             ),
             const SizedBox(width: 12),
-            const Expanded(
-              child: Text('Enregistrer ce lieu',
-                  style: TextStyle(color: Colors.white, fontSize: 17)),
+            Expanded(
+              child: Text(
+                'Enregistrer ce lieu',
+                style: TextStyle(
+                  color: pal.textPrimary,
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ],
         ),
@@ -289,23 +352,23 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
             TextField(
               controller: labelCtrl,
               autofocus: true,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: pal.textPrimary),
               decoration: InputDecoration(
-                hintText: 'Maison, Bureau, Chez maman…',
-                hintStyle: const TextStyle(color: Colors.white38),
+                hintText: 'Maison, Bureau, Chez maman...',
+                hintStyle: TextStyle(color: pal.textMuted),
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
+                fillColor: pal.softBg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                  borderSide: BorderSide(color: pal.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                  borderSide: BorderSide(color: pal.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: BabifixDesign.cyan, width: 1.5),
+                  borderSide: BorderSide(color: pal.accent, width: 1.5),
                 ),
               ),
             ),
@@ -317,9 +380,9 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
                 for (final s in ['Maison', 'Bureau', 'Chez maman'])
                   ActionChip(
                     label: Text(s, style: const TextStyle(fontSize: 12.5)),
-                    backgroundColor: Colors.white.withValues(alpha: 0.06),
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
-                    labelStyle: const TextStyle(color: Colors.white70),
+                    backgroundColor: pal.softBg,
+                    side: BorderSide(color: pal.border),
+                    labelStyle: TextStyle(color: pal.textPrimary),
                     onPressed: () => labelCtrl.text = s,
                   ),
               ],
@@ -328,12 +391,13 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Annuler')),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Annuler', style: TextStyle(color: pal.textMuted)),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: BabifixDesign.cyan,
-              foregroundColor: BabifixDesign.navy,
+              backgroundColor: BabifixDesign.ciOrange,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => Navigator.pop(ctx, labelCtrl.text.trim()),
@@ -358,9 +422,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       if (r.statusCode == 201) {
         await _loadSavedAddresses();
         if (mounted) {
-          showBabifixToast(context,
-              type: BabifixToastType.success,
-              message: 'Lieu « $label » enregistré.');
+          showBabifixToast(
+            context,
+            type: BabifixToastType.success,
+            message: 'Lieu « $label » enregistre.',
+          );
         }
       }
     } catch (_) {}
@@ -370,53 +436,41 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     if (_gpsAutoTried && !forceRefresh) return;
     _gpsAutoTried = true;
     if (!mounted) return;
-    setState(() {
-      _resolvingGps = true;
-      _gpsState = GpsLocationState.resolving;
-    });
+    setState(() => _gpsState = GpsLocationState.resolving);
     try {
-      // Vérifie la permission, demande si nécessaire
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        if (mounted) setState(() => _gpsState = GpsLocationState.denied);
-        return;
-      }
-      final svcOn = await Geolocator.isLocationServiceEnabled();
-      if (!svcOn) {
-        if (mounted) setState(() => _gpsState = GpsLocationState.denied);
-        return;
-      }
-
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 8),
-        ),
-      ).timeout(const Duration(seconds: 10));
-
+      final gps = await acquireSmartGps(forceFresh: forceRefresh);
       if (!mounted) return;
-      // Garde-fou : si le GPS (émulateur) est hors CI, on retombe sur Abidjan
-      // pour éviter de stocker des coordonnées (37, -122) dans la réservation.
-      final LatLng safePin = isInCotedIvoire(pos.latitude, pos.longitude)
-          ? LatLng(pos.latitude, pos.longitude)
-          : const LatLng(kAbidjanLat, kAbidjanLon);
+      if (gps.hasHardError) {
+        setState(() => _gpsState = GpsLocationState.denied);
+        if (forceRefresh && gps.friendlyMessage != null) {
+          showBabifixToast(
+            context,
+            type: BabifixToastType.info,
+            message: gps.friendlyMessage!,
+          );
+        }
+        return;
+      }
+      LatLng safePin;
+      if (gps.ok && gps.inCoteIvoire) {
+        safePin = gps.position!;
+      } else {
+        final saved = await BabifixUserStore.loadAddressCoords();
+        safePin = saved != null
+            ? LatLng(saved.lat, saved.lng)
+            : const LatLng(kAbidjanLat, kAbidjanLon);
+        if (!mounted) return;
+      }
       setState(() {
         _mapPin = safePin;
-        _mapPinFromUser = true; // → on enverra lat/lng au backend
+        _mapPinFromUser = true;
         _gpsState = GpsLocationState.detected;
       });
-      // Reverse-geocoding → libellé lisible « Quartier, Ville » (jamais de
-      // coordonnées brutes). Ne remplit que si l'utilisateur n'a rien saisi.
       await _reverseGeocodeShort(
         safePin,
-        overwrite: _addressCtrl.text.trim().isEmpty,
+        overwrite: forceRefresh || _addressCtrl.text.trim().isEmpty,
       );
     } catch (_) {
-      // Échec : on bascule en état "denied" pour proposer la saisie manuelle.
       if (mounted) {
         setState(() {
           _gpsState = _gpsState == GpsLocationState.detected
@@ -424,27 +478,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
               : GpsLocationState.denied;
         });
       }
-    } finally {
-      if (mounted) setState(() => _resolvingGps = false);
     }
   }
 
-  @override
-  void dispose() {
-    _addressCtrl.dispose();
-    _repereCtrl.dispose();
-    _msgCtrl.dispose();
-    _prixProposeCtrl.dispose();
-    super.dispose();
-  }
+  void _goTo(int step) => setState(() => _step = step);
 
-  void _goTo(int step) {
-    setState(() => _step = step);
-  }
-
-  // ── Reverse-geocoding « court » ────────────────────────────────────────────
-  // Construit un libellé lisible (« Cocody, Abidjan ») à partir des champs
-  // d'adresse Nominatim, plutôt qu'un display_name verbeux ou des coordonnées.
   int _revGeoSeq = 0;
 
   String _shortPlaceLabel(Map<String, dynamic> addr) {
@@ -456,7 +494,6 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       return '';
     }
 
-    // Rue + numéro (essentiels pour qu'un artisan puisse trouver l'adresse).
     final house = pick(['house_number']);
     final road = pick(['road', 'street', 'pedestrian', 'footway', 'path']);
     final quartier = pick([
@@ -467,32 +504,22 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       'residential',
       'hamlet',
     ]);
-    final ville = pick([
-      'city',
-      'town',
-      'municipality',
-      'village',
-      'county',
-    ]);
+    final ville = pick(['city', 'town', 'municipality', 'village', 'county']);
     final region = pick(['state', 'region']);
 
     final parts = <String>[];
-    // 1. Rue (+ numéro si dispo) — la plus précise
     if (road.isNotEmpty) {
       parts.add(house.isNotEmpty ? '$house $road' : road);
     }
-    // 2. Quartier — repère intermédiaire
     if (quartier.isNotEmpty && !parts.contains(quartier)) parts.add(quartier);
-    // 3. Ville — toujours utile au cas où l'artisan vient d'ailleurs
     if (ville.isNotEmpty && !parts.contains(ville)) parts.add(ville);
-    // 4. Fallback : si rien d'autre, au moins la région
     if (parts.isEmpty && region.isNotEmpty) parts.add(region);
-
     return parts.join(', ');
   }
 
   Future<void> _reverseGeocodeShort(LatLng p, {bool overwrite = true}) async {
     final seq = ++_revGeoSeq;
+    String label = '';
     try {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse'
@@ -501,13 +528,12 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       );
       final r = await http
           .get(url, headers: {'User-Agent': 'BABIFIX/1.0 client'})
-          .timeout(const Duration(seconds: 6));
-      // Une requête plus récente a pris le relais → on ignore ce résultat.
+          .timeout(const Duration(seconds: 5));
       if (!mounted || seq != _revGeoSeq) return;
       if (r.statusCode == 200) {
         final j = jsonDecode(r.body) as Map<String, dynamic>;
         final addr = (j['address'] as Map<String, dynamic>?) ?? const {};
-        var label = _shortPlaceLabel(addr);
+        label = _shortPlaceLabel(addr);
         if (label.isEmpty) {
           label = (j['display_name'] ?? '')
               .toString()
@@ -517,13 +543,14 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
               .where((s) => s.isNotEmpty)
               .join(', ');
         }
-        if (label.isNotEmpty &&
-            (overwrite || _addressCtrl.text.trim().isEmpty)) {
-          setState(() => _addressCtrl.text = label);
-        }
       }
-    } catch (_) {
-      // Silencieux : on conserve l'adresse existante, jamais de coordonnées.
+    } catch (_) {}
+    if (!mounted || seq != _revGeoSeq) return;
+    if (label.isEmpty) {
+      label = resolveNearestCivCommune(p.latitude, p.longitude).displayName;
+    }
+    if (label.isNotEmpty && (overwrite || _addressCtrl.text.trim().isEmpty)) {
+      setState(() => _addressCtrl.text = label);
     }
   }
 
@@ -543,36 +570,30 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         '?provider_id=${widget.providerId}'
         '&date=${date.toIso8601String().split('T')[0]}',
       );
-      // L'endpoint exige un token client → on l'envoie (sinon 401 + l'écran
-      // de dispo restait vide).
       final token = await BabifixUserStore.getApiToken();
-      final resp = await http.get(
-        uri,
-        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
-      ).timeout(const Duration(seconds: 10));
+      final resp = await http
+          .get(uri, headers: token != null ? {'Authorization': 'Bearer $token'} : null)
+          .timeout(const Duration(seconds: 10));
 
-      if (resp.statusCode == 200) {
+      if (resp.statusCode == 200 && mounted) {
         final data = jsonDecode(resp.body);
         setState(() {
           _providerAvailable = data['available'] as bool?;
           if (data['available'] == true) {
-            // Avis NON bloquant : si le presta a déjà une intervention ce
-            // jour-là, on le signale + on propose d'autres jours (optionnel).
             if (data['busy_that_day'] == true) {
               final sugg = (data['suggested_dates'] as List?)
                       ?.map((e) => '$e')
                       .toList() ??
                   const [];
               final notice = (data['notice'] as String?) ??
-                  'Ce prestataire a déjà une intervention ce jour-là.';
+                  'Ce prestataire a deja une intervention ce jour-la.';
               _availabilityMessage = sugg.isNotEmpty
                   ? '$notice\nJours libres : ${sugg.join(' · ')}'
                   : notice;
             } else {
-              _availabilityMessage = 'Prestataire disponible !';
+              _availabilityMessage = 'Prestataire disponible sur cette date.';
             }
-            _availableCreneaux =
-                (data['creneaux'] as List?)
+            _availableCreneaux = (data['creneaux'] as List?)
                     ?.map((c) => c as Map<String, dynamic>)
                     .toList() ??
                 [];
@@ -581,45 +602,41 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           }
         });
       }
-    } catch (e) {
-      setState(() {
-        _providerAvailable = null;
-        _availabilityMessage = '';
-      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _providerAvailable = null;
+          _availabilityMessage = '';
+        });
+      }
     }
 
-    setState(() => _checkingAvailability = false);
+    if (mounted) setState(() => _checkingAvailability = false);
   }
 
-  /// Vérifie auprès du serveur s'il existe déjà une prestation active avec ce
-  /// prestataire (→ blocage strict) ou dans la même catégorie chez un autre
-  /// prestataire (→ avertissement confirmable). Retourne `true` si on peut
-  /// poursuivre la réservation, `false` si on doit l'interrompre.
   Future<bool> _precheckDuplicates() async {
     try {
       final token = await BabifixUserStore.getApiToken();
-      if (token == null || token.isEmpty) return true; // login géré plus loin
-      final uri =
-          Uri.parse(
-            '${babifixApiBaseUrl()}/api/client/reservations/check-duplicate',
-          ).replace(
-            queryParameters: {
-              if (widget.providerId != null)
-                'provider_id': '${widget.providerId}',
-              'title': widget.serviceTitle,
-            },
-          );
+      if (token == null || token.isEmpty) return true;
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/client/reservations/check-duplicate',
+      ).replace(
+        queryParameters: {
+          if (widget.providerId != null) 'provider_id': '${widget.providerId}',
+          'title': widget.serviceTitle,
+        },
+      );
       final resp = await http
           .get(uri, headers: {'Authorization': 'Bearer $token'})
           .timeout(const Duration(seconds: 12));
-      if (resp.statusCode != 200) return true; // tolérant : backend tranchera
+      if (resp.statusCode != 200) return true;
       final j = jsonDecode(resp.body) as Map<String, dynamic>;
       final dupProvider = j['duplicate_provider'] as Map<String, dynamic>?;
       final dupCategory = j['duplicate_category'] as Map<String, dynamic>?;
       if (!mounted) return false;
       if (dupProvider != null) {
         await _showDuplicateProviderDialog(dupProvider);
-        return false; // blocage strict : on ne réserve pas
+        return false;
       }
       if (dupCategory != null) {
         final proceed = await _showDuplicateCategoryDialog(dupCategory);
@@ -627,7 +644,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       }
       return true;
     } catch (_) {
-      return true; // en cas d'erreur réseau, on laisse le backend décider
+      return true;
     }
   }
 
@@ -639,12 +656,11 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       builder: (ctx) => _DuplicateDialog(
         accent: const Color(0xFFEF4444),
         icon: Icons.block_rounded,
-        title: 'Prestation déjà en cours',
+        title: 'Prestation deja en cours',
         message:
-            'Vous avez déjà une prestation en cours avec $presta'
-            '${ref.isNotEmpty ? ' (réf. $ref)' : ''}.\n\n'
-            "Pour un bon suivi, terminez cette prestation avant d'en "
-            'réserver une nouvelle avec le même prestataire.',
+            'Vous avez deja une prestation en cours avec $presta'
+            '${ref.isNotEmpty ? ' (ref. $ref)' : ''}.\n\n'
+            'Terminez cette prestation avant d\'en reserver une nouvelle avec le meme prestataire.',
         primaryLabel: "J'ai compris",
         onPrimary: () => Navigator.of(ctx).pop(),
       ),
@@ -662,15 +678,13 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         icon: Icons.warning_amber_rounded,
         title: 'Prestation similaire en cours',
         message:
-            'Vous avez déjà une prestation '
-            '${cat.isNotEmpty ? '« $cat »' : 'de cette catégorie'} en cours '
-            'avec $presta${ref.isNotEmpty ? ' (réf. $ref)' : ''}.\n\n'
-            "Il est recommandé de terminer une prestation avant d'en lancer "
-            'une autre dans la même catégorie. Voulez-vous tout de même '
-            'continuer ?',
+            'Vous avez deja une prestation '
+            '${cat.isNotEmpty ? '« $cat »' : 'de cette categorie'} en cours '
+            'avec $presta${ref.isNotEmpty ? ' (ref. $ref)' : ''}.\n\n'
+            'Voulez-vous tout de meme continuer ?',
         secondaryLabel: 'Annuler',
         onSecondary: () => Navigator.of(ctx).pop(false),
-        primaryLabel: 'Continuer quand même',
+        primaryLabel: 'Continuer quand meme',
         onPrimary: () => Navigator.of(ctx).pop(true),
       ),
     );
@@ -678,24 +692,23 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
 
   Future<void> _submit() async {
     if (_submitting) return;
-    // Garde-fou : jamais de réservation sans position précise (le presta doit
-    // pouvoir s'y rendre). Normalement déjà bloqué à l'étape adresse.
     if (!_mapPinFromUser) {
       showBabifixToast(
         context,
         type: BabifixToastType.info,
-        message: "Épinglez votre position exacte sur la carte avant de réserver.",
+        message: 'Epinglez votre position exacte sur la carte avant de reserver.',
       );
       _goTo(1);
       return;
     }
     setState(() => _submitting = true);
-    // Pré-vérification anti-doublon (UX) — le backend bloque aussi en dur.
     final canProceed = await _precheckDuplicates();
     if (!canProceed) {
       if (mounted) setState(() => _submitting = false);
       return;
     }
+    final isSosEligible = _sosPreview?['eligible'] == true;
+    final useSosMode = _isUrgent && isSosEligible;
     final data = <String, dynamic>{
       'title': widget.serviceTitle,
       'description_probleme': _problemeCtrl.text.trim(),
@@ -705,14 +718,12 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       'client_message': _msgCtrl.text.trim(),
       'disponibilites_client': _disponibilites,
       if (_selectedDate != null)
-        'scheduled_date':
-            _selectedDate!.toIso8601String().split('T')[0],
+        'scheduled_date': _selectedDate!.toIso8601String().split('T')[0],
       'is_urgent': _isUrgent,
+      if (useSosMode) 'sos_mode': true,
       'payment_type': _paymentType,
-      // NB : on n'envoie PAS l'opérateur Mobile Money ici. Le client le
-      // choisira au moment du paiement, une fois le devis reçu (montant connu).
-      if (widget.providerId != null) 'provider_id': widget.providerId,
-      if (widget.providerName != null) 'prestataire_name': widget.providerName,
+      if (!useSosMode && widget.providerId != null) 'provider_id': widget.providerId,
+      if (!useSosMode && widget.providerName != null) 'prestataire_name': widget.providerName,
     };
     if (_mapPinFromUser) {
       data['latitude'] = _mapPin.latitude;
@@ -729,25 +740,17 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
     if (_videoProblemeUrl.isNotEmpty) {
       data['video_probleme'] = _videoProblemeUrl;
     }
-    // Réponses aux questions dynamiques de la catégorie (Phase 2). Absent si
-    // aucune question → l'API reçoit un dict vide (comportement actuel).
-    // Payload auto-descriptif {key: {label, value, unit}} : le prestataire
-    // affiche label + valeur sans avoir besoin du template.
     final reponses = _buildReponsesExigences();
     if (reponses.isNotEmpty) {
       data['reponses_exigences'] = reponses;
     }
 
-    // Réserver = action authentifiée. Si le client N'EST PAS connecté, on ouvre
-    // l'écran d'auth ICI (avant tout appel onConfirm/API) puis on REPREND
-    // automatiquement la réservation en cours — il ne perd pas sa saisie et
-    // n'a pas à tout recommencer. Centralisé ici → vaut pour toutes les entrées.
     var authTok = await BabifixUserStore.getApiToken();
     if ((authTok == null || authTok.isEmpty) && mounted) {
       bool loggedIn = false;
       await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => AuthScreen(
+        babifixRoute(
+          (_) => AuthScreen(
             onAuthSuccess: () {
               loggedIn = true;
               Navigator.of(context).maybePop();
@@ -757,27 +760,25 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       );
       if (loggedIn) authTok = await BabifixUserStore.getApiToken();
       if (authTok == null || authTok.isEmpty) {
-        // Toujours pas connecté (auth annulée) → on arrête proprement.
         if (mounted) {
           setState(() => _submitting = false);
           showBabifixToast(
             context,
             type: BabifixToastType.error,
-            title: 'Réservation',
-            message: 'Connectez-vous pour finaliser votre réservation',
+            title: 'Reservation',
+            message: 'Connectez-vous pour finaliser votre reservation.',
           );
         }
         return;
       }
     }
 
-    debugPrint('📤 RESERVATION SUBMIT — data: ${jsonEncode(data)}');
     if (!mounted) return;
     showBabifixToast(
       context,
       type: BabifixToastType.info,
-      title: 'Réservation',
-      message: 'Envoi de votre demande au prestataire…',
+      title: 'Reservation',
+      message: 'Envoi de votre demande au prestataire...',
       duration: const Duration(seconds: 2),
     );
 
@@ -792,30 +793,10 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         errorMsg = result['error'] as String?;
       }
     } else {
-      // Pas de callback fourni (ex: ouverture depuis la fiche prestataire) :
-      // on crée la réservation DIRECTEMENT via l'API. Avant, cette branche
-      // simulait un faux succès → la demande n'arrivait jamais au presta.
       try {
-        var token = await BabifixUserStore.getApiToken();
-        if ((token == null || token.isEmpty) && mounted) {
-          // Pas connecté → on ouvre l'écran d'auth ; au retour (connecté), on
-          // RELANCE automatiquement la création (avant : erreur sèche, le client
-          // devait tout recommencer sa réservation).
-          bool loggedIn = false;
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) => AuthScreen(
-                onAuthSuccess: () {
-                  loggedIn = true;
-                  Navigator.of(context).maybePop();
-                },
-              ),
-            ),
-          );
-          if (loggedIn) token = await BabifixUserStore.getApiToken();
-        }
+        final token = await BabifixUserStore.getApiToken();
         if (token == null || token.isEmpty) {
-          errorMsg = 'Connectez-vous pour réserver';
+          errorMsg = 'Connectez-vous pour reserver';
         } else {
           final resp = await http.post(
             Uri.parse('${babifixApiBaseUrl()}/api/client/reservations'),
@@ -823,32 +804,25 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
             },
-            body: jsonEncode({
-              ...data,
-              // S'assurer que le flux devis (visible côté presta) est activé.
-              'use_devis': true,
-            }),
+            body: jsonEncode({...data, 'use_devis': true}),
           );
           if (resp.statusCode == 201) {
             final j = jsonDecode(resp.body) as Map<String, dynamic>;
             ok = j['ok'] == true || j['reference'] != null;
             reference = j['reference'] as String?;
+            _alertedSosCount = (j['alerted_providers_count'] as num?)?.toInt() ?? 0;
           } else {
             try {
               final body = jsonDecode(resp.body) as Map<String, dynamic>;
-              // Privilégier le message lisible (ex: doublon) sur le code brut.
-              errorMsg =
-                  (body['message'] ??
-                          body['error'] ??
-                          'Erreur ${resp.statusCode}')
-                      .toString();
+              errorMsg = (body['message'] ?? body['error'] ?? 'Erreur ${resp.statusCode}')
+                  .toString();
             } catch (_) {
               errorMsg = 'Erreur ${resp.statusCode}';
             }
           }
         }
       } catch (e) {
-        errorMsg = 'Erreur réseau : $e';
+        errorMsg = 'Erreur reseau : $e';
       }
     }
     if (!mounted) return;
@@ -857,36 +831,30 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
       if (reference != null) _reservationReference = reference;
     });
     if (ok) {
-      debugPrint('✅ RESERVATION OK — reference: $reference');
-      if (!mounted) return;
       showBabifixToast(
         context,
         type: BabifixToastType.success,
-        title: 'Demande envoyée',
+        title: 'Demande envoyee',
         message: reference != null && reference.isNotEmpty
-            ? 'Votre demande a bien été transmise (réf. $reference).'
-            : 'Votre demande a bien été transmise au prestataire.',
+            ? 'Votre demande a bien ete transmise (ref. $reference).'
+            : 'Votre demande a bien ete transmise au prestataire.',
       );
       _goTo(3);
     } else {
-      debugPrint('❌ RESERVATION FAILED — error: $errorMsg');
-      if (!mounted) return;
       showBabifixToast(
         context,
         type: BabifixToastType.error,
-        title: 'Réservation impossible',
-        message: errorMsg ?? 'Une erreur est survenue. Réessayez.',
+        title: 'Reservation impossible',
+        message: errorMsg ?? 'Une erreur est survenue. Reessayez.',
         duration: const Duration(seconds: 4),
       );
     }
   }
 
-  Widget _buildCurrentStep(BuildContext context, Color text, Color sub) {
+  Widget _buildCurrentStep(BuildContext context) {
     switch (_step) {
       case 0:
         return _StepProbleme(
-          textColor: text,
-          subColor: sub,
           problemeCtrl: _problemeCtrl,
           demandeType: _demandeType,
           demandeTypes: _demandeTypes,
@@ -901,7 +869,6 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           videoUploading: _videoUploading,
           onPickVideo: _pickVideo,
           onVideoRemoved: () => setState(() => _videoProblemeUrl = ''),
-          // Questions dynamiques de la catégorie (Phase 2). Vide = rien affiché.
           exigencesTemplate: _exigTemplate,
           exigencesProfil: _exigProfil,
           reponsesExigences: _reponsesExigences,
@@ -921,10 +888,10 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
             }
             if (_problemeCtrl.text.trim().isEmpty) {
               showBabifixToast(
-        context,
-        type: BabifixToastType.info,
-        message: 'Décrivez votre problème.',
-      );
+                context,
+                type: BabifixToastType.info,
+                message: 'Decrivez votre besoin en quelques mots.',
+              );
               return;
             }
             final missing = babifixMissingRequirements(
@@ -936,62 +903,63 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
               showBabifixToast(
                 context,
                 type: BabifixToastType.info,
-                message: 'Complétez : ${missing.join(', ')}.',
+                message: 'Completez : ${missing.join(', ')}.',
               );
               return;
             }
             _goTo(1);
           },
           providerName: widget.providerName,
+          providerPhoto: widget.providerPhoto,
           providerSpecialite: widget.providerSpecialite,
           providerRating: widget.providerRating,
         );
       case 1:
         return _StepAddress(
-          textColor: text,
-          subColor: sub,
           addressCtrl: _addressCtrl,
           repereCtrl: _repereCtrl,
           msgCtrl: _msgCtrl,
           mapPin: _mapPin,
           gpsState: _gpsState,
-          onGpsRefresh: () => _tryAutoLocate(forceRefresh: true),
+          onGpsRefresh: () {
+            setState(() => _selectedSavedAddressId = null);
+            _tryAutoLocate(forceRefresh: true);
+          },
           savedAddresses: _savedAddresses,
+          selectedSavedAddressId: _selectedSavedAddressId,
           onPickSaved: _applySavedAddress,
-          onUseCurrent: () => _tryAutoLocate(forceRefresh: true),
+          onUseCurrent: () {
+            setState(() => _selectedSavedAddressId = null);
+            _tryAutoLocate(forceRefresh: true);
+          },
           onSaveCurrent: _saveCurrentLocation,
           onMapPinChanged: (p) => setState(() {
+            _selectedSavedAddressId = null;
             _mapPin = p;
             _mapPinFromUser = true;
+            _gpsState = GpsLocationState.detected;
           }),
           onMapTap: (p) {
             setState(() {
+              _selectedSavedAddressId = null;
               _mapPin = p;
               _mapPinFromUser = true;
+              _gpsState = GpsLocationState.detected;
             });
-            // Convertit la position en libellé lisible « Quartier, Ville ».
             _reverseGeocodeShort(p, overwrite: true);
           },
           onNext: () {
-            // Épingle OBLIGATOIRE : sans point précis, le prestataire ne peut
-            // pas se rendre chez le client (même après la caution). Un simple
-            // texte d'adresse ne suffit pas — on exige une position validée
-            // (tap sur la carte, « Ma position », ou adresse enregistrée
-            // géolocalisée).
             if (!_mapPinFromUser) {
               showBabifixToast(
                 context,
                 type: BabifixToastType.info,
-                message: "Épinglez votre position exacte sur la carte "
-                    "(ou « Ma position ») pour que le prestataire puisse "
-                    "vous trouver.",
+                message:
+                    'Epinglez votre position exacte sur la carte (ou « Ma position »).',
               );
               return;
             }
-            // Si pas de texte mais GPS dispo, on tente un libellé lisible
-            // (jamais de coordonnées brutes affichées à l'utilisateur).
             if (_addressCtrl.text.trim().isEmpty) {
-              _addressCtrl.text = 'Position sélectionnée sur la carte';
+              _addressCtrl.text = 'Position selectionnee sur la carte';
               _reverseGeocodeShort(_mapPin, overwrite: true);
             }
             _goTo(2);
@@ -1000,16 +968,13 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         );
       case 2:
         return _StepDisponibilite(
-          textColor: text,
-          subColor: sub,
           disponibilites: _disponibilites,
           onDisponibilitesChanged: (v) => setState(() => _disponibilites = v),
           isUrgent: _isUrgent,
           onUrgentChanged: (v) => setState(() => _isUrgent = v),
+          sosPreview: _sosPreview,
           paymentType: _paymentType,
           onPaymentTypeChanged: (v) => setState(() => _paymentType = v),
-          mmOperator: _mmOperator,
-          onMmOperatorChanged: (v) => setState(() => _mmOperator = v),
           onConfirm: _submit,
           onBack: () => _goTo(1),
           submitting: _submitting,
@@ -1023,110 +988,141 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         );
       default:
         return _StepDone(
-          textColor: text,
           serviceTitle: widget.serviceTitle,
-          reference: _reservationReference.isNotEmpty
-              ? _reservationReference
-              : null,
-          providerName: widget.providerName,
-          price: widget.servicePrice,
+          reference: _reservationReference.isNotEmpty ? _reservationReference : null,
+          providerName: (_isUrgent && _sosPreview?['eligible'] == true) ? null : widget.providerName,
+          sosMode: _isUrgent && _sosPreview?['eligible'] == true,
+          sosFeeFcfa: (_sosPreview?['fee_fcfa'] as num?)?.toInt() ?? 1500,
+          alertedCount: _alertedSosCount,
           onClose: () => Navigator.of(context).pop(),
           onOpenChat: widget.providerId != null
               ? () {
-                  Navigator.of(context).pop();
-                  // Navigate to chat - would need to be implemented via router
+                  final nav = Navigator.of(context);
+                  nav.pushReplacement(
+                    babifixRoute(
+                      (_) => ChatRoomScreen(
+                        name: widget.providerName ?? 'Prestataire',
+                        peerUserId: widget.providerId,
+                        apiBase: babifixApiBaseUrl(),
+                      ),
+                    ),
+                  );
                 }
               : null,
         );
     }
   }
 
-  static const _kNavy = Color(0xFF050D1A);
-  static const _kBlue = Color(0xFF4CC9F0);
-  static const _kCyan = Color(0xFF4CC9F0);
-
   @override
   Widget build(BuildContext context) {
-    // Force dark theme for the entire booking flow so AppBar, system overlays
-    // and step indicators all stay consistent regardless of phone theme.
-    return Theme(
-      data: ThemeData.dark().copyWith(
-        colorScheme: const ColorScheme.dark(
-          primary: _kBlue,
-          secondary: _kCyan,
-          surface: Color(0xFF0A1628),
-          onSurface: Colors.white,
-          onSurfaceVariant: Color(0x80FFFFFF),
-        ),
-        scaffoldBackgroundColor: _kNavy,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF060E1C),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-      child: PopScope(
-        canPop: _step == 3,
-        onPopInvokedWithResult: (didPop, result) async {
-          if (didPop) return;
-          if (_step == 0) {
-            final hasData = _problemeCtrl.text.isNotEmpty || _photos.isNotEmpty;
-            if (hasData) {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Quitter la demande ?'),
-                  content: const Text(
-                    'Les informations saisies seront perdues.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Annuler'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Quitter'),
-                    ),
-                  ],
+    final pal = _BookingPalette.of(context);
+
+    return PopScope(
+      canPop: _step == 3,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (_step == 0) {
+          final hasData = _problemeCtrl.text.isNotEmpty || _photos.isNotEmpty;
+          if (hasData) {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: pal.cardBg,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
                 ),
-              );
-              if (confirm == true && context.mounted) {
-                Navigator.of(context).pop();
-              }
-            } else {
+                title: Text(
+                  'Quitter la demande ?',
+                  style: TextStyle(color: pal.textPrimary, fontWeight: FontWeight.w800),
+                ),
+                content: Text(
+                  'Les informations saisies seront perdues.',
+                  style: TextStyle(color: pal.textMuted),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text('Annuler', style: TextStyle(color: pal.textMuted)),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: pal.danger,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Quitter'),
+                  ),
+                ],
+              ),
+            );
+            if (confirm == true && context.mounted) {
               Navigator.of(context).pop();
             }
-            return;
+          } else {
+            Navigator.of(context).pop();
           }
-          if (_step > 0 && _step < 3) {
-            _goTo(_step - 1);
-          }
-        },
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Réserver'),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
+          return;
+        }
+        if (_step > 0 && _step < 3) {
+          _goTo(_step - 1);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: pal.pageBg,
+        appBar: AppBar(
+          backgroundColor: pal.cardBg,
+          foregroundColor: pal.textPrimary,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              _step > 0 && _step < 3
+                  ? Icons.arrow_back_rounded
+                  : Icons.close_rounded,
+              color: pal.textPrimary,
+            ),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Nouvelle demande',
+                style: TextStyle(
+                  color: pal.textPrimary,
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                (widget.providerSpecialite ?? widget.serviceTitle).trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: pal.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(54),
+            child: Container(
+              decoration: BoxDecoration(
+                color: pal.cardBg,
+                border: Border(bottom: BorderSide(color: pal.border)),
+              ),
               child: _StepIndicator(steps: _steps, current: _step),
             ),
           ),
-          body: SizedBox.expand(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              child: SizedBox.expand(
-                key: ValueKey(_step),
-                child: _buildCurrentStep(
-                  context,
-                  Colors.white,
-                  const Color(0x80FFFFFF),
-                ),
-              ),
+        ),
+        body: SizedBox.expand(
+          child: AnimatedSwitcher(
+            duration: BabifixDesign.durationFast,
+            child: SizedBox.expand(
+              key: ValueKey(_step),
+              child: _buildCurrentStep(context),
             ),
           ),
         ),
@@ -1135,7 +1131,7 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
   }
 }
 
-// ── Step indicator ────────────────────────────────────────────────────────────
+// ── Indicateur d'etapes lisible (1 a 4) ──────────────────────────────────────
 
 class _StepIndicator extends StatelessWidget {
   const _StepIndicator({required this.steps, required this.current});
@@ -1145,90 +1141,306 @@ class _StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final divider = Theme.of(context).dividerColor;
+    final pal = _BookingPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (int i = 0; i < steps.length; i++) ...[
-            Expanded(
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                height: 4,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(99),
-                  color: i <= current ? BabifixDesign.cyan : divider,
+          Row(
+            children: [
+              for (int i = 0; i < steps.length; i++) ...[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 240),
+                        height: 4,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(99),
+                          color: i < current
+                              ? pal.success
+                              : (i == current
+                                  ? BabifixDesign.ciOrange
+                                  : pal.border),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '${i + 1}. ${steps[i]}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight:
+                              i == current ? FontWeight.w800 : FontWeight.w600,
+                          color: i == current
+                              ? pal.textPrimary
+                              : (i < current ? pal.success : pal.textMuted),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-            if (i < steps.length - 1) const SizedBox(width: 4),
-          ],
+                if (i < steps.length - 1) const SizedBox(width: 6),
+              ],
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Step 0 : Problème ─────────────────────────────────────────────────────────
+// ── Composants communs de structure & barre d'actions basse ─────────────────
 
-/// Suggestions d'« ajout rapide » adaptées à la catégorie/spécialité du
-/// prestataire (déduites par mots-clés). Repli générique si non reconnu.
+class _StepSectionCard extends StatelessWidget {
+  const _StepSectionCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = _BookingPalette.of(context);
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: pal.cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: pal.border),
+        boxShadow: BabifixDesign.elevationShadowSM(pal.isLight),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _StepHeader extends StatelessWidget {
+  const _StepHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = _BookingPalette.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: pal.accentSoft,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, color: pal.accent, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: pal.textPrimary,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: pal.textMuted,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StickyFooterBar extends StatelessWidget {
+  const _StickyFooterBar({
+    required this.primaryLabel,
+    required this.onPrimary,
+    this.secondaryLabel,
+    this.onSecondary,
+    this.loading = false,
+  });
+
+  final String primaryLabel;
+  final VoidCallback? onPrimary;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = _BookingPalette.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: pal.cardBg,
+        border: Border(top: BorderSide(color: pal.border)),
+        boxShadow: BabifixDesign.elevationShadowSM(pal.isLight),
+      ),
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        child: Row(
+          children: [
+            if (secondaryLabel != null && onSecondary != null) ...[
+              Expanded(
+                flex: 1,
+                child: BabifixButton(
+                  label: secondaryLabel!,
+                  variant: BabifixButtonVariant.outlined,
+                  backgroundColor: pal.cardBg,
+                  foregroundColor: pal.textPrimary,
+                  height: 50,
+                  onPressed: loading ? null : onSecondary,
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              flex: 2,
+              child: BabifixButton(
+                label: primaryLabel,
+                variant: BabifixButtonVariant.primary,
+                height: 50,
+                isLoading: loading,
+                onPressed: loading ? null : onPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Step 0 : Votre besoin ───────────────────────────────────────────────────
+
 List<String> babifixCategorySuggestions(String? specialite) {
   final s = (specialite ?? '').toLowerCase();
   bool has(List<String> kws) => kws.any((k) => s.contains(k));
   if (has(['plomb', 'fuite', 'sanitaire', 'eau'])) {
-    return ['Fuite d\'eau', 'Robinet qui goutte', 'WC bouché',
-      'Chauffe-eau en panne', 'Installation sanitaire', 'C\'est urgent'];
+    return [
+      "Fuite d'eau",
+      'Robinet qui goutte',
+      'WC bouche',
+      'Chauffe-eau en panne',
+      'Installation sanitaire',
+    ];
   }
-  if (has(['élect', 'elect', 'courant'])) {
-    return ['Panne de courant', 'Prise défectueuse', 'Court-circuit',
-      'Installation de prise', 'Tableau électrique', 'C\'est urgent'];
+  if (has(['elect', 'courant'])) {
+    return [
+      'Panne de courant',
+      'Prise defectueuse',
+      'Court-circuit',
+      'Installation de prise',
+      'Tableau electrique',
+    ];
   }
-  if (has(['ménage', 'menage', 'nettoy', 'propret'])) {
-    return ['Ménage complet', 'Nettoyage après travaux', 'Vitres',
-      'Repassage', 'Grand ménage', 'Entretien régulier'];
+  if (has(['menage', 'nettoy', 'propret'])) {
+    return [
+      'Menage complet',
+      'Nettoyage apres travaux',
+      'Vitres',
+      'Repassage',
+      'Entretien regulier',
+    ];
   }
   if (has(['menuis', 'parquet', 'meuble', 'bois'])) {
-    return ['Meuble à réparer', 'Porte qui coince', 'Pose de parquet',
-      'Étagère à monter', 'Sur-mesure', 'Réparation'];
+    return [
+      'Meuble a reparer',
+      'Porte qui coince',
+      'Pose de parquet',
+      'Etagere a monter',
+      'Sur-mesure',
+    ];
   }
-  if (has(['déménag', 'demenag', 'manuten', 'transport'])) {
-    return ['Déménagement appartement', 'Quelques cartons', 'Meubles lourds',
-      'Besoin d\'un camion', 'Étage sans ascenseur', 'C\'est urgent'];
+  if (has(['demenag', 'manuten', 'transport'])) {
+    return [
+      'Demenagement appartement',
+      'Cartons',
+      'Meubles lourds',
+      'Besoin camion',
+      'Etage sans ascenseur',
+    ];
   }
   if (has(['peint', 'enduit'])) {
-    return ['Peinture d\'une pièce', 'Tout l\'appartement', 'Reprise de fissures',
-      'Plafond', 'Extérieur', 'Demander un devis'];
+    return [
+      "Peinture d'une piece",
+      'Tout le logement',
+      'Reprise de fissures',
+      'Plafond',
+      'Exterieur',
+    ];
   }
-  if (has(['clim', 'froid', 'réfrig', 'refrig'])) {
-    return ['Clim ne refroidit plus', 'Installation de clim', 'Entretien / recharge',
-      'Bruit anormal', 'Fuite', 'C\'est urgent'];
+  if (has(['clim', 'froid', 'refrig'])) {
+    return [
+      'Clim ne refroidit plus',
+      'Installation de clim',
+      'Entretien / recharge',
+      'Bruit anormal',
+      'Fuite d eau',
+    ];
   }
-  if (has(['jardin', 'espace vert', 'gazon', 'tonte', 'élagage'])) {
-    return ['Tonte de pelouse', 'Taille de haie', 'Débroussaillage',
-      'Élagage', 'Entretien régulier', 'Nettoyage jardin'];
+  if (has(['jardin', 'espace vert', 'gazon', 'tonte', 'elagage'])) {
+    return [
+      'Tonte de pelouse',
+      'Taille de haie',
+      'Debroussaillage',
+      'Elagage',
+      'Entretien regulier',
+    ];
   }
-  if (has(['coiff', 'beaut', 'esthét', 'esthet', 'maquill'])) {
-    return ['À domicile', 'Coupe', 'Coiffure événement', 'Soins',
-      'Pour femme', 'Pour homme'];
+  if (has(['coiff', 'beaut', 'esthet', 'maquill'])) {
+    return ['A domicile', 'Coupe', 'Coiffure evenement', 'Soins'];
   }
-  if (has(['mécan', 'mecan', 'auto', 'voiture', 'garage'])) {
-    return ['Panne moteur', 'Vidange', 'Freins', 'Batterie',
-      'Diagnostic', 'Dépannage sur place'];
+  if (has(['mecan', 'auto', 'voiture', 'garage'])) {
+    return ['Panne moteur', 'Vidange', 'Freins', 'Batterie', 'Diagnostic'];
   }
-  if (has(['électroménager', 'electromenager', 'frigo', 'machine'])) {
-    return ['Appareil en panne', 'Ne s\'allume plus', 'Bruit anormal',
-      'Diagnostic', 'Pièce à changer', 'C\'est urgent'];
+  if (has(['electromenager', 'frigo', 'machine'])) {
+    return [
+      'Appareil en panne',
+      'Ne s allume plus',
+      'Bruit anormal',
+      'Diagnostic',
+      'Piece a changer',
+    ];
   }
-  // Repli générique
-  return ['Ça ne fonctionne plus', 'Réparation', 'Installation à faire',
-    'Entretien', 'Diagnostic', 'C\'est urgent'];
+  return [
+    'Ne fonctionne plus',
+    'Reparation rapide',
+    'Installation',
+    'Entretien',
+    'Diagnostic',
+  ];
 }
 
 class _StepProbleme extends StatelessWidget {
   const _StepProbleme({
-    required this.textColor,
-    required this.subColor,
     required this.problemeCtrl,
     required this.demandeType,
     required this.demandeTypes,
@@ -1249,12 +1461,11 @@ class _StepProbleme extends StatelessWidget {
     required this.onExigencesChanged,
     required this.onNext,
     this.providerName,
+    this.providerPhoto,
     this.providerSpecialite,
     this.providerRating,
   });
 
-  final Color textColor;
-  final Color subColor;
   final TextEditingController problemeCtrl;
   final String demandeType;
   final List<(String, String, IconData)> demandeTypes;
@@ -1275,424 +1486,533 @@ class _StepProbleme extends StatelessWidget {
   final ValueChanged<Map<String, dynamic>> onExigencesChanged;
   final VoidCallback onNext;
   final String? providerName;
+  final String? providerPhoto;
   final String? providerSpecialite;
   final double? providerRating;
 
-  static const _kNavy = Color(0xFF050D1A);
-  static const _kBlue = Color(0xFF4CC9F0);
-  static const _kBlueDark = Color(0xFF1D4ED8);
-  static const _kCyan = Color(0xFF4CC9F0);
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: _kNavy,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-            // ── Header prestataire ───────────────────────────────────────────
-            if (providerName != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _kBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: _kCyan,
-                      child: const Icon(Icons.person, color: _kNavy),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            providerName!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                          if (providerSpecialite != null)
-                            Text(
-                              providerSpecialite!,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
-                                fontSize: 12,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (providerRating != null) ...[
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.star,
-                            color: Color(0xFFF59E0B),
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            providerRating!.toStringAsFixed(1),
-                            style: const TextStyle(
-                              color: Color(0xFFF59E0B),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-            // ── Titre ───────────────────────────────────────────────────────
-            Row(
+    final pal = _BookingPalette.of(context);
+    final resolvedPhoto = babifixResolveMediaUrl(providerPhoto ?? '');
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    gradient: LinearGradient(
-                      colors: [
-                        _kBlue.withValues(alpha: 0.25),
-                        _kBlue.withValues(alpha: 0.08),
+                if (providerName != null && providerName!.trim().isNotEmpty) ...[
+                  _StepSectionCard(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: resolvedPhoto.startsWith('http')
+                                ? Image.network(
+                                    resolvedPhoto,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _initialsAvatar(pal, providerName!),
+                                  )
+                                : _initialsAvatar(pal, providerName!),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                providerName!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: pal.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14.5,
+                                ),
+                              ),
+                              if (providerSpecialite != null &&
+                                  providerSpecialite!.trim().isNotEmpty)
+                                Text(
+                                  providerSpecialite!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: pal.textMuted,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (providerRating != null && providerRating! > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.star_rounded,
+                                  color: Color(0xFFD97706),
+                                  size: 15,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  providerRating!.toStringAsFixed(1),
+                                  style: const TextStyle(
+                                    color: Color(0xFF92400E),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                  child: const Icon(
-                    Icons.build_circle_outlined,
-                    color: _kCyan,
-                    size: 22,
+                  const SizedBox(height: 16),
+                ],
+                const _StepHeader(
+                  icon: Icons.build_circle_outlined,
+                  title: 'Quel est votre besoin ?',
+                  subtitle:
+                      'Precisez votre demande pour obtenir un devis adapte.',
+                ),
+                const SizedBox(height: 18),
+
+                // ── 1. Nature de l'intervention (grille 2 colonnes) ──
+                _StepSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Type d\'intervention',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: pal.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final itemW = (constraints.maxWidth - 8) / 2;
+                          return Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: demandeTypes.map((t) {
+                              final selected = demandeType == t.$1;
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () =>
+                                    onDemandeTypeChanged(selected ? '' : t.$1),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 160),
+                                  width: itemW,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 11,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: selected ? pal.accentSoft : pal.softBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: selected ? pal.accent : pal.border,
+                                      width: selected ? 1.6 : 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        t.$3,
+                                        size: 17,
+                                        color: selected
+                                            ? pal.accent
+                                            : pal.textMuted,
+                                      ),
+                                      const SizedBox(width: 7),
+                                      Expanded(
+                                        child: Text(
+                                          t.$2,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: selected
+                                                ? FontWeight.w800
+                                                : FontWeight.w600,
+                                            color: selected
+                                                ? pal.textPrimary
+                                                : pal.textMuted,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Votre problème',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -0.3,
+                const SizedBox(height: 14),
+
+                // ── 2. Description et mots-cles ──
+                _StepSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Description du besoin',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: pal.textPrimary,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Décrivez ce que vous avez besoin',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.45),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: problemeCtrl,
+                        minLines: 3,
+                        maxLines: 5,
+                        style: TextStyle(
+                          color: pal.textPrimary,
+                          fontSize: 14.5,
+                          height: 1.4,
+                        ),
+                        decoration: InputDecoration(
+                          hintText:
+                              'Expliquez ce que vous constatez (ex : fuite sous evier, climatiseur a recharger...)',
+                          hintStyle: TextStyle(
+                            color: pal.textMuted.withValues(alpha: 0.75),
+                            fontSize: 13.5,
+                          ),
+                          filled: true,
+                          fillColor: pal.softBg,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: pal.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: pal.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: pal.accent, width: 1.6),
+                          ),
+                          contentPadding: const EdgeInsets.all(14),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      BabifixSuggestionChips(
+                        controller: problemeCtrl,
+                        accent: pal.accent,
+                        title: 'Precisions rapides',
+                        suggestions: babifixCategorySuggestions(providerSpecialite),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // ── Nature de la demande (facultatif) ──────────────────────────
-            Text(
-              'De quoi s\'agit-il ?',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.white.withValues(alpha: 0.8),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: demandeTypes.map((t) {
-                final selected = demandeType == t.$1;
-                return GestureDetector(
-                  onTap: () =>
-                      onDemandeTypeChanged(selected ? '' : t.$1),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? _kBlue.withValues(alpha: 0.18)
-                          : const Color(0xFF0D1525),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selected
-                            ? _kBlue
-                            : Colors.white.withValues(alpha: 0.12),
-                        width: selected ? 1.5 : 1,
+                const SizedBox(height: 14),
+
+                // ── 3. Pieces jointes optionnelles ──
+                _StepSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Pieces jointes',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: pal.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '(optionnel)',
+                            style: TextStyle(fontSize: 12, color: pal.textMuted),
+                          ),
+                        ],
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(t.$3,
-                            size: 16,
-                            color: selected
-                                ? _kBlue
-                                : Colors.white.withValues(alpha: 0.55)),
-                        const SizedBox(width: 6),
-                        Text(
-                          t.$2,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight:
-                                selected ? FontWeight.w700 : FontWeight.w500,
-                            color: selected
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.7),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _AttachTile(
+                              icon: Icons.add_a_photo_outlined,
+                              label: photos.isEmpty
+                                  ? 'Photos'
+                                  : '${photos.length} photo(s)',
+                              active: photos.isNotEmpty,
+                              onTap: () async {
+                                final picked = await _showImagePicker(context);
+                                if (picked != null && picked.isNotEmpty) {
+                                  onPhotosChanged([...photos, ...picked]);
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _AttachTile(
+                              icon: Icons.mic_none_rounded,
+                              label: audioUrl.isEmpty ? 'Audio' : 'Audio ajoute',
+                              active: audioUrl.isNotEmpty,
+                              loading: audioUploading,
+                              customChild: !audioUploading && audioUrl.isEmpty
+                                  ? Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          height: 30,
+                                          child: BabifixVoiceRecorderButton(
+                                            color: pal.accent,
+                                            onRecorded: onVoiceRecorded,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Note vocale',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: pal.textMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _AttachTile(
+                              icon: Icons.videocam_outlined,
+                              label: videoUrl.isEmpty ? 'Video' : 'Video ajoutee',
+                              active: videoUrl.isNotEmpty,
+                              loading: videoUploading,
+                              onTap: videoUploading || videoUrl.isNotEmpty
+                                  ? null
+                                  : () => _pickVideoSource(context, onPickVideo),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (photos.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 64,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: photos.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 8),
+                            itemBuilder: (_, idx) => Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.memory(
+                                    photos[idx],
+                                    width: 64,
+                                    height: 64,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 3,
+                                  right: 3,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      final next = [...photos]..removeAt(idx);
+                                      onPhotosChanged(next);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black87,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close_rounded,
+                                        size: 13,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
+                      if (audioUrl.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: pal.softBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: pal.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: BabifixVoiceNotePlayer(
+                                  url: MediaApi.absolute(audioUrl),
+                                  durationSeconds: 0,
+                                  isMe: true,
+                                ),
+                              ),
+                              IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: onAudioRemoved,
+                                icon: Icon(
+                                  Icons.delete_outline,
+                                  color: pal.danger,
+                                  size: 20,
+                                ),
+                                tooltip: 'Supprimer la note vocale',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (videoUrl.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: pal.softBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: pal.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.videocam_rounded,
+                                  color: pal.success, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Video jointe',
+                                  style: TextStyle(
+                                    color: pal.textPrimary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => launchUrl(
+                                  Uri.parse(MediaApi.absolute(videoUrl)),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                                child: const Text('Voir'),
+                              ),
+                              IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: onVideoRemoved,
+                                icon: Icon(
+                                  Icons.delete_outline,
+                                  color: pal.danger,
+                                  size: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                if (exigencesTemplate.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _StepSectionCard(
+                    child: BabifixDynamicRequirements(
+                      template: exigencesTemplate,
+                      profil: exigencesProfil,
+                      demandeType: demandeType,
+                      answers: reponsesExigences,
+                      onChanged: onExigencesChanged,
                     ),
                   ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D1525),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
-              ),
-              child: TextField(
-                controller: problemeCtrl,
-                maxLines: 5,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Décrivez votre problème en quelques mots...',
-                  hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.3),
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Bulles : suggestions ADAPTÉES à la catégorie du prestataire.
-            BabifixSuggestionChips(
-              controller: problemeCtrl,
-              accent: _kBlue,
-              title: 'Ajout rapide',
-              suggestions: babifixCategorySuggestions(providerSpecialite),
-            ),
-            const SizedBox(height: 16),
-            // ── Pièces jointes optionnelles : photo / note vocale / vidéo ──
-            // Une seule rangée de 3 tuiles compactes (plutôt que 3 blocs
-            // empilés pleine largeur) : même fonctions, bien moins d'espace.
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _AttachTile(
-                    icon: Icons.add_a_photo_outlined,
-                    label: photos.isEmpty ? 'Photos' : '${photos.length} photo(s)',
-                    active: photos.isNotEmpty,
-                    onTap: () async {
-                      final picker = await _showImagePicker(context);
-                      if (picker != null && picker.isNotEmpty) {
-                        onPhotosChanged([...photos, ...picker]);
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _AttachTile(
-                    icon: Icons.mic_none_rounded,
-                    label: audioUrl.isEmpty ? 'Note vocale' : 'Note ajoutée',
-                    active: audioUrl.isNotEmpty,
-                    loading: audioUploading,
-                    // Le bouton (customChild) pilote lui-même le
-                    // démarrage/arrêt de l'enregistrement (tap = start/stop).
-                    customChild: !audioUploading && audioUrl.isEmpty
-                        ? BabifixVoiceRecorderButton(
-                            color: _kCyan, onRecorded: onVoiceRecorded)
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _AttachTile(
-                    icon: Icons.videocam_outlined,
-                    label: videoUrl.isEmpty ? 'Vidéo' : 'Vidéo ajoutée',
-                    active: videoUrl.isNotEmpty,
-                    loading: videoUploading,
-                    onTap: videoUploading || videoUrl.isNotEmpty
-                        ? null
-                        : () => _pickVideoSource(context, onPickVideo),
-                  ),
-                ),
+                ],
               ],
             ),
-            // Détail compact : affiché seulement quand il y a quelque chose
-            // à écouter / voir / supprimer (sinon la tuile suffit).
-            if (audioUrl.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0D1525),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: BabifixVoiceNotePlayer(
-                        url: MediaApi.absolute(audioUrl),
-                        durationSeconds: 0,
-                        isMe: true,
-                      ),
-                    ),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: onAudioRemoved,
-                      icon: const Icon(Icons.delete_outline,
-                          color: Colors.redAccent, size: 20),
-                      tooltip: 'Supprimer la note vocale',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (videoUrl.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0D1525),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.videocam_rounded,
-                        color: Colors.greenAccent, size: 18),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text('Vidéo ajoutée',
-                          style: TextStyle(color: Colors.white70, fontSize: 12.5)),
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: () => launchUrl(
-                        Uri.parse(MediaApi.absolute(videoUrl)),
-                        mode: LaunchMode.externalApplication,
-                      ),
-                      child: const Text('Voir', style: TextStyle(fontSize: 12.5)),
-                    ),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: onVideoRemoved,
-                      icon: const Icon(Icons.delete_outline,
-                          color: Colors.redAccent, size: 20),
-                      tooltip: 'Supprimer la vidéo',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-                  // ── Exigences dynamiques de la catégorie (Phase 2) ──
-                  // Rendu sur carte claire (l'étape est en fond navy). Vide =
-                  // rien affiché (catégorie STANDARD → formulaire habituel).
-                  if (exigencesTemplate.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: BabifixDynamicRequirements(
-                        template: exigencesTemplate,
-                        profil: exigencesProfil,
-                        demandeType: demandeType,
-                        answers: reponsesExigences,
-                        onChanged: onExigencesChanged,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
           ),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: onNext,
-              child: Container(
-                width: double.infinity,
-                height: 54,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_kBlue, _kBlueDark]),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _kBlue.withValues(alpha: 0.45),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Text(
-                    'Continuer',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        ),
+        _StickyFooterBar(
+          primaryLabel: 'Continuer vers l\'adresse',
+          onPrimary: onNext,
+        ),
+      ],
+    );
+  }
+
+  Widget _initialsAvatar(_BookingPalette pal, String name) {
+    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'B';
+    return DecoratedBox(
+      decoration: BoxDecoration(color: pal.accentSoft),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: pal.accent,
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+          ),
         ),
       ),
     );
   }
 
   Future<List<Uint8List>?> _showImagePicker(BuildContext context) async {
-    return showModalBottomSheet<List<Uint8List>>(
+    final pal = _BookingPalette.of(context);
+    return showBabifixModalSheet<List<Uint8List>>(
       context: context,
-      backgroundColor: const Color(0xFF0A1628),
+      backgroundColor: pal.cardBg,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.camera_alt, color: _kCyan),
-              title: const Text(
+              leading: Icon(Icons.camera_alt_rounded, color: pal.accent),
+              title: Text(
                 'Prendre une photo',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: pal.textPrimary, fontWeight: FontWeight.w600),
               ),
               onTap: () async {
                 final img = await _pickImageFromCamera();
@@ -1700,10 +2020,10 @@ class _StepProbleme extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library, color: _kCyan),
-              title: const Text(
+              leading: Icon(Icons.photo_library_rounded, color: pal.accent),
+              title: Text(
                 'Choisir dans la galerie',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: pal.textPrimary, fontWeight: FontWeight.w600),
               ),
               onTap: () async {
                 final imgs = await _pickImagesFromGallery();
@@ -1725,7 +2045,7 @@ class _StepProbleme extends StatelessWidget {
       );
       if (img == null) return null;
       return await img.readAsBytes();
-    } catch (e) {
+    } catch (_) {
       return null;
     }
   }
@@ -1740,39 +2060,41 @@ class _StepProbleme extends StatelessWidget {
         bytes.add(await img.readAsBytes());
       }
       return bytes;
-    } catch (e) {
+    } catch (_) {
       return null;
     }
   }
 }
 
-/// Bottom sheet compact : choisir la source de la vidéo du problème
-/// (caméra ou galerie), au lieu de deux boutons côte à côte dans la tuile.
 Future<void> _pickVideoSource(
   BuildContext context,
   Future<void> Function(ImageSource source) onPickVideo,
 ) {
-  return showModalBottomSheet<void>(
+  final pal = _BookingPalette.of(context);
+  return showBabifixModalSheet<void>(
     context: context,
-    backgroundColor: const Color(0xFF0A1628),
+    backgroundColor: pal.cardBg,
     builder: (ctx) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.videocam, color: _StepProbleme._kCyan),
-            title: const Text('Filmer le problème',
-                style: TextStyle(color: Colors.white)),
+            leading: Icon(Icons.videocam_rounded, color: pal.accent),
+            title: Text(
+              'Filmer le probleme',
+              style: TextStyle(color: pal.textPrimary, fontWeight: FontWeight.w600),
+            ),
             onTap: () {
               Navigator.pop(ctx);
               onPickVideo(ImageSource.camera);
             },
           ),
           ListTile(
-            leading:
-                const Icon(Icons.video_library, color: _StepProbleme._kCyan),
-            title: const Text('Choisir une vidéo',
-                style: TextStyle(color: Colors.white)),
+            leading: Icon(Icons.video_library_rounded, color: pal.accent),
+            title: Text(
+              'Choisir une video',
+              style: TextStyle(color: pal.textPrimary, fontWeight: FontWeight.w600),
+            ),
             onTap: () {
               Navigator.pop(ctx);
               onPickVideo(ImageSource.gallery);
@@ -1784,10 +2106,6 @@ Future<void> _pickVideoSource(
   );
 }
 
-/// Tuile compacte pour une pièce jointe optionnelle (photo / note vocale /
-/// vidéo) : icône + libellé court, état "actif" en vert une fois ajoutée.
-/// Remplace les 3 blocs pleine largeur empilés d'avant — même fonctions,
-/// bien moins d'espace, aspect plus pro.
 class _AttachTile extends StatelessWidget {
   const _AttachTile({
     required this.icon,
@@ -1805,31 +2123,29 @@ class _AttachTile extends StatelessWidget {
   final bool loading;
   final Widget? customChild;
 
-  static const _kBlue = Color(0xFF4CC9F0);
-  static const _kCyan = Color(0xFF4CC9F0);
-
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final pal = _BookingPalette.of(context);
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        height: 76,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        constraints: const BoxConstraints(minHeight: 82),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF0D1525),
+          color: active ? pal.success.withValues(alpha: 0.1) : pal.softBg,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: active
-                ? Colors.greenAccent.withValues(alpha: 0.5)
-                : _kBlue.withValues(alpha: 0.2),
+            color: active ? pal.success : pal.border,
+            width: active ? 1.4 : 1,
           ),
         ),
         child: Center(
           child: loading
               ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: BabifixRingLoader.cyan(size: 22),
+                  width: 20,
+                  height: 20,
+                  child: BabifixRingLoader.cyan(size: 20),
                 )
               : customChild ??
                   Column(
@@ -1837,22 +2153,20 @@ class _AttachTile extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        active ? Icons.check_circle : icon,
-                        color: active
-                            ? Colors.greenAccent
-                            : _kCyan.withValues(alpha: 0.85),
-                        size: 20,
+                        active ? Icons.check_circle_rounded : icon,
+                        color: active ? pal.success : pal.accent,
+                        size: 22,
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 6),
                       Text(
                         label,
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.75),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: active ? pal.success : pal.textPrimary,
                         ),
                       ),
                     ],
@@ -1863,121 +2177,10 @@ class _AttachTile extends StatelessWidget {
   }
 }
 
-class _PremiumPickerCard extends StatelessWidget {
-  const _PremiumPickerCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.isSet,
-    required this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final bool isSet;
-  final VoidCallback onTap;
-
-  static const _kBlue = Color(0xFF4CC9F0);
-  static const _kCyan = Color(0xFF4CC9F0);
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isSet
-                ? _kBlue.withValues(alpha: 0.55)
-                : Colors.white.withValues(alpha: 0.10),
-            width: isSet ? 1.5 : 1,
-          ),
-          boxShadow: isSet
-              ? [
-                  BoxShadow(
-                    color: _kBlue.withValues(alpha: 0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: isSet
-                      ? [
-                          _kBlue.withValues(alpha: 0.35),
-                          _kBlue.withValues(alpha: 0.12),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.08),
-                          Colors.white.withValues(alpha: 0.03),
-                        ],
-                ),
-              ),
-              child: Icon(
-                icon,
-                color: isSet ? _kCyan : Colors.white.withValues(alpha: 0.35),
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: Colors.white.withValues(alpha: 0.40),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      color: isSet
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.35),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              isSet
-                  ? Icons.check_circle_rounded
-                  : Icons.arrow_forward_ios_rounded,
-              color: isSet ? _kCyan : Colors.white.withValues(alpha: 0.25),
-              size: isSet ? 20 : 16,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Step 1 : Adresse ──────────────────────────────────────────────────────────
+// ── Step 1 : Adresse & localisation ──────────────────────────────────────────
 
 class _StepAddress extends StatefulWidget {
   const _StepAddress({
-    required this.textColor,
-    required this.subColor,
     required this.addressCtrl,
     required this.repereCtrl,
     required this.msgCtrl,
@@ -1989,30 +2192,22 @@ class _StepAddress extends StatefulWidget {
     required this.gpsState,
     required this.onGpsRefresh,
     required this.savedAddresses,
+    this.selectedSavedAddressId,
     required this.onPickSaved,
     required this.onUseCurrent,
     required this.onSaveCurrent,
   });
 
-  // Carnet d'adresses du client (Maison, Bureau…) + actions.
   final List<Map<String, dynamic>> savedAddresses;
+  final dynamic selectedSavedAddressId;
   final ValueChanged<Map<String, dynamic>> onPickSaved;
   final VoidCallback onUseCurrent;
   final VoidCallback onSaveCurrent;
-
-  final Color textColor;
-  final Color subColor;
   final TextEditingController addressCtrl;
-  // Point de repère libre saisi par le client — affiché en surbrillance
-  // dans la fiche prestataire (donnée la plus précieuse sur le terrain).
   final TextEditingController repereCtrl;
   final TextEditingController msgCtrl;
   final LatLng mapPin;
-  // Recherche / sélection d'un lieu : le libellé est déjà connu, on ne
-  // re-géocode pas (sinon on écraserait l'adresse choisie).
   final ValueChanged<LatLng> onMapPinChanged;
-  // Tap/déplacement sur la carte : déclenche un reverse-geocoding pour
-  // afficher « Quartier, Ville » au lieu de coordonnées brutes.
   final ValueChanged<LatLng> onMapTap;
   final VoidCallback onNext;
   final VoidCallback onBack;
@@ -2026,11 +2221,6 @@ class _StepAddress extends StatefulWidget {
 class _StepAddressState extends State<_StepAddress> {
   bool _showDetails = false;
 
-  static const _kNavy = Color(0xFF050D1A);
-  static const _kBlue = Color(0xFF4CC9F0);
-  static const _kBlueDark = Color(0xFF1D4ED8);
-  static const _kCyan = Color(0xFF4CC9F0);
-
   IconData _iconForLabel(String label) {
     final l = label.toLowerCase();
     if (l.contains('maison') || l.contains('domicile') || l.contains('chez')) {
@@ -2042,130 +2232,74 @@ class _StepAddressState extends State<_StepAddress> {
     return Icons.place_rounded;
   }
 
-  /// Sélecteur intelligent : « Je suis sur place » (GPS actuel), ou une adresse
-  /// enregistrée (Maison, Bureau…), ou enregistrer le lieu choisi.
-  Widget _buildAddressSourceSelector() {
-    final chips = <Widget>[
-      // Position actuelle
-      _sourceChip(
-        icon: Icons.my_location_rounded,
-        label: 'Je suis sur place',
-        onTap: widget.onUseCurrent,
-        highlight: true,
-      ),
-      // Adresses enregistrées
-      ...widget.savedAddresses.map((a) => _sourceChip(
-            icon: _iconForLabel('${a['label'] ?? ''}'),
-            label: '${a['label'] ?? 'Adresse'}',
-            onTap: () => widget.onPickSaved(a),
-          )),
-      // Enregistrer le lieu actuel
-      _sourceChip(
-        icon: Icons.bookmark_add_rounded,
-        label: 'Enregistrer ce lieu',
-        onTap: widget.onSaveCurrent,
-        dashed: true,
-      ),
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.tips_and_updates_rounded, size: 15, color: _kCyan),
-            const SizedBox(width: 6),
-            Text(
-              'Où aura lieu la prestation ?',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: Colors.white.withValues(alpha: 0.85),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Choisissez votre position actuelle ou une adresse enregistrée.',
-          style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.45)),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          // 68 était trop court pour badge (30) + espace (6) + texte sur 2
-          // lignes (~24) + padding vertical (20) = ~80 → le texte débordait
-          // hors de la carte. 88 laisse une marge confortable.
-          height: 88,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: chips.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (_, i) => chips[i],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Carte verticale (icône en badge rond + libellé dessous), au lieu d'une
-  /// simple puce texte — même niveau de finition que le carnet d'adresses
-  /// (Mes adresses) : un vrai badge, pas juste un contour fin peu visible.
-  Widget _sourceChip({
+  Widget _sourceChip(
+    _BookingPalette pal, {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
     bool highlight = false,
-    bool dashed = false,
   }) {
-    final accent = dashed ? _kCyan : (highlight ? _kBlue : Colors.white70);
-    final bg = highlight
-        ? _kBlue.withValues(alpha: 0.14)
-        : const Color(0xFF0D1525);
-    final border = dashed
-        ? _kCyan.withValues(alpha: 0.45)
-        : (highlight ? _kBlue.withValues(alpha: 0.55) : Colors.white.withValues(alpha: 0.12));
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: 92,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: 96,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(16),
+          color: highlight ? pal.accentSoft : pal.cardBg,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: border,
-            width: highlight ? 1.4 : 1,
-            strokeAlign: BorderSide.strokeAlignInside,
+            color: highlight ? pal.accent : pal.border,
+            width: highlight ? 1.8 : 1,
           ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: highlight || dashed ? 0.18 : 0.10),
-                shape: BoxShape.circle,
-                border: dashed
-                    ? Border.all(color: accent.withValues(alpha: 0.6), width: 1.2)
-                    : null,
-              ),
-              child: Icon(icon, size: 15, color: accent),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Center(
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: highlight ? pal.accent : pal.softBg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 16,
+                      color: highlight ? pal.accentOnFill : pal.accent,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.15,
+                    fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
+                    color: pal.textPrimary,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              maxLines: 2,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10.5,
-                height: 1.15,
-                fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
-                color: highlight ? Colors.white : Colors.white70,
+            if (highlight)
+              Positioned(
+                top: -4,
+                right: -2,
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  size: 15,
+                  color: pal.accent,
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -2174,419 +2308,226 @@ class _StepAddressState extends State<_StepAddress> {
 
   @override
   Widget build(BuildContext context) {
-    final addressCtrl = widget.addressCtrl;
-    final msgCtrl = widget.msgCtrl;
-    final mapPin = widget.mapPin;
-    final onMapPinChanged = widget.onMapPinChanged;
-    final onBack = widget.onBack;
-    final onNext = widget.onNext;
-    return Theme(
-      data: ThemeData.dark().copyWith(
-        colorScheme: const ColorScheme.dark(
-          primary: _kBlue,
-          secondary: _kCyan,
-          surface: Color(0xFF0A1628),
-        ),
-        textSelectionTheme: const TextSelectionThemeData(
-          cursorColor: _kCyan,
-          selectionColor: Color(0x554CC9F0),
-          selectionHandleColor: _kCyan,
-        ),
+    final pal = _BookingPalette.of(context);
+    final hasSavedSelected = widget.selectedSavedAddressId != null;
+    final chips = <Widget>[
+      _sourceChip(
+        pal,
+        icon: Icons.my_location_rounded,
+        label: 'Ma position',
+        onTap: widget.onUseCurrent,
+        highlight: !hasSavedSelected,
       ),
-      child: Container(
-        color: _kNavy,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 16,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + 28,
-          ),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Titre ────────────────────────────────────────────────
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      gradient: LinearGradient(
-                        colors: [
-                          _kBlue.withValues(alpha: 0.25),
-                          _kBlue.withValues(alpha: 0.08),
-                        ],
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.location_on_rounded,
-                      color: _kCyan,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Lieu d\'intervention',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        Text(
-                          'Indiquez l\'adresse exacte',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0x72FFFFFF),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+      ...widget.savedAddresses.map(
+        (a) {
+          final key = a['id'] ?? '${a['label'] ?? ''}:${a['latitude']}_${a['longitude']}';
+          final isSel = hasSavedSelected && widget.selectedSavedAddressId == key;
+          return _sourceChip(
+            pal,
+            icon: _iconForLabel('${a['label'] ?? ''}'),
+            label: '${a['label'] ?? 'Adresse'}',
+            onTap: () => widget.onPickSaved(a),
+            highlight: isSel,
+          );
+        },
+      ),
+      _sourceChip(
+        pal,
+        icon: Icons.bookmark_add_outlined,
+        label: 'Enregistrer',
+        onTap: widget.onSaveCurrent,
+      ),
+    ];
 
-              // ── Sélecteur intelligent : où aura lieu la prestation ? ──
-              _buildAddressSourceSelector(),
-              const SizedBox(height: 16),
-
-              // ── Carte adresse ─────────────────────────────────────────
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.10),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _StepHeader(
+                  icon: Icons.location_on_rounded,
+                  title: 'Lieu d\'intervention',
+                  subtitle:
+                      'Confirmez votre position exacte pour guider l\'artisan.',
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: _kBlue.withValues(alpha: 0.18),
-                          ),
-                          child: const Icon(
-                            Icons.edit_location_alt_rounded,
-                            color: _kCyan,
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Rechercher une adresse',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Text(
-                              'Ou touchez la carte ci-dessous',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.white.withValues(alpha: 0.40),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    // Carte GPS animée (loading → détectée → refusée)
-                    GpsLocationCard(
-                      state: widget.gpsState,
-                      addressText: addressCtrl.text,
-                      onRefresh: widget.onGpsRefresh,
-                    ),
-                    const SizedBox(height: 10),
-                    BabifixAddressSearchField(
-                      controller: addressCtrl,
-                      onPlaceSelected: (latLng, _) => onMapPinChanged(latLng),
-                    ),
-                    const SizedBox(height: 12),
-                    // ── Champ Point de repère (libre, optionnel) ──────────
-                    // Affiché en surbrillance dans la fiche prestataire :
-                    // c'est souvent l'info la plus utile pour trouver le
-                    // client sur place (« en face de la pharmacie X »).
-                    _RepereTextField(controller: widget.repereCtrl),
-                  ],
-                ),
-              ),
+                const SizedBox(height: 16),
 
-              const SizedBox(height: 18),
-
-              // ── Carte OSM ─────────────────────────────────────────────
-              Row(
-                children: [
-                  const Icon(Icons.map_rounded, color: _kCyan, size: 18),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Positionnez le marqueur',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _kBlue.withValues(alpha: 0.30)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _kBlue.withValues(alpha: 0.12),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: BabifixOsmLocationPicker(
-                    marker: mapPin,
-                    onMarkerMoved: widget.onMapTap,
-                    height: 230,
+                // ── Raccourcis adresse ──
+                SizedBox(
+                  height: 86,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: chips.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (_, i) => chips[i],
                   ),
                 ),
-              ),
+                const SizedBox(height: 14),
 
-              const SizedBox(height: 22),
-
-              // ── Bouton détails optionnels ─────────────────────────────────
-              GestureDetector(
-                onTap: () => setState(() => _showDetails = !_showDetails),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _showDetails
-                        ? _kBlue.withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _showDetails
-                          ? _kBlue
-                          : Colors.white.withValues(alpha: 0.08),
-                    ),
-                  ),
-                  child: Row(
+                // ── Recherche adresse + GPS + repere ──
+                _StepSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        _showDetails
-                            ? Icons.expand_less_rounded
-                            : Icons.add_circle_outline_rounded,
-                        color: _kCyan,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
                       Text(
-                        _showDetails
-                            ? 'Masquer les détails'
-                            : 'Ajouter des détails (optionnel)',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                        'Adresse et point de repere',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: pal.textPrimary,
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      GpsLocationCard(
+                        state: widget.gpsState,
+                        addressText: widget.addressCtrl.text,
+                        onRefresh: widget.onGpsRefresh,
+                      ),
+                      const SizedBox(height: 10),
+                      BabifixAddressSearchField(
+                        controller: widget.addressCtrl,
+                        onPlaceSelected: (latLng, label) {
+                          if (label.trim().isNotEmpty) {
+                            widget.addressCtrl.text = label.trim();
+                          }
+                          widget.onMapPinChanged(latLng);
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      _RepereTextField(controller: widget.repereCtrl),
                     ],
                   ),
                 ),
-              ),
+                const SizedBox(height: 14),
 
-              // ── Message + Photos (dépliable) ────────────────────────────────
-              if (_showDetails) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
-                  ),
+                // ── Carte interactive ──
+                _StepSectionCard(
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              color: _kBlue.withValues(alpha: 0.18),
+                          Icon(Icons.map_rounded, color: pal.accent, size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Ajustez le marqueur si besoin',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13.5,
+                              color: pal.textPrimary,
                             ),
-                            child: const Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              color: _kCyan,
-                              size: 18,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Détails du problème',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'Message + photos',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white.withValues(alpha: 0.40),
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0D1525),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _kBlue.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: TextField(
-                          controller: msgCtrl,
-                          maxLines: 3,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Précisions, accès, contraintes...',
-                            hintStyle: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.3),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(16),
-                          ),
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: BabifixOsmLocationPicker(
+                          marker: widget.mapPin,
+                          onMarkerMoved: widget.onMapTap,
+                          height: 220,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
+                const SizedBox(height: 14),
 
-              const SizedBox(height: 28),
-
-              // ── Boutons ───────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: onBack,
-                      child: Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.07),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.15),
-                          ),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'Retour',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontWeight: FontWeight.w700,
+                // ── Instructions d'acces optionnelles ──
+                _StepSectionCard(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        onTap: () =>
+                            setState(() => _showDetails = !_showDetails),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _showDetails
+                                  ? Icons.expand_less_rounded
+                                  : Icons.add_circle_outline_rounded,
+                              color: pal.accent,
+                              size: 20,
                             ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: GestureDetector(
-                      onTap: onNext,
-                      child: Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [_kBlue, _kBlueDark],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _kBlue.withValues(alpha: 0.40),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _showDetails
+                                    ? 'Masquer les precisions d\'acces'
+                                    : 'Ajouter des precisions d\'acces (optionnel)',
+                                style: TextStyle(
+                                  color: pal.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                        child: const Center(
-                          child: Text(
-                            'Continuer',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
+                      ),
+                      if (_showDetails) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: widget.msgCtrl,
+                          maxLines: 3,
+                          style: TextStyle(color: pal.textPrimary, fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: 'Batiment, etage, code portail, acces...',
+                            hintStyle: TextStyle(color: pal.textMuted),
+                            filled: true,
+                            fillColor: pal.softBg,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: pal.border),
                             ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: pal.border),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: pal.accent, width: 1.5),
+                            ),
+                            contentPadding: const EdgeInsets.all(12),
                           ),
                         ),
-                      ),
-                    ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+        _StickyFooterBar(
+          secondaryLabel: 'Retour',
+          onSecondary: widget.onBack,
+          primaryLabel: 'Choisir le creneau',
+          onPrimary: widget.onNext,
+        ),
+      ],
     );
   }
 }
 
-// ── Step 2 : Disponibilité ────────────────────────────────────────────────────
+// ── Step 2 : Disponibilite & paiement ────────────────────────────────────────
 
 class _StepDisponibilite extends StatelessWidget {
   const _StepDisponibilite({
-    required this.textColor,
-    required this.subColor,
     required this.disponibilites,
     required this.onDisponibilitesChanged,
     required this.isUrgent,
     required this.onUrgentChanged,
+    this.sosPreview,
     required this.paymentType,
     required this.onPaymentTypeChanged,
-    required this.mmOperator,
-    required this.onMmOperatorChanged,
     required this.onConfirm,
     required this.onBack,
     required this.submitting,
@@ -2599,16 +2540,13 @@ class _StepDisponibilite extends StatelessWidget {
     this.onCheckAvailability,
   });
 
-  final Color textColor;
-  final Color subColor;
   final String disponibilites;
   final ValueChanged<String> onDisponibilitesChanged;
   final bool isUrgent;
   final ValueChanged<bool> onUrgentChanged;
+  final Map<String, dynamic>? sosPreview;
   final String paymentType;
   final ValueChanged<String> onPaymentTypeChanged;
-  final String mmOperator;
-  final ValueChanged<String> onMmOperatorChanged;
   final Future<void> Function() onConfirm;
   final VoidCallback onBack;
   final bool submitting;
@@ -2620,320 +2558,206 @@ class _StepDisponibilite extends StatelessWidget {
   final ValueChanged<String>? onCreneauSelected;
   final Future<void> Function(DateTime)? onCheckAvailability;
 
-  static const _kNavy = Color(0xFF050D1A);
-  static const _kBlue = Color(0xFF4CC9F0);
-  static const _kBlueDark = Color(0xFF1D4ED8);
-  static const _kCyan = Color(0xFF4CC9F0);
-  static const _kRed = Color(0xFFDC2626);
-
   @override
   Widget build(BuildContext context) {
-
-    return Container(
-      color: _kNavy,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    final pal = _BookingPalette.of(context);
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    gradient: LinearGradient(
-                      colors: [
-                        _kBlue.withValues(alpha: 0.25),
-                        _kBlue.withValues(alpha: 0.08),
+                const _StepHeader(
+                  icon: Icons.schedule_rounded,
+                  title: 'Creneau et reglement',
+                  subtitle:
+                      'Indiquez vos disponibilites et le mode de paiement souhaite.',
+                ),
+                const SizedBox(height: 16),
+
+                if (providerId != null) ...[
+                  _StepSectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _AvailabilityCalendar(
+                          providerId: providerId!,
+                          selectedLabel: disponibilites,
+                          onPick: onDisponibilitesChanged,
+                          onDateSelected: onCheckAvailability,
+                        ),
+                        if (checkingAvailability == true) ...[
+                          const SizedBox(height: 10),
+                          const Center(child: BabifixRingLoader.cyan(size: 22)),
+                        ],
+                        if (availabilityMessage != null &&
+                            availabilityMessage!.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: (providerAvailable == true
+                                      ? pal.success
+                                      : providerAvailable == false
+                                          ? pal.danger
+                                          : pal.accent)
+                                  .withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: (providerAvailable == true
+                                        ? pal.success
+                                        : providerAvailable == false
+                                            ? pal.danger
+                                            : pal.accent)
+                                    .withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Text(
+                              availabilityMessage!,
+                              style: TextStyle(
+                                color: providerAvailable == true
+                                    ? pal.success
+                                    : providerAvailable == false
+                                        ? pal.danger
+                                        : pal.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  child: const Icon(
-                    Icons.schedule_rounded,
-                    color: _kCyan,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Disponibilités',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    Text(
-                      'Quand êtes-vous disponible ?',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.45),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (providerId != null) ...[
-              // Sélecteur UNIQUE de disponibilité : choisir un jour ici vérifie
-              // la dispo ET enregistre la date prévue (plus de second champ
-              // « Vérifier la disponibilité » redondant).
-              _AvailabilityCalendar(
-                providerId: providerId!,
-                selectedLabel: disponibilites,
-                onPick: onDisponibilitesChanged,
-                onDateSelected: onCheckAvailability,
-              ),
-              // Message de résultat (disponible / conflit + jours libres) affiché
-              // juste sous le calendrier après le choix d'un jour.
-              if (availabilityMessage != null &&
-                  availabilityMessage!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color:
-                        (providerAvailable == true
-                                ? Colors.green
-                                : providerAvailable == false
-                                ? Colors.red
-                                : _kBlue)
-                            .withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color:
-                          (providerAvailable == true
-                                  ? Colors.green
-                                  : providerAvailable == false
-                                  ? Colors.red
-                                  : _kBlue)
-                              .withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Text(
-                    availabilityMessage!,
-                    style: TextStyle(
-                      color: providerAvailable == true
-                          ? Colors.green
-                          : providerAvailable == false
-                          ? Colors.red
-                          : Colors.white70,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-            if (availableCreneaux.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              const Text(
-                'Créneaux disponibles',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final c in availableCreneaux)
-                    _CreneauChip(
-                      label: c['label'] as String? ?? 'Créneau',
-                      timeRange: c['time_range'] as String? ?? '',
-                      selected: disponibilites == c['id'].toString(),
-                      onTap: () => onCreneauSelected?.call(
-                        c['id'].toString(),
-                      ),
-                    ),
+                  const SizedBox(height: 14),
                 ],
-              ),
-            ],
-            const SizedBox(height: 24),
-            // ── Mode de paiement ──────────────────────────────────────────
-            const Text(
-              'Mode de paiement',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _PaymentOption(
-                    icon: Icons.payments_rounded,
-                    label: 'Espèces',
-                    selected: paymentType == 'ESPECES',
-                    onTap: () => onPaymentTypeChanged('ESPECES'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _PaymentOption(
-                    icon: Icons.phone_android_rounded,
-                    label: 'Mobile Money',
-                    selected: paymentType == 'MOBILE_MONEY',
-                    onTap: () => onPaymentTypeChanged('MOBILE_MONEY'),
-                  ),
-                ),
-              ],
-            ),
-            if (paymentType == 'MOBILE_MONEY') ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(Icons.info_outline_rounded,
-                      size: 15, color: _kBlue.withValues(alpha: 0.85)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      "Vous choisirez l'opérateur (Orange, MTN, Wave, Moov) au "
-                      "moment du paiement, une fois le devis reçu.",
-                      style: TextStyle(
-                          fontSize: 12,
-                          height: 1.3,
-                          color: Colors.white.withValues(alpha: 0.6)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 24),
-            GestureDetector(
-              onTap: () => onUrgentChanged(!isUrgent),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isUrgent
-                      ? _kRed.withValues(alpha: 0.15)
-                      : const Color(0xFF0D1525),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isUrgent ? _kRed : _kBlue.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isUrgent
-                          ? Icons.warning_rounded
-                          : Icons.warning_amber_rounded,
-                      color: isUrgent ? _kRed : _kCyan.withValues(alpha: 0.7),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Intervention urgente',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            'Le prestataire intervient dès que possible',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Switch(
-                      value: isUrgent,
-                      onChanged: onUrgentChanged,
-                      activeThumbColor: _kRed,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: onBack,
-                    child: Container(
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.07),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.15),
-                        ),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Retour',
+
+                if (availableCreneaux.isNotEmpty) ...[
+                  _StepSectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Creneaux disponibles',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: pal.textPrimary,
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: GestureDetector(
-                    onTap: submitting ? null : onConfirm,
-                    child: Container(
-                      height: 52,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [_kBlue, _kBlueDark],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _kBlue.withValues(alpha: 0.40),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: submitting
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: BabifixRingLoader.cyan(size: 28),
-                              )
-                            : const Text(
-                                'Envoyer la demande',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final c in availableCreneaux)
+                              _CreneauChip(
+                                label: c['label'] as String? ?? 'Creneau',
+                                timeRange: c['time_range'] as String? ?? '',
+                                selected: disponibilites == c['id'].toString(),
+                                onTap: () => onCreneauSelected?.call(
+                                  c['id'].toString(),
                                 ),
                               ),
-                      ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 14),
+                ],
+
+                // ── Mode de paiement ──
+                _StepSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mode de paiement apres devis',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: pal.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PaymentOption(
+                              icon: Icons.payments_rounded,
+                              label: 'Especes',
+                              subtitle: 'Sur place',
+                              selected: paymentType == 'ESPECES',
+                              onTap: () => onPaymentTypeChanged('ESPECES'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _PaymentOption(
+                              icon: Icons.phone_android_rounded,
+                              label: 'Mobile Money',
+                              subtitle: 'Wave, Orange, MTN',
+                              selected: paymentType == 'MOBILE_MONEY',
+                              onTap: () => onPaymentTypeChanged('MOBILE_MONEY'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (paymentType == 'MOBILE_MONEY') ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: const [
+                            BabifixPaymentMethodLogo(methodId: 'WAVE', height: 22),
+                            BabifixPaymentMethodLogo(methodId: 'ORANGE_MONEY', height: 22),
+                            BabifixPaymentMethodLogo(methodId: 'MTN_MOMO', height: 22),
+                            BabifixPaymentMethodLogo(methodId: 'MOOV_MONEY', height: 22),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Vous choisirez l\'operateur au moment du reglement, apres reception du devis.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: pal.textMuted,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 14),
+
+                // ── BABIFIX SOS 24/7 (uniquement pour categories eligibles) ──
+                if (sosPreview?['eligible'] == true) ...[
+                  const SizedBox(height: 14),
+                  _Sos247Card(
+                    active: isUrgent,
+                    sosPreview: sosPreview!,
+                    onChanged: onUrgentChanged,
+                  ),
+                ],
               ],
             ),
-          ],
+          ),
         ),
-      ),
+        _StickyFooterBar(
+          secondaryLabel: 'Retour',
+          onSecondary: onBack,
+          primaryLabel: (isUrgent && sosPreview?['eligible'] == true)
+              ? 'Lancer le Radar SOS'
+              : 'Envoyer la demande',
+          loading: submitting,
+          onPrimary: onConfirm,
+        ),
+      ],
     );
   }
 }
@@ -2951,21 +2775,21 @@ class _CreneauChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  static const _kCyan = Color(0xFF4CC9F0);
-
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final pal = _BookingPalette.of(context);
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? _kCyan.withValues(alpha: 0.2) : const Color(0xFF0D1525),
+          color: selected ? pal.accentSoft : pal.softBg,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? _kCyan : Colors.white.withValues(alpha: 0.1),
-            width: selected ? 2 : 1,
+            color: selected ? pal.accent : pal.border,
+            width: selected ? 1.8 : 1,
           ),
         ),
         child: Column(
@@ -2978,15 +2802,15 @@ class _CreneauChip extends StatelessWidget {
                 Icon(
                   Icons.access_time_rounded,
                   size: 16,
-                  color: selected ? _kCyan : Colors.white.withValues(alpha: 0.5),
+                  color: selected ? pal.accent : pal.textMuted,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   label,
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? _kCyan : Colors.white70,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? pal.accent : pal.textPrimary,
                   ),
                 ),
               ],
@@ -2995,10 +2819,7 @@ class _CreneauChip extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 timeRange,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.white.withValues(alpha: 0.35),
-                ),
+                style: TextStyle(fontSize: 11.5, color: pal.textMuted),
               ),
             ],
           ],
@@ -3008,443 +2829,231 @@ class _CreneauChip extends StatelessWidget {
   }
 }
 
-class _PaymentModeTile extends StatelessWidget {
-  const _PaymentModeTile({
-    required this.selected,
-    required this.onTap,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.textColor,
-    required this.subColor,
-    this.footer,
-  });
-
-  final bool selected;
-  final VoidCallback onTap;
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color textColor;
-  final Color subColor;
-  final Widget? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              width: selected ? 2 : 1,
-              color: selected
-                  ? BabifixDesign.cyan
-                  : theme.dividerColor.withValues(alpha: 0.65),
-            ),
-            color: selected
-                ? BabifixDesign.cyan.withValues(alpha: 0.08)
-                : cs.surface,
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: BabifixDesign.cyan.withValues(alpha: 0.18),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 168),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            BabifixDesign.cyan.withValues(alpha: 0.2),
-                            BabifixDesign.cyan.withValues(alpha: 0.05),
-                          ],
-                        ),
-                      ),
-                      child: Icon(icon, color: BabifixDesign.iconOnDark, size: 22),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: subColor,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-                footer ?? const SizedBox(height: 28),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MmOperatorLogoChip extends StatelessWidget {
-  const _MmOperatorLogoChip({
-    required this.methodId,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String methodId;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              width: selected ? 2 : 1,
-              color: selected
-                  ? BabifixDesign.cyan
-                  : theme.dividerColor.withValues(alpha: 0.6),
-            ),
-            color: selected
-                ? BabifixDesign.cyan.withValues(alpha: 0.1)
-                : cs.surface,
-          ),
-          child: BabifixPaymentMethodLogo(methodId: methodId, height: 30),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Bannière chip (ligne d'info dans le header gradient) ─────────────────────
-
-class _BannerChip extends StatelessWidget {
-  const _BannerChip({required this.icon, required this.label, this.maxWidth});
-  final IconData icon;
-  final String label;
-  final double? maxWidth;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget text = Text(
-      label,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: 12,
-        color: Colors.white.withValues(alpha: 0.85),
-        fontWeight: FontWeight.w500,
-      ),
-    );
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 13, color: Colors.white.withValues(alpha: 0.6)),
-        const SizedBox(width: 5),
-        maxWidth != null
-            ? ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxWidth!),
-                child: text,
-              )
-            : Flexible(child: text),
-      ],
-    );
-  }
-}
-
-// ── Ligne de détail premium ───────────────────────────────────────────────────
-
-class _SummaryRow2 extends StatelessWidget {
-  const _SummaryRow2({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-    required this.iconBgDark,
-    required this.label,
-    required this.value,
-    required this.isLight,
-    required this.textColor,
-    required this.subColor,
-    this.valueMaxLines,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final Color iconBgDark;
-  final String label;
-  final String value;
-  final bool isLight;
-  final Color textColor;
-  final Color subColor;
-  final int? valueMaxLines;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: isLight ? iconBg : iconBgDark,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, size: 22, color: iconColor),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                    color: subColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  maxLines: valueMaxLines,
-                  overflow: valueMaxLines != null
-                      ? TextOverflow.ellipsis
-                      : null,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Step 3 : Confirmation ─────────────────────────────────────────────────────
-
-class _StepDone extends StatelessWidget {
-  const _StepDone({
-    required this.textColor,
-    required this.serviceTitle,
-    required this.onClose,
-    this.reference,
-    this.providerName,
-    this.price,
-    this.onOpenChat,
-  });
-
-  final Color textColor;
-  final String serviceTitle;
-  final VoidCallback onClose;
-  final String? reference;
-  final String? providerName;
-  final int? price;
-  final VoidCallback? onOpenChat;
-
-  @override
-  Widget build(BuildContext context) {
-    final sub = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          TweenAnimationBuilder<double>(
-            duration: const Duration(milliseconds: 700),
-            tween: Tween(begin: 0, end: 1),
-            curve: Curves.elasticOut,
-            builder: (_, v, __) => Transform.scale(
-              scale: v,
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: BabifixDesign.cyan.withValues(alpha: 0.15),
-                ),
-                child: Icon(
-                  Icons.check_circle_rounded,
-                  size: 60,
-                  color: BabifixDesign.iconOnDark,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            'Demande envoyée !',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              color: textColor,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Votre demande a été transmise au prestataire. '
-            'Vous recevrez un devis sous peu.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: sub, height: 1.5, fontSize: 15),
-          ),
-          if (reference != null) ...[
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    'Référence de votre demande',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    reference!,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF4CC9F0),
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          if (providerName != null) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onOpenChat,
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: Text('Discuter avec $providerName'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF4CC9F0),
-                  side: const BorderSide(color: Color(0xFF4CC9F0)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 40),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onClose,
-              child: const Text('Retour à l\'accueil'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _PaymentOption extends StatelessWidget {
   const _PaymentOption({
     required this.icon,
     required this.label,
+    required this.subtitle,
     required this.selected,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
+  final String subtitle;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final pal = _BookingPalette.of(context);
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF4CC9F0).withValues(alpha: 0.2)
-              : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
+          color: selected ? pal.accentSoft : pal.softBg,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected
-                ? const Color(0xFF4CC9F0)
-                : Colors.white.withValues(alpha: 0.1),
-            width: selected ? 2 : 1,
+            color: selected ? pal.accent : pal.border,
+            width: selected ? 1.8 : 1,
           ),
         ),
         child: Column(
           children: [
-            Icon(icon, color: selected ? const Color(0xFF4CC9F0) : Colors.white54, size: 22),
+            Icon(
+              icon,
+              color: selected ? pal.accent : pal.textMuted,
+              size: 24,
+            ),
             const SizedBox(height: 6),
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: selected ? const Color(0xFF4CC9F0) : Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: pal.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 11, color: pal.textMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Carte SOS 24/7 (eligibilite, tarif serveur & guide encadre) ──────────────
+
+class _Sos247Card extends StatelessWidget {
+  const _Sos247Card({
+    required this.active,
+    required this.sosPreview,
+    required this.onChanged,
+  });
+
+  final bool active;
+  final Map<String, dynamic> sosPreview;
+  final ValueChanged<bool> onChanged;
+
+  void _showGuide(BuildContext context) {
+    final dayFee = sosPreview['day_fee_fcfa'] ?? 1500;
+    final nightFee = sosPreview['night_fee_fcfa'] ?? 2500;
+    showBabifixModalSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.emergency_share_rounded, color: Color(0xFFC2410C), size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Comment fonctionne BABIFIX SOS 24/7 ?',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '1. Alerte sectorielle immediate : tous les artisans disponibles de votre metier dans un rayon de ${sosPreview['radius_km'] ?? 7} km recoivent votre demande en meme temps.\n\n'
+                '2. Forfait express encadre :\n'
+                '   • Journee (06h-20h) : $dayFee FCFA\n'
+                '   • Nuit (20h-06h) & Dimanche : $nightFee FCFA\n\n'
+                '3. 100 % deductible : si vous validez le devis etabli sur place par l\'artisan, ce forfait est integralement deduit du montant final. Aucune facturation sans votre accord.',
+                style: const TextStyle(fontSize: 13.5, height: 1.45),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0B1B34)),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Compris'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = _BookingPalette.of(context);
+    final isNight = sosPreview['is_night'] == true;
+    final fee = sosPreview['fee_fcfa'] ?? (isNight ? 2500 : 1500);
+    final sched = '${sosPreview['schedule_label'] ?? (isNight ? 'Astreinte Nuit / Dimanche' : 'Journee Express')}';
+    const sosTerra = Color(0xFFC2410C);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () => onChanged(!active),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: active ? sosTerra.withValues(alpha: 0.08) : pal.cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: active ? sosTerra : pal.border,
+            width: active ? 1.8 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: (active ? sosTerra : pal.accent).withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.emergency_share_rounded,
+                    color: active ? sosTerra : pal.accent,
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'BABIFIX SOS 24/7',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14.5,
+                              color: active ? sosTerra : pal.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: (isNight ? const Color(0xFF0B1B34) : const Color(0xFFB45309))
+                                  .withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '$fee FCFA',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: isNight ? const Color(0xFF0B1B34) : const Color(0xFFB45309),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        sched,
+                        style: TextStyle(fontSize: 11.5, color: pal.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: active,
+                  onChanged: onChanged,
+                  activeThumbColor: sosTerra,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Diffuse immediatement a tous les artisans du secteur (${sosPreview['radius_km'] ?? 7} km). Forfait deplacement $fee FCFA 100 % deductible du devis.',
+              style: TextStyle(fontSize: 12, color: pal.textMuted, height: 1.35),
+            ),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: () => _showGuide(context),
+              child: const Text(
+                'Voir le fonctionnement et tarif encadre',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: sosTerra,
+                  decoration: TextDecoration.underline,
+                ),
               ),
             ),
           ],
@@ -3454,9 +3063,251 @@ class _PaymentOption extends StatelessWidget {
   }
 }
 
+// ── Step 3 : Confirmation (avec Radar SOS Live si sosMode == true) ────────────
 
-/// Dialogue premium réutilisable pour l'anti-doublon de réservation
-/// (blocage « même prestataire » ou avertissement « même catégorie »).
+class _StepDone extends StatefulWidget {
+  const _StepDone({
+    required this.serviceTitle,
+    required this.onClose,
+    this.reference,
+    this.providerName,
+    this.sosMode = false,
+    this.sosFeeFcfa = 1500,
+    this.alertedCount = 0,
+    this.onOpenChat,
+  });
+
+  final String serviceTitle;
+  final VoidCallback onClose;
+  final String? reference;
+  final String? providerName;
+  final bool sosMode;
+  final int sosFeeFcfa;
+  final int alertedCount;
+  final VoidCallback? onOpenChat;
+
+  @override
+  State<_StepDone> createState() => _StepDoneState();
+}
+
+class _StepDoneState extends State<_StepDone> with SingleTickerProviderStateMixin {
+  AnimationController? _radarCtrl;
+  Timer? _pollTimer;
+  String? _claimedProviderName;
+  int? _claimedProviderId;
+
+  @override
+  void initState() {
+    super.initState();
+    _claimedProviderName = widget.providerName;
+    if (widget.sosMode && widget.reference != null && _claimedProviderName == null) {
+      _radarCtrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1600),
+      )..repeat();
+      _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _pollSosStatus());
+    }
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _radarCtrl?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pollSosStatus() async {
+    if (widget.reference == null) return;
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      if (token == null || token.isEmpty) return;
+      final resp = await http.get(
+        Uri.parse('${babifixApiBaseUrl()}/api/client/reservations/${widget.reference}/detail'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200 && mounted) {
+        final d = jsonDecode(resp.body) as Map<String, dynamic>;
+        final pd = d['prestataire_data'] as Map<String, dynamic>?;
+        final pname = '${pd?['nom'] ?? d['prestataire'] ?? ''}'.trim();
+        final pid = d['assigned_provider_id'] as int?;
+        if (pname.isNotEmpty && pname != 'A affecter') {
+          _pollTimer?.cancel();
+          _radarCtrl?.stop();
+          setState(() {
+            _claimedProviderName = pname;
+            _claimedProviderId = pid;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = _BookingPalette.of(context);
+    final isWaitingSos = widget.sosMode && _claimedProviderName == null;
+    const sosTerra = Color(0xFFC2410C);
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: _StepSectionCard(
+          padding: const EdgeInsets.fromLTRB(24, 30, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isWaitingSos && _radarCtrl != null)
+                SizedBox(
+                  width: 112,
+                  height: 112,
+                  child: AnimatedBuilder(
+                    animation: _radarCtrl!,
+                    builder: (_, __) {
+                      final t = _radarCtrl!.value;
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 48 + t * 62,
+                            height: 48 + t * 62,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: sosTerra.withValues(alpha: (1 - t) * 0.7),
+                                width: 2.2,
+                              ),
+                              color: sosTerra.withValues(alpha: (1 - t) * 0.14),
+                            ),
+                          ),
+                          Container(
+                            width: 58,
+                            height: 58,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: sosTerra,
+                            ),
+                            child: const Icon(
+                              Icons.radar_rounded,
+                              size: 32,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                )
+              else
+                Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: pal.success.withValues(alpha: 0.14),
+                  ),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    size: 52,
+                    color: pal.success,
+                  ),
+                ),
+              const SizedBox(height: 22),
+              Text(
+                isWaitingSos
+                    ? 'Radar SOS actif...'
+                    : (_claimedProviderName != null && widget.sosMode)
+                        ? 'Artisan SOS trouve !'
+                        : 'Demande envoyee',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                  color: pal.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isWaitingSos
+                    ? 'Alerte envoyee dans votre secteur (${widget.alertedCount > 0 ? '${widget.alertedCount} artisan(s) notifies' : 'recherche en cours'}). Le premier artisan qui accepte prend votre mission (${widget.sosFeeFcfa} FCFA deductible).'
+                    : (_claimedProviderName != null && widget.sosMode)
+                        ? '$_claimedProviderName a pris votre urgence « ${widget.serviceTitle} » en charge.'
+                        : 'Votre demande pour « ${widget.serviceTitle} » a ete transmise. Le prestataire va preparer votre devis sur mesure.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: pal.textMuted,
+                  height: 1.45,
+                  fontSize: 14,
+                ),
+              ),
+              if (widget.reference != null) ...[
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: pal.softBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: pal.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Reference de suivi',
+                        style: TextStyle(fontSize: 12, color: pal.textMuted),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.reference!,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: pal.accent,
+                          fontFeatures: BabifixDesign.tabularFigures,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (_claimedProviderName != null && (widget.onOpenChat != null || _claimedProviderId != null)) ...[
+                const SizedBox(height: 16),
+                BabifixButton(
+                  label: 'Discuter avec $_claimedProviderName',
+                  icon: Icons.chat_bubble_outline_rounded,
+                  variant: BabifixButtonVariant.outlined,
+                  backgroundColor: pal.cardBg,
+                  foregroundColor: pal.textPrimary,
+                  width: double.infinity,
+                  height: 48,
+                  onPressed: widget.onOpenChat ?? () {
+                    Navigator.of(context).pushReplacement(
+                      babifixRoute(
+                        (_) => ChatRoomScreen(
+                          name: _claimedProviderName ?? 'Artisan',
+                          peerUserId: _claimedProviderId,
+                          apiBase: babifixApiBaseUrl(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+              const SizedBox(height: 16),
+              BabifixButton(
+                label: 'Retour a l\'accueil',
+                variant: BabifixButtonVariant.primary,
+                width: double.infinity,
+                height: 50,
+                onPressed: widget.onClose,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DuplicateDialog extends StatelessWidget {
   const _DuplicateDialog({
     required this.accent,
@@ -3480,11 +3331,11 @@ class _DuplicateDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const navy = Color(0xFF0B1B34);
+    final pal = _BookingPalette.of(context);
     return Dialog(
-      backgroundColor: Colors.white,
+      backgroundColor: pal.cardBg,
       insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
         child: Column(
@@ -3492,36 +3343,36 @@ class _DuplicateDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 60,
+              height: 60,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: accent, size: 32),
+              child: Icon(icon, color: accent, size: 30),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: navy,
+              style: TextStyle(
+                color: pal.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF475569),
+              style: TextStyle(
+                color: pal.textMuted,
                 fontSize: 13.5,
                 height: 1.45,
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: onPrimary,
               style: ElevatedButton.styleFrom(
@@ -3545,13 +3396,10 @@ class _DuplicateDialog extends StatelessWidget {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: onSecondary,
-                style: TextButton.styleFrom(
-                  foregroundColor: navy,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
                 child: Text(
                   secondaryLabel!,
-                  style: const TextStyle(
+                  style: TextStyle(
+                    color: pal.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -3565,70 +3413,64 @@ class _DuplicateDialog extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _RepereTextField — champ texte « Point de repère » avec icône pin verte,
-// libellé clair et placeholder concret. Optionnel mais fortement recommandé
-// pour aider l'artisan à trouver le client sur place.
-// ─────────────────────────────────────────────────────────────────────────────
 class _RepereTextField extends StatelessWidget {
   const _RepereTextField({required this.controller});
   final TextEditingController controller;
 
   @override
   Widget build(BuildContext context) {
-    const green = Color(0xFF22C55E);
-    return Container(
-      decoration: BoxDecoration(
-        color: green.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: green.withValues(alpha: 0.30), width: 1.2),
-      ),
-      child: TextField(
-        controller: controller,
-        maxLength: 200,
-        maxLines: 2,
-        minLines: 1,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
-        decoration: InputDecoration(
-          isDense: true,
-          counterText: '',
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          border: InputBorder.none,
-          prefixIcon: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: green.withValues(alpha: 0.20),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.pin_drop_rounded, size: 18, color: green),
+    final pal = _BookingPalette.of(context);
+    return TextField(
+      controller: controller,
+      maxLength: 200,
+      maxLines: 2,
+      minLines: 1,
+      style: TextStyle(color: pal.textPrimary, fontSize: 14),
+      decoration: InputDecoration(
+        isDense: true,
+        counterText: '',
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        filled: true,
+        fillColor: pal.success.withValues(alpha: 0.06),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: pal.success.withValues(alpha: 0.35)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: pal.success.withValues(alpha: 0.35)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: pal.success, width: 1.5),
+        ),
+        prefixIcon: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: pal.success.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(8),
           ),
-          prefixIconConstraints:
-              const BoxConstraints(minWidth: 0, minHeight: 0),
-          labelText: 'Point de repère (optionnel)',
-          labelStyle: const TextStyle(
-            color: green,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-            letterSpacing: 0.4,
-          ),
-          hintText: 'ex : en face de la pharmacie Saint-Joseph',
-          hintStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.45),
-            fontSize: 12.5,
-            fontStyle: FontStyle.italic,
-          ),
+          child: Icon(Icons.pin_drop_rounded, size: 18, color: pal.success),
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        labelText: 'Point de repere (optionnel)',
+        labelStyle: TextStyle(
+          color: pal.success,
+          fontWeight: FontWeight.w700,
+          fontSize: 12.5,
+        ),
+        hintText: 'ex : en face de la pharmacie Saint-Joseph',
+        hintStyle: TextStyle(
+          color: pal.textMuted,
+          fontSize: 12.5,
+          fontStyle: FontStyle.italic,
         ),
       ),
     );
   }
 }
 
-// ── Calendrier de disponibilité animé (client) ──────────────────────────────
-// Lit /api/public/providers/<id>/availability/ et affiche les prochains jours.
-// Les jours où le prestataire a des créneaux (et n'est pas en congé) sont
-// mis en avant et cliquables ; on choisit ensuite un créneau horaire.
 class _AvailabilityCalendar extends StatefulWidget {
   const _AvailabilityCalendar({
     required this.providerId,
@@ -3640,10 +3482,6 @@ class _AvailabilityCalendar extends StatefulWidget {
   final int providerId;
   final String selectedLabel;
   final ValueChanged<String> onPick;
-
-  /// Appelé avec la date choisie quand on tape un jour disponible — sert à
-  /// vérifier la dispo et à enregistrer la date prévue (plus besoin d'un second
-  /// sélecteur « Vérifier la disponibilité »).
   final ValueChanged<DateTime>? onDateSelected;
 
   @override
@@ -3651,9 +3489,6 @@ class _AvailabilityCalendar extends StatefulWidget {
 }
 
 class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
-  static const _kCyan = Color(0xFF4CC9F0);
-  static const _kNavy = Color(0xFF050D1A);
-  static const _kCard = Color(0xFF0D1525);
   static const _wd = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
   bool _loading = true;
@@ -3677,8 +3512,7 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
       );
       if (resp.statusCode == 200) {
         final j = jsonDecode(resp.body) as Map<String, dynamic>;
-        final days =
-            ((j['days'] as List?) ?? const []).cast<Map<String, dynamic>>();
+        final days = ((j['days'] as List?) ?? const []).cast<Map<String, dynamic>>();
         if (mounted) {
           setState(() {
             _hasAvailability = j['has_availability'] == true;
@@ -3711,25 +3545,26 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
     final iso = '${day['date']}';
     final wd = (day['weekday'] as num?)?.toInt() ?? 0;
     final label =
-        '${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)} · ${slot['start']}–${slot['end']}';
+        '${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)} · ${slot['start']}-${slot['end']}';
     widget.onPick(label);
   }
 
   @override
   Widget build(BuildContext context) {
+    final pal = _BookingPalette.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Icon(Icons.event_available_rounded, color: _kCyan, size: 18),
+            Icon(Icons.event_available_rounded, color: pal.accent, size: 18),
             const SizedBox(width: 8),
-            const Text(
-              'Disponibilités du prestataire',
+            Text(
+              'Disponibilites du prestataire',
               style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: pal.textPrimary,
               ),
             ),
           ],
@@ -3743,24 +3578,23 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
         else if (_error || !_hasAvailability)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _kCard,
+              color: pal.softBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _kCyan.withValues(alpha: 0.18)),
+              border: Border.all(color: pal.border),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline_rounded,
-                    color: _kCyan.withValues(alpha: 0.8), size: 18),
+                Icon(Icons.info_outline_rounded, color: pal.accent, size: 18),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     _error
-                        ? "Disponibilités indisponibles pour le moment. Indiquez vos préférences ci-dessous."
-                        : "Ce prestataire n'a pas encore publié ses créneaux. Indiquez vos préférences ci-dessous.",
+                        ? 'Disponibilites indisponibles pour le moment.'
+                        : 'Ce prestataire n\'a pas encore publie de creneaux fixes.',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
+                      color: pal.textMuted,
                       fontSize: 12.5,
                       height: 1.35,
                     ),
@@ -3775,177 +3609,184 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: _days.length,
-              itemBuilder: (_, i) => _dayChip(i),
+              itemBuilder: (_, i) => _dayChip(pal, i),
             ),
           ),
-          _buildSlots(),
+          _buildSlots(pal),
         ],
       ],
     );
   }
 
-  Widget _dayChip(int index) {
+  Widget _dayChip(_BookingPalette pal, int index) {
     final day = _days[index];
     final available = day['available'] == true;
     final blocked = day['blocked'] == true;
     final selected = index == _selectedDayIndex;
     final iso = '${day['date']}';
     final wd = (day['weekday'] as num?)?.toInt() ?? 0;
-    final onLight = selected ? _kNavy : null;
-    return TweenAnimationBuilder<double>(
-      duration: Duration(milliseconds: 300 + index * 35),
-      curve: Curves.easeOutCubic,
-      tween: Tween(begin: 0, end: 1),
-      builder: (_, v, child) => Opacity(
-        opacity: v.clamp(0.0, 1.0),
-        child: Transform.translate(offset: Offset(0, (1 - v) * 14), child: child),
-      ),
-      child: GestureDetector(
-        onTap: available
-            ? () {
-                final newIndex = selected ? -1 : index;
-                setState(() => _selectedDayIndex = newIndex);
-                if (newIndex >= 0) {
-                  // Date choisie → vérif dispo + enregistrement de la date prévue.
-                  final d = DateTime.tryParse('${day['date']}');
-                  if (d != null) widget.onDateSelected?.call(d);
-                }
+
+    return GestureDetector(
+      onTap: available
+          ? () {
+              final newIndex = selected ? -1 : index;
+              setState(() => _selectedDayIndex = newIndex);
+              if (newIndex >= 0) {
+                final d = DateTime.tryParse('${day['date']}');
+                if (d != null) widget.onDateSelected?.call(d);
               }
-            : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: 54,
-          margin: const EdgeInsets.only(right: 10),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
+            }
+          : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 58,
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? (pal.isLight ? BabifixDesign.navy : BabifixDesign.cyan)
+              : (available ? pal.softBg : pal.pageBg),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
             color: selected
-                ? _kCyan
-                : (available ? _kCard : Colors.white.withValues(alpha: 0.03)),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected
-                  ? _kCyan
-                  : (available
-                      ? const Color(0xFF22C55E).withValues(alpha: 0.45)
-                      : Colors.white.withValues(alpha: 0.06)),
-              width: available && !selected ? 1.3 : 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _wd[wd],
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: onLight ??
-                      (available ? Colors.white70 : Colors.white24),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _seg(iso, 2),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color:
-                      onLight ?? (available ? Colors.white : Colors.white24),
-                ),
-              ),
-              const SizedBox(height: 5),
-              // Indicateur d'état clair : ✓ vert = disponible · ✕ gris =
-              // indisponible · cadenas = congé bloqué.
-              if (blocked)
-                const Icon(Icons.lock_rounded, size: 13, color: Color(0xFFEF4444))
-              else if (available)
-                Icon(Icons.check_circle_rounded,
-                    size: 13,
-                    color: selected ? _kNavy : const Color(0xFF22C55E))
-              else
-                const Icon(Icons.cancel_rounded,
-                    size: 13, color: Colors.white24),
-            ],
+                ? (pal.isLight ? BabifixDesign.navy : BabifixDesign.cyan)
+                : (available
+                    ? pal.success.withValues(alpha: 0.5)
+                    : pal.border),
+            width: available && !selected ? 1.3 : 1,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSlots() {
-    if (_selectedDayIndex < 0 || _selectedDayIndex >= _days.length) {
-      return const SizedBox.shrink();
-    }
-    final day = _days[_selectedDayIndex];
-    final slots = ((day['slots'] as List?) ?? const [])
-        .cast<Map<String, dynamic>>();
-    final iso = '${day['date']}';
-    final wd = (day['weekday'] as num?)?.toInt() ?? 0;
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Créneaux du ${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)}',
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.white60,
+              _wd[wd],
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: selected
+                    ? (pal.isLight ? Colors.white70 : BabifixDesign.navy)
+                    : (available ? pal.textMuted : pal.textMuted.withValues(alpha: 0.45)),
               ),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in slots)
-                  _slotChip(day, s,
-                      '${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)} · ${s['start']}–${s['end']}'),
-              ],
+            const SizedBox(height: 4),
+            Text(
+              _seg(iso, 2),
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                fontFeatures: BabifixDesign.tabularFigures,
+                color: selected
+                    ? (pal.isLight ? Colors.white : BabifixDesign.navy)
+                    : (available
+                        ? pal.textPrimary
+                        : pal.textMuted.withValues(alpha: 0.45)),
+              ),
             ),
+            const SizedBox(height: 5),
+            if (blocked)
+              Icon(Icons.lock_rounded, size: 13, color: pal.danger)
+            else if (available)
+              Icon(
+                Icons.check_circle_rounded,
+                size: 13,
+                color: selected ? Colors.white : pal.success,
+              )
+            else
+              Icon(
+                Icons.cancel_rounded,
+                size: 13,
+                color: pal.textMuted.withValues(alpha: 0.35),
+              ),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildSlots(_BookingPalette pal) {
+    if (_selectedDayIndex < 0 || _selectedDayIndex >= _days.length) {
+      return const SizedBox.shrink();
+    }
+    final day = _days[_selectedDayIndex];
+    final slots =
+        ((day['slots'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final iso = '${day['date']}';
+    final wd = (day['weekday'] as num?)?.toInt() ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Creneaux du ${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)}',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: pal.textMuted,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final s in slots)
+                _slotChip(
+                  pal,
+                  day,
+                  s,
+                  '${_wd[wd]} ${_seg(iso, 2)}/${_seg(iso, 1)} · ${s['start']}-${s['end']}',
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _slotChip(
-      Map<String, dynamic> day, Map<String, dynamic> slot, String label) {
+    _BookingPalette pal,
+    Map<String, dynamic> day,
+    Map<String, dynamic> slot,
+    String label,
+  ) {
     final selected = widget.selectedLabel == label;
-    return GestureDetector(
+    return InkWell(
       onTap: () => _pickSlot(day, slot),
+      borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? _kCyan : _kCard,
+          color: selected ? BabifixDesign.navy : pal.softBg,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? _kCyan : _kCyan.withValues(alpha: 0.25),
-            width: selected ? 2 : 1,
+            color: selected ? BabifixDesign.navy : pal.border,
+            width: selected ? 1.8 : 1,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.schedule_rounded,
-                size: 15, color: selected ? _kNavy : _kCyan),
+            Icon(
+              Icons.schedule_rounded,
+              size: 15,
+              color: selected ? Colors.white : pal.accent,
+            ),
             const SizedBox(width: 6),
             Text(
-              '${slot['start']} – ${slot['end']}',
+              '${slot['start']} - ${slot['end']}',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: selected ? _kNavy : Colors.white,
+                fontFeatures: BabifixDesign.tabularFigures,
+                color: selected ? Colors.white : pal.textPrimary,
               ),
             ),
             if (selected) ...[
               const SizedBox(width: 6),
-              const Icon(Icons.check_rounded, size: 15, color: _kNavy),
+              const Icon(Icons.check_rounded, size: 15, color: Colors.white),
             ],
           ],
         ),

@@ -1,13 +1,17 @@
 ﻿import 'dart:convert';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../parrainage/parrainage_screen.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_client_shield_card.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 class FideliteScreen extends StatefulWidget {
   const FideliteScreen({super.key, required this.isLight});
@@ -77,12 +81,10 @@ class _FideliteScreenState extends State<FideliteScreen>
   @override
   Widget build(BuildContext context) {
     final isLight = widget.isLight;
-    final bg = isLight ? const Color(0xFFF6F8FC) : const Color(0xFF0B1B34);
-    final cardBg = isLight ? Colors.white : const Color(0xFF1A2744);
-    final textPrimary =
-        isLight ? const Color(0xFF0F172A) : Colors.white;
-    final textSecondary =
-        isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final cardBg = BabifixDesign.surfaceOf(context);
+    final textPrimary = BabifixDesign.textPrimaryOf(context);
+    final textSecondary = BabifixDesign.textMutedOf(context);
 
     return Scaffold(
       backgroundColor: bg,
@@ -124,6 +126,15 @@ class _FideliteScreenState extends State<FideliteScreen>
                     const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    BabifixClientShieldCard(
+                      holderName: (_data!['client_nom'] as String?) ?? 'Membre BABIFIX',
+                      tierLabel: (_data!['niveau'] as String?) ?? 'Bronze',
+                      creditFcfa: (_data!['credit_disponible_fcfa'] as num?)?.toDouble() ?? 0,
+                      points: (_data!['points'] as num?)?.toInt() ?? 0,
+                      reductionPct: (_data!['reduction_pct'] as num?)?.toInt() ?? 0,
+                      missionsCount: (_data!['nb_reservations'] as num?)?.toInt() ?? 0,
+                    ),
+                    const SizedBox(height: 18),
                     _NiveauCard(
                       data: _data!,
                       cardBg: cardBg,
@@ -237,7 +248,7 @@ class _FideliteScreenState extends State<FideliteScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                      'Crédit disponible : ${credit.toStringAsFixed(0)} F — appliqué automatiquement à l\'acceptation de votre prochain devis (mobile).',
+                      'Crédit disponible : ${credit.toStringAsFixed(0)} F : appliqué automatiquement à l\'acceptation de votre prochain devis (mobile).',
                       style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -247,26 +258,17 @@ class _FideliteScreenState extends State<FideliteScreen>
             ),
           ],
           const SizedBox(height: 12),
-          SizedBox(
+          BabifixButton(
+            label: convertible
+                ? 'Convertir mes points en crédit'
+                : 'Atteignez $seuil pts pour convertir',
+            icon: Icons.redeem_rounded,
+            isLoading: _converting,
+            backgroundColor: cyan,
+            foregroundColor: const Color(0xFF060E1C),
             width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: convertible && !_converting ? _convertPoints : null,
-              style: FilledButton.styleFrom(
-                  backgroundColor: cyan,
-                  padding: const EdgeInsets.symmetric(vertical: 13)),
-              icon: _converting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.redeem_rounded, size: 18),
-              label: Text(
-                  convertible
-                      ? 'Convertir mes points en crédit'
-                      : 'Atteignez $seuil pts pour convertir',
-                  style: const TextStyle(fontWeight: FontWeight.w800)),
-            ),
+            height: 48,
+            onPressed: convertible && !_converting ? _convertPoints : null,
           ),
         ],
       ),
@@ -291,18 +293,21 @@ class _FideliteScreenState extends State<FideliteScreen>
           .timeout(const Duration(seconds: 45));
       if (mounted) {
         final ok = res.statusCode == 200;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              ok ? 'Points convertis en crédit !' : 'Conversion impossible.'),
-          backgroundColor:
-              ok ? const Color(0xFF16A34A) : const Color(0xFFEF4444),
-        ));
+        showBabifixToast(
+          context,
+          type: ok ? BabifixToastType.success : BabifixToastType.error,
+          message:
+              ok ? 'Points convertis en crédit !' : 'Conversion impossible.',
+        );
         if (ok) await _load();
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Erreur réseau, réessayez.')));
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Erreur réseau, réessayez.',
+        );
       }
     }
     if (mounted) setState(() => _converting = false);
@@ -838,7 +843,7 @@ class _ParrainageCardState extends State<_ParrainageCard> {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ClientParrainageScreen()),
+                babifixRoute((_) => const ClientParrainageScreen()),
               ),
               icon: const Icon(Icons.card_giftcard_rounded, size: 18),
               label: const Text('Gérer mon parrainage'),
@@ -922,9 +927,9 @@ class _NiveauxTable extends StatelessWidget {
   final String niveauActuel;
 
   static const _niveaux = [
-    _NiveauInfo('Bronze', '0–4 missions', '0%', Color(0xFFCD7F32)),
-    _NiveauInfo('Argent', '5–9 missions', '-5%', Color(0xFF64748B)),
-    _NiveauInfo('Or', '10–19 missions', '-10%', Color(0xFFF59E0B)),
+    _NiveauInfo('Bronze', '0 - 4 missions', '0%', Color(0xFFCD7F32)),
+    _NiveauInfo('Argent', '5 - 9 missions', '-5%', Color(0xFF64748B)),
+    _NiveauInfo('Or', '10 - 19 missions', '-10%', Color(0xFFF59E0B)),
     _NiveauInfo('Platine', '20+ missions', '-15%', Color(0xFF7C3AED)),
   ];
 

@@ -17,6 +17,7 @@ import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/error_utils.dart';
@@ -40,7 +41,6 @@ class _ClientJournalScreenState extends State<ClientJournalScreen> {
   List<String> _prestaPhotosAvant = [];
   List<String> _prestaPhotosApres = [];
   Devis? _devis;
-  String _statut = '';
   DateTime? _updatedAt;
 
   @override
@@ -81,7 +81,6 @@ class _ClientJournalScreenState extends State<ClientJournalScreen> {
             .map((e) => e.toString())
             .toList();
         _noteCtl.text = (j['client_journal_note'] ?? '').toString();
-        _statut = (j['statut'] ?? '').toString();
         final ts = j['client_journal_updated_at']?.toString();
         _updatedAt = ts != null && ts.isNotEmpty ? DateTime.tryParse(ts) : null;
       }
@@ -416,23 +415,14 @@ class _ClientJournalScreenState extends State<ClientJournalScreen> {
             ),
           ],
         ),
-        child: SizedBox(
+        child: BabifixButton(
+          label: 'Enregistrer mon journal',
+          icon: Icons.save_rounded,
+          isLoading: _saving,
+          backgroundColor: BabifixDesign.ciBlue,
           width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: BabifixRingLoader.cyan(size: 28))
-                : const Icon(Icons.save),
-            label: const Text('Enregistrer mon journal'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BabifixDesign.ciBlue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 15),
-            ),
-          ),
+          height: 50,
+          onPressed: _saving ? null : _save,
         ),
       ),
     );

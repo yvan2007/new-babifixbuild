@@ -68,15 +68,20 @@ class DevisCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: BabifixDesign.ciBlue.withValues(alpha: 0.15)),
+        border: Border.all(
+          color: isDark
+              ? BabifixDesign.borderDark
+              : BabifixDesign.cyanDeep.withValues(alpha: 0.18),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -85,11 +90,11 @@ class DevisCardWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _header(),
-          if (devis.diagnostic.isNotEmpty) _diagnostic(),
+          _header(context),
+          if (devis.diagnostic.isNotEmpty) _diagnostic(context),
           if (devis.photosPrestataire.isNotEmpty) _photos(),
-          ..._sections(),
-          _totals(),
+          ..._sections(context),
+          _totals(context),
         ],
       ),
     );
@@ -157,67 +162,75 @@ class DevisCardWidget extends StatelessWidget {
     return ph;
   }
 
-  Widget _header() {
+  Widget _header(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
     final couleur = switch (devis.statut) {
-      DevisStatus.accepte => BabifixDesign.ciGreen,
+      DevisStatus.accepte => isDark ? const Color(0xFF4ADE80) : BabifixDesign.emeraldForest,
       DevisStatus.refuse => BabifixDesign.error,
-      DevisStatus.envoye => BabifixDesign.ciBlue,
-      _ => Colors.grey.shade500,
+      DevisStatus.envoye => isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep,
+      _ => BabifixDesign.textMutedOf(context),
     };
-    // Une ESTIMATION et un DEVIS FERME ne portent plus le même nom (source de
-    // confusion) : titre + icône + pastille distincts.
     final estim = devis.estEstimation;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: BoxDecoration(
-        color: BabifixDesign.ciBlue.withValues(alpha: 0.06),
+        color: (isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep)
+            .withValues(alpha: 0.09),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
       ),
       child: Row(
         children: [
-          Icon(estim ? Icons.query_stats_rounded : Icons.receipt_long,
-              size: 20, color: BabifixDesign.iconOnLight),
+          Icon(
+            estim ? Icons.assignment_outlined : Icons.receipt_long,
+            size: 20,
+            color: BabifixDesign.iconColor(context),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  estim
-                      ? 'Estimation ${devis.reference}'
-                      : 'Devis ${devis.reference}',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700),
+                  'Devis ${devis.reference}',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: BabifixDesign.textPrimaryOf(context),
+                  ),
                 ),
                 if (estim)
-                  const Text(
-                    'Fourchette indicative, non payable',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  Text(
+                    'Chiffrage sur mesure apres diagnostic',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: BabifixDesign.textMutedOf(context),
+                    ),
                   )
                 else if (devis.dateProposee != null &&
                     devis.dateProposee!.isNotEmpty)
                   Text(
                     'Proposé pour le ${devis.dateProposee}',
                     style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600),
+                      fontSize: 12,
+                      color: BabifixDesign.textMutedOf(context),
+                    ),
                   ),
               ],
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: (estim ? const Color(0xFFF59E0B) : couleur)
-                  .withValues(alpha: 0.12),
+              color: couleur.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              estim ? 'Indicatif' : devis.statut.label,
+              estim ? 'En preparation' : devis.statut.label,
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: estim ? const Color(0xFFB45309) : couleur),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: couleur,
+              ),
             ),
           ),
         ],
@@ -225,14 +238,16 @@ class DevisCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _diagnostic() {
+  Widget _diagnostic(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: BabifixDesign.elevatedSurfaceOf(context),
           borderRadius: BorderRadius.circular(8),
+          border: isDark ? Border.all(color: BabifixDesign.borderDark) : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,20 +255,27 @@ class DevisCardWidget extends StatelessWidget {
             Text(
               'Diagnostic',
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade700),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: BabifixDesign.textMutedOf(context),
+              ),
             ),
             const SizedBox(height: 4),
-            Text(devis.diagnostic,
-                style: const TextStyle(fontSize: 13, height: 1.35)),
+            Text(
+              devis.diagnostic,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.35,
+                color: BabifixDesign.textPrimaryOf(context),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  List<Widget> _sections() {
+  List<Widget> _sections(BuildContext context) {
     final types = [
       DevisLineType.fourniture,
       DevisLineType.mainOeuvre,
@@ -264,13 +286,13 @@ class DevisCardWidget extends StatelessWidget {
     for (final t in types) {
       final ls = devis.lignesByType(t);
       if (ls.isEmpty) continue;
-      out.add(_section(t, ls));
+      out.add(_section(context, t, ls));
     }
     return out;
   }
 
-  Widget _section(DevisLineType t, List<LigneDevis> lignes) {
-    final couleur = _typeColor(t);
+  Widget _section(BuildContext context, DevisLineType t, List<LigneDevis> lignes) {
+    final couleur = _typeColor(t, isDark: BabifixDesign.isDark(context));
     final icon = _typeIcon(t);
     final st = devis.sousTotalByType(t);
     return Padding(
@@ -285,33 +307,40 @@ class DevisCardWidget extends StatelessWidget {
               Text(
                 t.label,
                 style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: couleur,
-                    letterSpacing: 0.3),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: couleur,
+                  letterSpacing: 0.3,
+                ),
               ),
               const Spacer(),
-              Text(fmtMoney(st),
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800)),
+              Text(
+                fmtMoney(st),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: BabifixDesign.textPrimaryOf(context),
+                  fontFeatures: BabifixDesign.tabularFigures,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          ...lignes.map(_ligneRow),
+          ...lignes.map((l) => _ligneRow(context, l)),
           const SizedBox(height: 4),
-          const Divider(height: 1),
+          Divider(height: 1, color: BabifixDesign.borderOf(context)),
         ],
       ),
     );
   }
 
-  Widget _ligneRow(LigneDevis l) {
+  Widget _ligneRow(BuildContext context, LigneDevis l) {
     final qStr = l.quantite == l.quantite.roundToDouble()
         ? l.quantite.toStringAsFixed(0)
         : l.quantite.toStringAsFixed(2);
     final uniteText = l.unite.isEmpty ? '' : ' ${l.unite}';
+    final ink = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -321,48 +350,56 @@ class DevisCardWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l.description,
-                    style: const TextStyle(fontSize: 13)),
+                Text(l.description, style: TextStyle(fontSize: 13, color: ink)),
                 if (l.marque.isNotEmpty)
-                  Text(l.marque,
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.grey.shade500)),
+                  Text(l.marque, style: TextStyle(fontSize: 11, color: muted)),
                 Text(
-                  '$qStr$uniteText × ${fmtMoney(l.prixUnitaire)}',
+                  '$qStr$uniteText x ${fmtMoney(l.prixUnitaire)}',
                   style: TextStyle(
-                      fontSize: 11, color: Colors.grey.shade600),
+                    fontSize: 11,
+                    color: muted,
+                    fontFeatures: BabifixDesign.tabularFigures,
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(fmtMoney(l.total),
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(
+            fmtMoney(l.total),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: ink,
+              fontFeatures: BabifixDesign.tabularFigures,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _totals() {
+  Widget _totals(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
     if (devis.estEstimation) {
-      // Estimation : fourchette indicative, pas de total payable.
       return Padding(
         padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
         child: Row(
           children: [
-            const Icon(Icons.query_stats_rounded,
-                size: 16, color: BabifixDesign.ciBlue),
-            const SizedBox(width: 6),
-            const Text('Estimation',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-            const Spacer(),
-            Text(
-              '${fmtMoney(devis.prixMin)} – ${fmtMoney(devis.prixMax)}',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: BabifixDesign.ciBlue,
+            Icon(
+              Icons.receipt_long_rounded,
+              size: 16,
+              color: isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Devis detaille en attente du chiffrage par l\'artisan',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: BabifixDesign.textPrimaryOf(context),
+                ),
               ),
             ),
           ],
@@ -379,15 +416,16 @@ class DevisCardWidget extends StatelessWidget {
         totalTtc: devis.totalTtc,
         netPrestataire: devis.netPrestataire,
         compact: compact,
+        lightCard: !isDark,
       ),
     );
   }
 
-  static Color _typeColor(DevisLineType t) => switch (t) {
-        DevisLineType.fourniture => Colors.deepPurple,
-        DevisLineType.mainOeuvre => BabifixDesign.ciBlue,
-        DevisLineType.deplacement => Colors.orange.shade700,
-        DevisLineType.autre => Colors.grey.shade600,
+  static Color _typeColor(DevisLineType t, {bool isDark = false}) => switch (t) {
+        DevisLineType.fourniture => isDark ? const Color(0xFFC4B5FD) : Colors.deepPurple,
+        DevisLineType.mainOeuvre => isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep,
+        DevisLineType.deplacement => isDark ? const Color(0xFFFDBA74) : BabifixDesign.ciOrange,
+        DevisLineType.autre => isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
       };
 
   static IconData _typeIcon(DevisLineType t) => switch (t) {
@@ -418,6 +456,7 @@ class MoneyBreakdownWidget extends StatelessWidget {
   // montant dû, sans réaliser que "Total à payer" = devis complet, pas
   // l'acompte). Passer un libellé différent (ex. "Total du devis") dans ce cas.
   final String totalLabel;
+  final bool lightCard;
 
   const MoneyBreakdownWidget({
     super.key,
@@ -430,46 +469,82 @@ class MoneyBreakdownWidget extends StatelessWidget {
     this.compact = false,
     this.showProviderNet = false,
     this.totalLabel = 'Total à payer',
+    this.lightCard = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
+    final useLightStyle = lightCard && !isDark;
+    final bgColor = useLightStyle ? const Color(0xFFF8FAFC) : BabifixDesign.navyElevated;
+    final borderColor = useLightStyle
+        ? const Color(0xFFCBD5E1)
+        : BabifixDesign.cyan.withValues(alpha: 0.28);
+    final titleColor = useLightStyle ? const Color(0xFF0F172A) : Colors.white;
+    final dividerColor = useLightStyle
+        ? const Color(0xFFE2E8F0)
+        : Colors.white.withValues(alpha: 0.14);
+    final totalColor = useLightStyle ? BabifixDesign.emeraldForest : BabifixDesign.cyan;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: BabifixDesign.ciBlue.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: BabifixDesign.ciBlue.withValues(alpha: 0.15)),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _row('Sous-total', fmtMoney(sousTotal), bold: false),
+          Row(
+            children: [
+              Icon(Icons.receipt_long_rounded,
+                  size: 15, color: totalColor),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Détail financier sous séquestre',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _row(context, 'Sous-total', fmtMoney(sousTotal), bold: false, useLightStyle: useLightStyle),
           if (remise > 0)
-            _row('Remise', '− ${fmtMoney(remise)}',
-                color: BabifixDesign.ciGreen),
+            _row(context, 'Remise', '- ${fmtMoney(remise)}',
+                color: BabifixDesign.emeraldTint, useLightStyle: useLightStyle),
           if (!compact || showProviderNet) ...[
             _row(
+              context,
               'Commission BABIFIX ($commissionRate%)',
-              '− ${fmtMoney(commissionMontant)}',
-              color: const Color(0xFF94A3B8),
+              '- ${fmtMoney(commissionMontant)}',
+              color: useLightStyle ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+              useLightStyle: useLightStyle,
             ),
           ],
-          const Divider(height: 14),
+          Divider(height: 18, color: dividerColor),
           _row(
+            context,
             totalLabel,
             fmtMoney(totalTtc),
             bold: true,
             big: true,
-            color: BabifixDesign.ciBlue,
+            color: totalColor,
+            useLightStyle: useLightStyle,
           ),
           if (showProviderNet) ...[
             const SizedBox(height: 6),
             _row(
+              context,
               'Vous toucherez',
               fmtMoney(netPrestataire),
               bold: true,
-              color: BabifixDesign.ciGreen,
+              color: useLightStyle ? BabifixDesign.emeraldForest : const Color(0xFF4ADE80),
+              useLightStyle: useLightStyle,
             ),
           ],
         ],
@@ -477,8 +552,10 @@ class MoneyBreakdownWidget extends StatelessWidget {
     );
   }
 
-  Widget _row(String label, String value,
-      {bool bold = false, bool big = false, Color? color}) {
+  Widget _row(BuildContext context, String label, String value,
+      {bool bold = false, bool big = false, Color? color, required bool useLightStyle}) {
+    final defaultLabelCol = useLightStyle ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+    final defaultValCol = useLightStyle ? const Color(0xFF0F172A) : Colors.white;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -487,16 +564,15 @@ class MoneyBreakdownWidget extends StatelessWidget {
               child: Text(label,
                   style: TextStyle(
                     fontSize: big ? 14 : 12,
-                    fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-                    // Fond sombre (écrans escrow/paiement) → texte clair lisible
-                    // (avant : grey.shade800 quasi noir → invisible).
-                    color: color ?? const Color(0xFFCBD5E1),
+                    fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                    color: color ?? defaultLabelCol,
                   ))),
           Text(value,
               style: TextStyle(
                 fontSize: big ? 16 : 13,
-                fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-                color: color ?? Colors.white,
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                color: color ?? defaultValCol,
+                fontFeatures: BabifixDesign.tabularFigures,
               )),
         ],
       ),
@@ -544,19 +620,21 @@ class SystemEventWidget extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              body,
+              body.replaceAll(' \u2014 ', ' · ').replaceAll(' \u2013 ', ' · '),
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 11.5,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey.shade700),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: BabifixDesign.textPrimaryOf(context),
+              ),
             ),
           ),
           if (createdAt != null) ...[
             const SizedBox(width: 6),
             Text('· ${f.format(createdAt!.toLocal())}',
                 style: TextStyle(
-                    fontSize: 10, color: Colors.grey.shade500)),
+                    fontSize: 10.5,
+                    color: BabifixDesign.textMutedOf(context))),
           ],
         ],
       ),

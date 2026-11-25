@@ -15,12 +15,13 @@ import '../../json_utils.dart';
 import '../../user_store.dart';
 import '../../services/call_service.dart';
 import '../../services/livekit_call_service.dart';
-import '../../services/livekit_call_screen.dart';
 import '../../shared/error_utils.dart';
+import '../../shared/services/babifix_remote_config.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../auth/biometric_login_screen.dart';
 import '../booking/devis_kanban_screen.dart';
 import '../reservations/premium_receipt_screen.dart';
+import '../../shared/widgets/babifix_sheet.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/babifix_voice_note.dart';
 
@@ -42,6 +43,7 @@ class ClientChatMsg {
     this.payloadJson,
     this.audioUrl,
     this.audioDuration = 0,
+    this.audioTranscript,
   });
 
   final int id;
@@ -57,9 +59,10 @@ class ClientChatMsg {
   // Phase C : kind = USER | DEVIS_CARD | SYSTEM
   final String kind;
   final Map<String, dynamic>? payloadJson;
-  // Note vocale (URL du fichier audio + durée en secondes).
+  // Note vocale (URL du fichier audio + duree + transcription cachee).
   final String? audioUrl;
   final int audioDuration;
+  final String? audioTranscript;
 
   bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
 
@@ -176,8 +179,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
     await _chatWs?.sink.close();
 
     final wsBase = babifixWsBaseUrl();
-    final uri = Uri.parse('$wsBase/ws/chat/$convId/');
-    final ch = WebSocketChannel.connect(uri, protocols: ['BABIFIX $token']);
+    final uri = Uri.parse(
+      '$wsBase/ws/chat/$convId/?token=${Uri.encodeQueryComponent(token)}',
+    );
+    final ch = WebSocketChannel.connect(uri);
     _chatWs = ch;
      _chatWsSub = ch.stream.listen(
        (raw) {
@@ -195,6 +200,25 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                _peerTypingTimer?.cancel();
                if (mounted) setState(() => _peerTyping = false);
              }
+           }
+
+           if (msgType == 'chat.message' ||
+               msgType == 'new_message' ||
+               msgType == 'chat_message') {
+             _reloadMessages();
+           }
+
+           if (msgType == 'chat.error' && mounted) {
+             final errCode = '${m['error'] ?? ''}';
+             showBabifixToast(
+               context,
+               type: BabifixToastType.warning,
+               message: errCode == 'contact_not_allowed'
+                   ? 'Messagerie disponible uniquement après acceptation du devis.'
+                   : (errCode == 'prestation_terminee'
+                       ? 'Prestation terminée : messagerie clôturée.'
+                       : 'Action impossible pour cette conversation.'),
+             );
            }
 
            if (msgType == 'call_offer') {
@@ -373,6 +397,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
               ? m['audio_url'] as String
               : null,
           audioDuration: jsonInt(m['audio_duration']),
+          audioTranscript: (m['audio_transcript'] as String?)?.trim().isNotEmpty == true
+              ? (m['audio_transcript'] as String).trim()
+              : null,
         ),
       );
     }
@@ -518,17 +545,18 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
         setState(() => _replyingTo = null);
         await _reloadMessages();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Échec de l\'envoi de la note vocale.')),
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Échec de l\'envoi de la note vocale.',
         );
       }
     } catch (_) {}
   }
 
   void _showAttachmentMenu() {
-    showModalBottomSheet<void>(
+    showBabifixModalSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -584,7 +612,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
     final pid = widget.peerUserId;
 
     debugPrint('[Chat Send] _apiMode=${widget._apiMode}');
-    debugPrint('[Chat Send] token exists=${token != null && token!.isNotEmpty}');
+    debugPrint('[Chat Send] token exists=${token != null && token.isNotEmpty}');
     debugPrint('[Chat Send] _conversationId=$cid');
     debugPrint('[Chat Send] peerUserId=$pid');
 
@@ -668,6 +696,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
     showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
+        backgroundColor: BabifixDesign.surfaceOf(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 26, 22, 18),
@@ -685,12 +714,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                     size: 42, color: Color(0xFF0EA5E9)),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Prestation terminée',
                 style: TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF0B1B34)),
+                    color: BabifixDesign.textPrimaryOf(ctx)),
               ),
               const SizedBox(height: 10),
               Text(
@@ -698,8 +727,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                     'La prestation est terminée : la messagerie est clôturée. '
                         'En cas de souci, utilisez « Signaler un problème ».',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 13.5, height: 1.45, color: Color(0xFF475569)),
+                style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.45,
+                    color: BabifixDesign.textMutedOf(ctx)),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -749,53 +780,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
       return;
     }
 
-    // Phase D — Si on connaît la réservation, on passe par le backend
-    // pour avoir un FCM ring + token serveur. Sinon, fallback legacy.
-    if (widget.reservationReference != null &&
-        widget.reservationReference!.isNotEmpty) {
-      await CallService.startOutgoing(
-        context: context,
-        reservationReference: widget.reservationReference!,
-        targetName: widget.name,
-        isVideo: isVideo,
-      );
-      return;
-    }
-
-    final roomName = 'chat_conv_$convId';
-    final myName = BabifixLiveKitService.currentUserName ?? 'Client';
-
-    _sendCallSignal('call_offer',
-        roomName: roomName, isVideo: isVideo, callerName: myName);
-
-    final peerId = widget.peerUserId;
-    final targetUserID = peerId != null ? 'prestataire_$peerId' : 'unknown';
-
-    if (!BabifixLiveKitService.isInitialized) {
+    if (widget.reservationReference == null ||
+        widget.reservationReference!.isEmpty) {
       showBabifixToast(
         context,
-        type: BabifixToastType.info,
-        message: 'Service d\'appel non initialisé (userId=${BabifixLiveKitService.currentUserId})',
+        type: BabifixToastType.warning,
+        message: 'Les appels sont disponibles uniquement après une réservation acceptée.',
       );
       return;
     }
 
-    // Token généré côté backend (jamais en local).
-    if (isVideo) {
-      await BabifixLiveKitService.startVideoCall(
-        context: context,
-        conversationId: convId,
-        targetUserID: targetUserID,
-        targetUserName: widget.name,
-      );
-    } else {
-      await BabifixLiveKitService.startVoiceCall(
-        context: context,
-        conversationId: convId,
-        targetUserID: targetUserID,
-        targetUserName: widget.name,
-      );
-    }
+    await CallService.startOutgoing(
+      context: context,
+      reservationReference: widget.reservationReference!,
+      targetName: widget.name,
+      isVideo: isVideo,
+    );
   }
 
   void _acceptIncomingCall() {
@@ -943,16 +943,79 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final cleanName = widget.name.trim().isEmpty ? 'Prestataire' : widget.name.trim();
+    final initials = cleanName
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .take(2)
+        .map((p) => p[0].toUpperCase())
+        .join();
+    final bgColor = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0B1528);
+    final barBg = isLight ? Colors.white : const Color(0xFF10203A);
+    final iconCol = isLight ? BabifixDesign.navy : BabifixDesign.cyan;
+
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text(widget.name),
+        backgroundColor: barBg,
+        foregroundColor: isLight ? BabifixDesign.navy : Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 17,
+              backgroundColor: BabifixDesign.cyan.withValues(alpha: 0.18),
+              child: Text(
+                initials.isNotEmpty ? initials : 'P',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: isLight ? const Color(0xFF0369A1) : BabifixDesign.cyan,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    cleanName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (widget.reservationReference != null &&
+                      widget.reservationReference!.isNotEmpty)
+                    Text(
+                      'Mission ${widget.reservationReference!}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           if (widget.reservationReference != null &&
               widget.reservationReference!.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.receipt_long_outlined),
               tooltip: 'Reçu',
-              color: Theme.of(context).primaryColor,
+              color: iconCol,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => PremiumReceiptScreen(
@@ -961,19 +1024,21 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                 ),
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.phone),
-            tooltip: 'Appel audio',
-            color: Theme.of(context).primaryColor,
-            onPressed: () => _startOutgoingCall(isVideo: false),
-          ),
-          IconButton(
-            icon: const Icon(Icons.videocam),
-            tooltip: 'Appel vidéo',
-            color: Theme.of(context).primaryColor,
-            onPressed: () => _startOutgoingCall(isVideo: true),
-          ),
-          const SizedBox(width: 8),
+          if (BabifixRemoteConfig.instance.current.callsEnabled) ...[
+            IconButton(
+              icon: const Icon(Icons.phone_outlined),
+              tooltip: 'Appel audio',
+              color: iconCol,
+              onPressed: () => _startOutgoingCall(isVideo: false),
+            ),
+            IconButton(
+              icon: const Icon(Icons.videocam_outlined),
+              tooltip: 'Appel vidéo',
+              color: iconCol,
+              onPressed: () => _startOutgoingCall(isVideo: true),
+            ),
+          ],
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
@@ -1034,14 +1099,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                   }
                   return SlideTransition(
                     position: Tween<Offset>(
-                      begin: const Offset(0, 0.5),
+                      begin: const Offset(0, 0.25),
                       end: Offset.zero,
                     ).animate(CurvedAnimation(
                       parent: _msgAnimations.putIfAbsent(msg.id, () {
-                        return AnimationController(
-                          duration: const Duration(milliseconds: 300),
+                        final ctrl = AnimationController(
+                          duration: const Duration(milliseconds: 240),
                           vsync: this,
                         );
+                        if (MediaQuery.maybeDisableAnimationsOf(context) == true) {
+                          ctrl.value = 1.0;
+                        } else {
+                          ctrl.forward();
+                        }
+                        return ctrl;
                       }),
                       curve: Curves.easeOutCubic,
                     )),
@@ -1146,45 +1217,58 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with TickerProviderStat
                 ],
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 4, 6, 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                IconButton(
-                  onPressed: _showAttachmentMenu,
-                  tooltip: 'Joindre un fichier',
-                  icon: const Icon(Icons.add_circle_outline),
-                  color: BabifixDesign.iconOnDark,
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _input,
-                    minLines: 1,
-                    maxLines: 5,
-                    onChanged: _onInputChanged,
-                    decoration: const InputDecoration(
-                      hintText: 'Votre message...',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                    ),
-                    onSubmitted: (_) => _sendText(),
+          Container(
+            color: barBg,
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  IconButton(
+                    onPressed: _showAttachmentMenu,
+                    tooltip: 'Joindre un fichier',
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                    color: iconCol,
                   ),
-                ),
-                BabifixVoiceRecorderButton(
-                  color: BabifixDesign.cyan,
-                  onRecorded: (path, dur) => _sendAudioApi(path, dur),
-                ),
-                IconButton(
-                  onPressed: _sendText,
-                  tooltip: 'Envoyer',
-                  icon: const Icon(Icons.send),
-                  color: BabifixDesign.iconOnDark,
-                ),
-              ],
+                  Expanded(
+                    child: TextField(
+                      controller: _input,
+                      minLines: 1,
+                      maxLines: 5,
+                      onChanged: (v) {
+                        _onInputChanged(v);
+                        setState(() {});
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Votre message...',
+                        filled: true,
+                        fillColor: isLight ? const Color(0xFFF1F5F9) : const Color(0xFF172744),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onSubmitted: (_) => _sendText(),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  BabifixVoiceRecorderButton(
+                    color: BabifixDesign.cyan,
+                    onRecorded: (path, dur) => _sendAudioApi(path, dur),
+                  ),
+                  IconButton(
+                    onPressed: _sendText,
+                    tooltip: 'Envoyer',
+                    icon: const Icon(Icons.send_rounded),
+                    color: _input.text.trim().isNotEmpty ? BabifixDesign.ciOrange : iconCol,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1212,9 +1296,8 @@ class ChatBubble extends StatelessWidget {
   final VoidCallback? onImageTap;
 
   void _showMessageMenu(BuildContext context) {
-    showModalBottomSheet<void>(
+    showBabifixModalSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1251,7 +1334,6 @@ class ChatBubble extends StatelessWidget {
     final w = MediaQuery.sizeOf(context).width;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isLight = theme.brightness == Brightness.light;
 
     Widget bubble = Container(
       constraints: BoxConstraints(maxWidth: w * 0.72),
@@ -1304,7 +1386,7 @@ class ChatBubble extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 11,
-                      color: me ? Colors.white : BabifixDesign.cyan,
+                      color: me ? BabifixDesign.navy : BabifixDesign.cyan,
                     ),
                   ),
                   Text(
@@ -1314,7 +1396,7 @@ class ChatBubble extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       color: me
-                          ? Colors.white.withValues(alpha: 0.85)
+                          ? BabifixDesign.navy.withValues(alpha: 0.85)
                           : cs.onSurfaceVariant,
                     ),
                   ),
@@ -1323,7 +1405,7 @@ class ChatBubble extends StatelessWidget {
             ),
           if (message.imageUrl != null && message.imageUrl!.isNotEmpty)
             Semantics(
-              label: 'Photo – appuyez pour agrandir',
+              label: 'Photo : appuyez pour agrandir',
               button: true,
               child: InkWell(
                 onTap: onImageTap,
@@ -1362,6 +1444,10 @@ class ChatBubble extends StatelessWidget {
                 url: message.audioUrl!,
                 durationSeconds: message.audioDuration,
                 isMe: message.me,
+                foregroundColor:
+                    message.me ? BabifixDesign.navy : BabifixDesign.textPrimaryOf(context),
+                initialTranscript: message.audioTranscript,
+                messageId: message.serverMessageId,
               ),
             ),
           if (message.text != null && message.text!.trim().isNotEmpty) ...[

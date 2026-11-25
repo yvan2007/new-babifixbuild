@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
 class MyDisputesScreen extends StatefulWidget {
@@ -201,14 +202,13 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
               style: const TextStyle(color: Color(0xFF94A3B8)),
             ),
             const SizedBox(height: 16),
-            FilledButton(
+            BabifixButton(
+              label: 'Réessayer',
+              backgroundColor: _kCyan,
+              foregroundColor: _kNavy,
+              width: 170,
+              height: 46,
               onPressed: _load,
-              style: FilledButton.styleFrom(
-                backgroundColor: _kCyan,
-                foregroundColor: _kNavy,
-              ),
-              child: const Text('Réessayer',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
             ),
           ],
         ),

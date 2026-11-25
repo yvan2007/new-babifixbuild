@@ -15,6 +15,7 @@ import '../../babifix_money.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/services/geniuspay_service.dart';
 import '../auth/biometric_login_screen.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_payment_error_banner.dart';
 import '../../shared/services/pending_payment_store.dart';
@@ -558,47 +559,15 @@ class _PaymentScreenState extends State<PaymentScreen>
                   const SizedBox(height: 20),
 
                   // ── Bouton payer ────────────────────────────────────────
-                  SizedBox(
+                  BabifixButton(
+                    label: 'Payer ${formatFcfa(_amount)}',
+                    icon: _method == 'MOBILE_MONEY'
+                        ? Icons.mobile_friendly_rounded
+                        : Icons.payments_rounded,
+                    isLoading: _loading,
                     width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _loading ? null : _pay,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: BabifixDesign.cyan,
-                        foregroundColor: BabifixDesign.navy,
-                        minimumSize: const Size(double.infinity, 58),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        elevation: 3,
-                        shadowColor: BabifixDesign.cyan.withValues(alpha: 0.35),
-                      ),
-                      child: _loading
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: BabifixRingLoader.cyan(size: 28),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  _method == 'MOBILE_MONEY'
-                                      ? Icons.mobile_friendly_rounded
-                                      : Icons.payments_rounded,
-                                  size: 22,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Payer ${formatFcfa(_amount)}',
-                                  style: const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
+                    height: 56,
+                    onPressed: _loading ? null : _pay,
                   ),
 
                   // ── Sécurité label ──────────────────────────────────────
@@ -932,21 +901,16 @@ class _PaymentScreenState extends State<PaymentScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo opérateur : anneau de chargement qui tourne + pulsation.
+              // Logo opérateur : anneau orbital + logo calibré.
               SizedBox(
                 width: 132,
                 height: 132,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    SizedBox(
-                      width: 132,
-                      height: 132,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        valueColor: AlwaysStoppedAnimation<Color>(op.color),
-                        backgroundColor: op.color.withValues(alpha: 0.12),
-                      ),
+                    BabifixRingLoader.mono(
+                      size: 132,
+                      color: op.color,
                     ),
                     CustomAnimatedBuilder(
                       animation: _pulseAnim,
@@ -958,13 +922,10 @@ class _PaymentScreenState extends State<PaymentScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: op.color.withValues(alpha: 0.12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: op.color.withValues(alpha: 0.25),
-                              blurRadius: 24,
-                              spreadRadius: 2,
-                            ),
-                          ],
+                          border: Border.all(
+                            color: op.color.withValues(alpha: 0.35),
+                            width: 1.5,
+                          ),
                         ),
                         child: Center(
                           child: BabifixPaymentMethodLogo(
@@ -1212,20 +1173,14 @@ class _PaymentScreenState extends State<PaymentScreen>
                 ),
               if (_reservationRef != null && _reservationRef!.isNotEmpty)
                 const SizedBox(height: 12),
-              SizedBox(
+              BabifixButton(
+                label: 'Retour à mes réservations',
+                icon: Icons.calendar_today_rounded,
+                backgroundColor: BabifixDesign.ciGreen,
+                foregroundColor: Colors.white,
                 width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.calendar_today_rounded),
-                  label: const Text('Retour à mes réservations'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: BabifixDesign.ciGreen,
-                    minimumSize: const Size(double.infinity, 54),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
+                height: 54,
+                onPressed: () => Navigator.of(context).pop(),
               ),
             ],
           ),

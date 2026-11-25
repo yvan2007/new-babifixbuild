@@ -1,198 +1,232 @@
 import 'package:flutter/material.dart';
 
-/// Tokens visuels BABIFIX — palette Côte d'Ivoire (orange / vert / bleu premium).
-/// **UI uniquement** : aucune logique métier ; à utiliser pour thèmes, dégradés, ombres.
+/// Tokens visuels BABIFIX unifies (Navy, Cyan, Orange action, Or & Argent).
+/// **UI uniquement** : source canonique pour surfaces, bordures, ombres, typo
+/// tabulaire et courbes de mouvement (aligne sur DESIGN_BABIFIX.md).
 abstract final class BabifixDesign {
   BabifixDesign._();
 
-  // ─── Couleurs principales ────────────────────────────────────────────────
+  // Couleurs principales, Emerald Money & Metaux Direction 3
   static const Color navy = Color(0xFF0B1B34);
+  static const Color obsidian = Color(0xFF080E1C);
+  static const Color navySurface = Color(0xFF13223B);
+  static const Color navyElevated = Color(0xFF1B2D4B);
+
+  static const Color emeraldForest = Color(0xFF0E3B2E);
+  static const Color emeraldTint = Color(0xFF0E6B4E);
+  static const Color titaniumCard = Color(0xFF22303D);
+  static const Color obsidianGold = Color(0xFF121512);
+
   static const Color cyan = Color(0xFF4CC9F0);
-  static const Color ciOrange = Color(0xFFE87722);
+  static const Color cyanDeep = Color(0xFF0369A1);
+  static const Color ciOrange = Color(0xFFC2410C);
+  static const Color ciOrangeBright = Color(0xFFE87722);
+  static const Color ciOrangePressed = Color(0xFF9A3412);
 
-  // ─── Icônes neutres (rendu pro) ──────────────────────────────────────────
-  // Le cyan reste réservé aux états actifs/sélectionnés et aux boutons.
-  static const Color iconOnLight = Color(0xFF334155); // slate 700 (fond clair)
-  static const Color iconOnDark = Color(0xFFE2E8F0); // slate 200 (fond sombre)
+  static const Color goldBrass = Color(0xFFE7C463);
+  static const Color silverMetal = Color(0xFFC8D1DE);
 
-  /// Couleur d'icône neutre adaptée au thème courant.
+  // Neutres & Surfaces (WCAG AA >= 4.5:1)
+  static const Color bgWhite = Color(0xFFFFFFFF);
+  static const Color bgLight = Color(0xFFF7F8FA);
+  static const Color bgWarmIvory = Color(0xFFFAF5E4);
+  static const Color bgSoft = Color(0xFFF8FAFC);
+  static const Color borderLight = Color(0xFFE2E8F0);
+  static const Color borderDark = Color(0x24FFFFFF);
+  static const Color textStrongLight = Color(0xFF0F172A);
+  static const Color textMutedLight = Color(0xFF475569);
+  static const Color textStrongDark = Color(0xFFF8FAFC);
+  static const Color textMutedDark = Color(0xFFCBD5E1);
+
+  // ─── Icones neutres ──────────────────────────────────────────────────────
+  static const Color iconOnLight = Color(0xFF334155);
+  static const Color iconOnDark = Color(0xFFE2E8F0);
+
   static Color iconColor(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? iconOnDark : iconOnLight;
 
-  // ─── Couleurs sémantiques ────────────────────────────────────────────────
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static bool isWhiteMode(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.light &&
+      Theme.of(context).scaffoldBackgroundColor == bgWhite;
+
+  static Color surfaceOf(BuildContext context) =>
+      isDark(context) ? navySurface : bgWhite;
+
+  static Color elevatedSurfaceOf(BuildContext context) =>
+      isDark(context) ? navyElevated : bgSoft;
+
+  static Color borderOf(BuildContext context) =>
+      isDark(context) ? borderDark : borderLight;
+
+  static Color textPrimaryOf(BuildContext context) =>
+      isDark(context) ? textStrongDark : textStrongLight;
+
+  static Color textMutedOf(BuildContext context) =>
+      isDark(context) ? textMutedDark : textMutedLight;
+
+  // ─── Semantiques (statuts uniquement) ────────────────────────────────────
   static const Color success = Color(0xFF22C55E);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
-
-  // ─── Premium / Pro ───────────────────────────────────────────────────────
-  // Couleur OFFICIELLE réservée aux fonctionnalités Premium/Pro (exclusivité).
-  // Un seul ton — ne PAS introduire d'autres violets.
   static const Color premium = Color(0xFF7C3AED);
 
-  // ─── Alias CI (compatibilité temporaire) → pointent vers les couleurs unifiées
-  /// @deprecated Utiliser [cyan] à la place
+  // ─── Alias historiques (compatibilite) ───────────────────────────────────
+  /// @deprecated Utiliser [cyan]
   static const Color ciBlue = cyan;
-  /// @deprecated Utiliser [success] à la place
+  /// @deprecated Utiliser [success]
   static const Color ciGreen = success;
-  /// @deprecated Utiliser [navy] à la place
+  /// @deprecated Utiliser [navy]
   static const Color darkNavy = navy;
-  /// @deprecated Utiliser [cyan] à la place
+  /// @deprecated Utiliser [cyan]
   static const Color info = cyan;
 
-  // ─── Spacing constants ──────────────────────────────────────────────────
-  /// 4dp — micro espacement (icônes, puces)
+  // ─── Espacements (grille 4pt / 8pt stricte) ───────────────────────────────
   static const double spaceXS = 4.0;
-
-  /// 8dp — espacement serré
   static const double spaceSM = 8.0;
-
-  /// 12dp — espacement standard petits éléments
   static const double spaceMD = 12.0;
-
-  /// 16dp — espacement standard sections
   static const double spaceLG = 16.0;
-
-  /// 20dp — espacement confortable
   static const double spaceXL = 20.0;
-
-  /// 24dp — espacement large entre sections
   static const double space2XL = 24.0;
-
-  /// 32dp — espacement très large
   static const double space3XL = 32.0;
-
-  /// 48dp — espacement page
   static const double space4XL = 48.0;
 
-  // ─── Border radius standards ────────────────────────────────────────────
-  /// 6dp — petits badges et puces
+  // ─── Rayons ──────────────────────────────────────────────────────────────
   static const double radiusXS = 6.0;
-
-  /// 10dp — boutons compacts, chips
   static const double radiusSM = 10.0;
-
-  /// 14dp — cards compactes
   static const double radiusMD = 14.0;
-
-  /// 20dp — cards standards
-  static const double radiusLG = 20.0;
-
-  /// 24dp — grandes cards, modales
+  static const double radiusLG = 18.0;
   static const double radiusXL = 24.0;
-
-  /// 32dp — cards hero, onboarding
-  static const double radius2XL = 32.0;
-
-  /// 99dp — pilules et avatars
+  static const double radius2XL = 30.0;
   static const double radiusPill = 99.0;
 
-  // ─── Gradients de fond ──────────────────────────────────────────────────
+  // ─── Courbes & Durees de mouvement ───────────────────────────────────────
+  static const Duration durationTap = Duration(milliseconds: 110);
+  static const Duration durationFast = Duration(milliseconds: 180);
+  static const Duration durationStandard = Duration(milliseconds: 260);
+  static const Duration durationSheet = Duration(milliseconds: 340);
 
-  /// Fond principal app client (clair) — léger vert + bleu (drapeau CI subtil).
+  static const Curve curveOut = Cubic(0.23, 1.0, 0.32, 1.0);
+  static const Curve curveSwitch = Cubic(0.32, 0.72, 0.0, 1.0);
+
+  // ─── Fonds plats / architecturalement sobres ─────────────────────────────
+  static const LinearGradient pageGradientWhite = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [bgWhite, bgWhite],
+  );
+
   static const LinearGradient pageGradientLight = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFF8FAFC), Color(0xFFF0FDF4), Color(0xFFEFF6FF)],
+    colors: [bgLight, bgSoft],
   );
 
   static const LinearGradient pageGradientDark = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFF0B1B34), Color(0xFF0E2844), Color(0xFF0B1B34)],
+    colors: [navy, obsidian],
   );
 
-  /// Landing / onboarding prestataire.
   static const LinearGradient landingGradientLight = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFF8FAFC), Color(0xFFFFFFFF), Color(0xFFEFF6FF)],
+    colors: [bgWhite, bgLight],
   );
 
-  /// Écran refus dossier — chaleureux, lisible, premium (sans changer le message).
   static const LinearGradient refusedBackground = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFFFF1F0), Color(0xFFFFF7ED), Color(0xFFF8FAFC)],
+    colors: [Color(0xFFFFF5F5), bgSoft],
   );
 
-  /// Dégradé accent cyan → navy pour boutons et éléments actifs.
+  /// Accent sobre (evite les lueurs neon) : conservé pour compatibilite.
   static const LinearGradient accentGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [cyan, navy],
+    colors: [ciOrange, Color(0xFFD66517)],
     stops: [0.0, 1.0],
   );
 
-  // ─── Ombres ─────────────────────────────────────────────────────────────
-
+  // ─── Ombres neutres & subtiles ───────────────────────────────────────────
   static List<BoxShadow> cardShadow(bool light) => [
     BoxShadow(
-      color: (light ? const Color(0x220F172A) : const Color(0x66000000)),
-      blurRadius: 24,
-      offset: const Offset(0, 12),
+      color: light ? const Color(0x0F0F172A) : const Color(0x45000000),
+      blurRadius: 18,
+      offset: const Offset(0, 6),
     ),
   ];
 
-  /// Ombre légère pour éléments en surélévation faible (chips, boutons).
   static List<BoxShadow> elevationShadowSM(bool light) => [
     BoxShadow(
-      color: (light ? const Color(0x140F172A) : const Color(0x40000000)),
+      color: light ? const Color(0x0B0F172A) : const Color(0x30000000),
       blurRadius: 10,
-      offset: const Offset(0, 4),
+      offset: const Offset(0, 3),
     ),
   ];
 
-  /// Ombre cyan pour les boutons / éléments primaires actifs.
-  static List<BoxShadow> cyanGlowShadow({double opacity = 0.35}) => [
+  static List<BoxShadow> cyanGlowShadow({double opacity = 0.14}) => [
     BoxShadow(
-      color: cyan.withValues(alpha: opacity),
-      blurRadius: 20,
-      offset: const Offset(0, 8),
+      color: const Color(0xFF0F172A).withValues(alpha: opacity),
+      blurRadius: 14,
+      offset: const Offset(0, 6),
     ),
   ];
 
-  /// Ombre forte pour modales et bottom sheets.
   static List<BoxShadow> modalShadow(bool light) => [
     BoxShadow(
-      color: (light ? const Color(0x1A0F172A) : const Color(0x80000000)),
-      blurRadius: 40,
-      offset: const Offset(0, -8),
+      color: light ? const Color(0x180F172A) : const Color(0x70000000),
+      blurRadius: 32,
+      offset: const Offset(0, -6),
     ),
   ];
 
-  // ─── Helpers typographie ────────────────────────────────────────────────
+  // ─── Helpers Typographie & Chiffres Tabulaires ───────────────────────────
+  static const List<FontFeature> tabularFigures = [
+    FontFeature.tabularFigures(),
+  ];
 
-  /// Style titres H1 : 28px bold — écrans principaux.
+  static TextStyle amountStyle({
+    required Color color,
+    double fontSize = 20,
+    FontWeight fontWeight = FontWeight.w800,
+    double letterSpacing = -0.3,
+  }) => TextStyle(
+    color: color,
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    letterSpacing: letterSpacing,
+    fontFeatures: tabularFigures,
+  );
+
   static TextStyle headingH1({required Color color}) => TextStyle(
     fontSize: 28,
     fontWeight: FontWeight.w900,
     color: color,
-    letterSpacing: -0.8,
-    height: 1.1,
+    letterSpacing: -0.7,
+    height: 1.12,
   );
 
-  /// Style titres H2 : 22px bold — sections.
   static TextStyle headingH2({required Color color}) => TextStyle(
     fontSize: 22,
     fontWeight: FontWeight.w800,
     color: color,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
     height: 1.2,
   );
 
-  /// Style titres H3 : 18px semibold — sous-sections.
   static TextStyle headingH3({required Color color}) => TextStyle(
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: FontWeight.w700,
     color: color,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   );
 
-  /// Style corps de texte principal : 15px.
   static TextStyle bodyMedium({required Color color}) =>
       TextStyle(fontSize: 15, color: color, height: 1.45);
 
-  /// Style texte secondaire / légende : 13px.
   static TextStyle caption({required Color color}) =>
       TextStyle(fontSize: 13, color: color, height: 1.35);
 }

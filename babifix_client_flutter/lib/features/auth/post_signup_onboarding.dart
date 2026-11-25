@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 
 const _kOnboardingDone = 'babifix_post_signup_onboarding_done';
+const _kClientHousingPref = 'babifix_client_housing_type';
+const _kClientInterestsPref = 'babifix_client_interests';
 
 Future<bool> hasSeenPostSignupOnboarding() async {
   final p = await SharedPreferences.getInstance();
@@ -15,7 +19,20 @@ Future<void> markPostSignupOnboardingDone() async {
   await p.setBool(_kOnboardingDone, true);
 }
 
-/// Affiche l'onboarding si jamais vu. [onDone] est appelé à la fin ou au skip.
+Future<void> saveClientPreferences({
+  required String housingType,
+  required List<String> interests,
+}) async {
+  final p = await SharedPreferences.getInstance();
+  if (housingType.isNotEmpty) {
+    await p.setString(_kClientHousingPref, housingType);
+  }
+  if (interests.isNotEmpty) {
+    await p.setStringList(_kClientInterestsPref, interests);
+  }
+}
+
+/// Affiche l'onboarding si jamais vu. [onDone] est appele a la fin ou au skip.
 Future<void> showPostSignupOnboardingIfNeeded(
   BuildContext context, {
   required VoidCallback onDone,
@@ -26,9 +43,8 @@ Future<void> showPostSignupOnboardingIfNeeded(
   }
   if (!context.mounted) return;
   await Navigator.of(context).push<void>(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
-      builder: (_) => PostSignupOnboardingScreen(
+    babifixRoute<void>(
+      (_) => PostSignupOnboardingScreen(
         onDone: () {
           Navigator.of(context).pop();
           onDone();
@@ -38,7 +54,7 @@ Future<void> showPostSignupOnboardingIfNeeded(
   );
 }
 
-// ── Données des étapes ────────────────────────────���───────────────────────────
+// ── Donnees des etapes ───────────────────────────────────────────────────────
 
 const _steps = [
   _Step(
@@ -46,24 +62,24 @@ const _steps = [
     color: Color(0xFF0084D1),
     title: 'Trouvez un prestataire',
     body:
-        'Parcourez notre catalogue de prestataires vérifiés par catégorie ou ville.\n'
-        'Utilisez la carte pour voir les artisans près de chez vous.',
+        'Parcourez notre catalogue de prestataires verifies par categorie ou commune.\n'
+        'Utilisez la carte interactive pour trouver les artisans pres de chez vous.',
   ),
   _Step(
     icon: Icons.calendar_today_rounded,
     color: Color(0xFFF97316),
-    title: 'Réservez en un clic',
+    title: 'Reservez en un clic',
     body:
-        'Choisissez une date et un mode de paiement (espèces ou Mobile Money).\n'
-        'Votre prestataire confirme la réservation rapidement.',
+        'Choisissez une date et un mode de reglement (especes ou Mobile Money securise).\n'
+        'Votre prestataire confirme l\'intervention et etablit un devis detaille.',
   ),
   _Step(
-    icon: Icons.star_rounded,
+    icon: Icons.verified_user_rounded,
     color: Color(0xFF22C55E),
-    title: 'Notez après la prestation',
+    title: 'Paiement 100 % protege',
     body:
-        'Une fois la prestation terminée, notez le prestataire pour aider la communauté.\n'
-        'Vous pouvez aussi suivre toutes vos réservations dans l\'historique.',
+        'Votre argent reste garde en securite par BABIFIX.\n'
+        'L\'artisan est paye seulement quand le travail est termine et valide par vous.',
   ),
 ];
 
@@ -80,7 +96,7 @@ class _Step {
   final String body;
 }
 
-// ── Écran ─────────────────────────────────────────────────────��──────────────
+// ── Ecran Principal ─────────────────────────────────────────────────────────
 
 class PostSignupOnboardingScreen extends StatefulWidget {
   const PostSignupOnboardingScreen({super.key, required this.onDone});
@@ -96,8 +112,38 @@ class _PostSignupOnboardingScreenState
   final _ctrl = PageController();
   int _page = 0;
 
+  // Centres d'interet du client
+  String _selectedHousing = 'Villa / Maison';
+  final Set<String> _selectedInterests = {
+    'Climatisation & Froid',
+    'Plomberie & Fuites',
+    'Electricite',
+  };
+
+  static const _housingOptions = [
+    'Villa / Maison',
+    'Appartement',
+    'Bureau / Entreprise',
+    'Boutique / Commerce',
+  ];
+
+  static const _interestOptions = [
+    'Climatisation & Froid',
+    'Plomberie & Fuites',
+    'Electricite',
+    'Peinture & Deco',
+    'Nettoyage & Entretien',
+    'Serrurerie Securite',
+    'Carrelage & Sols',
+    'Jardinage & Piscine',
+    'Menuiserie Bois/Alu',
+  ];
+
+  // 3 etapes d'explication + 1 etape de personnalisation = 4 pages au total
+  int get _totalPages => _steps.length + 1;
+
   void _next() {
-    if (_page < _steps.length - 1) {
+    if (_page < _totalPages - 1) {
       _ctrl.nextPage(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeInOut,
@@ -109,11 +155,17 @@ class _PostSignupOnboardingScreenState
 
   Future<void> _finish() async {
     await markPostSignupOnboardingDone();
+    await saveClientPreferences(
+      housingType: _selectedHousing,
+      interests: _selectedInterests.toList(),
+    );
     widget.onDone();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isLastPage = _page == _totalPages - 1;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A1628),
       body: SafeArea(
@@ -136,21 +188,26 @@ class _PostSignupOnboardingScreenState
               child: PageView.builder(
                 controller: _ctrl,
                 onPageChanged: (i) => setState(() => _page = i),
-                itemCount: _steps.length,
-                itemBuilder: (_, i) => _StepPage(step: _steps[i]),
+                itemCount: _totalPages,
+                itemBuilder: (_, i) {
+                  if (i < _steps.length) {
+                    return _StepPage(step: _steps[i]);
+                  }
+                  return _buildInterestsPage();
+                },
               ),
             ),
 
             // Dots + bouton
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               child: Column(
                 children: [
-                  // Dots
+                  // Dots indicateurs
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
-                      _steps.length,
+                      _totalPages,
                       (i) => AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
                         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -165,32 +222,159 @@ class _PostSignupOnboardingScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  SizedBox(
+                  const SizedBox(height: 20),
+                  BabifixButton(
+                    label: isLastPage ? 'Valider et Commencer' : 'Suivant',
                     width: double.infinity,
                     height: 52,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: BabifixDesign.ciOrange,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      onPressed: _next,
-                      child: Text(
-                        _page < _steps.length - 1 ? 'Suivant →' : 'Commencer',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                    onPressed: _next,
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── Volet Interactif des Centres d'Interet ────────────────────────────────
+
+  Widget _buildInterestsPage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: BabifixDesign.cyan.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.tune_rounded, size: 36, color: BabifixDesign.cyan),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Center(
+            child: Text(
+              'Vos besoins prioritaires',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Center(
+            child: Text(
+              'Personnalisez votre accueil en selectionnant vos besoins frequents.',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 1. Type de logement
+          const Row(
+            children: [
+              Icon(Icons.home_work_outlined, size: 16, color: BabifixDesign.cyan),
+              SizedBox(width: 6),
+              Text(
+                'Votre type d\'espace :',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _housingOptions.map((h) {
+              final isSel = _selectedHousing == h;
+              return ChoiceChip(
+                label: Text(h),
+                selected: isSel,
+                onSelected: (_) => setState(() => _selectedHousing = h),
+                selectedColor: BabifixDesign.cyan,
+                backgroundColor: const Color(0xFF132238),
+                labelStyle: TextStyle(
+                  color: isSel ? const Color(0xFF0A1628) : Colors.white70,
+                  fontSize: 12,
+                  fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: isSel ? BabifixDesign.cyan : const Color(0xFF1E3250),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: 22),
+
+          // 2. Services et centres d'interet
+          const Row(
+            children: [
+              Icon(Icons.build_outlined, size: 16, color: BabifixDesign.ciOrange),
+              SizedBox(width: 6),
+              Text(
+                'Services recherches (plusieurs choix) :',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _interestOptions.map((opt) {
+              final isSel = _selectedInterests.contains(opt);
+              return FilterChip(
+                label: Text(opt),
+                selected: isSel,
+                onSelected: (val) {
+                  setState(() {
+                    if (val) {
+                      _selectedInterests.add(opt);
+                    } else {
+                      _selectedInterests.remove(opt);
+                    }
+                  });
+                },
+                selectedColor: BabifixDesign.ciOrange.withValues(alpha: 0.25),
+                backgroundColor: const Color(0xFF132238),
+                checkmarkColor: BabifixDesign.ciOrange,
+                labelStyle: TextStyle(
+                  color: isSel ? Colors.white : Colors.white70,
+                  fontSize: 12,
+                  fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: isSel ? BabifixDesign.ciOrange : const Color(0xFF1E3250),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
@@ -208,31 +392,31 @@ class _StepPage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 120,
-            height: 120,
+            width: 110,
+            height: 110,
             decoration: BoxDecoration(
               color: step.color.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(step.icon, size: 60, color: step.color),
+            child: Icon(step.icon, size: 54, color: step.color),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 36),
           Text(
             step.title,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.w800,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
             step.body,
             style: const TextStyle(
               color: Colors.white70,
-              fontSize: 15,
-              height: 1.6,
+              fontSize: 14.5,
+              height: 1.5,
             ),
             textAlign: TextAlign.center,
           ),

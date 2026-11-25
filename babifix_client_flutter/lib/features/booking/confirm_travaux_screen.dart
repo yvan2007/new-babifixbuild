@@ -167,13 +167,15 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            'Confirmez la réception des travaux pour procéder au paiement.',
+            'Vérifiez les photos de l\'artisan et confirmez la réception des travaux.',
             style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+          _buildAvantApresShowcase(),
+          const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -312,6 +314,166 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
                     ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvantApresShowcase() {
+    final avantList = (_reservation?['photos_avant'] as List?)?.cast<String>() ?? [];
+    final apresList = (_reservation?['photos_apres'] as List?)?.cast<String>() ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1E33),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF4CC9F0).withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0A1628).withValues(alpha: 0.5),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified_rounded, color: Color(0xFF22C55E), size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'CONFORMITÉ BABIFIX',
+                      style: TextStyle(
+                        color: Color(0xFF22C55E),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                'Preuve visuelle de travail',
+                style: TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.history_rounded, size: 13, color: Color(0xFFFF6B00)),
+                        SizedBox(width: 4),
+                        Text(
+                          'AVANT TRAVAUX',
+                          style: TextStyle(
+                            color: Color(0xFFFF6B00),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    _buildPhotoBox(
+                      url: avantList.isNotEmpty
+                          ? babifixResolveMediaUrl(avantList.first)
+                          : null,
+                      fallbackIcon: Icons.broken_image_outlined,
+                      label: 'État initial',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.task_alt_rounded, size: 13, color: Color(0xFF22C55E)),
+                        SizedBox(width: 4),
+                        Text(
+                          'RÉSULTAT APRÈS ✓',
+                          style: TextStyle(
+                            color: Color(0xFF22C55E),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    _buildPhotoBox(
+                      url: apresList.isNotEmpty
+                          ? babifixResolveMediaUrl(apresList.first)
+                          : null,
+                      fallbackIcon: Icons.check_circle_outline_rounded,
+                      label: 'Travaux achevés',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoBox({
+    required String? url,
+    required IconData fallbackIcon,
+    required String label,
+  }) {
+    return Container(
+      height: 110,
+      decoration: BoxDecoration(
+        color: const Color(0xFF081220),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: url != null && url.isNotEmpty
+            ? Image.network(
+                url,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                errorBuilder: (_, __, ___) => _buildPlaceholderPhoto(fallbackIcon, label),
+              )
+            : _buildPlaceholderPhoto(fallbackIcon, label),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderPhoto(IconData icon, String label) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white38, size: 28),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
         ],
       ),
     );

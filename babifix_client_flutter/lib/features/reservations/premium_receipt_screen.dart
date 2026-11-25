@@ -9,6 +9,8 @@ import 'package:printing/printing.dart';
 import '../../babifix_design_system.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../user_store.dart';
@@ -148,7 +150,8 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Annuler')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: BabifixDesign.error),
+            style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,backgroundColor: BabifixDesign.error),
             onPressed: () => Navigator.pop(ctx, motifCtrl.text),
             child: const Text('Refuser'),
           ),
@@ -191,21 +194,27 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
 
   Color _statusColor(String s) {
     final l = s.toLowerCase();
-    if (l.contains('pay') || l.contains('complete') || l.contains('termine') || l.contains('valide')) return BabifixDesign.success;
-    if (l.contains('attent') || l.contains('pending') || l.contains('encour')) return BabifixDesign.warning;
-    if (l.contains('annul') || l.contains('refus') || l.contains('error') || l.contains('echec')) return BabifixDesign.error;
-    return BabifixDesign.cyan;
+    if (l.contains('pay') || l.contains('complete') || l.contains('termine') || l.contains('valide') || l.contains('sold')) {
+      return const Color(0xFF0E3B2E);
+    }
+    if (l.contains('attent') || l.contains('pending') || l.contains('encour') || l.contains('acompte')) {
+      return const Color(0xFFB45309);
+    }
+    if (l.contains('annul') || l.contains('refus') || l.contains('error') || l.contains('echec')) {
+      return BabifixDesign.error;
+    }
+    return BabifixDesign.navy;
   }
 
   String _statusLabel(String s) {
     final l = s.toLowerCase();
-    if (l.contains('pay') || l.contains('complete')) return 'Payé';
-    if (l.contains('termine') || l.contains('valide')) return 'Validé';
+    if (l.contains('pay') || l.contains('complete') || l.contains('sold')) return 'Paye';
+    if (l.contains('termine') || l.contains('valide')) return 'Valide';
     if (l.contains('attent') || l.contains('pending')) return 'En attente';
     if (l.contains('encour')) return 'En cours';
-    if (l.contains('annul')) return 'Annulé';
-    if (l.contains('refus')) return 'Refusé';
-    if (l.contains('echec')) return 'Échoué';
+    if (l.contains('annul')) return 'Annule';
+    if (l.contains('refus')) return 'Refuse';
+    if (l.contains('echec')) return 'Echoue';
     return s;
   }
 
@@ -217,17 +226,44 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     return Icons.help_outline_rounded;
   }
 
-  /// Extrait « YYYY-MM-DD » d'une chaîne ISO de façon sûre (jamais de RangeError).
+  static const _frMonths = <int, String>{
+    1: 'janvier',
+    2: 'fevrier',
+    3: 'mars',
+    4: 'avril',
+    5: 'mai',
+    6: 'juin',
+    7: 'juillet',
+    8: 'aout',
+    9: 'septembre',
+    10: 'octobre',
+    11: 'novembre',
+    12: 'decembre',
+  };
+
+  /// Formate une date ISO en francais lisible ('21 novembre 2026').
   String _safeDate(dynamic raw) {
     final s = '${raw ?? ''}'.trim();
+    final dt = DateTime.tryParse(s);
+    if (dt != null) {
+      final m = _frMonths[dt.month] ?? '${dt.month}';
+      return '${dt.day} $m ${dt.year}';
+    }
     if (s.length >= 10) return s.substring(0, 10);
-    return DateTime.now().toIso8601String().substring(0, 10);
+    final now = DateTime.now();
+    return '${now.day} ${_frMonths[now.month]} ${now.year}';
   }
 
-  /// Extrait « HH:MM:SS » d'une chaîne ISO si présent, sinon vide.
+  /// Extrait HH:MM d'une chaine ISO si present, sinon vide.
   String _safeTime(dynamic raw) {
     final s = '${raw ?? ''}'.trim();
-    if (s.length >= 19) return s.substring(11, 19);
+    final dt = DateTime.tryParse(s);
+    if (dt != null && s.contains('T')) {
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final mm = dt.minute.toString().padLeft(2, '0');
+      return 'a $hh:$mm';
+    }
+    if (s.length >= 16) return 'a ${s.substring(11, 16)}';
     return '';
   }
 
@@ -277,8 +313,8 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
                 final nav = Navigator.of(context);
                 ReceiptApi.downloadPdf(widget.reservationReference).then((raw) {
                   if (mounted) {
-                    nav.push(MaterialPageRoute(
-                      builder: (_) => _PdfPreviewScreen(bytes: Uint8List.fromList(raw), reference: widget.reservationReference),
+                    nav.push(babifixRoute(
+                      (_) => _PdfPreviewScreen(bytes: Uint8List.fromList(raw), reference: widget.reservationReference),
                     ));
                   }
                 });
@@ -352,14 +388,11 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0B1B34), Color(0xFF1A3A5C)],
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF0B1B34),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFB45309).withValues(alpha: 0.45), width: 1.2),
         boxShadow: [
-          BoxShadow(color: BabifixDesign.navy.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 8)),
+          BoxShadow(color: BabifixDesign.navy.withValues(alpha: 0.16), blurRadius: 16, offset: const Offset(0, 6)),
         ],
       ),
       child: Column(
@@ -393,30 +426,30 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('BABIFIX', style: TextStyle(
+                          const Text('BABIFIX', style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.w900,
                             color: Colors.white, letterSpacing: 1.2,
                           )),
-                          Text('Services à domicile', style: TextStyle(
-                            fontSize: 11, color: Colors.white.withValues(alpha: 0.7),
+                          Text('Services a domicile · Cote d\'Ivoire', style: TextStyle(
+                            fontSize: 11, color: Colors.white.withValues(alpha: 0.72),
                           )),
                         ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text(widget.isQuote ? 'DEVIS' : 'REÇU DE PAIEMENT', style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700,
-                    color: BabifixDesign.cyan, letterSpacing: 2,
+                  Text(widget.isQuote ? 'DEVIS DETAILLE' : 'RECU DE PAIEMENT', style: const TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w800,
+                    color: Color(0xFFFDE68A), letterSpacing: 1.6,
                   )),
                   const SizedBox(height: 4),
-                  Text('N° $ref', style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.9),
+                  Text('N° $ref', style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   )),
                   const SizedBox(height: 2),
-                  Text('$date  $time', style: TextStyle(
-                    fontSize: 12, color: Colors.white.withValues(alpha: 0.6),
+                  Text('$date $time'.trim(), style: TextStyle(
+                    fontSize: 12, color: Colors.white.withValues(alpha: 0.7),
                   )),
                 ],
               ),
@@ -526,36 +559,24 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
   }
 
   Widget _buildFinancialSummary(Map<String, dynamic> res, double montant) {
-    // Tous les montants viennent du backend, déjà RÉCONCILIÉS :
-    //   sous_total = prestation complète (ce que paie le client au total)
-    //   caution_montant = avance déjà versée par mobile (déduite du devis)
-    //   commission = commission de devis (18/13/8 %)
-    //   caution_commission = commission de visite (12 % de la caution)
-    //   net_prestataire = sous_total − commission − caution_commission
-    //   reste_client = sous_total − caution_montant
     final sousTotal = double.tryParse('${res['sous_total'] ?? ''}') ?? montant;
     final cautionPayee = res['caution_payee'] == true;
     final cautionMontant = cautionPayee
         ? (double.tryParse('${res['caution_montant'] ?? 0}') ?? 0)
         : 0.0;
-    final commission = double.tryParse('${res['commission'] ?? 0}') ??
-        (sousTotal * 0.18);
-    final commissionPct = (res['commission_rate'] is num)
-        ? (res['commission_rate'] as num).round()
-        : (sousTotal > 0 ? (commission / sousTotal * 100).round() : 18);
-    // Phase 5 : le transport (caution) revient à 100 % au presta ; frais fixe
-    // de mise en relation payé EN PLUS par le client (revenu BABIFIX).
     final frais = double.tryParse('${res['frais_mise_en_relation'] ?? 0}') ?? 0;
     final remiseFid = double.tryParse('${res['remise_fidelite'] ?? 0}') ?? 0;
-    final net = double.tryParse('${res['net_prestataire'] ?? ''}') ??
-        (sousTotal - commission);
-    final resteClient = double.tryParse('${res['reste_client'] ?? ''}') ??
-        (sousTotal - cautionMontant).clamp(0, double.infinity).toDouble();
+    final montantVerse = double.tryParse('${res['montant_verse'] ?? 0}') ?? 0;
+    final montantRestant = double.tryParse('${res['montant_restant'] ?? 0}') ?? 0;
+    final soldeValide = res['solde_valide'] == true;
     final totalClient = double.tryParse('${res['total_client'] ?? ''}') ??
-        (sousTotal + frais - remiseFid);
+        (sousTotal + frais - remiseFid).clamp(0, double.infinity).toDouble();
+    final totalPaye = soldeValide
+        ? (sousTotal - remiseFid + cautionMontant).clamp(0, double.infinity).toDouble()
+        : (montantVerse + cautionMontant);
 
     return _SectionCard(
-      title: 'Résumé financier',
+      title: 'Resume financier',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -563,72 +584,56 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
           if (cautionMontant > 0) ...[
             const SizedBox(height: 6),
             _SummaryRow(
-                label: 'Transport versé au prestataire',
+                label: 'Caution transport deduite',
                 value: -cautionMontant,
-                color: BabifixDesign.cyan),
+                color: const Color(0xFF0E3B2E)),
+          ],
+          if (frais > 0) ...[
             const SizedBox(height: 6),
             _SummaryRow(
-                label: widget.isQuote
-                    ? 'Reste à régler (espèces ou mobile)'
-                    : 'Reste réglé par le client',
-                value: resteClient,
-                bold: true,
-                color: BabifixDesign.navy),
+                label: 'Frais de mise en relation',
+                value: frais,
+                color: const Color(0xFFB45309)),
+          ],
+          if (remiseFid > 0) ...[
+            const SizedBox(height: 6),
+            _SummaryRow(
+                label: 'Remise fidelite BABIFIX',
+                value: -remiseFid,
+                color: const Color(0xFF0E3B2E)),
           ],
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Divider(height: 1, color: Color(0xFFE2E8F0)),
           ),
+          if (!widget.isQuote && totalPaye > 0) ...[
+            _SummaryRow(
+                label: 'Deja regle',
+                value: totalPaye,
+                bold: true,
+                color: const Color(0xFF0E3B2E)),
+            if (montantRestant > 0 && !soldeValide) ...[
+              const SizedBox(height: 6),
+              _SummaryRow(
+                  label: 'Reste a regler',
+                  value: montantRestant,
+                  bold: true,
+                  color: const Color(0xFFC2410C)),
+            ],
+            const SizedBox(height: 8),
+          ],
           _SummaryRow(
-              label: 'Commission BABIFIX devis ($commissionPct %)',
-              value: commission,
-              color: BabifixDesign.warning),
-          const SizedBox(height: 6),
-          _SummaryRow(
-              label: 'Net reversé au prestataire',
-              value: net,
-              color: BabifixDesign.success),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Divider(height: 1, color: Color(0xFFE2E8F0)),
-          ),
-          _SummaryRow(
-              label: 'TOTAL PRESTATION',
-              value: sousTotal,
+              label: widget.isQuote ? 'TOTAL DEVIS' : 'TOTAL PRESTATION',
+              value: totalClient,
               bold: true,
               large: true,
               color: BabifixDesign.navy),
-          if (frais > 0 || remiseFid > 0) ...[
-            const SizedBox(height: 8),
-            if (frais > 0)
-              _SummaryRow(
-                  label: 'Frais de mise en relation (à la visite)',
-                  value: frais,
-                  color: BabifixDesign.warning),
-            if (remiseFid > 0) ...[
-              const SizedBox(height: 4),
-              _SummaryRow(
-                  label: 'Réduction fidélité',
-                  value: -remiseFid,
-                  color: BabifixDesign.success),
-            ],
-            const SizedBox(height: 4),
-            _SummaryRow(
-                label: 'Total payé par le client',
-                value: totalClient,
-                bold: true,
-                color: BabifixDesign.navy),
-          ],
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Text(
               cautionMontant > 0
-                  ? 'Le transport (versé par mobile) revient à 100 % au '
-                      'prestataire et est déduit du devis. Les frais de mise en '
-                      'relation reviennent à BABIFIX. Non remboursable, sauf '
-                      'litige (après analyse).'
-                  : 'Le client paie exactement le devis. La commission BABIFIX '
-                      'est déduite de la part du prestataire, sans surplus.',
+                  ? 'Le transport de visite est reverse au prestataire et deduit du devis accepte.'
+                  : 'Montant exact garanti sans frais caches. Paiement protege par sequestre BABIFIX.',
               textAlign: TextAlign.right,
               style: TextStyle(
                   fontSize: 11,
@@ -667,21 +672,11 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
           const SizedBox(width: 12),
           Expanded(
             flex: 2,
-            child: FilledButton(
+            child: BabifixButton(
+              label: 'Accepter le devis',
+              isLoading: _accepting,
+              height: 48,
               onPressed: _accepting || _refusing ? null : _acceptDevis,
-              style: FilledButton.styleFrom(
-                backgroundColor: BabifixDesign.ciOrange,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _accepting
-                  ? const SizedBox(
-                      width: 18, height: 18,
-                      child: BabifixRingLoader.cyan(size: 18))
-                  : const Text('Accepter le devis',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 15)),
             ),
           ),
         ],
@@ -714,11 +709,11 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
                       fontSize: 12, color: BabifixDesign.iconOnLight,
                     )),
                     const SizedBox(height: 10),
-                    _ContactRow(icon: Icons.email_outlined, text: 'contact@babifix.com'),
+                    _ContactRow(icon: Icons.email_outlined, text: 'contact@babifix.ci'),
                     const SizedBox(height: 4),
                     _ContactRow(icon: Icons.phone_outlined, text: '+225 01 02 03 04 05'),
                     const SizedBox(height: 4),
-                    _ContactRow(icon: Icons.language_outlined, text: 'www.babifix.com'),
+                    _ContactRow(icon: Icons.language_outlined, text: 'www.babifix.ci'),
                     const SizedBox(height: 4),
                     _ContactRow(icon: Icons.location_on_outlined, text: 'Abidjan, Côte d\'Ivoire'),
                   ],

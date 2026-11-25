@@ -23,10 +23,15 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../models/client_models.dart';
 import '../../services/call_service.dart';
+import '../../shared/services/babifix_remote_config.dart';
 import '../../shared/widgets/auth_required_dialog.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
+import '../../shared/widgets/babifix_provider_cards.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../user_store.dart';
+import '../auth/auth_screen.dart';
 import '../booking/booking_flow_screen.dart';
 import '../chat/chat_room_screen.dart';
 
@@ -50,6 +55,8 @@ class _ProviderProfilePremiumScreenState
     with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _p;
   List<Map<String, dynamic>> _reviews = [];
+  String? _activeOrderRef;
+  int? _activeOrderConvId;
   bool _loading = true;
   String? _error;
   bool _bioExpanded = false;
@@ -111,6 +118,41 @@ class _ProviderProfilePremiumScreenState
                 .toList();
           }
         } catch (_) {}
+        // Vérifier si le client a déjà une commande autorisée avec ce pro
+        // (règle métier : aucun SMS ni appel sans commande acceptée).
+        if (token != null && token.isNotEmpty) {
+          try {
+            final resResp = await http.get(
+              Uri.parse('${babifixApiBaseUrl()}/api/client/reservations'),
+              headers: headers,
+            ).timeout(const Duration(seconds: 6));
+            if (resResp.statusCode == 200) {
+              final rj = jsonDecode(resResp.body);
+              final items = ((rj['items'] ?? rj['reservations'] ?? []) as List)
+                  .whereType<Map>();
+              const blocked = {
+                'DEMANDE_ENVOYEE',
+                'En attente',
+                'Annulee',
+                'Terminee',
+              };
+              for (final item in items) {
+                final pid = (item['provider_id'] ?? item['assigned_provider_id']) as num?;
+                final st = '${item['statut'] ?? item['status'] ?? ''}';
+                final canContact = item['contact_allowed'] == true ||
+                    (!blocked.contains(st) && st.isNotEmpty) ||
+                    item['dispute_ouverte'] == true;
+                if (pid != null && pid.toInt() == widget.providerId && canContact) {
+                  _activeOrderRef = '${item['reference'] ?? ''}'.trim();
+                  if (_activeOrderRef!.isEmpty) _activeOrderRef = null;
+                  final cid = item['conversation_id'] as num?;
+                  _activeOrderConvId = cid?.toInt();
+                  if (_activeOrderRef != null) break;
+                }
+              }
+            }
+          } catch (_) {}
+        }
       }
     } catch (e) {
       _error = e.toString();
@@ -122,7 +164,7 @@ class _ProviderProfilePremiumScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _loading
           ? const Center(child: BabifixRingLoader.dark(size: 90))
           : _error != null
@@ -164,9 +206,14 @@ class _ProviderProfilePremiumScreenState
     final disponible = (p['disponible'] ?? true) as bool;
     final isCertified = (p['is_certified'] ?? false) as bool;
     final isPremium = (p['is_premium'] ?? false) as bool;
-    final photoUrl = (p['photo_portrait_url'] ?? p['photo_url'] ?? '') as String;
-    final portfolio =
-        (p['portfolio_photos'] as List? ?? []).whereType<String>().toList();
+    final photoUrl = babifixResolveMediaUrl(
+      (p['photo_portrait_url'] ?? p['photo_url'] ?? '') as String,
+    );
+    final portfolio = (p['portfolio_photos'] as List? ?? [])
+        .whereType<String>()
+        .map(babifixResolveMediaUrl)
+        .where((e) => e.isNotEmpty)
+        .toList();
     final distanceKm = (p['distance_km'] as num?)?.toDouble();
     final sameCity = (p['same_city'] ?? false) as bool;
 
@@ -420,6 +467,8 @@ class _ProviderProfilePremiumScreenState
   // ── Identité ─────────────────────────────────────────────────────
   Widget _identity(String name, String metier, String ville, num note,
       int nbAvis) {
+    final fg = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       child: Column(
@@ -428,10 +477,10 @@ class _ProviderProfilePremiumScreenState
           Text(
             name.isEmpty ? 'Prestataire' : name,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF0B1B34),
+              color: fg,
               letterSpacing: 0.2,
             ),
           ),
@@ -440,22 +489,33 @@ class _ProviderProfilePremiumScreenState
             metier,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade700,
+              color: sub,
               fontWeight: FontWeight.w600,
             ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              BabifixTierBadge(
+                tier: (_p?['premium_tier'] ?? 'standard').toString(),
+                customLabel: (_p?['premium_badge'] ?? '').toString(),
+              ),
+              if (_p?['casier_verifie'] == true) const BabifixCasierBadge(),
+            ],
           ),
           if (ville.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.place,
-                    size: 14, color: Colors.grey.shade500),
+                Icon(Icons.place, size: 14, color: sub),
                 const SizedBox(width: 3),
                 Text(
                   ville,
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: sub),
                 ),
                 if (note > 0) ...[
                   const SizedBox(width: 10),
@@ -463,11 +523,11 @@ class _ProviderProfilePremiumScreenState
                       size: 14, color: Colors.amber.shade600),
                   const SizedBox(width: 2),
                   Text(
-                    '${(note as num).toStringAsFixed(1)} ($nbAvis avis)',
-                    style: const TextStyle(
+                    '${note.toStringAsFixed(1)} ($nbAvis avis)',
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0B1B34),
+                      color: fg,
                     ),
                   ),
                 ],
@@ -584,39 +644,45 @@ class _ProviderProfilePremiumScreenState
 
   // ── Stats compactes ──────────────────────────────────────────────
   Widget _stats(num note, int nbAvis, int nbMissions, int yearsExp) {
+    final isDark = BabifixDesign.isDark(context);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: BabifixDesign.borderOf(context)),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Row(
         children: [
           _statCell(
-            value: note > 0 ? (note as num).toStringAsFixed(1) : 'N/A',
-            label: '$nbAvis avis',
+            value: note > 0 ? note.toStringAsFixed(1) : 'Nouveau',
+            label: nbAvis > 0 ? '$nbAvis avis' : 'Pas encore noté',
             icon: Icons.star_rounded,
             color: const Color(0xFFF59E0B),
           ),
           _statDivider(),
           _statCell(
-            value: nbMissions > 0 ? '$nbMissions' : 'N/A',
-            label: 'missions',
+            value: nbMissions > 0 ? '$nbMissions' : '0',
+            label: nbMissions > 1 ? 'missions' : 'mission',
             icon: Icons.check_circle_rounded,
             color: BabifixDesign.cyan,
           ),
           _statDivider(),
           _statCell(
-            value: yearsExp > 0 ? '$yearsExp an${yearsExp > 1 ? 's' : ''}' : 'N/A',
-            label: 'expérience',
+            value: yearsExp > 0
+                ? '$yearsExp an${yearsExp > 1 ? 's' : ''}'
+                : 'Certifié',
+            label: yearsExp > 0 ? 'expérience' : 'profil vérifié',
             icon: Icons.workspace_premium_rounded,
             color: const Color(0xFF7C3AED),
           ),
@@ -631,6 +697,8 @@ class _ProviderProfilePremiumScreenState
     required IconData icon,
     required Color color,
   }) {
+    final fg = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
     return Expanded(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -647,18 +715,20 @@ class _ProviderProfilePremiumScreenState
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 17,
+            style: TextStyle(
+              fontSize: 15.5,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF0B1B34),
+              color: fg,
             ),
           ),
           Text(
             label,
+            textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 10.5,
-                color: Colors.grey.shade600,
-                letterSpacing: 0.3),
+              fontSize: 10.5,
+              color: sub,
+              letterSpacing: 0.2,
+            ),
           ),
         ],
       ),
@@ -673,15 +743,17 @@ class _ProviderProfilePremiumScreenState
 
   // ── Bio ──────────────────────────────────────────────────────────
   Widget _bio(String desc) {
+    final isDark = BabifixDesign.isDark(context);
+    final fg = BabifixDesign.textPrimaryOf(context);
     final showFull = _bioExpanded || desc.length < 220;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: BabifixDesign.surfaceOf(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: BabifixDesign.borderOf(context)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -689,14 +761,14 @@ class _ProviderProfilePremiumScreenState
             Row(
               children: [
                 Icon(Icons.info_outline,
-                    size: 16, color: BabifixDesign.iconOnLight),
+                    size: 16, color: BabifixDesign.iconColor(context)),
                 const SizedBox(width: 6),
                 Text(
                   'À propos',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: BabifixDesign.cyan,
+                    color: isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -709,8 +781,7 @@ class _ProviderProfilePremiumScreenState
                 showFull
                     ? desc
                     : '${desc.substring(0, math.min(220, desc.length))}…',
-                style: TextStyle(
-                    fontSize: 14, color: Colors.grey.shade800, height: 1.45),
+                style: TextStyle(fontSize: 14, color: fg, height: 1.45),
               ),
             ),
             if (desc.length >= 220)
@@ -735,20 +806,22 @@ class _ProviderProfilePremiumScreenState
           child: Row(
             children: [
               Icon(Icons.photo_library_outlined,
-                  size: 18, color: BabifixDesign.iconOnLight),
+                  size: 18, color: BabifixDesign.iconColor(context)),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 'Portfolio',
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF0B1B34)),
+                    color: BabifixDesign.textPrimaryOf(context)),
               ),
               const Spacer(),
               Text(
                 '${photos.length} photos',
-                style:
-                    TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: BabifixDesign.textMutedOf(context),
+                ),
               ),
             ],
           ),
@@ -824,6 +897,8 @@ class _ProviderProfilePremiumScreenState
 
   // ── Avis clients ─────────────────────────────────────────────────
   Widget _reviewsSection(num note, int nbAvis) {
+    final fg = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -832,14 +907,14 @@ class _ProviderProfilePremiumScreenState
           Row(
             children: [
               Icon(Icons.reviews_outlined,
-                  size: 18, color: BabifixDesign.iconOnLight),
+                  size: 18, color: BabifixDesign.iconColor(context)),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 'Avis clients',
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF0B1B34)),
+                    color: fg),
               ),
               const Spacer(),
               Row(
@@ -848,11 +923,11 @@ class _ProviderProfilePremiumScreenState
                       size: 16, color: Colors.amber.shade600),
                   const SizedBox(width: 2),
                   Text(
-                    '${(note as num).toStringAsFixed(1)} · $nbAvis',
+                    '${note.toStringAsFixed(1)} · $nbAvis',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade700,
+                      color: sub,
                     ),
                   ),
                 ],
@@ -867,6 +942,8 @@ class _ProviderProfilePremiumScreenState
   }
 
   Widget _reviewCard(Map<String, dynamic> r) {
+    final fg = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
     final author = (r['author'] ?? r['client_name'] ?? 'Client') as String;
     final rate = (r['rate'] ?? r['note'] ?? 0).toString();
     final text = (r['text'] ?? r['comment'] ?? '') as String;
@@ -874,9 +951,9 @@ class _ProviderProfilePremiumScreenState
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -888,7 +965,7 @@ class _ProviderProfilePremiumScreenState
                 backgroundColor: BabifixDesign.cyan.withValues(alpha: 0.18),
                 child: Text(
                   author.isNotEmpty ? author[0].toUpperCase() : '?',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     color: BabifixDesign.cyan,
                   ),
@@ -901,9 +978,9 @@ class _ProviderProfilePremiumScreenState
                   children: [
                     Text(
                       author,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF0B1B34),
+                        color: fg,
                       ),
                     ),
                     // Indique qu'un même client a noté plusieurs prestations
@@ -912,7 +989,7 @@ class _ProviderProfilePremiumScreenState
                       const SizedBox(height: 2),
                       Text(
                         'Client fidèle · ${r['client_reviews']} prestations',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: BabifixDesign.cyan,
@@ -937,8 +1014,7 @@ class _ProviderProfilePremiumScreenState
           if (text.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(text,
-                style: TextStyle(
-                    fontSize: 13, color: Colors.grey.shade800, height: 1.4)),
+                style: TextStyle(fontSize: 13, color: sub, height: 1.4)),
           ],
         ],
       ),
@@ -947,6 +1023,8 @@ class _ProviderProfilePremiumScreenState
 
   // ── Trust badges ─────────────────────────────────────────────────
   Widget _trustBadges(bool isCertified, bool isPremium, int yearsExp) {
+    final fg = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
     final items = <_Trust>[
       if (isCertified)
         _Trust(Icons.verified, 'Identité vérifiée',
@@ -966,14 +1044,14 @@ class _ProviderProfilePremiumScreenState
         children: [
           Row(
             children: [
-              Icon(Icons.security, size: 18, color: BabifixDesign.ciGreen),
+              const Icon(Icons.security, size: 18, color: BabifixDesign.ciGreen),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 'Garanties BABIFIX',
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF0B1B34)),
+                    color: fg),
               ),
             ],
           ),
@@ -987,7 +1065,7 @@ class _ProviderProfilePremiumScreenState
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: BabifixDesign.ciGreen.withValues(alpha: 0.10),
+                        color: BabifixDesign.ciGreen.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child:
@@ -1000,15 +1078,14 @@ class _ProviderProfilePremiumScreenState
                         children: [
                           Text(
                             t.title,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFF0B1B34)),
+                                color: fg),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             t.desc,
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey.shade600),
+                            style: TextStyle(fontSize: 12, color: sub),
                           ),
                         ],
                       ),
@@ -1024,71 +1101,112 @@ class _ProviderProfilePremiumScreenState
   // ── Bottom action bar ────────────────────────────────────────────
   Widget _bottomBar() {
     final p = _p!;
+    final isDark = BabifixDesign.isDark(context);
+    final sub = BabifixDesign.textMutedOf(context);
     final name = ('${p['prenom'] ?? ''} ${p['nom'] ?? ''}').trim();
     final disponible = (p['disponible'] ?? true) as bool;
+    final hasOrder = _activeOrderRef != null && _activeOrderRef!.isNotEmpty;
     return SafeArea(
       top: false,
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 14,
-              offset: const Offset(0, -2),
-            ),
-          ],
+          color: BabifixDesign.surfaceOf(context),
+          border: Border(top: BorderSide(color: BabifixDesign.borderOf(context))),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 14,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
         ),
         child: Row(
           children: [
-            _circleAction(
-              icon: Icons.chat_bubble_outline,
-              color: BabifixDesign.cyan,
-              onTap: () {
-                final uid = (p['user_id'] as num?)?.toInt();
-                if (uid == null) {
-                  showBabifixToast(
-                    context,
-                    type: BabifixToastType.info,
-                    message: "Ce prestataire n'a pas encore de messagerie active.",
-                  );
-                  return;
-                }
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => ChatRoomScreen(
-                    name: name,
-                    peerUserId: uid,
-                    apiBase: babifixApiBaseUrl(),
+            Tooltip(
+              message: hasOrder
+                  ? 'Écrire au prestataire'
+                  : 'Messagerie ouverte après réservation acceptée',
+              child: Opacity(
+                opacity: hasOrder ? 1.0 : 0.45,
+                child: _circleAction(
+                  icon: hasOrder
+                      ? Icons.chat_bubble_outline
+                      : Icons.lock_outline_rounded,
+                  color: hasOrder ? BabifixDesign.cyan : sub,
+                  onTap: () {
+                    if (!hasOrder) {
+                      showBabifixToast(
+                        context,
+                        type: BabifixToastType.info,
+                        message:
+                            'Réservez d\'abord cet artisan pour activer la messagerie.',
+                      );
+                      return;
+                    }
+                    final uid = (p['user_id'] as num?)?.toInt();
+                    if (uid == null) {
+                      showBabifixToast(
+                        context,
+                        type: BabifixToastType.info,
+                        message: "Ce prestataire n'a pas encore de messagerie active.",
+                      );
+                      return;
+                    }
+                    Navigator.of(context).push(babifixRoute(
+                      (_) => ChatRoomScreen(
+                        name: name,
+                        peerUserId: uid,
+                        conversationId: _activeOrderConvId,
+                        reservationReference: _activeOrderRef,
+                        apiBase: babifixApiBaseUrl(),
+                      ),
+                    ));
+                  },
+                ),
+              ),
+            ),
+            if (BabifixRemoteConfig.instance.current.callsEnabled) ...[
+              const SizedBox(width: 8),
+              Tooltip(
+                message: hasOrder
+                    ? 'Appeler le prestataire'
+                    : 'Appel disponible apres reservation acceptee',
+                child: Opacity(
+                  opacity: hasOrder ? 1.0 : 0.45,
+                  child: _circleAction(
+                    icon: hasOrder ? Icons.call_outlined : Icons.phone_locked_outlined,
+                    color: hasOrder ? BabifixDesign.ciGreen : sub,
+                    onTap: () {
+                      if (!hasOrder) {
+                        showBabifixToast(
+                          context,
+                          type: BabifixToastType.info,
+                          message:
+                              'Les appels sont possibles uniquement apres une reservation acceptee.',
+                        );
+                        return;
+                      }
+                      CallService.startOutgoing(
+                        context: context,
+                        reservationReference: _activeOrderRef!,
+                        targetName: name,
+                      );
+                    },
                   ),
-                ));
-              },
-            ),
-            const SizedBox(width: 8),
-            _circleAction(
-              icon: Icons.call_outlined,
-              color: BabifixDesign.ciGreen,
-              onTap: () {
-                final uid = (p['user_id'] as num?)?.toInt();
-                if (uid == null) {
-                  showBabifixToast(
-                    context,
-                    type: BabifixToastType.info,
-                    message: "Ce prestataire n'a pas encore d'appel activé.",
-                  );
-                  return;
-                }
-                // Pas de réservation encore créée, on initie depuis le profil
-                CallService.startOutgoing(
-                  context: context,
-                  reservationReference: 'prestataire_${widget.providerId}',
-                  targetName: name,
-                );
-              },
-            ),
+                ),
+              ),
+            ],
             const SizedBox(width: 10),
             Expanded(
-              child: ElevatedButton(
+              child: BabifixButton(
+                label: disponible ? 'Réserver' : 'Indisponible',
+                icon: disponible
+                    ? Icons.calendar_month_rounded
+                    : Icons.event_busy_rounded,
+                height: 52,
                 onPressed: !disponible
                     ? null
                     : () async {
@@ -1101,14 +1219,21 @@ class _ProviderProfilePremiumScreenState
                       action: 'réserver ce prestataire',
                     );
                     if (!wantLogin || !context.mounted) return;
-                    // Retour à la page d'accueil + onglet Profil pour login.
-                    Navigator.of(context).popUntil((r) => r.isFirst);
-                    return;
+                    final authed = await Navigator.of(context).push<bool>(
+                      babifixRoute(
+                        (_) => AuthScreen(
+                          onAuthSuccess: () {
+                            Navigator.of(context).pop(true);
+                          },
+                        ),
+                      ),
+                    );
+                    if (authed != true || !context.mounted) return;
                   }
                   if (!context.mounted) return;
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => BookingFlowScreen(
+                    babifixRoute(
+                      (_) => BookingFlowScreen(
                         serviceTitle:
                             (p['specialite'] ?? p['category_nom'] ?? 'Service')
                                 .toString(),
@@ -1123,35 +1248,6 @@ class _ProviderProfilePremiumScreenState
                     ),
                   );
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: BabifixDesign.cyan,
-                  foregroundColor: const Color(0xFF0B1B34),
-                  disabledBackgroundColor: const Color(0xFFE2E8F0),
-                  disabledForegroundColor: const Color(0xFF94A3B8),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      disponible
-                          ? Icons.calendar_month_rounded
-                          : Icons.event_busy_rounded,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      disponible ? 'Réserver' : 'Indisponible',
-                      style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.3),
-                    ),
-                  ],
-                ),
               ),
             ),
           ],

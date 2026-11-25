@@ -8,7 +8,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../babifix_api_config.dart';
 import '../../shared/widgets/smart_address_picker.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_sheet.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 
 // ── Couleurs sémantiques (universelles) ───────────────────────────────────────
 const _kCyan = Color(0xFF4CC9F0);
@@ -47,6 +50,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   late final TextEditingController addressCtrl;
   Uint8List? _avatarBytes;
   bool _avatarChanged = false;
+  bool _locationChanged = false;
 
   final _picker = ImagePicker();
 
@@ -189,17 +193,15 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         emailCtrl.text.trim() != widget.initialEmail.trim() ||
         phoneCtrl.text.trim() != widget.initialPhone.trim() ||
         addressCtrl.text.trim() != widget.initialAddress.trim() ||
+        _locationChanged ||
         _avatarChanged;
   }
 
   // ── Photo : Galerie / Caméra / Supprimer ───────────────────────────────────
   Future<void> _showPhotoSheet(_Palette p) async {
-    await showModalBottomSheet<void>(
+    await showBabifixModalSheet<void>(
       context: context,
       backgroundColor: p.cardBg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -441,38 +443,13 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   void _showSnack(String msg, {bool error = false, bool success = false}) {
-    final color = error
-        ? _kError
-        : success
-            ? _kSuccess
-            : _kCyan;
-    final icon = error
-        ? Icons.error_outline_rounded
-        : success
-            ? Icons.check_circle_rounded
-            : Icons.info_outline_rounded;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: _kNavy,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: color.withValues(alpha: 0.6)),
-        ),
-        content: Row(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(msg,
-                  style:
-                      const TextStyle(color: Colors.white, fontSize: 13.5)),
-            ),
-          ],
-        ),
-      ),
+    if (!mounted) return;
+    showBabifixToast(
+      context,
+      type: error
+          ? BabifixToastType.error
+          : (success ? BabifixToastType.success : BabifixToastType.info),
+      message: msg,
     );
   }
 
@@ -803,8 +780,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 addressCtrl.text.trim() != widget.initialAddress.trim(),
             onPick: () async {
               final picked = await Navigator.of(context).push<PickedAddress>(
-                MaterialPageRoute(
-                  builder: (_) => SmartAddressPicker(
+                babifixRoute(
+                  (_) => SmartAddressPicker(
                     initialLabel: addressCtrl.text.isEmpty
                         ? null
                         : addressCtrl.text,
@@ -818,6 +795,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   addressCtrl.text = picked.label;
                   _addrLat = picked.lat;
                   _addrLng = picked.lon;
+                  _locationChanged = true;
                 });
               }
             },
@@ -1034,7 +1012,6 @@ class _AdaptiveField extends StatelessWidget {
     this.keyboardType,
     this.textCapitalization = TextCapitalization.none,
     this.textInputAction,
-    this.maxLines = 1,
     this.maxLength,
     this.inputFormatters,
     this.errorText,
@@ -1048,7 +1025,6 @@ class _AdaptiveField extends StatelessWidget {
   final TextInputType? keyboardType;
   final TextCapitalization textCapitalization;
   final TextInputAction? textInputAction;
-  final int maxLines;
   final int? maxLength;
   final List<TextInputFormatter>? inputFormatters;
   final String? errorText;
@@ -1091,7 +1067,6 @@ class _AdaptiveField extends StatelessWidget {
             keyboardType: keyboardType,
             textCapitalization: textCapitalization,
             textInputAction: textInputAction,
-            maxLines: maxLines,
             maxLength: maxLength,
             inputFormatters: inputFormatters,
             style: TextStyle(

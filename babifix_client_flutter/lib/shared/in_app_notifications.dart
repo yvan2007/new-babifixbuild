@@ -193,9 +193,115 @@ void pushInAppNotification(
   BabifixInAppNotif n, {
   String? persistStorageKey,
 }) {
+  final dup = hub.value.any(
+    (e) =>
+        e.id == n.id ||
+        (e.audience == n.audience &&
+            e.title == n.title &&
+            e.body == n.body &&
+            n.createdAt.difference(e.createdAt).inSeconds.abs() < 4),
+  );
+  if (dup) return;
   final next = List<BabifixInAppNotif>.from(hub.value)..insert(0, n);
   if (next.length > 80) next.removeRange(80, next.length);
   hub.value = next;
+  _maybePersist(persistStorageKey, hub.value);
+}
+
+void syncServerInAppNotifications({
+  required ValueNotifier<List<BabifixInAppNotif>> hub,
+  required BabifixNotifAudience audience,
+  required List<Map<String, dynamic>> serverItems,
+  String? persistStorageKey,
+}) {
+  String mapCategory(String rawType) {
+    switch (rawType.toLowerCase()) {
+      case 'reservation':
+      case 'demande':
+        return 'demande';
+      case 'dispute':
+      case 'litige':
+        return 'litige';
+      case 'message':
+      case 'chat':
+        return 'message';
+      case 'payment':
+      case 'paiement':
+        return 'paiement';
+      case 'validation':
+      case 'compte':
+        return 'compte';
+      case 'broadcast':
+      case 'actu':
+        return 'actu';
+      default:
+        return 'info';
+    }
+  }
+
+  String? mapRoute(String rawType, String ref) {
+    switch (rawType.toLowerCase()) {
+      case 'reservation':
+      case 'demande':
+        return 'reservations';
+      case 'dispute':
+      case 'litige':
+        return 'litiges';
+      case 'message':
+      case 'chat':
+        return 'messages';
+      case 'payment':
+      case 'paiement':
+        return 'paiements';
+      case 'broadcast':
+        return 'actus';
+      case 'validation':
+        return 'profile';
+      default:
+        return ref.isNotEmpty ? 'reservations' : null;
+    }
+  }
+
+  final mappedServer = serverItems.map((item) {
+    final id = item['id'];
+    final rawType = '${item['type'] ?? 'general'}';
+    final ref = '${item['reference'] ?? ''}';
+    DateTime at = DateTime.now();
+    try {
+      at = DateTime.parse('${item['created_at'] ?? ''}').toLocal();
+    } catch (_) {}
+    final lu = item['lu'] == true;
+    return BabifixInAppNotif(
+      id: 'srv-$id',
+      audience: audience,
+      category: mapCategory(rawType),
+      title: '${item['title'] ?? 'Notification'}',
+      body: '${item['body'] ?? ''}',
+      createdAt: at,
+      read: lu,
+      severity: rawType == 'dispute'
+          ? BabifixNotifSeverity.urgent
+          : BabifixNotifSeverity.important,
+      actionRoute: mapRoute(rawType, ref),
+    );
+  }).toList();
+
+  // Conserve uniquement les notifications locales non encore synchronisees qui ne doublonnent pas
+  final localOnly = hub.value.where((local) {
+    if (local.audience != audience || local.id.startsWith('srv-')) {
+      return false;
+    }
+    return !mappedServer.any(
+      (srv) =>
+          srv.title == local.title &&
+          local.createdAt.difference(srv.createdAt).inMinutes.abs() < 2,
+    );
+  }).toList();
+
+  final merged = <BabifixInAppNotif>[...mappedServer, ...localOnly]
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  if (merged.length > 80) merged.removeRange(80, merged.length);
+  hub.value = merged;
   _maybePersist(persistStorageKey, hub.value);
 }
 

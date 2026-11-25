@@ -17,7 +17,6 @@
 /// On expose un seul point d'entrée [route] que [BabifixFcm] appelle.
 import 'package:flutter/material.dart';
 
-import '../babifix_design_system.dart';
 import 'call_service.dart';
 
 class BabifixFcmRouter {
@@ -37,6 +36,10 @@ class BabifixFcmRouter {
 
     if (type == 'call.incoming') {
       await CallService.handleIncomingFcm(context: ctx, data: data);
+      return;
+    }
+    if (type == 'call.ended' || type == 'call.rejected' || type == 'call.answered') {
+      CallService.emitSignal(data);
       return;
     }
 

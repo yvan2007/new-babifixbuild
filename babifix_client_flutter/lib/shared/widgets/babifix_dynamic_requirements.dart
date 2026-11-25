@@ -14,12 +14,12 @@ import '../../babifix_design_system.dart';
 ///
 /// Chaque question est un map JSON :
 ///   {
-///     "key":   "surface_m2",         // requis — clé de la réponse
-///     "label": "Surface (m²)",       // requis — libellé affiché
-///     "type":  "number",             // text | number | select | bool
-///     "choices": ["A","B"],          // pour select
-///     "required": true,               // optionnel (défaut false)
-///     "unit": "m²",                  // optionnel (suffixe)
+///     "key":   "surface_m2",        // requis : cle de la reponse
+///     "label": "Surface (m²)",      // requis : libelle affiche
+///     "type":  "number",            // text | number | select | bool
+///     "choices": ["A","B"],         // pour select
+///     "required": true,              // optionnel (défaut false)
+///     "unit": "m²",                 // optionnel (suffixe)
 ///     "hint": "Ex. 25"               // optionnel (placeholder)
 ///   }
 /// ─────────────────────────────────────────────────────────────────────────
@@ -190,44 +190,47 @@ class _BabifixDynamicRequirementsState
 
   Widget _buildSurfaceAssistant() {
     final computed = _computedSurface;
+    final isDark = BabifixDesign.isDark(context);
+    final ink = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
+    final accent = isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: BabifixDesign.cyan.withValues(alpha: 0.07),
+        color: accent.withValues(alpha: isDark ? 0.12 : 0.07),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.3)),
+        border: Border.all(color: accent.withValues(alpha: 0.34)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.square_foot_rounded,
-                  size: 18, color: BabifixDesign.cyan),
-              SizedBox(width: 6),
+            children: [
+              Icon(Icons.square_foot_rounded, size: 18, color: accent),
+              const SizedBox(width: 6),
               Text(
                 'Aide au calcul de la surface',
                 style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w800,
-                  color: BabifixDesign.navy,
+                  color: ink,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Pas besoin d’être exact, une estimation suffit pour le devis.',
-            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+          Text(
+            'Pas besoin d\'être exact, une mesure approximative suffit pour le devis.',
+            style: TextStyle(fontSize: 11.5, color: muted),
           ),
           const SizedBox(height: 10),
           // Presets rapides.
           Text(
-            'Estimer rapidement',
+            'Reperes rapides',
             style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
-              color: BabifixDesign.navy.withValues(alpha: 0.7),
+              color: muted,
             ),
           ),
           const SizedBox(height: 6),
@@ -239,15 +242,15 @@ class _BabifixDynamicRequirementsState
                 ActionChip(
                   label: Text('${p.$1} · ~${p.$2.round()} m²'),
                   onPressed: () => _applySurface(p.$2),
-                  backgroundColor: Colors.white,
-                  labelStyle: const TextStyle(
+                  backgroundColor: BabifixDesign.surfaceOf(context),
+                  labelStyle: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: BabifixDesign.navy,
+                    color: ink,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
-                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    side: BorderSide(color: BabifixDesign.borderOf(context)),
                   ),
                 ),
             ],
@@ -261,7 +264,7 @@ class _BabifixDynamicRequirementsState
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: BabifixDesign.navy.withValues(alpha: 0.7),
+                  color: muted,
                 ),
               ),
               const SizedBox(width: 10),
@@ -303,9 +306,7 @@ class _BabifixDynamicRequirementsState
                     fontSize: computed == null ? 11.5 : 15,
                     fontWeight:
                         computed == null ? FontWeight.w500 : FontWeight.w800,
-                    color: computed == null
-                        ? const Color(0xFF64748B)
-                        : BabifixDesign.navy,
+                    color: computed == null ? muted : ink,
                   ),
                 ),
               ),
@@ -314,7 +315,8 @@ class _BabifixDynamicRequirementsState
                     ? null
                     : () => _applySurface(computed),
                 style: FilledButton.styleFrom(
-                  backgroundColor: BabifixDesign.cyan,
+                  backgroundColor: accent,
+                  foregroundColor: isDark ? BabifixDesign.navy : Colors.white,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   shape: RoundedRectangleBorder(
@@ -334,15 +336,17 @@ class _BabifixDynamicRequirementsState
 
   Widget _modeChip(String label, String value) {
     final sel = _calcMode == value;
+    final isDark = BabifixDesign.isDark(context);
+    final accent = isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep;
     return GestureDetector(
       onTap: () => setState(() => _calcMode = value),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: sel ? BabifixDesign.cyan : Colors.white,
+          color: sel ? accent : BabifixDesign.surfaceOf(context),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: sel ? BabifixDesign.cyan : const Color(0xFFCBD5E1),
+            color: sel ? accent : BabifixDesign.borderOf(context),
           ),
         ),
         child: Text(
@@ -350,7 +354,9 @@ class _BabifixDynamicRequirementsState
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: sel ? Colors.white : const Color(0xFF475569),
+            color: sel
+                ? (isDark ? BabifixDesign.navy : Colors.white)
+                : BabifixDesign.textMutedOf(context),
           ),
         ),
       ),
@@ -375,13 +381,14 @@ class _BabifixDynamicRequirementsState
     final hint = (q['hint'] ?? '').toString();
     final type = _typeOf(q);
 
+    final ink = BabifixDesign.textPrimaryOf(context);
     final labelWidget = RichText(
       text: TextSpan(
         text: label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13.5,
           fontWeight: FontWeight.w700,
-          color: BabifixDesign.navy,
+          color: ink,
         ),
         children: required
             ? const [
@@ -416,6 +423,7 @@ class _BabifixDynamicRequirementsState
                 .toList() ??
             const <String>[];
         final current = widget.answers[key]?.toString();
+        final isDark = BabifixDesign.isDark(context);
         field = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -430,23 +438,31 @@ class _BabifixDynamicRequirementsState
                     label: Text(c),
                     selected: current == c,
                     onSelected: (_) => setState(() => _set(key, c)),
-                    selectedColor: BabifixDesign.cyan.withValues(alpha: 0.18),
+                    selectedColor: isDark
+                        ? const Color(0xFF0E3B2E)
+                        : const Color(0xFFE6F4EF),
                     labelStyle: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                       color: current == c
-                          ? BabifixDesign.navy
-                          : const Color(0xFF475569),
+                          ? (isDark ? Colors.white : const Color(0xFF0E3B2E))
+                          : (isDark
+                              ? const Color(0xFFCBD5E1)
+                              : const Color(0xFF334155)),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                       side: BorderSide(
                         color: current == c
-                            ? BabifixDesign.cyan
-                            : const Color(0xFFCBD5E1),
+                            ? const Color(0xFF0E3B2E)
+                            : (isDark
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFCBD5E1)),
                       ),
                     ),
-                    backgroundColor: Colors.white,
+                    backgroundColor: isDark
+                        ? const Color(0xFF0F1F38)
+                        : Colors.white,
                   ),
               ],
             ),
@@ -473,37 +489,110 @@ class _BabifixDynamicRequirementsState
         );
     }
 
+    final currentText = (widget.answers[key] ?? '').toString().trim();
+    const unknownText = "Je ne sais pas (l'artisan verifiera)";
+    final isUnknownSelected = currentText == unknownText;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         labelWidget,
         const SizedBox(height: 6),
         field,
+        if (!required && (type == 'number' || type == 'text')) ...[
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                final ctl = _controllerFor(key);
+                setState(() {
+                  if (isUnknownSelected) {
+                    ctl.clear();
+                    _set(key, '');
+                  } else {
+                    ctl.text = type == 'number' ? '' : unknownText;
+                    _set(key, unknownText);
+                  }
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isUnknownSelected
+                      ? const Color(0xFF0E3B2E).withValues(alpha: 0.14)
+                      : BabifixDesign.elevatedSurfaceOf(context),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isUnknownSelected
+                        ? const Color(0xFF0E3B2E)
+                        : BabifixDesign.borderOf(context),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isUnknownSelected
+                          ? Icons.check_circle_rounded
+                          : Icons.help_outline_rounded,
+                      size: 14,
+                      color: isUnknownSelected
+                          ? const Color(0xFF0E3B2E)
+                          : BabifixDesign.textMutedOf(context),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      "Je ne sais pas · L'artisan verifiera",
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: isUnknownSelected
+                            ? const Color(0xFF0E3B2E)
+                            : BabifixDesign.textMutedOf(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  InputDecoration _decoration(String hint, String unit) => InputDecoration(
-        hintText: hint.isEmpty ? null : hint,
-        suffixText: unit.isEmpty ? null : unit,
-        isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: BabifixDesign.cyan, width: 1.5),
-        ),
-      );
+  InputDecoration _decoration(String hint, String unit) {
+    final isDark = BabifixDesign.isDark(context);
+    final fill = BabifixDesign.elevatedSurfaceOf(context);
+    final border = BabifixDesign.borderOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
+    final accent = isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep;
+    return InputDecoration(
+      hintText: hint.isEmpty ? null : hint,
+      hintStyle: TextStyle(color: muted),
+      suffixText: unit.isEmpty ? null : unit,
+      suffixStyle: TextStyle(color: muted, fontWeight: FontWeight.w600),
+      isDense: true,
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      filled: true,
+      fillColor: fill,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: accent, width: 1.5),
+      ),
+    );
+  }
 }
 
 /// Une question s'applique au type de demande courant si elle ne déclare pas

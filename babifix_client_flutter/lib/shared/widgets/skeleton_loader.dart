@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shimmer/shimmer.dart';
+import '../../babifix_design_system.dart';
+import 'babifix_skeleton.dart';
 
 class SkeletonLoader extends StatelessWidget {
   final double width;
@@ -15,17 +16,10 @@ class SkeletonLoader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(borderRadius),
-        ),
-      ),
+    return BabifixSkeletonBox(
+      width: width,
+      height: height,
+      borderRadius: borderRadius,
     );
   }
 }
@@ -35,43 +29,46 @@ class SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const SkeletonLoader(width: 50, height: 50, borderRadius: 25),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      SkeletonLoader(width: 150, height: 18),
-                      SizedBox(height: 8),
-                      SkeletonLoader(width: 100, height: 14),
-                    ],
-                  ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: BabifixDesign.surfaceOf(context),
+        borderRadius: BorderRadius.circular(BabifixDesign.radiusLG),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SkeletonLoader(width: 48, height: 48, borderRadius: 24),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonLoader(width: 150, height: 16),
+                    SizedBox(height: 8),
+                    SkeletonLoader(width: 100, height: 12),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const SkeletonLoader(height: 14),
-            const SizedBox(height: 8),
-            const SkeletonLoader(width: 200, height: 14),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                SkeletonLoader(width: 80, height: 32, borderRadius: 16),
-                SkeletonLoader(width: 60, height: 32, borderRadius: 16),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          SkeletonLoader(height: 13),
+          SizedBox(height: 8),
+          SkeletonLoader(width: 200, height: 13),
+          SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              SkeletonLoader(width: 84, height: 30, borderRadius: 12),
+              SkeletonLoader(width: 64, height: 30, borderRadius: 12),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -84,11 +81,13 @@ class SkeletonList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      itemCount: itemCount,
-      itemBuilder: (context, index) => const SkeletonCard(),
+    return BabifixSkeletonScope(
+      child: ListView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true,
+        itemCount: itemCount,
+        itemBuilder: (context, index) => const SkeletonCard(),
+      ),
     );
   }
 }
@@ -98,34 +97,37 @@ class SkeletonPrestataireCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            const SkeletonLoader(width: 70, height: 70, borderRadius: 12),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  SkeletonLoader(width: 120, height: 16),
-                  SizedBox(height: 6),
-                  SkeletonLoader(width: 80, height: 12),
-                  SizedBox(height: 6),
-                  Row(
-                    children: [
-                      SkeletonLoader(width: 60, height: 12),
-                      SizedBox(width: 12),
-                      SkeletonLoader(width: 40, height: 12),
-                    ],
-                  ),
-                ],
-              ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: BabifixDesign.surfaceOf(context),
+        borderRadius: BorderRadius.circular(BabifixDesign.radiusLG),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
+      ),
+      child: const Row(
+        children: [
+          SkeletonLoader(width: 66, height: 66, borderRadius: 14),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLoader(width: 130, height: 15),
+                SizedBox(height: 7),
+                SkeletonLoader(width: 88, height: 12),
+                SizedBox(height: 7),
+                Row(
+                  children: [
+                    SkeletonLoader(width: 60, height: 12),
+                    SizedBox(width: 12),
+                    SkeletonLoader(width: 44, height: 12),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

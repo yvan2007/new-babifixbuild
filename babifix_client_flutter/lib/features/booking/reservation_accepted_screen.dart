@@ -4,6 +4,9 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
 import '../payment/payment_screen.dart';
+import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
 class ReservationAcceptedScreen extends StatefulWidget {
@@ -276,27 +279,13 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
               ),
             ),
             const SizedBox(height: 32),
-            SizedBox(
+            BabifixButton(
+              label: 'Payer maintenant',
+              backgroundColor: _emerald,
+              foregroundColor: Colors.white,
               width: double.infinity,
-              height: 56,
-              child: FilledButton(
-                onPressed: _proceedToPayment,
-                style: FilledButton.styleFrom(
-                  backgroundColor: _emerald,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Payer maintenant',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
+              height: 54,
+              onPressed: _proceedToPayment,
             ),
             const SizedBox(height: 24),
             const SizedBox(height: 40),
@@ -321,6 +310,7 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
             fontSize: 16,
             fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
             color: _navy,
+            fontFeatures: BabifixDesign.tabularFigures,
           ),
         ),
       ],
@@ -346,8 +336,8 @@ class _ReservationAcceptedScreenState extends State<ReservationAcceptedScreen>
               ) ??
               0;
     Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => PaymentScreen(
+      babifixRoute(
+        (_) => PaymentScreen(
           reservationId: _reservation!['id'] ?? 0,
           amount: montant,
           serviceTitle: _reservation!['title'] ?? 'Service BABIFIX',

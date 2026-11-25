@@ -1,4 +1,5 @@
 /// Écran d'appel entrant fullscreen (Phase D — C7/P9).
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -31,6 +32,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulse;
   bool _busy = false;
+  StreamSubscription<Map<String, dynamic>>? _signalSub;
 
   @override
   void initState() {
@@ -39,6 +41,17 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     )..repeat();
+    _signalSub = CallService.signalStream.listen((event) {
+      final type = (event['type'] ?? '').toString();
+      if (type != 'call.ended' && type != 'call.rejected') return;
+      final evId = int.tryParse((event['call_id'] ?? '').toString());
+      final evRoom = (event['room_name'] ?? '').toString();
+      if ((evId == widget.callId || (evRoom.isNotEmpty && evRoom == widget.roomName)) && mounted) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
+    });
     // Garde l'écran allumé pendant la sonnerie
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
     HapticFeedback.heavyImpact();
@@ -46,6 +59,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
   @override
   void dispose() {
+    _signalSub?.cancel();
     _pulse.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();

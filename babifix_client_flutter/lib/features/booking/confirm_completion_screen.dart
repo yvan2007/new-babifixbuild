@@ -14,6 +14,8 @@ import '../../shared/widgets/animated_check_circle.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../reservations/rate_provider_screen.dart';
 import 'escrow_quote_screen.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -194,25 +196,22 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
           style: TextStyle(fontSize: 13.5, height: 1.4),
         ),
         actions: [
-          SizedBox(
+          BabifixButton(
+            label: 'Payer le solde',
+            icon: Icons.payments_rounded,
+            backgroundColor: const Color(0xFF22C55E),
+            foregroundColor: Colors.white,
             width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => Navigator.pop(ctx),
-              icon: const Icon(Icons.payments_rounded, size: 18),
-              label: const Text('Payer le solde'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF22C55E),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-              ),
-            ),
+            height: 48,
+            onPressed: () => Navigator.pop(ctx),
           ),
         ],
       ),
     );
     if (!mounted) return;
     await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) =>
+      babifixRoute(
+        (_) =>
             EscrowQuoteScreen(reservationReference: widget.reservationReference),
       ),
     );
@@ -289,12 +288,13 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                   Expanded(
                     child: TextButton(
                       onPressed: () {
+                        final nav = Navigator.of(context);
                         Navigator.pop(ctx);
-                        Navigator.pop(context, true);
+                        nav.pop(true);
                       },
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 13),
-                        foregroundColor: const Color(0xFF64748B),
+                        foregroundColor: BabifixDesign.textMutedOf(context),
                       ),
                       child: const Text('Plus tard',
                           style: TextStyle(fontWeight: FontWeight.w700)),
@@ -303,27 +303,22 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     flex: 2,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: purple,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(13)),
-                      ),
-                      icon: const Icon(Icons.star_rounded, size: 18),
-                      label: const Text('Noter',
-                          style: TextStyle(fontWeight: FontWeight.w800)),
+                    child: BabifixButton(
+                      label: 'Noter',
+                      icon: Icons.star_rounded,
+                      backgroundColor: purple,
+                      foregroundColor: Colors.white,
+                      height: 46,
                       onPressed: () {
+                        final nav = Navigator.of(context);
                         Navigator.pop(ctx);
-                        Navigator.pop(context, true);
-                        Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => RateProviderScreen(
+                        nav.pushReplacement<bool, bool>(
+                          babifixRoute(
+                            (_) => RateProviderScreen(
                               reservationReference: widget.reservationReference,
                             ),
                           ),
+                          result: true,
                         );
                       },
                     ),
@@ -383,8 +378,8 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                             ? "En confirmant, vous validez que les travaux sont bien faits. "
                                 "Vous réglerez ensuite le solde de ${fmtMoney(q.amountDueOnline)} pour finaliser."
                             : isMobile
-                                ? "En confirmant, vous libérez ${q != null ? fmtMoney(q.netPrestataire) : ''} au prestataire. "
-                                    "Cette action est définitive."
+                                ? "En confirmant, vous liberez ${fmtMoney(q.netPrestataire)} au prestataire. "
+                                    "Cette action est definitive."
                                 : "En confirmant, vous validez que le règlement cash est en règle. "
                                     "Aucun fonds n'est libéré (la commission est déjà encaissée).",
                         style: const TextStyle(fontSize: 13, height: 1.4),
@@ -443,20 +438,14 @@ class _ConfirmCompletionScreenState extends State<ConfirmCompletionScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 2,
-                  child: ElevatedButton.icon(
+                  child: BabifixButton(
+                    label: soldeDu ? 'Confirmer les travaux' : 'Confirmer & libérer',
+                    icon: Icons.check_circle_rounded,
+                    isLoading: _busy,
+                    backgroundColor: BabifixDesign.ciGreen,
+                    foregroundColor: Colors.white,
+                    height: 48,
                     onPressed: (!_accept || _busy) ? null : _doConfirm,
-                    icon: _busy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: BabifixRingLoader.cyan(size: 28))
-                        : const Icon(Icons.check_circle, size: 18),
-                    label: Text(soldeDu ? 'Confirmer les travaux' : 'Confirmer & libérer'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: BabifixDesign.ciGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
                   ),
                 ),
               ],

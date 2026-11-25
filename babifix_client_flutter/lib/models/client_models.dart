@@ -1,20 +1,29 @@
 import 'package:flutter/material.dart';
 
-/// Onglet filtre catalogue (icône Material ou SVG réseau).
+/// Onglet filtre catalogue (icone Material, SVG Admin local ou reseau).
 class CategoryTab {
   const CategoryTab({
     this.icon,
+    this.iconeSlug = '',
     this.iconNetworkUrl,
     required this.label,
     required this.filterKey,
     this.color,
+    this.groupe = 'Maison & Services',
+    this.regimeKyc = 'STANDARD_TERRAIN',
+    this.searchKeywords = '',
   });
 
   final IconData? icon;
+  final String iconeSlug;
   final String? iconNetworkUrl;
   final String label;
   final String filterKey;
   final Color? color;
+  final String groupe;
+  final String regimeKyc;
+  final String searchKeywords;
+  bool get isSensitive => regimeKyc == 'SENSIBLE_CASIER';
 }
 
 class PaymentMethodOption {
@@ -41,6 +50,17 @@ class RecentProviderCard {
     this.distanceKm,
     this.premiumTier = 'standard',
     this.premiumBadge = '',
+    this.averageRating = 0.0,
+    this.ratingCount = 0,
+    this.isCertified = false,
+    this.palier = 'PALIER_1_PROXIMITE',
+    this.palierLabel = 'Artisan Proximité',
+    this.eliteScore = 0.0,
+    this.trustReasons = const [],
+    this.casierVerifie = false,
+    this.regimeKyc = 'STANDARD_TERRAIN',
+    this.avgResponseMin,
+    this.completedJobs = 0,
   });
 
   final int id;
@@ -51,12 +71,27 @@ class RecentProviderCard {
   final double? tarif;
   final bool disponible;
 
-  /// Abonnement premium ('standard'|'bronze'|'silver'|'gold') + libellé badge.
+  /// Abonnement premium ('standard'|'silver'|'gold') + libelle badge.
   final String premiumTier;
   final String premiumBadge;
   bool get isPremium => premiumTier != 'standard' && premiumTier.isNotEmpty;
+  bool get isGold => premiumTier.toLowerCase() == 'gold';
+  bool get isSilver => premiumTier.toLowerCase() == 'silver';
 
-  /// Distance (km) entre le client et ce prestataire — fournie par l'API
+  /// Note moyenne, nombre d'avis, certification terrain et palier d'intervention.
+  final double averageRating;
+  final int ratingCount;
+  final bool isCertified;
+  final String palier;
+  final String palierLabel;
+  final double eliteScore;
+  final List<String> trustReasons;
+  final bool casierVerifie;
+  final String regimeKyc;
+  final int? avgResponseMin;
+  final int completedJobs;
+
+  /// Distance (km) entre le client et ce prestataire : fournie par l'API
   /// `/api/public/providers/?lat=&lon=` (champ `distance_km`).
   final double? distanceKm;
 
@@ -71,6 +106,17 @@ class RecentProviderCard {
     distanceKm: distanceKm,
     premiumTier: premiumTier,
     premiumBadge: premiumBadge,
+    averageRating: averageRating,
+    ratingCount: ratingCount,
+    isCertified: isCertified,
+    palier: palier,
+    palierLabel: palierLabel,
+    eliteScore: eliteScore,
+    trustReasons: trustReasons,
+    casierVerifie: casierVerifie,
+    regimeKyc: regimeKyc,
+    avgResponseMin: avgResponseMin,
+    completedJobs: completedJobs,
   );
 }
 
@@ -87,9 +133,37 @@ class ClientService {
     this.providerId = 0,
     this.disponible = true,
     this.distanceKm,
+    this.premiumBadge = '',
+    this.premiumTier = 'standard',
+    this.palierLabel = 'Artisan Proximité',
+    this.isCertified = false,
+    this.ratingCount = 0,
+    this.eliteScore = 0.0,
+    this.trustReasons = const [],
+    this.casierVerifie = false,
+    this.regimeKyc = 'STANDARD_TERRAIN',
+    this.ville = '',
+    this.avgResponseMin,
+    this.completedJobs = 0,
   });
 
-  /// Distance (km) du prestataire derrière ce service.
+  final String premiumBadge;
+  final String premiumTier;
+  final String palierLabel;
+  final bool isCertified;
+  final int ratingCount;
+  final double eliteScore;
+  final List<String> trustReasons;
+  final bool casierVerifie;
+  final String regimeKyc;
+  final String ville;
+  final int? avgResponseMin;
+  final int completedJobs;
+
+  bool get isGold => premiumTier.toLowerCase() == 'gold';
+  bool get isSilver => premiumTier.toLowerCase() == 'silver';
+
+  /// Distance (km) du prestataire derriere ce service.
   final double? distanceKm;
 
   final String title;
@@ -101,7 +175,7 @@ class ClientService {
   final Color color;
   final String imageUrl;
 
-  /// ID prestataire côté API (0 si inconnu).
+  /// ID prestataire cote API (0 si inconnu).
   final int providerId;
 
   /// false si le prestataire s'est mis indisponible.
@@ -118,6 +192,19 @@ class ClientService {
     imageUrl: imageUrl,
     providerId: providerId,
     disponible: disponible ?? this.disponible,
+    distanceKm: distanceKm,
+    premiumBadge: premiumBadge,
+    premiumTier: premiumTier,
+    palierLabel: palierLabel,
+    isCertified: isCertified,
+    ratingCount: ratingCount,
+    eliteScore: eliteScore,
+    trustReasons: trustReasons,
+    casierVerifie: casierVerifie,
+    regimeKyc: regimeKyc,
+    ville: ville,
+    avgResponseMin: avgResponseMin,
+    completedJobs: completedJobs,
   );
 }
 

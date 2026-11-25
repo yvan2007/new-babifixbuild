@@ -13,6 +13,8 @@ import '../../shared/services/websocket_push_service.dart';
 import '../../shared/services/confetti_toast_service.dart';
 import '../../shared/services/haptic_service.dart';
 import '../payment/payment_screen.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -128,8 +130,8 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
             final reservationId = (data['reservation_id'] as num?)?.toInt();
             if (reservationId != null && reservationId > 0) {
               Navigator.of(context).pushReplacement(
-                MaterialPageRoute<void>(
-                  builder: (_) => PaymentScreen(
+                babifixRoute<void>(
+                  (_) => PaymentScreen(
                     reservationId: reservationId,
                     amount: montant,
                     serviceTitle: 'Devis ${widget.reservationReference}',
@@ -203,6 +205,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           FilledButton(
             onPressed: () => Navigator.pop(ctx, motifController.text),
             style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
               backgroundColor: BabifixDesign.error,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -534,13 +537,13 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            FilledButton(
+            BabifixButton(
+              label: 'Réessayer',
+              backgroundColor: BabifixDesign.cyan,
+              foregroundColor: BabifixDesign.navy,
+              width: 180,
+              height: 46,
               onPressed: _loadDevis,
-              style: FilledButton.styleFrom(
-                backgroundColor: BabifixDesign.cyan,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Reessayer'),
             ),
           ],
         ),
@@ -567,10 +570,8 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           _buildDevisPhotos(devis),
           _buildDateInfo(devis),
           const SizedBox(height: 16),
-          // Une estimation n'a pas de lignes détaillées : on montre la
-          // fourchette + un bandeau « en attente du devis ferme ».
           if (estim) ...[
-            _buildEstimationTotal(devis),
+            _buildEstimationTotal(),
             if (statut == 'ENVOYE') ...[
               const SizedBox(height: 20),
               _buildEstimationNotice(),
@@ -578,10 +579,35 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
           ] else ...[
             _buildLignes(lignes),
             const SizedBox(height: 16),
+            _buildPriceVigilanceAndEscrow(devis),
             _buildTotal(devis),
             if (statut == 'ENVOYE') ...[
               const SizedBox(height: 28),
               _buildActionButtons(),
+            ],
+            if (statut == 'REFUSE' ||
+                (devis['price_vigilance'] is Map &&
+                    (devis['price_vigilance'] as Map)['is_high'] == true)) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: widget.onBack,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0x55FFFFFF)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: const Icon(Icons.compare_arrows_rounded, size: 18),
+                  label: const Text(
+                    'Demander un autre devis',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
             ],
           ],
           const SizedBox(height: 40),
@@ -590,53 +616,44 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     );
   }
 
-  Widget _buildEstimationTotal(Map<String, dynamic> devis) {
-    final min = (devis['prix_min'] as num?) ?? 0;
-    final max = (devis['prix_max'] as num?) ?? 0;
+  Widget _buildEstimationTotal() {
+    final isDark = BabifixDesign.isDark(context);
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0A1628), Color(0xFF152A45)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x22FFFFFF)),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.query_stats_rounded,
-                  color: BabifixDesign.cyan, size: 20),
-              SizedBox(width: 8),
+            children: [
+              Icon(
+                Icons.receipt_long_rounded,
+                color: isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
               Text(
-                'Estimation indicative',
+                'Devis sur mesure en attente',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: Colors.white,
+                  color: BabifixDesign.textPrimaryOf(context),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            '${min.toStringAsFixed(0)} – ${max.toStringAsFixed(0)} FCFA',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: BabifixDesign.cyan,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Fourchette donnée à titre indicatif. Aucun paiement n’est demandé '
-            'sur une estimation.',
+            'Aucun montant n\'est fixe a l\'avance : votre artisan chiffre chaque ligne apres diagnostic.',
             style: TextStyle(
-                fontSize: 11.5, color: Color(0xFF64748B), height: 1.35),
+              fontSize: 13.5,
+              color: BabifixDesign.textMutedOf(context),
+              height: 1.45,
+            ),
           ),
         ],
       ),
@@ -653,18 +670,18 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
             Border.all(color: BabifixDesign.ciOrange.withValues(alpha: 0.35)),
       ),
       child: Row(
-        children: const [
-          Icon(Icons.hourglass_top_rounded,
+        children: [
+          const Icon(Icons.hourglass_top_rounded,
               color: BabifixDesign.ciOrange, size: 22),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               'Le prestataire vous enverra ensuite un devis ferme (montant '
-              'exact) que vous pourrez accepter et régler.',
+              'exact) que vous pourrez accepter et régler sous sequestre.',
               style: TextStyle(
                 fontSize: 12.5,
                 height: 1.4,
-                color: Color(0xFF334155),
+                color: BabifixDesign.textPrimaryOf(context),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -737,19 +754,52 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
 
   Widget _buildPrestataireInfo(Map<String, dynamic> devis) {
     final prestataire = (devis['prestataire'] as Map<String, dynamic>?) ?? {};
+    final badge = (prestataire['premium_badge'] ?? '').toString().trim();
+    final isCert = prestataire['is_certified'] == true || badge.isNotEmpty;
     return _SectionCard(
       icon: Icons.person_outline_rounded,
       title: 'Prestataire',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            prestataire['nom'] ?? 'Inconnu',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  prestataire['nom'] ?? 'Inconnu',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              if (isCert)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF22C55E)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.verified_rounded,
+                          size: 13, color: Color(0xFF4ADE80)),
+                      const SizedBox(width: 4),
+                      Text(
+                        badge.isNotEmpty ? badge : 'Pro vérifié',
+                        style: const TextStyle(
+                          color: Color(0xFF4ADE80),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
           if (prestataire['specialite'] != null && prestataire['specialite'].toString().isNotEmpty)
             Text(
@@ -974,10 +1024,117 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     );
   }
 
+  Widget _buildPriceVigilanceAndEscrow(Map<String, dynamic> devis) {
+    final vigilance = devis['price_vigilance'] is Map
+        ? Map<String, dynamic>.from(devis['price_vigilance'] as Map)
+        : null;
+    final isHigh = vigilance != null && vigilance['is_high'] == true;
+    final aboveCeiling = devis['above_ceiling_escrow_enforced'] == true;
+    if (!isHigh && !aboveCeiling) return const SizedBox.shrink();
+
+    final median = (vigilance?['median_fcfa'] as num?)?.toInt() ?? 0;
+    final ratio = (vigilance?['ratio'] as num?)?.toDouble();
+    final msg = (vigilance?['message'] ?? '').toString().trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isHigh) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2B1C10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFFC2410C).withValues(alpha: 0.65),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFFF59E0B),
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Repere tarifaire BABIFIX',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        msg.isNotEmpty
+                            ? msg
+                            : 'Ce devis est superieur a la moyenne habituelle '
+                                '${median > 0 ? '(${_formatMontant(median)}) ' : ''}'
+                                '${ratio != null ? '(x${ratio.toStringAsFixed(1)}) ' : ''}'
+                                'pour cette categorie. Verifiez le detail ou demandez un second devis.',
+                        style: const TextStyle(
+                          color: Color(0xFFE2E8F0),
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (aboveCeiling) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0E3B2E),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFF10B981).withValues(alpha: 0.45),
+              ),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.verified_user_rounded,
+                  color: Color(0xFF34D399),
+                  size: 20,
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Paiement 100 % protege : votre argent est garde en securite par BABIFIX jusqu\'a votre validation.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
   Widget _buildTotal(Map<String, dynamic> devis) {
     // Le client paie le total TTC (= somme des lignes). La commission BABIFIX
-    // est prélevée côté prestataire : on ne l'affiche PAS au client pour ne
-    // pas laisser croire qu'elle s'ajoute à ce qu'il doit régler.
+    // est prelevee cote prestataire : on ne l'affiche PAS au client pour ne
+    // pas laisser croire qu'elle s'ajoute a ce qu'il doit regler.
     final total = (devis['total_ttc'] as num?) ??
         (devis['sous_total'] as num?) ??
         0;
@@ -985,14 +1142,9 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0A1628), Color(0xFF152A45)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: const Color(0xFF0E223A),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x22FFFFFF)),
-        boxShadow: BabifixDesign.cyanGlowShadow(opacity: 0.08),
+        border: Border.all(color: const Color(0x33FFFFFF)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1002,7 +1154,7 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               const Text(
-                'Total à payer',
+                'Total a payer',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -1010,19 +1162,19 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
                 ),
               ),
               Text(
-                '${total.toStringAsFixed(0)} FCFA',
+                _formatMontant(total),
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
-                  color: BabifixDesign.cyan,
+                  color: Colors.white,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           const Text(
-            'Montant TTC, tout compris. Réglé via paiement sécurisé (escrow) à la prestation.',
-            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), height: 1.35),
+            'Prix total tout compris. Paiement protege jusqu\'a la fin du travail.',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8), height: 1.35),
           ),
         ],
       ),
@@ -1053,23 +1205,11 @@ class _DevisDetailScreenState extends State<DevisDetailScreen> {
         const SizedBox(width: 12),
         Expanded(
           flex: 2,
-          child: FilledButton(
+          child: BabifixButton(
+            label: 'Accepter le devis',
+            isLoading: _accepting,
+            height: 50,
             onPressed: _accepting ? null : _acceptDevis,
-            style: FilledButton.styleFrom(
-              backgroundColor: BabifixDesign.ciOrange,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            child: _accepting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: BabifixRingLoader.cyan(size: 28),
-                  )
-                : const Text(
-                    'Accepter le devis',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                  ),
           ),
         ),
       ],

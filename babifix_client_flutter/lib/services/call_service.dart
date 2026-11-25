@@ -4,9 +4,9 @@
 /// Plus aucune génération de token côté app : on délègue tout à
 /// `/api/calls/*`. La sonnerie entrante est déclenchée par un FCM
 /// data-message `type=call.incoming` reçu via [BabifixFcm].
+import 'dart:async';
 import 'package:flutter/material.dart';
 
-import '../babifix_design_system.dart';
 import '../models/babifix_models.dart';
 import '../services/babifix_api.dart';
 import 'incoming_call_screen.dart';
@@ -15,6 +15,18 @@ import '../shared/widgets/babifix_snackbar.dart';
 
 class CallService {
   CallService._();
+
+  static final StreamController<Map<String, dynamic>> _signalCtrl =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  /// Flux temps reel des signaux d'appel (call.ended, call.rejected, call.answered).
+  static Stream<Map<String, dynamic>> get signalStream => _signalCtrl.stream;
+
+  static void emitSignal(Map<String, dynamic> event) {
+    if (!_signalCtrl.isClosed) {
+      _signalCtrl.add(event);
+    }
+  }
 
   /// Démarre un appel sortant : crée la room côté backend, envoie un FCM
   /// ring à l'autre partie, et ouvre l'écran d'appel actif.
@@ -32,6 +44,7 @@ class CallService {
       if (!context.mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => LiveKitCallScreen(
+          callId: invite.call.id,
           liveKitUrl: invite.call.liveKitUrl,
           token: invite.token,
           roomName: invite.call.roomName,
@@ -183,6 +196,7 @@ class CallService {
     if (!context.mounted) return;
     await Navigator.of(context).pushReplacement(MaterialPageRoute(
       builder: (_) => LiveKitCallScreen(
+        callId: invite.call.id,
         liveKitUrl: invite.call.liveKitUrl,
         token: invite.token,
         roomName: invite.call.roomName,

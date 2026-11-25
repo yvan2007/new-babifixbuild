@@ -6,16 +6,17 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../babifix_api_config.dart';
 import '../../user_store.dart';
 import '../../babifix_money.dart';
+import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/babifix_suggestion_chips.dart';
 import '../disputes/dispute_open_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design tokens
 // ─────────────────────────────────────────────────────────────────────────────
-const _kNavy = Color(0xFF050D1A);
-const _kCard = Color(0xFF0D1B2E);
-const _kBlue = Color(0xFF4CC9F0);
-const _kCyan = Color(0xFF4CC9F0);
+const _kNavy = Color(0xFF0F172A);
+const _kCard = Color(0xFF1E293B);
+const _kBlue = Color(0xFF0284C7);
+const _kCyan = Color(0xFF0EA5E9);
 const _kGreen = Color(0xFF22C55E);
 const _kAmber = Color(0xFFF59E0B);
 const _kRed = Color(0xFFEF4444);
@@ -93,7 +94,16 @@ class _Reservation {
       case 'DEVIS_ACCEPTE':
         return _kGreen;
       case 'INTERVENTION_EN_COURS':
+      case 'IN_PROGRESS':
         return _kAmber;
+      case 'ASSIGNED':
+      case 'PAID':
+        return _kBlue;
+      case 'DONE':
+        return _kGreen;
+      case 'CANCELLED':
+      case 'REJECTED':
+        return _kRed;
       default:
         return _kPurple;
     }
@@ -118,7 +128,18 @@ class _Reservation {
       case 'DEVIS_ACCEPTE':
         return 'Devis accepté';
       case 'INTERVENTION_EN_COURS':
+      case 'IN_PROGRESS':
         return 'Intervention en cours';
+      case 'ASSIGNED':
+        return 'Artisan assigné';
+      case 'PAID':
+        return 'Paiement sécurisé';
+      case 'DONE':
+        return 'Terminée';
+      case 'CANCELLED':
+        return 'Annulée';
+      case 'REJECTED':
+        return 'Demande refusée';
       default:
         return 'En attente';
     }
@@ -540,27 +561,13 @@ class _ReservationsHistoryScreenState extends State<ReservationsHistoryScreen>
   }
 
   void _showToast(String msg, {required IconData icon, required Color color}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: _kCard,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        content: Row(
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                msg,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    if (!mounted) return;
+    showBabifixToast(
+      context,
+      type: color == _kRed
+          ? BabifixToastType.error
+          : (color == _kGreen ? BabifixToastType.success : BabifixToastType.info),
+      message: msg,
     );
   }
 
@@ -792,6 +799,10 @@ class _PremiumReservationCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
+
+                // ── Jauge 4 étapes de suivi d'intervention ─────────────────
+                _ReservationProgressTracker(statut: reservation.statut),
+                const SizedBox(height: 14),
 
                 // ── Infos ───────────────────────────────────────────────
                 _InfoRow(
@@ -1330,6 +1341,153 @@ class _PremiumDialog extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Jauge 4 étapes de suivi commande client
+// =============================================================================
+class _ReservationProgressTracker extends StatelessWidget {
+  final String statut;
+
+  const _ReservationProgressTracker({required this.statut});
+
+  int get _currentStep {
+    switch (statut) {
+      case 'CANCELLED':
+      case 'REJECTED':
+      case 'Annulee':
+        return -1;
+      case 'Terminee':
+      case 'DONE':
+        return 4;
+      case 'INTERVENTION_EN_COURS':
+      case 'IN_PROGRESS':
+        return 3;
+      case 'DEVIS_ACCEPTE':
+      case 'PAID':
+      case 'Confirmee':
+      case 'ASSIGNED':
+        return 2;
+      case 'DEMANDE_ENVOYEE':
+      case 'DEVIS_EN_COURS':
+      case 'DEVIS_ENVOYE':
+      case 'En attente':
+      default:
+        return 1;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final step = _currentStep;
+    if (step == -1) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: _kRed.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kRed.withValues(alpha: 0.35)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.cancel_outlined, size: 16, color: _kRed),
+            SizedBox(width: 8),
+            Text(
+              'Intervention annulée ou non aboutie',
+              style: TextStyle(
+                color: _kRed,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    const steps = [
+      ('Demande', Icons.description_outlined),
+      ('Consigne', Icons.lock_outline_rounded),
+      ('En route', Icons.directions_car_rounded),
+      ('Terminé', Icons.check_circle_outline_rounded),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Row(
+        children: List.generate(steps.length * 2 - 1, (index) {
+          if (index.isOdd) {
+            final linkIndex = index ~/ 2;
+            final isCompleted = step > linkIndex + 1;
+            return Expanded(
+              child: Container(
+                height: 2,
+                color: isCompleted
+                    ? _kCyan
+                    : Colors.white.withValues(alpha: 0.12),
+              ),
+            );
+          }
+
+          final stepIndex = index ~/ 2;
+          final stepNum = stepIndex + 1;
+          final isDone = step > stepNum;
+          final isCurrent = step == stepNum;
+          final isPassed = isDone || isCurrent;
+          final (label, icon) = steps[stepIndex];
+
+          final dotColor = isCurrent
+              ? _kCyan
+              : (isDone ? _kGreen : Colors.white.withValues(alpha: 0.30));
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isCurrent
+                      ? _kCyan.withValues(alpha: 0.25)
+                      : (isDone
+                          ? _kGreen.withValues(alpha: 0.20)
+                          : Colors.white.withValues(alpha: 0.06)),
+                  border: Border.all(
+                    color: dotColor,
+                    width: isCurrent ? 2 : 1.2,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    isDone ? Icons.check_rounded : icon,
+                    size: 12,
+                    color: dotColor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
+                  color: isPassed
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.40),
+                ),
+              ),
+            ],
+          );
+        }),
       ),
     );
   }

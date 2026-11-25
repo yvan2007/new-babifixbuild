@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../babifix_api_config.dart';
+
 class RetryOptions {
   final int maxRetries;
   final Duration initialDelay;
@@ -99,14 +101,12 @@ class HttpRetryClient {
 }
 
 class ApiClient {
-  static const _defaultBaseUrl = 'http://localhost:8000';
-
   final String baseUrl;
   final http.Client _client;
   final RetryOptions _retryOptions;
 
   ApiClient({String? baseUrl, http.Client? client, RetryOptions? retryOptions})
-    : baseUrl = baseUrl ?? _defaultBaseUrl,
+    : baseUrl = baseUrl ?? babifixApiBaseUrl(),
       _client = client ?? http.Client(),
       _retryOptions = retryOptions ?? const RetryOptions();
 

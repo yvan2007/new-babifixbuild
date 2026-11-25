@@ -3,7 +3,15 @@ import '../services/haptics_service.dart';
 import '../../babifix_design_system.dart';
 import 'babifix_ring_loader.dart';
 
-class BabifixButton extends StatelessWidget {
+enum BabifixButtonVariant {
+  primary,
+  navy,
+  outlined,
+  ghost,
+  danger,
+}
+
+class BabifixButton extends StatefulWidget {
   const BabifixButton({
     super.key,
     required this.label,
@@ -12,99 +20,220 @@ class BabifixButton extends StatelessWidget {
     this.isOutlined = false,
     this.icon,
     this.width,
+    this.variant,
+    this.loadingLabel,
+    this.height = 52,
+    this.borderRadius,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool isLoading;
   final bool isOutlined;
   final IconData? icon;
   final double? width;
+  final BabifixButtonVariant? variant;
+  final String? loadingLabel;
+  final double height;
+  final double? borderRadius;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+
+  @override
+  State<BabifixButton> createState() => _BabifixButtonState();
+}
+
+class _BabifixButtonState extends State<BabifixButton> {
+  bool _pressed = false;
+
+  BabifixButtonVariant get _effectiveVariant {
+    if (widget.variant != null) return widget.variant!;
+    return widget.isOutlined
+        ? BabifixButtonVariant.outlined
+        : BabifixButtonVariant.primary;
+  }
+
+  bool get _enabled => !widget.isLoading && widget.onPressed != null;
 
   @override
   Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final radius = widget.borderRadius ?? BabifixDesign.radiusMD;
+    final variant = _effectiveVariant;
 
-    if (isOutlined) {
-      return SizedBox(
-        width: width,
-        child: OutlinedButton(
-          onPressed: isLoading
-              ? null
-              : () {
-                  HapticsService.light();
-                  onPressed();
-                },
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(BabifixDesign.radiusMD),
+    Color bg;
+    Color fg;
+    BorderSide? side;
+    List<BoxShadow>? shadows;
+
+    switch (variant) {
+      case BabifixButtonVariant.primary:
+        bg = widget.backgroundColor ?? BabifixDesign.ciOrange;
+        if (_pressed && _enabled) {
+          bg = Color.lerp(bg, Colors.black, 0.14) ?? BabifixDesign.ciOrangePressed;
+        }
+        fg = widget.foregroundColor ?? Colors.white;
+        if (!_enabled) {
+          bg = bg.withValues(alpha: 0.48);
+          fg = Colors.white.withValues(alpha: 0.85);
+        } else {
+          shadows = [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.09),
+              blurRadius: _pressed ? 4 : 10,
+              offset: Offset(0, _pressed ? 1 : 4),
             ),
-            side: BorderSide(
-              color: isLight ? BabifixDesign.navy : BabifixDesign.cyan,
-            ),
-          ),
-          child: _child(isLight ? BabifixDesign.navy : BabifixDesign.cyan),
-        ),
-      );
+          ];
+        }
+      case BabifixButtonVariant.navy:
+        bg = widget.backgroundColor ??
+            (isDark ? BabifixDesign.bgWhite : BabifixDesign.navy);
+        if (_pressed && _enabled) {
+          bg = Color.lerp(bg, isDark ? Colors.grey.shade300 : Colors.black, 0.14) ??
+              bg;
+        }
+        fg = widget.foregroundColor ??
+            (isDark ? BabifixDesign.navy : Colors.white);
+        if (!_enabled) {
+          bg = bg.withValues(alpha: 0.45);
+        }
+      case BabifixButtonVariant.danger:
+        bg = widget.backgroundColor ?? BabifixDesign.error;
+        if (_pressed && _enabled) {
+          bg = Color.lerp(bg, Colors.black, 0.15) ?? bg;
+        }
+        fg = widget.foregroundColor ?? Colors.white;
+        if (!_enabled) bg = bg.withValues(alpha: 0.45);
+      case BabifixButtonVariant.outlined:
+        bg = widget.backgroundColor ??
+            (_pressed && _enabled
+                ? (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : BabifixDesign.navy.withValues(alpha: 0.04))
+                : Colors.transparent);
+        fg = widget.foregroundColor ??
+            (isDark ? BabifixDesign.textStrongDark : BabifixDesign.navy);
+        final borderColor = widget.foregroundColor != null
+            ? widget.foregroundColor!.withValues(alpha: _enabled ? 0.35 : 0.16)
+            : (isDark
+                ? Colors.white.withValues(alpha: _enabled ? 0.35 : 0.14)
+                : BabifixDesign.navy.withValues(alpha: _enabled ? 0.38 : 0.14));
+        side = BorderSide(color: borderColor, width: 1.5);
+      case BabifixButtonVariant.ghost:
+        bg = _pressed && _enabled
+            ? (isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : const Color(0x0F0F172A))
+            : Colors.transparent;
+        fg = widget.foregroundColor ??
+            (isDark ? BabifixDesign.cyan : BabifixDesign.navy);
     }
 
-    return SizedBox(
-      width: width,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isLoading
-              ? null
-              : () {
-                  HapticsService.medium();
-                  onPressed();
-                },
-          borderRadius: BorderRadius.circular(BabifixDesign.radiusMD),
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(BabifixDesign.radiusMD),
-              gradient: isLoading ? null : BabifixDesign.accentGradient,
-              boxShadow: isLoading ? null : BabifixDesign.cyanGlowShadow(),
+    final child = AnimatedSwitcher(
+      duration: BabifixDesign.durationFast,
+      switchInCurve: BabifixDesign.curveOut,
+      switchOutCurve: Curves.easeIn,
+      child: widget.isLoading
+          ? Row(
+              key: const ValueKey('loading'),
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                BabifixRingLoader.mono(size: 18, color: fg),
+                if (widget.loadingLabel != null) ...[
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      widget.loadingLabel!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: fg,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            )
+          : Row(
+              key: ValueKey(widget.label),
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.icon != null) ...[
+                  Icon(widget.icon, color: fg, size: 19),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fg,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: _child(Colors.white),
+    );
+
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: AnimatedScale(
+        scale: (_pressed && _enabled && !reduce) ? 0.97 : 1.0,
+        duration: BabifixDesign.durationTap,
+        curve: BabifixDesign.curveOut,
+        child: Material(
+          color: Colors.transparent,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: _enabled ? (_) => setState(() => _pressed = true) : null,
+            onTapUp: _enabled ? (_) => setState(() => _pressed = false) : null,
+            onTapCancel: () {
+              if (_pressed) setState(() => _pressed = false);
+            },
+            onTap: _enabled
+                ? () {
+                    if (variant == BabifixButtonVariant.primary ||
+                        variant == BabifixButtonVariant.navy) {
+                      HapticsService.medium();
+                    } else {
+                      HapticsService.light();
+                    }
+                    widget.onPressed?.call();
+                  }
+                : null,
+            child: AnimatedContainer(
+              duration: BabifixDesign.durationTap,
+              curve: BabifixDesign.curveOut,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(radius),
+                border: side != null ? Border.fromBorderSide(side) : null,
+                boxShadow: shadows,
+              ),
+              alignment: Alignment.center,
+              child: child,
+            ),
           ),
         ),
       ),
     );
   }
-
-  Widget _child(Color color) {
-    if (isLoading) {
-      return SizedBox(
-        height: 20,
-        width: 20,
-        child: BabifixRingLoader.cyan(size: 28),
-      );
-    }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (icon != null) ...[
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 8),
-        ],
-        Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w600,
-            fontSize: 15,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-class BabifixIconButton extends StatelessWidget {
+class BabifixIconButton extends StatefulWidget {
   const BabifixIconButton({
     super.key,
     required this.icon,
@@ -121,27 +250,44 @@ class BabifixIconButton extends StatelessWidget {
   final Color? iconColor;
 
   @override
-  Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
+  State<BabifixIconButton> createState() => _BabifixIconButtonState();
+}
 
-    return Material(
-      color:
-          backgroundColor ??
-          (isLight ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B)),
-      borderRadius: BorderRadius.circular(size / 2),
-      child: InkWell(
-        onTap: () {
-          HapticsService.selection();
-          onPressed();
-        },
-        borderRadius: BorderRadius.circular(size / 2),
-        child: SizedBox(
-          width: size,
-          height: size,
-          child: Icon(
-            icon,
-            color: iconColor ?? (isLight ? BabifixDesign.navy : Colors.white),
-            size: size * 0.45,
+class _BabifixIconButtonState extends State<BabifixIconButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+    return AnimatedScale(
+      scale: (_pressed && !reduce) ? 0.94 : 1.0,
+      duration: BabifixDesign.durationTap,
+      curve: BabifixDesign.curveOut,
+      child: Material(
+        color: widget.backgroundColor ?? BabifixDesign.surfaceOf(context),
+        borderRadius: BorderRadius.circular(widget.size / 2),
+        child: InkWell(
+          onHighlightChanged: (v) => setState(() => _pressed = v),
+          onTap: () {
+            HapticsService.selection();
+            widget.onPressed();
+          },
+          borderRadius: BorderRadius.circular(widget.size / 2),
+          child: Container(
+            width: widget.size,
+            height: widget.size,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.size / 2),
+              border: Border.all(color: BabifixDesign.borderOf(context)),
+            ),
+            child: Icon(
+              widget.icon,
+              color: widget.iconColor ??
+                  (isDark ? BabifixDesign.textStrongDark : BabifixDesign.navy),
+              size: widget.size * 0.45,
+            ),
           ),
         ),
       ),

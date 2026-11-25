@@ -74,7 +74,9 @@ abstract class ConfettiService {
                   ),
                 ),
                 GestureDetector(
-                  onTap: () => overlayEntry.remove(),
+                  onTap: () {
+                    if (overlayEntry.mounted) overlayEntry.remove();
+                  },
                   child: Icon(
                     Icons.close,
                     color: Colors.red.shade400,
@@ -90,7 +92,7 @@ abstract class ConfettiService {
 
     overlay.insert(overlayEntry);
     Future.delayed(const Duration(seconds: 4), () {
-      overlayEntry.remove();
+      if (overlayEntry.mounted) overlayEntry.remove();
     });
   }
 }
@@ -160,10 +162,9 @@ class _ConfettiWidgetState extends State<_ConfettiWidget>
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    return Stack(
-      children: [
+    return IgnorePointer(
+      child: Stack(
+        children: [
         if (widget.message != null)
           Positioned(
             top: MediaQuery.of(context).size.height * 0.4,
@@ -241,6 +242,7 @@ class _ConfettiWidgetState extends State<_ConfettiWidget>
           );
         }),
       ],
+      ),
     );
   }
 }
@@ -310,7 +312,9 @@ color: Colors.black.withValues(alpha: 0.1),
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => overlayEntry.remove(),
+                    onTap: () {
+                      if (overlayEntry.mounted) overlayEntry.remove();
+                    },
                     child: Icon(
                       Icons.close,
                       color: isError
@@ -329,7 +333,7 @@ color: Colors.black.withValues(alpha: 0.1),
 
     overlay.insert(overlayEntry);
     Future.delayed(const Duration(seconds: 3), () {
-      overlayEntry.remove();
+      if (overlayEntry.mounted) overlayEntry.remove();
     });
   }
 

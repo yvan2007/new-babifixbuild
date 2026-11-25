@@ -14,8 +14,11 @@ import '../../shared/widgets/babifix_suggestion_chips.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
+import '../../shared/services/babifix_remote_config.dart';
 import '../../user_store.dart';
 import 'escrow_quote_screen.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -196,12 +199,16 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Text('Détail du devis'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0.5,
+        backgroundColor: BabifixDesign.surfaceOf(context),
+        foregroundColor: BabifixDesign.textPrimaryOf(context),
+        elevation: 0,
       ),
       body: _loading
-          ? const Center(child: BabifixRingLoader.dark(size: 80))
+          ? Center(
+              child: BabifixDesign.isDark(context)
+                  ? const BabifixRingLoader.cyan(size: 64)
+                  : const BabifixRingLoader.dark(size: 64),
+            )
           : _error != null
               ? _errorView()
               : _devis == null
@@ -263,14 +270,15 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
           child: Row(
             children: [
               Icon(Icons.info_outline,
-                  color: BabifixDesign.iconOnLight, size: 20),
+                  color: BabifixDesign.iconColor(context), size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Le prestataire vous a envoyé un devis structuré. '
-                  'Accepter ouvrira le paiement de l\'acompte.',
+                  'Accepter ouvrira le paiement securise BABIFIX.',
                   style: TextStyle(
-                      fontSize: 13, color: Colors.grey.shade800),
+                      fontSize: 13,
+                      color: BabifixDesign.textPrimaryOf(context)),
                 ),
               ),
             ],
@@ -287,7 +295,7 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
             style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade800)),
+                color: BabifixDesign.textPrimaryOf(context))),
         const SizedBox(height: 8),
         TimelineReservationWidget(steps: steps),
         const SizedBox(height: 100),
@@ -324,14 +332,18 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
         double.tryParse('${ex[k] ?? ''}') ?? fb;
     final sousTotal = d('sous_total');
     if (sousTotal <= 0) return const SizedBox.shrink();
+    final remoteCfg = BabifixRemoteConfig.instance.current;
+    final defaultRate = remoteCfg.commissionBasePct;
     final cautionPayee = ex['caution_payee'] == true;
     final caution = cautionPayee ? d('caution_montant') : 0.0;
-    final commission = d('commission', sousTotal * 0.18);
+    final commission = d('commission', sousTotal * (defaultRate / 100.0));
     final commissionPct = (ex['commission_rate'] is num)
         ? (ex['commission_rate'] as num).round()
-        : (sousTotal > 0 ? (commission / sousTotal * 100).round() : 18);
+        : (sousTotal > 0 ? (commission / sousTotal * 100).round() : defaultRate);
     // Phase 5 : transport 100 % presta ; frais fixe de mise en relation en plus.
-    final frais = cautionPayee ? d('frais_mise_en_relation', 500) : 0.0;
+    final frais = cautionPayee
+        ? d('frais_mise_en_relation', remoteCfg.fraisMiseEnRelationFcfa.toDouble())
+        : 0.0;
     final net = d('net_prestataire', sousTotal - commission);
     final reste = d('reste_client', sousTotal - caution);
     final totalClient = d('total_client', sousTotal + frais);
@@ -477,33 +489,30 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     flex: 2,
-                    child: ElevatedButton.icon(
+                    child: BabifixButton(
+                      label: 'Accepter & payer',
+                      icon: Icons.check_rounded,
+                      isLoading: _busy,
+                      height: 48,
+                      backgroundColor: BabifixDesign.ciBlue,
                       onPressed: _busy ? null : _accept,
-                      icon: _busy
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: BabifixRingLoader.cyan(size: 28))
-                          : const Icon(Icons.check, size: 18),
-                      label: const Text('Accepter & payer'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: BabifixDesign.ciBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
                     ),
                   ),
                 ],
               )
             : canPay
-                ? ElevatedButton.icon(
+                ? BabifixButton(
+                    label: 'Payer maintenant',
+                    icon: Icons.payment_rounded,
+                    isLoading: _busy,
+                    height: 50,
                     onPressed: _busy
                         ? null
                         : () async {
                             setState(() => _busy = true);
                             await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => EscrowQuoteScreen(
+                              babifixRoute(
+                                (_) => EscrowQuoteScreen(
                                   reservationReference:
                                       widget.reservationReference,
                                 ),
@@ -514,18 +523,6 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
                               await _load();
                             }
                           },
-                    icon: _busy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: BabifixRingLoader.cyan(size: 28))
-                        : const Icon(Icons.payment, size: 18),
-                    label: const Text('Payer maintenant'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: BabifixDesign.ciOrange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
                   )
                 : (devis.statut == DevisStatus.accepte && _acompteValide)
                     ? Container(

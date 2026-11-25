@@ -83,3 +83,14 @@ double? jsonDoubleNullable(dynamic v) {
   }
   return null;
 }
+
+/// Comme [jsonInt] mais `null` si la valeur est absente ou non numérique.
+int? jsonIntNullable(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) {
+    return int.tryParse(v);
+  }
+  return null;
+}

@@ -13,8 +13,12 @@ import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../shared/geo_utils.dart';
+import '../../shared/services/nominatim_geocode.dart';
 import '../../user_store.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_sheet.dart';
 import '../providers/provider_profile_premium_screen.dart';
 
 class _Provider {
@@ -28,6 +32,9 @@ class _Provider {
     this.rating = 0,
     this.photoUrl = '',
     this.category = '',
+    this.premiumTier = 'standard',
+    this.premiumBadge = '',
+    this.disponible = true,
   });
   final int id;
   final String name;
@@ -38,6 +45,9 @@ class _Provider {
   final double rating;
   final String photoUrl;
   final String category;
+  final String premiumTier;
+  final String premiumBadge;
+  final bool disponible;
 }
 
 class ProvidersMapScreen extends StatefulWidget {
@@ -51,6 +61,8 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     with SingleTickerProviderStateMixin {
   final _mapCtrl = MapController();
   LatLng? _myPosition;
+  bool _hasExactUserPosition = false;
+  String _myCityLabel = '';
   List<_Provider> _providers = [];
   bool _loading = true;
   String? _error;
@@ -76,13 +88,13 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     return list;
   }
 
-  // Style de carte choisi par l'utilisateur ('' = auto selon le thème système,
-  // sinon 'light' / 'dark' / 'satellite'). Permet un vrai mode nuit manuel.
+  // Style de carte choisi par l'utilisateur ('' = auto selon le thème actif,
+  // sinon 'light' / 'dark' / 'satellite').
   String _mapStyle = '';
 
   String _effectiveStyle() {
     if (_mapStyle.isNotEmpty) return _mapStyle;
-    return MediaQuery.platformBrightnessOf(context) == Brightness.dark
+    return Theme.of(context).brightness == Brightness.dark
         ? 'dark'
         : 'light';
   }
@@ -118,17 +130,24 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     super.dispose();
   }
 
-  /// Couleur selon la proximité : vert (proche) → orange (moyen) → rouge (loin).
+  /// Couleur Direction 3 Hybride selon palier ou proximite.
+  Color _pinRingColor(_Provider p) {
+    final tier = p.premiumTier.toLowerCase();
+    if (tier == 'gold') return const Color(0xFFB45309); // Or Laiton
+    if (tier == 'silver') return const Color(0xFF0E3B2E); // Emeraude Pro
+    return _distanceColor(p.distanceKm);
+  }
+
   Color _distanceColor(double km) {
-    if (km <= 5) return const Color(0xFF22C55E);
-    if (km <= 15) return const Color(0xFFF59E0B);
-    return const Color(0xFFEF4444);
+    if (km <= 5) return const Color(0xFF047857);
+    if (km <= 15) return const Color(0xFFB45309);
+    return const Color(0xFFC2410C);
   }
 
   String _distanceLabel(double km) {
     if (km <= 5) return 'Très proche';
     if (km <= 15) return 'À proximité';
-    return 'Éloigné';
+    return 'Secteur élargi';
   }
 
   /// Regroupe (clustering) les prestataires proches selon le zoom courant :
@@ -159,36 +178,35 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
 
   Marker _providerPin(_Provider p) {
     final sel = _selected?.id == p.id;
-    final color = sel ? BabifixDesign.ciOrange : _distanceColor(p.distanceKm);
+    final color = sel ? const Color(0xFFC2410C) : _pinRingColor(p);
+    final isGold = p.premiumTier.toLowerCase() == 'gold';
     return Marker(
       point: LatLng(p.lat, p.lon),
-      width: 54,
-      height: 66,
-      alignment: Alignment.bottomCenter, // la pointe (bas) touche la position
+      width: 58,
+      height: 70,
+      alignment: Alignment.bottomCenter,
       child: GestureDetector(
         onTap: () => setState(() => _selected = p),
         child: AnimatedScale(
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutBack,
-          scale: sel ? 1.15 : 1.0,
-          child: _TeardropPin(color: color, photoUrl: p.photoUrl),
+          scale: sel ? 1.18 : 1.0,
+          child: _TeardropPin(
+            color: color,
+            photoUrl: p.photoUrl,
+            isGold: isGold,
+          ),
         ),
       ),
     );
   }
 
-  /// Affiche la liste des prestataires regroupés sous un cluster (même point
-  /// ou proches). Fonctionne même quand ils partagent des coordonnées
-  /// identiques — le zoom ne pouvait pas les séparer.
   void _showClusterSheet(List<_Provider> group) {
     final sorted = [...group]
       ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-    showModalBottomSheet<void>(
+    showBabifixModalSheet<void>(
       context: context,
-      backgroundColor: BabifixDesign.navy,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: const Color(0xFF0B1B34),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -207,10 +225,10 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
               child: Row(
                 children: [
                   const Icon(Icons.groups_rounded,
-                      color: BabifixDesign.cyan, size: 20),
+                      color: Color(0xFFFDE68A), size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    '${group.length} prestataires à cet endroit',
+                    '${group.length} artisans dans cette zone',
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
@@ -225,14 +243,13 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 itemCount: sorted.length,
                 separatorBuilder: (_, __) =>
-                    const Divider(color: Colors.white10, height: 1),
+                    const Divider(color: Colors.white12, height: 1),
                 itemBuilder: (_, i) {
                   final p = sorted[i];
                   return ListTile(
                     leading: CircleAvatar(
                       radius: 22,
-                      backgroundColor:
-                          BabifixDesign.ciBlue.withValues(alpha: 0.3),
+                      backgroundColor: const Color(0xFF1E293B),
                       backgroundImage: p.photoUrl.isNotEmpty
                           ? NetworkImage(p.photoUrl)
                           : null,
@@ -240,18 +257,45 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                           ? const Icon(Icons.person, color: Colors.white70)
                           : null,
                     ),
-                    title: Text(
-                      p.name,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700),
+                    title: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            p.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        if (p.premiumBadge.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: p.premiumTier == 'gold'
+                                  ? const Color(0xFFB45309)
+                                  : const Color(0xFF0E3B2E),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              p.premiumBadge,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     subtitle: Text(
-                      '${p.city} · ${p.distanceKm.toStringAsFixed(1)} km',
+                      '${p.category.isNotEmpty ? '${p.category} · ' : ''}${p.city}${p.distanceKm > 0 ? ' · ${p.distanceKm.toStringAsFixed(1)} km' : ''}',
                       style: const TextStyle(
-                          color: Colors.white54, fontSize: 12),
+                          color: Colors.white60, fontSize: 12),
                     ),
                     trailing:
-                        const Icon(Icons.chevron_right, color: Colors.white38),
+                        const Icon(Icons.chevron_right, color: Colors.white54),
                     onTap: () {
                       Navigator.of(ctx).pop();
                       setState(() => _selected = p);
@@ -273,28 +317,20 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     final count = group.length;
     return Marker(
       point: center,
-      width: 52,
-      height: 52,
+      width: 50,
+      height: 50,
       child: GestureDetector(
-        // Tap sur un cluster → liste des prestataires du groupe (bottom sheet).
-        // AVANT : on zoomait ; mais des prestataires AU MÊME POINT (repli Abidjan
-        // sans GPS) ne se séparaient jamais → cluster inexploitable.
         onTap: () => _showClusterSheet(group),
         child: Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [BabifixDesign.cyan, BabifixDesign.ciBlue],
-            ),
+            color: const Color(0xFF0B1B34),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [
+            border: Border.all(color: const Color(0xFFFDE68A), width: 2.5),
+            boxShadow: const [
               BoxShadow(
-                blurRadius: 12,
-                spreadRadius: 1,
-                color: BabifixDesign.cyan.withValues(alpha: 0.5),
-                offset: const Offset(0, 3),
+                blurRadius: 10,
+                color: Colors.black38,
+                offset: Offset(0, 3),
               ),
             ],
           ),
@@ -302,11 +338,19 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
           child: Text(
             count > 99 ? '99+' : '$count',
             style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+                color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _updateCityBadge(LatLng pos) async {
+    try {
+      final place = await nominatimReverse(pos.latitude, pos.longitude);
+      if (!mounted || place == null) return;
+      setState(() => _myCityLabel = place.displayName);
+    } catch (_) {}
   }
 
   Future<void> _locate({bool forceFresh = false}) async {
@@ -322,62 +366,74 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
       }
       if (perm == LocationPermission.deniedForever) throw Exception('Permission bloquée définitivement');
 
-      // forceFresh = appui sur « recentrer » : on IGNORE le cache pour capter
-      // la position ACTUELLE (sinon, après un déplacement, la carte resterait
-      // bloquée sur l'ancien point en cache — ex. Cocody alors qu'on est à Bassam).
       Position? pos;
       if (!forceFresh) {
-        // Démarrage : position cache (instantané) pour un affichage immédiat.
         pos = await Geolocator.getLastKnownPosition();
       }
-      if (pos == null) {
-        // Position fraîche (GPS réel) avec timeout généreux.
-        pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-        ).timeout(
-          const Duration(seconds: 12),
-          onTimeout: () => throw Exception('GPS timeout'),
-        );
-      }
-      // Position GPS réelle si en Côte d'Ivoire. Hors CI (émulateur), on
-      // préfère l'adresse RÉELLE enregistrée au profil plutôt qu'un point
-      // fictif (Abidjan), pour des distances exactes.
+      pos ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+      ).timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => throw Exception('GPS timeout'),
+      );
+
       if (isInCotedIvoire(pos.latitude, pos.longitude)) {
         _myPosition = LatLng(pos.latitude, pos.longitude);
+        _hasExactUserPosition = true;
+        _updateCityBadge(_myPosition!);
       } else {
         final saved = await BabifixUserStore.loadAddressCoords();
-        _myPosition = saved != null
-            ? LatLng(saved.lat, saved.lng)
-            : const LatLng(kAbidjanLat, kAbidjanLon);
+        if (saved != null) {
+          _myPosition = LatLng(saved.lat, saved.lng);
+          _hasExactUserPosition = true;
+          _updateCityBadge(_myPosition!);
+        } else {
+          // Vue nationale Cote d'Ivoire (Yamoussoukro) sans forcer Abidjan
+          _myPosition = const LatLng(6.8276, -5.2893);
+          _hasExactUserPosition = false;
+          _radiusKm = 100;
+          _myCityLabel = 'Côte d\'Ivoire (toutes zones)';
+        }
       }
-      _mapCtrl.move(_myPosition!, 12);
+      _mapCtrl.move(_myPosition!, _hasExactUserPosition ? 12.5 : 6.8);
       await _loadProviders();
     } catch (e) {
-      // Repli : si le GPS est indisponible, on utilise l'adresse enregistrée
-      // dans le profil pour quand même respecter le périmètre de proximité.
       final saved = await BabifixUserStore.loadAddressCoords();
       if (saved != null) {
         _myPosition = LatLng(saved.lat, saved.lng);
-        _mapCtrl.move(_myPosition!, 12);
+        _hasExactUserPosition = true;
+        _updateCityBadge(_myPosition!);
+        _mapCtrl.move(_myPosition!, 12.5);
         await _loadProviders();
         return;
       }
-      setState(() { _error = e.toString(); _loading = false; });
+      // Dernier repli : carte nationale Côte d'Ivoire plutot qu'ecran d'erreur bloquant
+      _myPosition = const LatLng(6.8276, -5.2893);
+      _hasExactUserPosition = false;
+      _radiusKm = 100;
+      _myCityLabel = 'Côte d\'Ivoire (activez le GPS)';
+      _mapCtrl.move(_myPosition!, 6.8);
+      await _loadProviders();
     }
   }
 
   Future<void> _loadProviders() async {
     if (_myPosition == null) return;
     final token = await BabifixUserStore.getApiToken();
-    // Si l'utilisateur est connecté → endpoint authentifié (plus complet).
-    // Sinon → endpoint public (la map reste utile aux visiteurs anonymes).
     final useAuth = token != null;
     final base = babifixApiBaseUrl();
-    final url = useAuth
-        ? '$base/api/client/prestataires?lat=${_myPosition!.latitude}'
-            '&lon=${_myPosition!.longitude}&radius_km=${_radiusKm.round()}'
-        : '$base/api/public/providers/?lat=${_myPosition!.latitude}'
-            '&lon=${_myPosition!.longitude}&radius=${_radiusKm.round()}';
+    final String url;
+    if (_hasExactUserPosition) {
+      url = useAuth
+          ? '$base/api/client/prestataires?lat=${_myPosition!.latitude}'
+              '&lon=${_myPosition!.longitude}&radius_km=${_radiusKm.round()}&page_size=50'
+          : '$base/api/public/providers/?lat=${_myPosition!.latitude}'
+              '&lon=${_myPosition!.longitude}&radius=${_radiusKm.round()}';
+    } else {
+      url = useAuth
+          ? '$base/api/client/prestataires?page_size=50'
+          : '$base/api/public/providers/';
+    }
     try {
       final res = await http.get(
         Uri.parse(url),
@@ -423,9 +479,12 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
           lat: lat,
           lon: lon,
           distanceKm: jsonDouble(m['distance_km']),
-          rating: jsonDouble(m['rating']),
-          photoUrl: '${m['photo_portrait_url'] ?? ''}',
+          rating: jsonDouble(m['average_rating'] ?? m['rating']),
+          photoUrl: '${m['photo_portrait_url'] ?? m['image_url'] ?? ''}',
           category: '${m['category_nom'] ?? m['specialite'] ?? ''}'.trim(),
+          premiumTier: '${m['premium_tier'] ?? 'standard'}',
+          premiumBadge: '${m['premium_badge'] ?? ''}'.trim(),
+          disponible: m['disponible'] != false,
         ));
       }
       setState(() {
@@ -497,8 +556,8 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
           FlutterMap(
             mapController: _mapCtrl,
             options: MapOptions(
-              initialCenter: _myPosition ?? const LatLng(5.345, -4.008), // Abidjan
-              initialZoom: 12,
+              initialCenter: _myPosition ?? const LatLng(6.8276, -5.2893),
+              initialZoom: _hasExactUserPosition ? 12.5 : 6.8,
               onTap: (_, __) => setState(() => _selected = null),
               // Suivi du zoom → recalcul du clustering (regroupement des pins
               // proches). On ne rebuild que si le zoom change notablement.
@@ -510,45 +569,35 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
             ),
             children: [
               TileLayer(
-                // Style choisi par l'utilisateur (Clair / Sombre / Satellite),
-                // sinon auto selon le thème système. {r} = tuiles HD/Retina.
                 urlTemplate: _tileUrl(),
-                subdomains: const ['a', 'b', 'c', 'd'],
-                retinaMode: _effectiveStyle() == 'satellite'
-                    ? false
-                    : RetinaMode.isHighDensity(context),
                 tileProvider: NetworkTileProvider(),
                 userAgentPackageName: 'app.babifix.client',
               ),
-              // Cercle de rayon statique + radar pulsant (3 ondes décalées qui
-              // scannent visuellement les prestataires à proximité).
-              if (_myPosition != null)
+              if (_myPosition != null && _hasExactUserPosition)
                 AnimatedBuilder(
                   animation: _pulse,
                   builder: (_, __) {
                     final maxR = _radiusKm * 1000.0;
                     final base = _pulse.value;
-                    final waves = List.generate(3, (i) {
-                      final t = (base + i / 3) % 1.0;
+                    final waves = List.generate(2, (i) {
+                      final t = (base + i / 2) % 1.0;
                       return CircleMarker(
                         point: _myPosition!,
                         radius: maxR * t,
                         useRadiusInMeter: true,
-                        color: BabifixDesign.cyan.withValues(alpha: 0.06 * (1 - t)),
-                        borderColor:
-                            BabifixDesign.cyan.withValues(alpha: 0.55 * (1 - t)),
-                        borderStrokeWidth: 1.6,
+                        color: const Color(0xFF0B1B34).withValues(alpha: 0.04 * (1 - t)),
+                        borderColor: const Color(0xFFB45309).withValues(alpha: 0.42 * (1 - t)),
+                        borderStrokeWidth: 1.5,
                       );
                     });
                     return CircleLayer(circles: [
-                      // Anneau statique du rayon
                       CircleMarker(
                         point: _myPosition!,
                         radius: maxR,
                         useRadiusInMeter: true,
-                        color: BabifixDesign.cyan.withValues(alpha: 0.05),
-                        borderColor: BabifixDesign.cyan.withValues(alpha: 0.30),
-                        borderStrokeWidth: 2,
+                        color: const Color(0xFF0B1B34).withValues(alpha: 0.04),
+                        borderColor: const Color(0xFF0B1B34).withValues(alpha: 0.25),
+                        borderStrokeWidth: 1.6,
                       ),
                       ...waves,
                     ]);
@@ -558,14 +607,13 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
               MarkerLayer(
                 markers: _buildClusteredMarkers(),
               ),
-              // Ma position — halo "radar" pulsant, TOUJOURS au-dessus des pins
-              // pour rester visible même quand des prestataires sont au même endroit.
-              if (_myPosition != null)
+              // Ma position
+              if (_myPosition != null && _hasExactUserPosition)
                 MarkerLayer(markers: [
                   Marker(
                     point: _myPosition!,
-                    width: 84,
-                    height: 84,
+                    width: 78,
+                    height: 78,
                     child: AnimatedBuilder(
                       animation: _pulse,
                       builder: (_, __) {
@@ -574,31 +622,30 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                           alignment: Alignment.center,
                           children: [
                             Container(
-                              width: 26 + t * 56,
-                              height: 26 + t * 56,
+                              width: 26 + t * 50,
+                              height: 26 + t * 50,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: BabifixDesign.cyan
-                                    .withValues(alpha: (1 - t) * 0.35),
+                                color: const Color(0xFFC2410C)
+                                    .withValues(alpha: (1 - t) * 0.28),
                               ),
                             ),
                             Container(
                               width: 30,
                               height: 30,
                               decoration: BoxDecoration(
-                                color: BabifixDesign.cyan,
+                                color: const Color(0xFF0B1B34),
                                 shape: BoxShape.circle,
                                 border:
                                     Border.all(color: Colors.white, width: 3),
-                                boxShadow: [
+                                boxShadow: const [
                                   BoxShadow(
-                                      color: BabifixDesign.cyan
-                                          .withValues(alpha: 0.5),
-                                      blurRadius: 12)
+                                      color: Colors.black26,
+                                      blurRadius: 10)
                                 ],
                               ),
-                              child: const Icon(Icons.person_pin_circle,
-                                  color: Colors.white, size: 18),
+                              child: const Icon(Icons.my_location_rounded,
+                                  color: Color(0xFFFDE68A), size: 16),
                             ),
                           ],
                         );
@@ -622,12 +669,33 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (_myCityLabel.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.near_me_rounded,
+                              size: 14, color: Color(0xFFB45309)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _myCityLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0B1B34),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                     Row(
                       children: [
-                        Icon(Icons.radar_rounded,
-                            size: 18, color: BabifixDesign.cyan),
+                        const Icon(Icons.radar_rounded,
+                            size: 18, color: Color(0xFF0B1B34)),
                         const SizedBox(width: 8),
-                        // Rayon : pastille colorée selon la distance.
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 3),
@@ -637,18 +705,18 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            '${_radiusKm.round()} km',
+                            _hasExactUserPosition ? '${_radiusKm.round()} km' : 'National',
                             style: TextStyle(
                                 fontWeight: FontWeight.w800,
-                                fontSize: 13,
+                                fontSize: 12.5,
                                 color: _distanceColor(_radiusKm)),
                           ),
                         ),
                         Expanded(
                           child: SliderTheme(
-                            data: SliderThemeData(
+                            data: const SliderThemeData(
                               trackHeight: 3,
-                              overlayShape: const RoundSliderOverlayShape(
+                              overlayShape: RoundSliderOverlayShape(
                                   overlayRadius: 14),
                             ),
                             child: Slider(
@@ -656,18 +724,17 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                               min: 5,
                               max: 100,
                               divisions: 19,
-                              activeColor: BabifixDesign.cyan,
+                              activeColor: const Color(0xFF0B1B34),
                               onChanged: (v) => setState(() => _radiusKm = v),
                               onChangeEnd: (_) => _loadProviders(),
                             ),
                           ),
                         ),
-                        // Compteur de résultats en badge.
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 9, vertical: 4),
                           decoration: BoxDecoration(
-                            color: BabifixDesign.navy,
+                            color: const Color(0xFF0B1B34),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -685,8 +752,8 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                       const Divider(height: 8),
                       Row(
                         children: [
-                          Icon(Icons.category_rounded,
-                              size: 17, color: BabifixDesign.cyan),
+                          const Icon(Icons.category_rounded,
+                              size: 17, color: Color(0xFFB45309)),
                           const SizedBox(width: 8),
                           Expanded(
                             child: DropdownButtonHideUnderline(
@@ -765,10 +832,41 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(_selected!.name,
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                            Text(_selected!.city,
-                                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(_selected!.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                                ),
+                                if (_selected!.premiumBadge.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _selected!.premiumTier == 'gold'
+                                          ? const Color(0xFFB45309)
+                                          : const Color(0xFF0E3B2E),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      _selected!.premiumBadge,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            Text(
+                              '${_selected!.category.isNotEmpty ? '${_selected!.category} · ' : ''}${_selected!.city}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
                             const SizedBox(height: 4),
                             Row(
                               children: [
@@ -810,16 +908,17 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
                           ],
                         ),
                       ),
-                      FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: BabifixDesign.ciOrange),
+                      BabifixButton(
+                        label: 'Réserver',
+                        width: 112,
+                        height: 42,
                         onPressed: () => Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => ProviderProfilePremiumScreen(
+                          babifixRoute(
+                            (_) => ProviderProfilePremiumScreen(
                               providerId: _selected!.id,
                             ),
                           ),
                         ),
-                        child: const Text('Réserver'),
                       ),
                     ],
                   ),
@@ -855,47 +954,75 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
   }
 }
 
-/// Pin « goutte » : avatar rond (photo du prestataire) + pointe vers le bas.
+/// Pin goutte Direction 3 : anneau palier / proximite + etoile Gold.
 class _TeardropPin extends StatelessWidget {
-  const _TeardropPin({required this.color, required this.photoUrl});
+  const _TeardropPin({
+    required this.color,
+    required this.photoUrl,
+    this.isGold = false,
+  });
   final Color color;
   final String photoUrl;
+  final bool isGold;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
       children: [
-        Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                blurRadius: 8,
-                color: color.withValues(alpha: 0.45),
-                offset: const Offset(0, 3),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isGold ? const Color(0xFFFDE68A) : Colors.white,
+                  width: 2.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    blurRadius: 8,
+                    color: color.withValues(alpha: 0.42),
+                    offset: const Offset(0, 3),
+                  ),
+                  const BoxShadow(blurRadius: 4, color: Colors.black26),
+                ],
               ),
-              const BoxShadow(blurRadius: 5, color: Colors.black26),
-            ],
-          ),
-          child: CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.white,
-            backgroundImage:
-                photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-            child: photoUrl.isEmpty
-                ? Icon(Icons.handyman_rounded, color: color, size: 17)
-                : null,
-          ),
+              child: CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.white,
+                backgroundImage:
+                    photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                child: photoUrl.isEmpty
+                    ? Icon(Icons.handyman_rounded, color: color, size: 17)
+                    : null,
+              ),
+            ),
+            Transform.translate(
+              offset: const Offset(0, -2),
+              child: CustomPaint(size: const Size(14, 9), painter: _PinTip(color)),
+            ),
+          ],
         ),
-        // Pointe (triangle) qui désigne l'emplacement exact.
-        Transform.translate(
-          offset: const Offset(0, -2),
-          child: CustomPaint(size: const Size(14, 9), painter: _PinTip(color)),
-        ),
+        if (isGold)
+          Positioned(
+            top: -3,
+            right: -3,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: const Color(0xFFB45309),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: const Icon(Icons.star_rounded, color: Color(0xFFFDE68A), size: 10),
+            ),
+          ),
       ],
     );
   }

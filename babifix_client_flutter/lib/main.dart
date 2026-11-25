@@ -2,12 +2,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:ui';
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,13 +29,19 @@ import 'shared/widgets/babifix_slide_to_confirm.dart';
 import 'shared/widgets/babifix_prestation_timer.dart';
 import 'shared/in_app_notifications.dart';
 import 'shared/offline_cache.dart';
+import 'services/notification_overlay.dart';
 import 'services/notification_sound_service.dart';
 import 'services/zego_call_service.dart';
 import 'shared/widgets/auth_required_dialog.dart';
+import 'shared/widgets/babifix_client_shield_card.dart';
+import 'shared/widgets/babifix_provider_cards.dart';
+import 'shared/widgets/babifix_ring_loader.dart';
 import 'shared/widgets/category_strip.dart';
+import 'shared/services/babifix_remote_config.dart';
 import 'shared/services/real_time_sync.dart';
 import 'features/auth/onboarding_screen.dart';
 import 'features/auth/auth_screen.dart';
+import 'features/auth/biometric_login_screen.dart';
 import 'features/auth/forgot_password_screen.dart';
 import 'features/disputes/my_disputes_screen.dart';
 import 'features/disputes/dispute_open_screen.dart';
@@ -48,7 +52,6 @@ import 'features/chat/messages_screen.dart';
 import 'features/chat/chat_room_screen.dart' hide ClientChatMsg;
 import 'features/booking/booking_flow_screen.dart';
 import 'features/booking/devis_kanban_screen.dart';
-import 'features/booking/devis_detail_screen.dart';
 import 'features/booking/escrow_quote_screen.dart';
 import 'features/booking/confirm_completion_screen.dart';
 import 'features/booking/client_journal_screen.dart';
@@ -70,6 +73,9 @@ import 'splash_screen.dart';
 import 'shared/widgets/babifix_snackbar.dart';
 import 'shared/widgets/app_version_gate.dart';
 import 'shared/widgets/error_reporter.dart';
+import 'shared/widgets/babifix_button.dart';
+import 'shared/widgets/babifix_skeleton.dart';
+import 'shared/widgets/babifix_page_route.dart';
 
 // Le navigatorKey est partagé entre l'ancien Zego (legacy) et le nouveau
 // BabifixFcmRouter qui ouvre IncomingCallScreen sur FCM call.incoming.
@@ -114,9 +120,14 @@ Future<void> main() async {
     await dotenv.load(fileName: ".env");
   } catch (_) {}
 
-  await BabifixFcm.ensureInitialized();
+  await babifixResolveLocalApiBaseUrl();
+  try {
+    await BabifixFcm.ensureInitialized();
+  } catch (e) {
+    debugPrint('BABIFIX FCM init failed: $e');
+  }
   
-  // Zego SDK temporairement désactivé — voir services/zego_call_service.dart
+  // Zego SDK temporairement desactive : voir services/zego_call_service.dart
   // if (isZegoConfigured) {
   //   ZegoUIKitPrebuiltCallInvitationService().setNavigatorKey(zegoNavigatorKey);
   // }
@@ -178,7 +189,7 @@ class BabifixClientApp extends StatefulWidget {
 }
 
 class _BabifixClientAppState extends State<BabifixClientApp> {
-  AppPaletteMode paletteMode = AppPaletteMode.light;
+  AppPaletteMode paletteMode = AppPaletteMode.white;
   bool hasSeenOnboarding = false;
   bool _prefsLoaded = false;
   final _routerRefresh = ValueNotifier<int>(0);
@@ -191,6 +202,8 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
     super.initState();
     _loadPrefs();
     BabifixNotificationSoundService.ensureInitialized();
+    // Synchronise la configuration dynamique plateforme (commissions, frais, maintenance)
+    BabifixRemoteConfig.instance.initAndSync();
   }
 
   Future<void> _loadPrefs() async {
@@ -200,8 +213,8 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
     final p = await SharedPreferences.getInstance();
     final newPalette = switch (p.getString(_kPaletteKey)) {
       'blue' => AppPaletteMode.blue,
-      'white' => AppPaletteMode.white,
-      _ => AppPaletteMode.light,
+      'light' => AppPaletteMode.light,
+      _ => AppPaletteMode.white,
     };
     final newSeen = p.getBool(_kOnboardingKey) ?? false;
     final elapsed = DateTime.now().difference(started);
@@ -262,19 +275,23 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
           ProviderProfilePremiumScreen(providerId: int.tryParse(id) ?? 0),
       bookingBuilder: (context, sid) => Builder(
         builder: (ctx) {
+          final parsedProviderId = int.tryParse(sid);
           return BookingFlowScreen(
-            serviceTitle: sid,
+            serviceTitle: parsedProviderId != null ? 'Demande de service' : sid,
             servicePrice: 0,
-            // Sans providerId, l'étape "Disponibilités" ne peut interroger
-            // AUCUN calendrier réel (elle se tait entièrement, pas même un
-            // message "pas de créneaux") -- symétrique à serviceDetailBuilder
-            // ci-dessus qui traite déjà `id` comme un providerId.
-            providerId: int.tryParse(sid),
+            providerId: parsedProviderId,
             onConfirm: (data) async {
+              if (BabifixRemoteConfig.instance.current.maintenance) {
+                return {
+                  'ok': false,
+                  'error':
+                      'Maintenance en cours : les nouvelles reservations sont temporairement desactivees.',
+                };
+              }
               final token = await BabifixUserStore.getApiToken();
               if (token == null) return {'ok': false, 'error': 'Non connecté'};
 
-              debugPrint('📤 BOOKING BUILDER — provider_id: ${data['provider_id'] ?? "null"}, title: ${data['title']}');
+              debugPrint('📤 BOOKING BUILDER : provider_id: ${data['provider_id'] ?? "null"}, title: ${data['title']}');
               try {
                 final resp = await http.post(
                   Uri.parse('${babifixApiBaseUrl()}/api/client/reservations'),
@@ -284,7 +301,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
                   },
                   body: jsonEncode(data),
                 );
-                debugPrint('📥 BOOKING BUILDER — status: ${resp.statusCode}, body: ${resp.body}');
+                debugPrint('📥 BOOKING BUILDER : status: ${resp.statusCode}, body: ${resp.body}');
 
                 if (resp.statusCode == 201) {
                   final result = jsonDecode(resp.body);
@@ -323,7 +340,7 @@ class _BabifixClientAppState extends State<BabifixClientApp> {
     );
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'BABIFIX Client',
+      title: 'BABIFIX',
       theme: _themeForMode(paletteMode),
       routerConfig: router,
     );
@@ -358,11 +375,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
   final _searchCtrl = TextEditingController();
   // Filtres avances
   double _filterMinRating = 0;
-  int _filterMaxPrice = 0; // 0 = pas de limite
+  String _filterCommune = ''; // '' = toutes communes
   double _filterMaxDistance = 0; // 0 = toutes distances (km)
   bool _filterDispoOnly = false; // disponibles uniquement
   bool _filterVerifiedOnly = false; // vérifiés uniquement
-  String _filterSort = 'default'; // default | distance | rating | price_asc | price_desc
+  String _filterSort = 'default'; // default | distance | rating | elite
 
   String profileName = '';
   String profileEmail = '';
@@ -416,13 +433,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
   WebSocketChannel? _clientWsChannel;
   StreamSubscription<RemoteMessage>? _clientFcmSub;
   StreamSubscription<RemoteMessage>? _clientFcmOpenedSub;
+  Timer? _clientPollTimer;
+  Timer? _clientWsReconnectTimer;
+  bool _clientSyncSeeded = false;
+  final Set<String> _knownClientServerNotifIds = <String>{};
+  int _clientPollCycle = 0;
 
   late final PageController _recentProvidersCarouselController;
 
   @override
   void dispose() {
+    BabifixRemoteConfig.instance.config.removeListener(_onRemoteConfigChanged);
     _recentProvidersCarouselController.dispose();
     _clientInAppNotifs.dispose();
+    _clientPollTimer?.cancel();
+    _clientWsReconnectTimer?.cancel();
     _clientWsSub?.cancel();
     _clientWsChannel?.sink.close();
     _clientFcmSub?.cancel();
@@ -453,10 +478,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
         _loadPublicProviders(forceUpdate: true);
       }
     });
-    // Contrôle de version (force update) — non bloquant si tout est à jour.
+    // Contrôle de version (force update) + pré-prompt notifications après affichage.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) checkAppVersionGate(context, app: 'client');
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (mounted) BabifixFcm.promptForPermissionIfNeeded(context);
+      });
     });
+    BabifixRemoteConfig.instance.config.addListener(_onRemoteConfigChanged);
+    if (BabifixRemoteConfig.instance.current.maintenance) {
+      _onRemoteConfigChanged();
+    }
     // Tap sur une notification LOCALE (celle réellement visible en haut de
     // l'écran quand l'app est ouverte/en arrière-plan) : avant ce correctif
     // seul `onMessageOpenedApp` (tap système, rarement déclenché pour ce
@@ -508,41 +540,100 @@ class _ClientHomePageState extends State<ClientHomePage> {
       n,
       persistStorageKey: BabifixInAppNotifStorageKeys.client,
     );
+    BabifixNotificationSoundService.playForegroundChime(
+      urgent: severity == BabifixNotifSeverity.urgent,
+    );
+    if (mounted && severity != BabifixNotifSeverity.urgent) {
+      final overlay = zegoNavigatorKey.currentState?.overlay ?? Overlay.maybeOf(context);
+      if (overlay != null) {
+        BabifixNotificationOverlay.show(
+          overlay: overlay,
+          title: title,
+          body: body,
+          onTap: (actionRoute != null && actionRoute.isNotEmpty)
+              ? () => _applyClientNotifRoute(actionRoute)
+              : null,
+        );
+      }
+    }
     if (severity == BabifixNotifSeverity.urgent) {
       _showClientUrgentDialog(n);
     }
+  }
+
+  Future<void> _syncClientServerNotifications() async {
+    final t = authToken ?? await BabifixUserStore.getApiToken();
+    if (t == null || t.isEmpty) return;
+    try {
+      final res = await BabifixUserStore.authGet(
+        '${babifixApiBaseUrl()}/api/notifications',
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200 && mounted) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final rawList = (data['notifications'] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        final newlyArrivedUnread = <Map<String, dynamic>>[];
+        final fetchedIds = <String>{};
+        for (final item in rawList) {
+          final idStr = 'srv-${item['id']}';
+          fetchedIds.add(idStr);
+          if (_clientSyncSeeded &&
+              !_knownClientServerNotifIds.contains(idStr) &&
+              item['lu'] != true) {
+            newlyArrivedUnread.add(item);
+          }
+        }
+        _knownClientServerNotifIds
+          ..clear()
+          ..addAll(fetchedIds);
+        _clientSyncSeeded = true;
+
+        syncServerInAppNotifications(
+          hub: _clientInAppNotifs,
+          audience: BabifixNotifAudience.client,
+          serverItems: rawList,
+          persistStorageKey: BabifixInAppNotifStorageKeys.client,
+        );
+
+        if (newlyArrivedUnread.isNotEmpty) {
+          final latest = newlyArrivedUnread.first;
+          final isUrgent =
+              '${latest['type'] ?? ''}'.toLowerCase() == 'dispute';
+          BabifixNotificationSoundService.playForegroundChime(urgent: isUrgent);
+          final overlay = zegoNavigatorKey.currentState?.overlay ?? Overlay.maybeOf(context);
+          if (overlay != null) {
+            BabifixNotificationOverlay.show(
+              overlay: overlay,
+              title: '${latest['title'] ?? 'Nouvelle notification'}',
+              body: '${latest['body'] ?? ''}',
+              onTap: () => _applyClientNotifRoute('reservations'),
+            );
+          }
+          // Recharge immediatement les reservations / devis / statuts.
+          _loadClientHomeData();
+        }
+      }
+    } catch (_) {}
   }
 
   void _showClientUrgentDialog(BabifixInAppNotif n) {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          icon: Icon(
-            Icons.warning_amber_rounded,
-            color: Colors.red.shade700,
-            size: 44,
-          ),
-          title: Text(n.title),
-          content: Text(n.body),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Fermer'),
-            ),
-            if (n.actionRoute != null && n.actionRoute!.isNotEmpty)
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _applyClientNotifRoute(n.actionRoute);
-                },
-                child: const Text('Voir'),
-              ),
-          ],
-        ),
-      );
+      final overlay = zegoNavigatorKey.currentState?.overlay ?? Overlay.maybeOf(context);
+      if (overlay != null) {
+        BabifixNotificationOverlay.show(
+          overlay: overlay,
+          title: n.title,
+          body: n.body,
+          isUrgent: true,
+          duration: const Duration(seconds: 5),
+          onTap: (n.actionRoute != null && n.actionRoute!.isNotEmpty)
+              ? () => _applyClientNotifRoute(n.actionRoute)
+              : null,
+        );
+      }
     });
   }
 
@@ -626,231 +717,32 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   void _applyClientNotifRoute(String? r) {
     if (r == null || r.isEmpty) return;
-    switch (r) {
+    final clean = r.replaceAll('/', '').trim();
+    switch (clean) {
       case 'messages':
+      case 'chat':
         _openMessages();
         break;
       case 'actus':
+      case 'actualites':
         setState(() => navIndex = 2);
         break;
       case 'reservations':
+      case 'demandes':
+      case 'paiements':
+      case 'litiges':
         setState(() => navIndex = 3);
         break;
       case 'services':
         setState(() => navIndex = 1);
         break;
+      case 'profil':
+      case 'profile':
+        setState(() => navIndex = 4);
+        break;
       default:
         setState(() => navIndex = 0);
     }
-  }
-
-  Future<void> _openClientInAppNotifSheet() async {
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.5,
-        maxChildSize: 0.92,
-        minChildSize: 0.32,
-        builder: (ctx, scrollCtrl) {
-          return ValueListenableBuilder<List<BabifixInAppNotif>>(
-            valueListenable: _clientInAppNotifs,
-            builder: (context, all, _) {
-              final items = all
-                  .where((e) => e.audience == BabifixNotifAudience.client)
-                  .toList();
-              final unread = items.where((e) => !e.read).length;
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 12, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Vos alertes',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        if (unread > 0)
-                          TextButton(
-                            onPressed: () => markAllInAppRead(
-                              _clientInAppNotifs,
-                              BabifixNotifAudience.client,
-                              persistStorageKey:
-                                  BabifixInAppNotifStorageKeys.client,
-                            ),
-                            child: Text(
-                              'Tout lu',
-                              style: TextStyle(color: BabifixDesign.cyan),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'Reservations, litiges, messages et actus : selon votre profil client.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: items.isEmpty
-                        ? Center(
-                            child: Text(
-                              'Aucune alerte recente dans l\'app.',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            controller: scrollCtrl,
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                            itemCount: items.length,
-                            itemBuilder: (_, i) {
-                              final n = items[i];
-                              final c = babifixNotifCategoryColor(n.category);
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: Material(
-                                  color: n.read
-                                      ? Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerHighest
-                                            .withValues(alpha: 0.35)
-                                      : c.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(16),
-                                    onTap: () {
-                                      markOneRead(
-                                        _clientInAppNotifs,
-                                        n.id,
-                                        persistStorageKey:
-                                            BabifixInAppNotifStorageKeys.client,
-                                      );
-                                      Navigator.pop(ctx);
-                                      _applyClientNotifRoute(n.actionRoute);
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(14),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Container(
-                                            width: 40,
-                                            height: 40,
-                                            decoration: BoxDecoration(
-                                              color: c.withValues(alpha: 0.15),
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: Icon(
-                                              babifixNotifCategoryIcon(
-                                                n.category,
-                                              ),
-                                              color: c,
-                                              size: 20,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        n.title,
-                                                        style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (!n.read)
-                                                      Container(
-                                                        width: 8,
-                                                        height: 8,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                              color: c,
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                            ),
-                                                      ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  n.body,
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    height: 1.35,
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  n.dateLabel,
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => const NotificationsScreen(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.cloud_download_outlined, size: 20),
-                      label: const Text('Notifications serveur (compte)'),
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      ),
-    );
   }
 
   Future<void> _refreshUnreadChat() async {
@@ -869,19 +761,37 @@ class _ClientHomePageState extends State<ClientHomePage> {
     } catch (_) {}
   }
 
+  void _startClientRealtimePolling() {
+    _clientPollTimer?.cancel();
+    _clientPollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted) return;
+      final t = authToken;
+      if (t == null || t.isEmpty) return;
+      _clientPollCycle++;
+      _syncClientServerNotifications();
+      _refreshUnreadChat();
+      if (_clientPollCycle % 2 == 0) {
+        _loadClientHomeData();
+        BabifixRemoteConfig.instance.refresh();
+      }
+    });
+  }
+
   Future<void> _attachClientRealtime() async {
     _clientWsSub?.cancel();
+    _clientWsReconnectTimer?.cancel();
     _clientFcmSub?.cancel();
     _clientFcmOpenedSub?.cancel();
+    _startClientRealtimePolling();
     final t = authToken;
-    if (t == null || t.isEmpty || kIsWeb) return;
+    if (t == null || t.isEmpty) return;
     try {
-      final uri = Uri.parse('${babifixWsBaseUrl()}/ws/client/events/');
-      _clientWsChannel?.sink.close();
-      _clientWsChannel = WebSocketChannel.connect(
-        uri,
-        protocols: ['BABIFIX $t'],
+      // Sur Web comme sur mobile, ?token= garantit la compatibilite WebSocket.
+      final uri = Uri.parse(
+        '${babifixWsBaseUrl()}/ws/client/events/?token=${Uri.encodeQueryComponent(t)}',
       );
+      _clientWsChannel?.sink.close();
+      _clientWsChannel = WebSocketChannel.connect(uri);
       final ch = _clientWsChannel!;
       _clientWsSub = ch.stream.listen((raw) {
         try {
@@ -889,61 +799,101 @@ class _ClientHomePageState extends State<ClientHomePage> {
           final typ = '${m['type'] ?? ''}';
           if (typ == 'provider.approved' ||
               typ == 'provider.updated' ||
-              typ == 'providers.updated' ||
-              typ == 'actualite.published') {
+              typ == 'providers.updated') {
             _loadRemoteData();
-            if (typ == 'provider.approved' ||
-                typ == 'provider.updated' ||
-                typ == 'providers.updated') {
-              _pushClientNotif(
-                category: 'actu',
-                title: 'Catalogue mis a jour',
-                body: 'Un nouveau prestataire est disponible pres de vous.',
-                actionRoute: 'services',
-                severity: BabifixNotifSeverity.important,
-              );
-            } else {
-              _pushClientNotif(
-                category: 'actu',
-                title: 'Actualite BABIFIX',
-                body: 'Une nouvelle annonce a ete publiee.',
-                actionRoute: 'actus',
-                severity: BabifixNotifSeverity.important,
-              );
+          } else if (typ == 'actualite.published') {
+            _loadRemoteData();
+            _pushClientNotif(
+              category: 'actu',
+              title: 'Actualite BABIFIX',
+              body: 'Une nouvelle annonce a ete publiee.',
+              actionRoute: 'actus',
+              severity: BabifixNotifSeverity.important,
+            );
+          } else if (typ == 'call.incoming' || typ == 'call.ended' || typ == 'call.rejected' || typ == 'call.answered') {
+            final pl = m['payload'];
+            if (pl is Map) {
+              BabifixFcmRouter.route({
+                'type': typ,
+                ...Map<String, dynamic>.from(pl),
+              });
             }
-            if (mounted) {
-              showBabifixToast(
-        context,
-        type: BabifixToastType.success,
-        message: typ == 'provider.approved'
-                        ? 'Catalogue mis a jour : nouveau prestataire.'
-                        : 'Nouvelle actualite BABIFIX.',
-      );
-            }
+          } else if (typ == 'reservations.sync') {
+            _loadRemoteData();
           } else if (typ == 'chat.message') {
             _refreshUnreadChat();
+            _syncClientServerNotifications();
             _pushClientNotif(
               category: 'message',
               title: 'Nouveau message',
               body: 'Votre prestataire ou le support vous a ecrit.',
               actionRoute: 'messages',
             );
+          } else if (typ == 'notification.created') {
+            _syncClientServerNotifications();
+            final pl = m['payload'];
+            if (pl is Map) {
+              final nt = '${pl['notif_type'] ?? 'general'}'.toLowerCase();
+              final nTitle = '${pl['title'] ?? 'Notification'}';
+              final nBody = '${pl['body'] ?? ''}';
+              _pushClientNotif(
+                category: nt == 'dispute'
+                    ? 'litige'
+                    : (nt == 'payment' ? 'paiement' : 'demande'),
+                title: nTitle,
+                body: nBody,
+                actionRoute: nt == 'payment' ? 'paiements' : 'reservations',
+                severity: nt == 'dispute'
+                    ? BabifixNotifSeverity.urgent
+                    : BabifixNotifSeverity.important,
+              );
+            }
+          } else if (typ.contains('payment')) {
+            _loadRemoteData();
+            _syncClientServerNotifications();
+            _pushClientNotif(
+              category: 'paiement',
+              title: 'Mise a jour paiement',
+              body: 'Votre paiement a ete mis a jour.',
+              actionRoute: 'paiements',
+              severity: BabifixNotifSeverity.important,
+            );
           } else if (typ.contains('reservation') ||
               typ.contains('booking') ||
               typ == 'prestation.updated') {
             _loadRemoteData();
+            _syncClientServerNotifications();
             final pl = m['payload'];
             final ref = (pl is Map) ? '${pl['reference'] ?? ''}' : '';
             final statut = (pl is Map) ? '${pl['statut'] ?? ''}' : '';
-            final txt = _clientReservationNotifText(statut, ref);
-            _pushClientNotif(
-              category: 'demande',
-              title: txt.$1,
-              body: txt.$2,
-              actionRoute: 'reservations',
-              severity: BabifixNotifSeverity.important,
-            );
+            const clientNotifStatuts = {
+              'DEVIS_ENVOYE',
+              'Confirmee',
+              'INTERVENTION_EN_COURS',
+              'En attente client',
+              'Annulee',
+            };
+            if (typ != 'reservation.created' &&
+                clientNotifStatuts.contains(statut)) {
+              final txt = _clientReservationNotifText(statut, ref);
+              _pushClientNotif(
+                category: 'demande',
+                title: txt.$1,
+                body: txt.$2,
+                actionRoute: 'reservations',
+                severity: BabifixNotifSeverity.important,
+              );
+            }
+          } else if (typ == 'config.updated' || typ == 'settings.updated') {
+            final pl = m['payload'];
+            if (pl is Map) {
+              BabifixRemoteConfig.instance
+                  .applyPayload(Map<String, dynamic>.from(pl));
+            } else {
+              BabifixRemoteConfig.instance.refresh();
+            }
           } else if (typ.contains('dispute') || typ == 'litige.ouvert') {
+            _syncClientServerNotifications();
             _pushClientNotif(
               category: 'litige',
               title: 'Litige / reclamation',
@@ -972,36 +922,37 @@ class _ClientHomePageState extends State<ClientHomePage> {
             }
           }
         } catch (_) {}
-      }, onError: (_) {});
+      }, onError: (_) {
+        _clientWsReconnectTimer?.cancel();
+        _clientWsReconnectTimer = Timer(const Duration(seconds: 4), () {
+          if (mounted && authToken != null) _attachClientRealtime();
+        });
+      }, onDone: () {
+        _clientWsReconnectTimer?.cancel();
+        _clientWsReconnectTimer = Timer(const Duration(seconds: 4), () {
+          if (mounted && authToken != null) _attachClientRealtime();
+        });
+      });
     } catch (_) {}
     // iOS sans config Firebase → ne pas accéder à FirebaseMessaging (crash).
     if (!BabifixFcm.isReady) return;
     _clientFcmSub = FirebaseMessaging.onMessage.listen((msg) {
       final d = msg.data;
       final ty = '${d['type'] ?? ''}';
-      if (ty == 'provider.approved' ||
-          ty == 'provider.updated' ||
-          ty == 'actualite.published') {
+      if (ty == 'provider.approved' || ty == 'provider.updated') {
         _loadRemoteData();
-        if (ty == 'provider.approved' || ty == 'provider.updated') {
-          _pushClientNotif(
-            category: 'actu',
-            title: 'Nouveau prestataire',
-            body: 'Le catalogue BABIFIX a ete enrichi.',
-            actionRoute: 'services',
-            severity: BabifixNotifSeverity.important,
-          );
-        } else {
-          _pushClientNotif(
-            category: 'actu',
-            title: 'Actualite',
-            body: 'Nouvelle publication BABIFIX.',
-            actionRoute: 'actus',
-            severity: BabifixNotifSeverity.important,
-          );
-        }
+      } else if (ty == 'actualite.published') {
+        _loadRemoteData();
+        _pushClientNotif(
+          category: 'actu',
+          title: 'Actualite',
+          body: 'Nouvelle publication BABIFIX.',
+          actionRoute: 'actus',
+          severity: BabifixNotifSeverity.important,
+        );
       } else if (ty == 'chat.message') {
         _refreshUnreadChat();
+        _syncClientServerNotifications();
         _pushClientNotif(
           category: 'message',
           title: 'Message',
@@ -1010,8 +961,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         );
       } else if (ty.contains('reservation') || ty.contains('booking')) {
         _loadRemoteData();
-        // Message SPÉCIFIQUE du serveur (ex. « Vous avez reçu un devis pour
-        // RES-003. ») au lieu d'un texte générique.
+        _syncClientServerNotifications();
         final specTitle = msg.notification?.title;
         final specBody = msg.notification?.body;
         _pushClientNotif(
@@ -1026,12 +976,32 @@ class _ClientHomePageState extends State<ClientHomePage> {
           severity: BabifixNotifSeverity.important,
         );
       } else if (ty.contains('dispute') || ty == 'litige.ouvert') {
+        _syncClientServerNotifications();
         _pushClientNotif(
           category: 'litige',
           title: 'Litige',
           body: 'Signalement en cours : consultez vos rendez-vous.',
           actionRoute: 'reservations',
           severity: BabifixNotifSeverity.urgent,
+        );
+      } else if (ty.contains('payment')) {
+        _loadRemoteData();
+        _syncClientServerNotifications();
+        _pushClientNotif(
+          category: 'paiement',
+          title: msg.notification?.title ?? 'Paiement BABIFIX',
+          body: msg.notification?.body ?? 'Mise a jour de votre paiement.',
+          actionRoute: 'paiements',
+          severity: BabifixNotifSeverity.important,
+        );
+      } else if (ty == 'notification') {
+        _syncClientServerNotifications();
+        _pushClientNotif(
+          category: 'actu',
+          title: msg.notification?.title ?? '${d['title'] ?? 'BABIFIX'}',
+          body: msg.notification?.body ?? '${d['body'] ?? ''}',
+          actionRoute: 'reservations',
+          severity: BabifixNotifSeverity.important,
         );
       }
     });
@@ -1213,70 +1183,29 @@ class _ClientHomePageState extends State<ClientHomePage> {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-        decoration: BoxDecoration(
-          color: _isLight ? Colors.white : const Color(0xFF0D1B2E),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Icon(
-              Icons.fingerprint_rounded,
-              size: 56,
-              color: Color(0xFF4CC9F0),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Connexion biometrique',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: _textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Activez Face ID ou l\'empreinte digitale pour acceder a votre compte rapidement.',
-              style: TextStyle(color: _textSecondary, height: 1.45),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => Navigator.pop(ctx),
-                icon: const Icon(Icons.check_rounded),
-                label: const Text('Configurer dans Parametres'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CC9F0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      builder: (ctx) => _ClientBiometricLockSheet(isLight: _isLight),
     );
   }
 
   Future<void> _openForgotPassword() async {
     if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+    final logged = await BabifixUserStore.isLoggedIn();
+    if (logged) {
+      _showClientChangePasswordSheet();
+    } else {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+      );
+    }
+  }
+
+  void _showClientChangePasswordSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _ClientChangePasswordModal(isLight: _isLight),
     );
   }
 
@@ -1317,15 +1246,586 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   // "white" ET "light" sont des thèmes clairs ; seul "blue" (navy) est sombre.
+  bool get _isWhite => widget.paletteMode == AppPaletteMode.white;
   bool get _isLight => widget.paletteMode != AppPaletteMode.blue;
-  Color get _textPrimary => _isLight ? const Color(0xFF0F172A) : Colors.white;
+  Color get _textPrimary => _isLight ? BabifixDesign.textStrongLight : BabifixDesign.textStrongDark;
   Color get _textSecondary =>
-      _isLight ? const Color(0xFF475569) : const Color(0xFF9CA3AF);
-  Color get _cardBg =>
-      _isLight ? const Color(0xFFF8FAFC) : const Color(0xFF1A1F28);
+      _isLight ? BabifixDesign.textMutedLight : BabifixDesign.textMutedDark;
+  Color get _cardBg => _isLight ? BabifixDesign.bgWhite : BabifixDesign.navySurface;
+
+  bool _bypassMaintenanceForActiveMission = false;
+  bool _dismissScheduledNotice = false;
+  List<Map<String, dynamic>> _detectedActiveInterventions =
+      <Map<String, dynamic>>[];
+  bool _checkingActiveInterventions = false;
+  bool _hasCheckedActiveOnMaintenance = false;
+
+  void _onRemoteConfigChanged() {
+    final cfg = BabifixRemoteConfig.instance.current;
+    if (cfg.maintenance) {
+      if (!_checkingActiveInterventions && !_hasCheckedActiveOnMaintenance) {
+        _refreshActiveInterventionsForMaintenance();
+      }
+      if (!cfg.maintenanceAllowActive && _bypassMaintenanceForActiveMission) {
+        if (mounted) {
+          setState(() => _bypassMaintenanceForActiveMission = false);
+        }
+      }
+    } else {
+      if (_bypassMaintenanceForActiveMission ||
+          _hasCheckedActiveOnMaintenance ||
+          _detectedActiveInterventions.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _bypassMaintenanceForActiveMission = false;
+            _hasCheckedActiveOnMaintenance = false;
+            _detectedActiveInterventions = <Map<String, dynamic>>[];
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _refreshActiveInterventionsForMaintenance() async {
+    if (_checkingActiveInterventions) return;
+    if (mounted) setState(() => _checkingActiveInterventions = true);
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      final active =
+          await BabifixRemoteConfig.instance.fetchActiveInterventions(token);
+      if (!mounted) return;
+      setState(() {
+        _detectedActiveInterventions = active;
+        _hasCheckedActiveOnMaintenance = true;
+        _checkingActiveInterventions = false;
+        if (active.isEmpty && _bypassMaintenanceForActiveMission) {
+          _bypassMaintenanceForActiveMission = false;
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _hasCheckedActiveOnMaintenance = true;
+          _checkingActiveInterventions = false;
+        });
+      }
+    }
+  }
+
+  bool _blockNewReservationIfMaintenance() {
+    if (!BabifixRemoteConfig.instance.current.maintenance) return false;
+    if (mounted) {
+      showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        title: 'Maintenance en cours',
+        message:
+            'Les nouvelles réservations sont temporairement désactivées. Seules vos interventions en cours restent accessibles.',
+        duration: const Duration(seconds: 3),
+      );
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<BabifixRemoteConfigData>(
+      valueListenable: BabifixRemoteConfig.instance.config,
+      builder: (context, remoteCfg, _) {
+        final canBypass = _bypassMaintenanceForActiveMission &&
+            remoteCfg.maintenanceAllowActive &&
+            _detectedActiveInterventions.isNotEmpty;
+        if (remoteCfg.maintenance && !canBypass) {
+          final customMsg = remoteCfg.maintenanceMessage.isNotEmpty
+              ? remoteCfg.maintenanceMessage
+              : 'BABIFIX effectue une mise a jour technique pour ameliorer votre service. L application reviendra automatiquement des la fin de l intervention.';
+          final hasActive = _detectedActiveInterventions.isNotEmpty;
+          final isDark = widget.paletteMode == AppPaletteMode.blue;
+          final pageBg = isDark ? BabifixDesign.navy : const Color(0xFFF8FAFC);
+          final cardBg = isDark ? const Color(0xFF102342) : Colors.white;
+          final cardBorder =
+              isDark ? const Color(0xFF1E3A63) : const Color(0xFFE2E8F0);
+          final titleColor = isDark ? Colors.white : BabifixDesign.navy;
+          final bodyColor =
+              isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+          final boxBg =
+              isDark ? const Color(0xFF0B1B34) : const Color(0xFFF8FAFC);
+          return Scaffold(
+            backgroundColor: pageBg,
+            body: SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 24,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: cardBorder,
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isDark
+                                    ? Colors.black
+                                    : const Color(0xFF0F172A))
+                                .withValues(alpha: isDark ? 0.28 : 0.06),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset(
+                            'assets/images/babifix-logo.png',
+                            height: 48,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(height: 18),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: BabifixDesign.ciOrange.withValues(
+                                alpha: isDark ? 0.16 : 0.10,
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: BabifixDesign.ciOrange.withValues(
+                                  alpha: 0.40,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.build_circle_rounded,
+                                  size: 15,
+                                  color: BabifixDesign.ciOrange,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'MAINTENANCE EN COURS',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFFFDBA74)
+                                        : const Color(0xFFC2410C),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Mise a jour de la plateforme',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: titleColor,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          if (remoteCfg.maintenanceScheduledAt.isNotEmpty ||
+                              remoteCfg.maintenanceEndAt.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF4CC9F0)
+                                        .withValues(alpha: 0.12)
+                                    : const Color(0xFFE0F2FE),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isDark
+                                      ? const Color(0xFF4CC9F0)
+                                          .withValues(alpha: 0.35)
+                                      : const Color(0xFF7DD3FC),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.schedule_rounded,
+                                    size: 16,
+                                    color: isDark
+                                        ? const Color(0xFF4CC9F0)
+                                        : const Color(0xFF0284C7),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      [
+                                        if (remoteCfg
+                                            .maintenanceScheduledAt.isNotEmpty)
+                                          'Debut : ${remoteCfg.maintenanceScheduledAt}',
+                                        if (remoteCfg
+                                            .maintenanceEndAt.isNotEmpty)
+                                          'Reprise prevue : ${remoteCfg.maintenanceEndAt}',
+                                      ].join(' · '),
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? const Color(0xFFE0F2FE)
+                                            : const Color(0xFF0369A1),
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 14),
+                          Text(
+                            customMsg,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: bodyColor,
+                              fontSize: 13.5,
+                              height: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          if (_checkingActiveInterventions)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: boxBg,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: cardBorder),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: isDark
+                                          ? const Color(0xFF4CC9F0)
+                                          : BabifixDesign.navy,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Detection de vos interventions en cours...',
+                                    style: TextStyle(
+                                      color: bodyColor,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else if (remoteCfg.maintenanceAllowActive && hasActive)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF0E3B2E)
+                                        .withValues(alpha: 0.72)
+                                    : const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981).withValues(
+                                    alpha: isDark ? 0.5 : 0.45,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.verified_user_rounded,
+                                        color: isDark
+                                            ? const Color(0xFF34D399)
+                                            : const Color(0xFF059669),
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 7),
+                                      Flexible(
+                                        child: Text(
+                                          '${_detectedActiveInterventions.length} intervention${_detectedActiveInterventions.length > 1 ? 's' : ''} active${_detectedActiveInterventions.length > 1 ? 's' : ''} detectee${_detectedActiveInterventions.length > 1 ? 's' : ''}',
+                                          style: TextStyle(
+                                            color: isDark
+                                                ? Colors.white
+                                                : const Color(0xFF065F46),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ..._detectedActiveInterventions.take(2).map(
+                                    (m) {
+                                      final ref =
+                                          (m['reference'] ?? '').toString();
+                                      final titre = (m['title'] ??
+                                              m['service'] ??
+                                              'Intervention')
+                                          .toString();
+                                      final st =
+                                          (m['statut'] ?? m['status'] ?? '')
+                                              .toString();
+                                      return Container(
+                                        width: double.infinity,
+                                        margin: const EdgeInsets.only(bottom: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 7,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? Colors.black
+                                                  .withValues(alpha: 0.22)
+                                              : Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: isDark
+                                              ? null
+                                              : Border.all(
+                                                  color:
+                                                      const Color(0xFFA7F3D0),
+                                                ),
+                                        ),
+                                        child: Text(
+                                          '$ref · $titre · $st',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: isDark
+                                                ? const Color(0xFFD1FAE5)
+                                                : const Color(0xFF047857),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Continuez le suivi et le paiement de votre intervention. Les nouvelles reservations restent bloquees.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? const Color(0xFFA7F3D0)
+                                          : const Color(0xFF047857),
+                                      fontSize: 11.5,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          _bypassMaintenanceForActiveMission =
+                                              true;
+                                          navIndex = 2;
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.play_arrow_rounded,
+                                        size: 20,
+                                      ),
+                                      label: const Text(
+                                        'Continuer mon intervention',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFF059669),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: boxBg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: cardBorder),
+                              ),
+                              child: Text(
+                                'Aucune intervention en cours sur votre compte. Les nouvelles reservations reprendront des la fin de la maintenance.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: bodyColor,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          if (remoteCfg.supportPhone.isNotEmpty) ...[
+                            const SizedBox(height: 14),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.support_agent_rounded,
+                                  size: 16,
+                                  color: isDark
+                                      ? const Color(0xFF4CC9F0)
+                                      : const Color(0xFF0284C7),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Support : ${remoteCfg.supportPhone}',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFFBAE6FD)
+                                        : BabifixDesign.navy,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          BabifixButton(
+                            label: "Actualiser le statut",
+                            icon: Icons.refresh_rounded,
+                            onPressed: () async {
+                              await BabifixRemoteConfig.instance.refresh();
+                              if (BabifixRemoteConfig
+                                  .instance.current.maintenance) {
+                                await _refreshActiveInterventionsForMaintenance();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final showPreBanner = !remoteCfg.maintenance &&
+            remoteCfg.maintenanceScheduledAt.isNotEmpty &&
+            !_dismissScheduledNotice;
+        final showBypassBanner = remoteCfg.maintenance && canBypass;
+        final shell = _buildShellScaffold(context);
+        if (!showPreBanner && !showBypassBanner) {
+          return shell;
+        }
+        return Column(
+          children: [
+            Material(
+              color: showBypassBanner
+                  ? const Color(0xFF0E3B2E)
+                  : const Color(0xFF9A3412),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        showBypassBanner
+                            ? Icons.shield_rounded
+                            : Icons.schedule_rounded,
+                        size: 16,
+                        color: const Color(0xFFE7C463),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          showBypassBanner
+                              ? 'Maintenance active · Acces continuite pour votre mission en cours'
+                              : 'Maintenance prevue a ${remoteCfg.maintenanceScheduledAt}${remoteCfg.maintenanceEndAt.isNotEmpty ? ' (fin ${remoteCfg.maintenanceEndAt})' : ''}${remoteCfg.maintenanceMessage.isNotEmpty ? ' · ${remoteCfg.maintenanceMessage}' : ''}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (showBypassBanner) {
+                              _bypassMaintenanceForActiveMission = false;
+                            } else {
+                              _dismissScheduledNotice = true;
+                            }
+                          });
+                        },
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Expanded(child: shell),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildShellScaffold(BuildContext context) {
     final activeTab = categoryTabs.isEmpty
         ? null
         : categoryTabs[categoryIndex.clamp(0, categoryTabs.length - 1)];
@@ -1373,9 +1873,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
         },
         child: Container(
         decoration: BoxDecoration(
-          gradient: _isLight
-              ? BabifixDesign.pageGradientLight
-              : BabifixDesign.pageGradientDark,
+          gradient: _isWhite
+              ? BabifixDesign.pageGradientWhite
+              : (_isLight
+                  ? BabifixDesign.pageGradientLight
+                  : BabifixDesign.pageGradientDark),
         ),
         child: navIndex == 0
             ? _buildNews()
@@ -1390,67 +1892,153 @@ class _ClientHomePageState extends State<ClientHomePage> {
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: _isLight
-                      ? const [Color(0xEEF8FAFF), Color(0xEEEFF4FF)]
-                      : const [Color(0xE6232A3A), Color(0xE1161B2A)],
-                ),
-                border: Border.all(
-                  color: _isLight
-                      ? const Color(0x220F172A)
-                      : const Color(0x55FFFFFF),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _isLight
-                        ? const Color(0x220F172A)
-                        : const Color(0x66000000),
-                    blurRadius: 28,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: BabifixDesign.elevatedSurfaceOf(context),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: BabifixDesign.borderOf(context),
+              width: 1,
+            ),
+            boxShadow: _isLight
+                ? const [
+                    BoxShadow(
+                      color: Color(0x0F0F172A),
+                      blurRadius: 16,
+                      offset: Offset(0, 6),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x40000000),
+                      blurRadius: 18,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+          ),
+          child: Row(
+            children: [
+              _buildFloatingNavItem(
+                index: 0,
+                icon: Icons.home_rounded,
+                label: 'Accueil',
               ),
-              child: Row(
-                children: [
-                  _buildFloatingNavItem(
-                    index: 0,
-                    icon: Icons.home_rounded,
-                    label: 'Accueil',
-                  ),
-                  _buildFloatingNavItem(
-                    index: 1,
-                    icon: Icons.home_repair_service,
-                    label: 'Services',
-                  ),
-                  _buildFloatingNavItem(
-                    index: 2,
-                    icon: Icons.newspaper_rounded,
-                    label: 'Actus',
-                  ),
-                  _buildFloatingNavItem(
-                    index: 3,
-                    icon: Icons.calendar_month,
-                    label: 'Rendez-vous',
-                  ),
-                  _buildFloatingNavItem(
-                    index: 4,
-                    icon: Icons.person,
-                    label: 'Profil',
-                  ),
-                ],
+              _buildFloatingNavItem(
+                index: 1,
+                icon: Icons.home_repair_service,
+                label: 'Services',
+              ),
+              _buildFloatingNavItem(
+                index: 2,
+                icon: Icons.newspaper_rounded,
+                label: 'Actus',
+              ),
+              Expanded(
+                child: ValueListenableBuilder<List<BabifixInAppNotif>>(
+                  valueListenable: _clientInAppNotifs,
+                  builder: (context, notifs, _) {
+                    final actionable = reservations
+                        .where((r) =>
+                            r.canAcceptDevis ||
+                            r.canPayDeposit ||
+                            r.canConfirmService ||
+                            r.canPayRemainder ||
+                            r.canPayCaution ||
+                            r.canPay)
+                        .length;
+                    final unreadRdv = notifs
+                        .where((n) =>
+                            !n.read &&
+                            (n.category == 'demande' ||
+                                n.category == 'paiement' ||
+                                n.category == 'litige' ||
+                                n.actionRoute == 'reservations' ||
+                                n.actionRoute == 'paiements'))
+                        .length;
+                    final totalBadge =
+                        actionable > unreadRdv ? actionable : unreadRdv;
+                    return _buildFloatingNavItemInner(
+                      index: 3,
+                      icon: Icons.calendar_month,
+                      label: 'Rendez-vous',
+                      badgeCount: totalBadge,
+                    );
+                  },
+                ),
+              ),
+              _buildFloatingNavItem(
+                index: 4,
+                icon: Icons.person,
+                label: 'Profil',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _topPill({
+    required Widget icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    int badge = 0,
+  }) {
+    final bg = _isLight ? const Color(0xFFF1F5F9) : const Color(0xFF13294B);
+    final border =
+        _isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E3A63);
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Tooltip(
+            message: tooltip,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(11),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: border),
+                ),
+                alignment: Alignment.center,
+                child: icon,
               ),
             ),
           ),
-        ),
+          if (badge > 0)
+            Positioned(
+              right: -3,
+              top: -4,
+              child: IgnorePointer(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  constraints:
+                      const BoxConstraints(minWidth: 16, minHeight: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(color: Colors.white, width: 1.2),
+                  ),
+                  child: Text(
+                    badge > 99 ? '99+' : '$badge',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1461,46 +2049,38 @@ class _ClientHomePageState extends State<ClientHomePage> {
         ? 22.0
         : width < 430
         ? 24.0
-        : 26.0;
-    final iconColor = _isLight ? const Color(0xFF475569) : Colors.white70;
-    final denseStyle = IconButton.styleFrom(
-      minimumSize: const Size(40, 40),
-      padding: const EdgeInsets.all(8),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
+        : 25.0;
+    final iconColor = _isLight ? BabifixDesign.navy : Colors.white;
     return Container(
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: _isLight ? const Color(0x120F172A) : const Color(0x1AFFFFFF),
+            color: _isLight ? const Color(0xFFE2E8F0) : const Color(0x1AFFFFFF),
           ),
         ),
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 4, 10),
+          padding: const EdgeInsets.fromLTRB(16, 8, 12, 10),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: BabifixDesign.borderOf(context),
+                    width: 1,
+                  ),
                   image: const DecorationImage(
                     image: AssetImage(_logoAsset),
                     fit: BoxFit.cover,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: BabifixDesign.cyan.withValues(alpha: 0.35),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
@@ -1515,6 +2095,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                 ),
               ),
+              if (showHelp)
+                _topPill(
+                  tooltip: 'Aide & Support',
+                  onTap: _showHelpSheet,
+                  icon: Icon(Icons.help_outline_rounded, size: 19, color: iconColor),
+                ),
               ValueListenableBuilder<List<BabifixInAppNotif>>(
                 valueListenable: _clientInAppNotifs,
                 builder: (context, _, __) {
@@ -1522,108 +2108,61 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     _clientInAppNotifs,
                     BabifixNotifAudience.client,
                   );
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      IconButton(
-                        tooltip: 'Notifications',
-                        style: denseStyle,
-                        onPressed: _openClientInAppNotifSheet,
-                        icon: Icon(
-                          Icons.notifications_rounded,
-                          size: 22,
-                          color: iconColor,
-                        ),
-                      ),
-                      if (unread > 0)
-                        Positioned(
-                          right: 4,
-                          top: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 1,
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF3B30),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _isLight
-                                    ? Colors.white
-                                    : const Color(0xFF1E293B),
-                                width: 1,
+                  return _topPill(
+                    tooltip: 'Notifications',
+                    badge: unread,
+                    onTap: () {
+                      Navigator.of(context)
+                          .push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => NotificationsScreen(
+                                inAppHub: _clientInAppNotifs,
+                                onNavigateRoute: (r) => _applyClientNotifRoute(r),
                               ),
                             ),
-                            child: Text(
-                              unread > 99 ? '99+' : '$unread',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
+                          )
+                          .then((_) => _syncClientServerNotifications());
+                    },
+                    icon: Icon(
+                      Icons.notifications_outlined,
+                      size: 19,
+                      color: iconColor,
+                    ),
                   );
                 },
               ),
-              IconButton(
+              _topPill(
                 tooltip: 'Messages',
-                style: denseStyle,
-                onPressed: _openMessages,
-                icon: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_rounded,
-                      size: 22,
-                      color: BabifixDesign.cyan,
-                    ),
-                    if (_unreadChatTotal > 0)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: _unreadChatTotal > 9 ? 4 : 5,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF3B30),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white, width: 1),
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            _unreadChatTotal > 99 ? '99+' : '$_unreadChatTotal',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                  ],
+                badge: _unreadChatTotal,
+                onTap: _openMessages,
+                icon: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 19,
+                  color: Color(0xFF0284C7),
                 ),
               ),
               PopupMenuButton<String>(
                 tooltip: 'Plus',
                 offset: const Offset(0, 44),
-                icon: Icon(
-                  Icons.more_horiz_rounded,
-                  size: 24,
-                  color: iconColor,
+                icon: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _isLight
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFF13294B),
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(
+                      color: _isLight
+                          ? const Color(0xFFE2E8F0)
+                          : const Color(0xFF1E3A63),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.more_horiz_rounded,
+                    size: 19,
+                    color: iconColor,
+                  ),
                 ),
                 onSelected: (value) async {
                   switch (value) {
@@ -1780,63 +2319,122 @@ class _ClientHomePageState extends State<ClientHomePage> {
   void _showHelpSheet() {
     showModalBottomSheet<void>(
       context: context,
+      backgroundColor: _isLight ? Colors.white : BabifixDesign.navySurface,
       isScrollControlled: true,
       showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.55,
+        initialChildSize: 0.58,
         maxChildSize: 0.92,
         minChildSize: 0.35,
         builder: (_, scrollCtrl) => ListView(
           controller: scrollCtrl,
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
           children: [
-            Text(
-              'Aide BABIFIX',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: _textPrimary,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.cyan.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.help_outline_rounded,
+                    color: Color(0xFF0284C7),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Aide BABIFIX',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: _textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Comment utiliser l\'application client',
+                        style: TextStyle(color: _textSecondary, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Comment utiliser l\'app',
-              style: TextStyle(color: _textSecondary, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _HelpRow(
-              icon: Icons.home_repair_service,
-              title: 'Reserver',
+              icon: Icons.home_repair_service_rounded,
+              title: 'Réserver un artisan',
               body:
-                  'Onglet Services : choisissez une prestation, puis Reserver. Vous pouvez indiquer le mode de paiement et un message.',
+                  'Onglet Services : choisissez un métier ou artisan, puis Réserver pour recevoir un devis sur mesure.',
             ),
             _HelpRow(
-              icon: Icons.calendar_month,
-              title: 'Suivre vos rendez-vous',
+              icon: Icons.calendar_month_rounded,
+              title: 'Suivre vos interventions',
               body:
-                  'Onglet Rendez-vous : statut, paiement especes, notation apres prestation terminee.',
+                  'Onglet Rendez-vous : suivez le devis, le paiement Mobile Money sous séquestre et validez la fin des travaux.',
             ),
             _HelpRow(
-              icon: Icons.chat_bubble_outline,
-              title: 'Messages',
+              icon: Icons.chat_bubble_outline_rounded,
+              title: 'Messages unifiés',
               body:
-                  'Échangez avec le prestataire depuis l\'icone message en haut a droite.',
+                  'Toutes vos prestations avec le même artisan restent regroupées dans un seul fil de discussion.',
             ),
             _HelpRow(
               icon: Icons.palette_outlined,
-              title: 'Theme & coordonnees',
+              title: 'Apparence & coordonnées',
               body:
-                  'Profil -> Parametres : theme clair / bleu BABIFIX, telephone et adresse d\'intervention.',
+                  'Profil -> Thème : Blanc par défaut, Clair ou Bleu BABIFIX, plus vos adresses d\'intervention.',
             ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                setState(() => navIndex = 1);
-              },
-              icon: const Icon(Icons.shopping_bag_outlined),
-              label: const Text('Voir les services'),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _contactAdminMail();
+                    },
+                    icon: const Icon(Icons.support_agent_rounded, size: 18),
+                    label: const Text('Contacter l\'admin'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      setState(() => navIndex = 1);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: BabifixDesign.ciOrange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.shopping_bag_outlined, size: 18),
+                    label: const Text('Voir services'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1856,6 +2454,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
           children: [
             _buildTopBar('Accueil'),
             _buildHomeHero(),
+            _buildEmergencyExpressSection(),
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -1910,61 +2509,85 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       width: 4,
                       height: 22,
                       decoration: BoxDecoration(
-                        color: BabifixDesign.cyan,
+                        color: const Color(0xFFD97706),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Text(
-                      'Nouveaux prestataires',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: _textPrimary,
-                        letterSpacing: -0.4,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            recentProviders.any((p) =>
+                                    p.distanceKm != null && p.distanceKm! <= 8.0)
+                                ? "Artisans proches & Recommandés"
+                                : "Prestataires d'Élite & Recommandés",
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: _textPrimary,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            recentProviders.any((p) =>
+                                    p.distanceKm != null && p.distanceKm! <= 8.0)
+                                ? 'Intervenants disponibles autour de vous, classés par note ★ et distance'
+                                : 'Classés par abonnement Pro, note ★ et zone d\'intervention',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: _textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              // Bandeau « recherche élargie » (mode adaptatif backend).
               if (_radiusAdaptive && _radiusUsedKm != null)
                 _RadiusBanner(radiusKm: _radiusUsedKm!),
               SizedBox(
-                // 144 = 132 d'origine + ~12 pour accommoder le chip distance
-                // (vert/cyan/orange/rouge) ajouté en dessous de la ville.
-                height: 144,
-                child: PageView.builder(
-                  controller: _recentProvidersCarouselController,
+                height: 148,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 2, 12, 8),
                   itemCount: recentProviders.length,
-                  padEnds: false,
                   itemBuilder: (context, i) {
                     final p = recentProviders[i];
-                    final img = p.imageUrl.isNotEmpty ? p.imageUrl : '';
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        left: i == 0 ? 16 : 8,
-                        right: 8,
-                        bottom: 6,
+                    final img = babifixResolveMediaUrl(p.imageUrl);
+                    final tierStyle = BabifixTierVisual.fromTier(
+                      tier: p.premiumTier,
+                      isLight: _isLight,
+                      disponible: p.disponible,
+                    );
+                    final words = p.nom.trim().split(RegExp(r'\s+'));
+                    final initials = words.length >= 2
+                        ? '${words[0][0]}${words[1][0]}'.toUpperCase()
+                        : (p.nom.isNotEmpty ? p.nom[0].toUpperCase() : '?');
+                    return Container(
+                      width: 248,
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _isLight
+                                ? const Color(0x0D0B1B34)
+                                : const Color(0x28000000),
+                            blurRadius: 14,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
                       ),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _isLight
-                                  ? const Color(0x120F172A)
-                                  : const Color(0x30000000),
-                              blurRadius: 18,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Opacity(
-                          opacity: p.disponible ? 1.0 : 0.5,
-                          child: Material(
-                          color: _cardBg,
-                          borderRadius: BorderRadius.circular(20),
+                      child: Opacity(
+                        opacity: p.disponible ? 1.0 : 0.60,
+                        child: Material(
+                          color: tierStyle.headerTint ?? _cardBg,
+                          borderRadius: BorderRadius.circular(18),
                           clipBehavior: Clip.antiAlias,
                           child: InkWell(
                             onTap: () {
@@ -1974,6 +2597,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                     builder: (_) => ProviderProfilePremiumScreen(
                                       providerId: p.id,
                                       onStartReservation: (service) async {
+                                        if (_blockNewReservationIfMaintenance()) {
+                                          return false;
+                                        }
                                         final result =
                                             await Navigator.of(
                                               context,
@@ -1982,11 +2608,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                                 builder: (_) => BookingFlowScreen(
                                                   serviceTitle: service.title,
                                                   servicePrice: service.price,
-                                                  // Sans ça, l'étape "Disponibilités"
-                                                  // ne montre jamais le calendrier
-                                                  // du prestataire (ni même un
-                                                  // message de repli) : elle exige
-                                                  // un providerId non-null.
                                                   providerId: p.id,
                                                   onConfirm: (data) async {
                                                     final created =
@@ -2018,179 +2639,204 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                 });
                               }
                             },
-                            child: DecoratedBox(
+                            child: Container(
+                              padding: const EdgeInsets.all(13),
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
-                                  color: _isLight
-                                      ? const Color(0x140F172A)
-                                      : const Color(0x12FFFFFF),
+                                  color: tierStyle.borderColor,
+                                  width: tierStyle.borderWidth,
                                 ),
                               ),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Hero(
-                                    tag: 'babifix-recent-${p.id}',
-                                    child: ClipRRect(
-                                      borderRadius:
-                                          const BorderRadius.horizontal(
-                                            left: Radius.circular(19),
-                                          ),
-                                      child: SizedBox(
-                                        width: 100,
-                                        height: double.infinity,
-                                        child: img.isNotEmpty
-                                            ? Image.network(
-                                                img,
-                                                fit: BoxFit.cover,
-                                              )
-                                            : const DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  color: BabifixDesign.navy,
-                                                ),
-                                                child: Icon(
-                                                  Icons.person_rounded,
-                                                  size: 40,
-                                                  color: Colors.white38,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        12,
-                                        10,
-                                        14,
-                                        10,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            p.nom,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 15,
-                                              color: _textPrimary,
-                                              letterSpacing: -0.2,
+                                  Row(
+                                    children: [
+                                      Hero(
+                                        tag: 'babifix-recent-${p.id}',
+                                        child: Container(
+                                          width: 48,
+                                          height: 48,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(14),
+                                            color: _isLight
+                                                ? const Color(0xFFE0F2FE)
+                                                : const Color(0xFF13294B),
+                                            border: Border.all(
+                                              color: BabifixDesign.cyan.withValues(alpha: 0.35),
                                             ),
                                           ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            p.specialite,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: BabifixDesign.ciBlue,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            p.ville,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: _textSecondary.withValues(
-                                                alpha: 0.95,
-                                              ),
-                                            ),
-                                          ),
-                                          if (p.distanceKm != null) ...[
-                                            const SizedBox(height: 4),
-                                            BabifixDistanceChip(
-                                              distanceKm: p.distanceKm!,
-                                              compact: true,
-                                            ),
-                                          ],
-                                          // Badge abonnement (visible sur la card,
-                                          // pas seulement sur le détail).
-                                          if (p.isPremium) ...[
-                                            const SizedBox(height: 4),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF59E0B),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  const Icon(
-                                                      Icons.workspace_premium_rounded,
-                                                      size: 12,
-                                                      color: Colors.white),
-                                                  const SizedBox(width: 3),
-                                                  Text(
-                                                    p.premiumBadge.isNotEmpty
-                                                        ? p.premiumBadge
-                                                        : 'Premium',
-                                                    style: const TextStyle(
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: Colors.white),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                          if (!p.disponible) ...[
-                                            const SizedBox(height: 4),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 3,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0x1FF59E0B),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: const Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    Icons.event_busy_rounded,
-                                                    size: 12,
-                                                    color: Color(0xFFB45309),
-                                                  ),
-                                                  SizedBox(width: 4),
-                                                  Text(
-                                                    'Indisponible',
+                                          clipBehavior: Clip.antiAlias,
+                                          child: img.isNotEmpty
+                                              ? (img.startsWith('assets/')
+                                                  ? Image.asset(img, fit: BoxFit.cover)
+                                                  : Image.network(
+                                                      img,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (_, __, ___) => Center(
+                                                        child: Text(
+                                                          initials,
+                                                          style: TextStyle(
+                                                            color: _isLight
+                                                                ? BabifixDesign.navy
+                                                                : Colors.white,
+                                                            fontWeight: FontWeight.w800,
+                                                            fontSize: 16,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ))
+                                              : Center(
+                                                  child: Text(
+                                                    initials,
                                                     style: TextStyle(
-                                                      fontSize: 10.5,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      color: Color(0xFFB45309),
+                                                      color: _isLight
+                                                          ? BabifixDesign.navy
+                                                          : Colors.white,
+                                                      fontWeight: FontWeight.w800,
+                                                      fontSize: 16,
                                                     ),
                                                   ),
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    p.nom,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.w800,
+                                                      fontSize: 14.5,
+                                                      color: _textPrimary,
+                                                      letterSpacing: -0.2,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (p.isCertified) ...[
+                                                  const SizedBox(width: 4),
+                                                  const Icon(
+                                                    Icons.verified_user_rounded,
+                                                    size: 14,
+                                                    color: Color(0xFF16A34A),
+                                                  ),
                                                 ],
+                                              ],
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              p.specialite,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: _isLight
+                                                    ? const Color(0xFF0284C7)
+                                                    : BabifixDesign.cyan,
                                               ),
                                             ),
                                           ],
-                                          // Prix supprimé — chaque devis est sur mesure
-                                        ],
+                                        ),
                                       ),
-                                    ),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.star_rounded,
+                                        size: 14,
+                                        color: Color(0xFFF59E0B),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        p.ratingCount > 0
+                                            ? '${p.averageRating.toStringAsFixed(1)} (${p.ratingCount})'
+                                            : 'Certifié',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: _textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(
+                                        Icons.location_on_outlined,
+                                        size: 12,
+                                        color: _textSecondary,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Expanded(
+                                        child: Text(
+                                          p.ville,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: _textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                      if (p.distanceKm != null)
+                                        BabifixDistanceChip(
+                                          distanceKm: p.distanceKm!,
+                                          compact: true,
+                                        ),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: (p.disponible
+                                                  ? const Color(0xFF16A34A)
+                                                  : const Color(0xFFD97706))
+                                              .withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          p.disponible ? 'Disponible' : 'Occupé',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: p.disponible
+                                                ? const Color(0xFF16A34A)
+                                                : const Color(0xFFB45309),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      BabifixTierBadge(
+                                        tier: p.premiumTier,
+                                        customLabel: p.premiumBadge,
+                                        isLight: _isLight,
+                                        compact: true,
+                                      ),
+                                      const Spacer(),
+                                      Icon(
+                                        Icons.arrow_forward_rounded,
+                                        size: 15,
+                                        color: _textSecondary,
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                        ),
                         ),
                       ),
                     );
@@ -2314,32 +2960,154 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
+  void _triggerEmergencyCategory(String categoryQuery) {
+    setState(() {
+      _searchCtrl.text = categoryQuery;
+      _searchQuery = categoryQuery.toLowerCase();
+      navIndex = 1;
+    });
+  }
+
+  // ── ACCUEIL : Dépannage Express (ruban compact) ─────────────────────────
+  Widget _buildEmergencyExpressSection() {
+    final emergencies = [
+      (
+        'Plomberie',
+        Icons.water_drop_rounded,
+        const Color(0xFF0284C7),
+        'plomberie',
+      ),
+      (
+        'Électricité',
+        Icons.bolt_rounded,
+        const Color(0xFFD97706),
+        'electricite',
+      ),
+      (
+        'Serrurerie',
+        Icons.vpn_key_rounded,
+        const Color(0xFFE87722),
+        'serrurerie',
+      ),
+      (
+        'Climatisation',
+        Icons.ac_unit_rounded,
+        const Color(0xFF0EA5E9),
+        'climatisation',
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.flash_on_rounded, size: 15, color: Color(0xFFDC2626)),
+              const SizedBox(width: 5),
+              Text(
+                'Urgences Express',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: _textPrimary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '· Intervention rapide',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: _textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: emergencies.map((item) {
+                final (label, icon, col, query) = item;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    onTap: () => _triggerEmergencyCategory(query),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _isLight
+                              ? const Color(0xFFE2E8F0)
+                              : const Color(0xFF1E3A63),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: col.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: Icon(icon, color: col, size: 14),
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: _textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── ACCUEIL : Hero banner personnalise ───────────────────────────────────
   Widget _buildHomeHero() {
     final firstName = profileName.split(' ').first;
     final greet = (firstName.isEmpty || firstName == 'Invite')
         ? 'Bienvenue sur BABIFIX'
         : 'Bonjour, $firstName !';
+    final heroLight = _isLight;
+    final heroTitleColor = heroLight ? BabifixDesign.navy : Colors.white;
+    final heroSubColor = heroLight
+        ? const Color(0xFF475569)
+        : Colors.white.withValues(alpha: 0.72);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: _isLight
-                ? [BabifixDesign.navy, const Color(0xFF0B3E72)]
-                : [const Color(0xFF0B1F3A), const Color(0xFF0A2B50)],
+          color: heroLight ? BabifixDesign.surfaceOf(context) : BabifixDesign.navySurface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: heroLight
+                ? BabifixDesign.borderOf(context)
+                : Colors.white.withValues(alpha: 0.12),
+            width: 1.0,
           ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: BabifixDesign.navy.withValues(alpha: 0.38),
-              blurRadius: 22,
-              offset: const Offset(0, 8),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2348,10 +3116,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: BabifixDesign.ciOrange.withValues(alpha: 0.18),
+                color: BabifixDesign.ciOrange.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: BabifixDesign.ciOrange.withValues(alpha: 0.4),
+                  color: BabifixDesign.ciOrange.withValues(alpha: 0.35),
                 ),
               ),
               child: Row(
@@ -2364,7 +3132,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'Cote d\'Ivoire',
+                    'Côte d\'Ivoire',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -2377,70 +3145,78 @@ class _ClientHomePageState extends State<ClientHomePage> {
             const SizedBox(height: 12),
             Text(
               greet,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: heroTitleColor,
                 letterSpacing: -0.4,
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              'Trouvez un artisan qualifie et verifiable\nen quelques secondes.',
+              'Trouvez un artisan qualifié et vérifiable\nen quelques secondes.',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.white.withValues(alpha: 0.72),
+                color: heroSubColor,
                 height: 1.45,
               ),
             ),
             const SizedBox(height: 16),
-            // Barre de recherche simulee → onglet Services
+            // Barre de recherche vers onglet Services
             GestureDetector(
-              onTap: () => setState(() => navIndex = 1),
+              onTap: _openUniversalSearchSheet,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 13,
+                  horizontal: 14,
+                  vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.13),
+                  color: heroLight
+                      ? const Color(0xFFF8FAFC)
+                      : Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: heroLight
+                        ? BabifixDesign.borderOf(context)
+                        : Colors.white.withValues(alpha: 0.16),
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.search_rounded,
-                      color: Colors.white.withValues(alpha: 0.65),
+                      color: heroLight
+                          ? const Color(0xFF475569)
+                          : Colors.white.withValues(alpha: 0.7),
                       size: 20,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Plombier, electricien, peintre…',
+                        'Plombier, électricien, peintre...',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: heroLight
+                              ? const Color(0xFF64748B)
+                              : Colors.white.withValues(alpha: 0.65),
                           fontSize: 14,
                         ),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+                        horizontal: 12,
+                        vertical: 7,
                       ),
                       decoration: BoxDecoration(
-                        color: BabifixDesign.cyan,
+                        color: BabifixDesign.ciOrange,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(
+                      child: const Text(
                         'Chercher',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: BabifixDesign.navy,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -2663,33 +3439,32 @@ class _ClientHomePageState extends State<ClientHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                height: 168,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                  image: DecorationImage(
-                    image: _imageProvider(item.imageUrl),
-                    fit: BoxFit.cover,
-                  ),
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.12),
-                        Colors.black.withValues(alpha: 0.5),
-                      ],
-                    ),
-                  ),
+                child: SizedBox(
+                  height: 168,
+                  width: double.infinity,
                   child: Stack(
+                    fit: StackFit.expand,
                     children: [
+                      _buildMediaImage(
+                        item.imageUrl,
+                        fallbackIcon: Icons.campaign_rounded,
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.12),
+                              Colors.black.withValues(alpha: 0.5),
+                            ],
+                          ),
+                        ),
+                      ),
                       Positioned(
                         top: 12,
                         left: 12,
@@ -2803,15 +3578,350 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
+  void _openUniversalSearchSheet() {
+    final base = babifixApiBaseUrl();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _isLight ? Colors.white : const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final ctl = TextEditingController(text: _searchQuery);
+        Map<String, dynamic>? apiData;
+        bool busy = false;
+        Timer? debounce;
+
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            void runQuery(String val) {
+              debounce?.cancel();
+              final q = val.trim();
+              if (q.isEmpty) {
+                setModalState(() {
+                  apiData = null;
+                  busy = false;
+                });
+                return;
+              }
+              setModalState(() => busy = true);
+              debounce = Timer(const Duration(milliseconds: 220), () async {
+                try {
+                  final res = await http
+                      .get(Uri.parse('$base/api/public/search/?q=${Uri.encodeQueryComponent(q)}'))
+                      .timeout(const Duration(seconds: 6));
+                  if (res.statusCode == 200 && ctx.mounted) {
+                    setModalState(() {
+                      apiData = jsonDecode(res.body) as Map<String, dynamic>;
+                      busy = false;
+                    });
+                    return;
+                  }
+                } catch (_) {}
+                if (ctx.mounted) setModalState(() => busy = false);
+              });
+            }
+
+            final qText = ctl.text.trim();
+            final remoteCats = (apiData?['categories'] as List<dynamic>? ?? []);
+            final remoteProvs = (apiData?['providers'] as List<dynamic>? ?? []);
+            final remoteSupplies = (apiData?['supplies'] as List<dynamic>? ?? []);
+
+            final localMatches = qText.isEmpty
+                ? services.take(6).toList()
+                : services
+                    .where((s) => _matchesSmartQuery(qText, s.title, s.category, ville: s.ville))
+                    .take(8)
+                    .toList();
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                18,
+                14,
+                18,
+                MediaQuery.of(ctx).viewInsets.bottom + 22,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: ctl,
+                      autofocus: true,
+                      style: TextStyle(color: _textPrimary, fontSize: 15),
+                      onChanged: (v) {
+                        setModalState(() {});
+                        runQuery(v);
+                      },
+                      onSubmitted: (v) {
+                        Navigator.of(ctx).pop();
+                        setState(() {
+                          _searchCtrl.text = v.trim();
+                          _searchQuery = v.trim().toLowerCase();
+                          navIndex = 1;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Metier, artisan, commune, panne (fuite, nounou)...',
+                        hintStyle: TextStyle(color: _textSecondary, fontSize: 13.5),
+                        prefixIcon: Icon(Icons.search_rounded, color: _textSecondary),
+                        suffixIcon: qText.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(Icons.close_rounded, color: _textSecondary),
+                                onPressed: () {
+                                  ctl.clear();
+                                  runQuery('');
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: _isLight
+                            ? const Color(0xFFF1F5F9)
+                            : const Color(0xFF1E293B),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    if (busy) ...[
+                      const SizedBox(height: 10),
+                      const LinearProgressIndicator(minHeight: 2),
+                    ],
+                    if (remoteCats.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        'CORPS DE METIERS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: _textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: remoteCats.take(8).map((c) {
+                          final nom = '${c['nom'] ?? ''}';
+                          return ActionChip(
+                            label: Text(nom),
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              _triggerEmergencyCategory(nom);
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    Text(
+                      remoteProvs.isNotEmpty
+                          ? 'ARTISANS TROUVES'
+                          : (qText.isEmpty ? 'SUGGESTIONS RAPIDES' : 'PRESTATAIRES DISPONIBLES'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: _textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (remoteProvs.isNotEmpty)
+                      ...remoteProvs.take(5).map((rp) {
+                        final pid = jsonInt(rp['id']);
+                        return ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            backgroundColor: BabifixDesign.navy,
+                            child: Text(
+                              '${rp['nom'] ?? '?'}'.isNotEmpty
+                                  ? '${rp['nom'] ?? '?'}'[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          title: Text(
+                            '${rp['nom'] ?? ''}',
+                            style: TextStyle(fontWeight: FontWeight.w700, color: _textPrimary),
+                          ),
+                          subtitle: Text(
+                            '${rp['specialite'] ?? ''} · ${rp['ville'] ?? ''}',
+                            style: TextStyle(color: _textSecondary, fontSize: 12),
+                          ),
+                          trailing: rp['casier_verifie'] == true
+                              ? BabifixCasierBadge(isLight: _isLight, compact: true)
+                              : const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            Navigator.of(context).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => ProviderProfilePremiumScreen(
+                                  providerId: pid,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      })
+                    else if (localMatches.isNotEmpty)
+                      ...localMatches.take(5).map(
+                        (s) => ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.handyman_rounded, color: BabifixDesign.ciBlue),
+                          title: Text(
+                            s.title,
+                            style: TextStyle(fontWeight: FontWeight.w700, color: _textPrimary),
+                          ),
+                          subtitle: Text(
+                            '${s.category}${s.ville.isNotEmpty ? ' · ${s.ville}' : ''}',
+                            style: TextStyle(color: _textSecondary, fontSize: 12),
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            if (s.providerId > 0) {
+                              Navigator.of(context).push<void>(
+                                MaterialPageRoute(
+                                  builder: (_) => ProviderProfilePremiumScreen(
+                                    providerId: s.providerId,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              _triggerEmergencyCategory(s.category);
+                            }
+                          },
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'Aucun resultat exact. Appuyez sur Entree pour voir le catalogue complet.',
+                          style: TextStyle(color: _textSecondary, fontSize: 13),
+                        ),
+                      ),
+                    if (remoteSupplies.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'FOURNITURES ASSOCIEES',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: _textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: remoteSupplies.take(5).map((sup) {
+                          final cname = '${sup['categorie_nom'] ?? ''}';
+                          return ActionChip(
+                            label: Text('${sup['nom'] ?? ''} ($cname)'),
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              _triggerEmergencyCategory(cname);
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  static bool _matchesSmartQuery(
+    String query,
+    String title,
+    String category, {
+    String ville = '',
+    List<CategoryTab> allTabs = const [],
+  }) {
+    final q = normalizeBabifixSearch(query);
+    if (q.isEmpty) return true;
+    final t = normalizeBabifixSearch(title);
+    final c = normalizeBabifixSearch(category);
+    final v = normalizeBabifixSearch(ville);
+    final kwMatch = allTabs.any(
+      (tab) =>
+          normalizeBabifixSearch(tab.label) == c &&
+          normalizeBabifixSearch(tab.searchKeywords).contains(q),
+    );
+    if (t.contains(q) || c.contains(q) || v.contains(q) || kwMatch) return true;
+
+    const symptomMap = <String, List<String>>{
+      'fuite': ['plomb', 'eau', 'sanitaire', 'goutte'],
+      'robinet': ['plomb', 'eau', 'sanitaire'],
+      'wc': ['plomb', 'sanitaire', 'toilette'],
+      'evier': ['plomb', 'sanitaire'],
+      'courant': ['electr', 'eclair', 'panne'],
+      'disjoncteur': ['electr', 'eclair'],
+      'prise': ['electr', 'eclair'],
+      'clim': ['climatisation', 'froid', 'frigo'],
+      'froid': ['climatisation', 'frigo'],
+      'serrure': ['serrur', 'cle', 'porte'],
+      'cle': ['serrur', 'cle'],
+      'peindre': ['peint', 'pinceau', 'mur'],
+      'carreau': ['carrel', 'carreau'],
+      'meuble': ['menuis', 'bois'],
+      'porte': ['menuis', 'serrur'],
+      'menage': ['menage', 'nettoy', 'propr'],
+      'nounou': ['nounou', 'garde', 'enfant', 'babysit'],
+      'enfant': ['nounou', 'garde', 'soutien'],
+      'bebe': ['nounou', 'garde'],
+      'chauffeur': ['chauffeur', 'conduite', 'auto'],
+      'voiture': ['mecani', 'chauffeur', 'auto'],
+    };
+    for (final entry in symptomMap.entries) {
+      if (q.contains(entry.key)) {
+        for (final target in entry.value) {
+          if (t.contains(target) || c.contains(target)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   Widget _buildServices(List<ClientService> visibleServices) {
-    // Filtrage + tri
+    // Filtrage + tri intelligent
     var filtered = visibleServices.where((s) {
       if (_searchQuery.isNotEmpty &&
-          !s.title.toLowerCase().contains(_searchQuery) &&
-          !s.category.toLowerCase().contains(_searchQuery))
+          !_matchesSmartQuery(
+            _searchQuery,
+            s.title,
+            s.category,
+            ville: s.ville,
+            allTabs: categoryTabs,
+          )) {
         return false;
+      }
       if (_filterMinRating > 0 && s.rating < _filterMinRating) return false;
-      if (_filterMaxPrice > 0 && s.price > _filterMaxPrice) return false;
+      if (_filterCommune.isNotEmpty &&
+          !s.ville.toLowerCase().contains(_filterCommune.toLowerCase())) {
+        return false;
+      }
       if (_filterMaxDistance > 0 &&
           s.distanceKm != null &&
           s.distanceKm! > _filterMaxDistance) return false;
@@ -2824,10 +3934,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
           (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9));
     } else if (_filterSort == 'rating') {
       filtered.sort((a, b) => b.rating.compareTo(a.rating));
-    } else if (_filterSort == 'price_asc') {
-      filtered.sort((a, b) => a.price.compareTo(b.price));
-    } else if (_filterSort == 'price_desc') {
-      filtered.sort((a, b) => b.price.compareTo(a.price));
+    } else if (_filterSort == 'elite') {
+      filtered.sort((a, b) => b.eliteScore.compareTo(a.eliteScore));
+    } else {
+      filtered.sort((a, b) {
+        final dA = a.disponible ? 0 : 1;
+        final dB = b.disponible ? 0 : 1;
+        if (dA != dB) return dA.compareTo(dB);
+        return b.eliteScore.compareTo(a.eliteScore);
+      });
     }
 
     return RefreshIndicator(
@@ -2901,7 +4016,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
               CategoryStrip(
                 categories: categoryTabs,
                 active: categoryIndex.clamp(0, categoryTabs.length - 1),
-                onTap: (index) {
+                isLight: _isLight,
+                onSelect: (index) {
                   setState(() => categoryIndex = index);
                   // Reload all providers with force update
                   _loadPublicProviders(forceUpdate: true);
@@ -2971,7 +4087,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   bool get _hasActiveFilters =>
       _filterMinRating > 0 ||
-      _filterMaxPrice > 0 ||
+      _filterCommune.isNotEmpty ||
       _filterMaxDistance > 0 ||
       _filterDispoOnly ||
       _filterVerifiedOnly ||
@@ -2979,11 +4095,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   Widget _buildFilterChipsRow(int count) {
     final sortLabels = {
-      'default': 'Par defaut',
+      'default': 'Recommandes',
       'distance': 'Plus proche',
       'rating': 'Mieux notes',
-      'price_asc': 'Prix croissant',
-      'price_desc': 'Prix decroissant',
+      'elite': 'Plus fiables',
     };
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -3032,6 +4147,83 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ),
           ),
           const SizedBox(width: 8),
+          // Raccourci Proches (<= 10 km) en un tap
+          GestureDetector(
+            onTap: () => setState(() {
+              if (_filterMaxDistance == 10) {
+                _filterMaxDistance = 0;
+                if (_filterSort == 'distance') _filterSort = 'default';
+              } else {
+                _filterMaxDistance = 10;
+                _filterSort = 'distance';
+              }
+            }),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                color: _filterMaxDistance > 0 && _filterMaxDistance <= 10
+                    ? const Color(0xFF16A34A).withValues(alpha: 0.14)
+                    : _cardBg,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _filterMaxDistance > 0 && _filterMaxDistance <= 10
+                      ? const Color(0xFF16A34A)
+                      : _textSecondary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.near_me_rounded,
+                    size: 14,
+                    color: _filterMaxDistance > 0 && _filterMaxDistance <= 10
+                        ? const Color(0xFF16A34A)
+                        : _textSecondary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Proches (≤ 10 km)',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: _filterMaxDistance > 0 && _filterMaxDistance <= 10
+                          ? const Color(0xFF16A34A)
+                          : _textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Raccourci Disponibles en un tap
+          GestureDetector(
+            onTap: () => setState(() => _filterDispoOnly = !_filterDispoOnly),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                color: _filterDispoOnly
+                    ? BabifixDesign.cyan.withValues(alpha: 0.14)
+                    : _cardBg,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _filterDispoOnly
+                      ? BabifixDesign.cyan
+                      : _textSecondary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Text(
+                'Disponibles',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: _filterDispoOnly ? BabifixDesign.cyan : _textSecondary,
+                ),
+              ),
+            ),
+          ),
           // Sort chip
           if (_filterSort != 'default')
             _filterChip(
@@ -3043,10 +4235,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
               label: '≥ ${_filterMinRating.toStringAsFixed(1)} ★',
               onRemove: () => setState(() => _filterMinRating = 0),
             ),
-          if (_filterMaxPrice > 0)
+          if (_filterCommune.isNotEmpty)
             _filterChip(
-              label: '≤ ${_filterMaxPrice.toStringAsFixed(0)} FCFA',
-              onRemove: () => setState(() => _filterMaxPrice = 0),
+              label: _filterCommune,
+              onRemove: () => setState(() => _filterCommune = ''),
             ),
           if (_filterMaxDistance > 0)
             _filterChip(
@@ -3068,7 +4260,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             GestureDetector(
               onTap: () => setState(() {
                 _filterMinRating = 0;
-                _filterMaxPrice = 0;
+                _filterCommune = '';
                 _filterMaxDistance = 0;
                 _filterDispoOnly = false;
                 _filterVerifiedOnly = false;
@@ -3125,210 +4317,239 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   void _openFilterSheet() {
     double tempMinRating = _filterMinRating;
-    int tempMaxPrice = _filterMaxPrice;
+    String tempCommune = _filterCommune;
     double tempMaxDistance = _filterMaxDistance;
     bool tempDispoOnly = _filterDispoOnly;
     bool tempVerifiedOnly = _filterVerifiedOnly;
     String tempSort = _filterSort;
+    const communes = [
+      '',
+      'Cocody',
+      'Marcory',
+      'Plateau',
+      'Yopougon',
+      'Koumassi',
+      'Treichville',
+      'Abobo',
+      'Adjamé',
+      'Port-Bouët',
+      'Bingerville',
+    ];
 
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: _isLight ? Colors.white : BabifixDesign.navySurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            24,
-            20,
-            24,
-            MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Filtrer les services',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () {
-                      setSheetState(() {
-                        tempMinRating = 0;
-                        tempMaxPrice = 0;
-                        tempMaxDistance = 0;
-                        tempDispoOnly = false;
-                        tempVerifiedOnly = false;
-                        tempSort = 'default';
-                      });
-                    },
-                    child: const Text('Reinitialiser'),
-                  ),
-                ],
-              ),
-              const Divider(),
-              const SizedBox(height: 8),
-              const Text(
-                'Trier par',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final entry in {
-                    'default': 'Par defaut',
-                    'distance': '📍 Plus proche',
-                    'rating': 'Mieux notes',
-                    'price_asc': 'Prix ↑',
-                    'price_desc': 'Prix ↓',
-                  }.entries)
-                    ChoiceChip(
-                      label: Text(entry.value),
-                      selected: tempSort == entry.key,
-                      onSelected: (_) =>
-                          setSheetState(() => tempSort = entry.key),
+        builder: (ctx, setSheetState) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.78,
+          maxChildSize: 0.92,
+          minChildSize: 0.45,
+          builder: (_, scrollCtrl) => SingleChildScrollView(
+            controller: scrollCtrl,
+            padding: EdgeInsets.fromLTRB(
+              24,
+              20,
+              24,
+              MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Filtrer les artisans',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                     ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Text(
-                    'Note minimale : ',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                  ),
-                  Text(
-                    tempMinRating == 0
-                        ? 'Toutes'
-                        : '${tempMinRating.toStringAsFixed(1)} ★',
-                  ),
-                ],
-              ),
-              Slider(
-                value: tempMinRating,
-                min: 0,
-                max: 5,
-                divisions: 10,
-                label: tempMinRating == 0
-                    ? 'Toutes'
-                    : '${tempMinRating.toStringAsFixed(1)} ★',
-                activeColor: BabifixDesign.ciOrange,
-                 onChanged: (v) => setSheetState(() => tempMinRating = v),
-               ),
-               const SizedBox(height: 8),
-               Row(
-                 children: [
-                   const Text(
-                     'Prix max (FCFA) : ',
-                     style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                   ),
-                   Text(
-                     tempMaxPrice == 0
-                         ? 'Sans limite'
-                         : '${tempMaxPrice.toStringAsFixed(0)} FCFA',
-                   ),
-                 ],
-               ),
-               Slider(
-                 value: tempMaxPrice.toDouble(),
-                 min: 0,
-                 max: 100000,
-                 divisions: 20,
-                 label: tempMaxPrice == 0
-                     ? 'Sans limite'
-                     : '${tempMaxPrice.toStringAsFixed(0)} FCFA',
-                 activeColor: BabifixDesign.ciOrange,
-                 onChanged: (v) => setSheetState(() => tempMaxPrice = v.round()),
-              ),
-              const SizedBox(height: 8),
-              // ── Distance maximale ────────────────────────────────────
-              Row(
-                children: [
-                  const Icon(Icons.place_rounded, size: 16, color: BabifixDesign.ciOrange),
-                  const SizedBox(width: 4),
-                  const Text(
-                    'Distance max : ',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                  ),
-                  Text(
-                    tempMaxDistance == 0
-                        ? 'Toutes'
-                        : '${tempMaxDistance.toStringAsFixed(0)} km',
-                  ),
-                ],
-              ),
-              Slider(
-                value: tempMaxDistance,
-                min: 0,
-                max: 50,
-                divisions: 10,
-                label: tempMaxDistance == 0
-                    ? 'Toutes'
-                    : '${tempMaxDistance.toStringAsFixed(0)} km',
-                activeColor: BabifixDesign.ciOrange,
-                onChanged: (v) => setSheetState(() => tempMaxDistance = v),
-              ),
-              // Raccourcis proximité
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final km in [0, 5, 15, 30, 50])
-                    ChoiceChip(
-                      label: Text(km == 0 ? 'Tous' : '≤ $km km'),
-                      selected: tempMaxDistance == km.toDouble(),
-                      onSelected: (_) =>
-                          setSheetState(() => tempMaxDistance = km.toDouble()),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        setSheetState(() {
+                          tempMinRating = 0;
+                          tempCommune = '';
+                          tempMaxDistance = 0;
+                          tempDispoOnly = false;
+                          tempVerifiedOnly = false;
+                          tempSort = 'default';
+                        });
+                      },
+                      child: const Text('Réinitialiser'),
                     ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // ── Disponibilité + vérifiés ─────────────────────────────
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                activeThumbColor: BabifixDesign.ciOrange,
-                title: const Text('Disponibles uniquement',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                value: tempDispoOnly,
-                onChanged: (v) => setSheetState(() => tempDispoOnly = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                activeThumbColor: BabifixDesign.ciOrange,
-                title: const Text('Prestataires vérifiés uniquement',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                value: tempVerifiedOnly,
-                onChanged: (v) => setSheetState(() => tempVerifiedOnly = v),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: BabifixDesign.ciOrange,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _filterMinRating = tempMinRating;
-                      _filterMaxPrice = tempMaxPrice;
-                      _filterMaxDistance = tempMaxDistance;
-                      _filterDispoOnly = tempDispoOnly;
-                      _filterVerifiedOnly = tempVerifiedOnly;
-                      _filterSort = tempSort;
-                    });
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Appliquer'),
+                  ],
                 ),
-              ),
-            ],
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text(
+                  'Trier par',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    for (final entry in {
+                      'default': 'Recommandés',
+                      'distance': 'Plus proche',
+                      'rating': 'Mieux notés',
+                      'elite': 'Plus fiables',
+                    }.entries)
+                      ChoiceChip(
+                        label: Text(entry.value),
+                        selected: tempSort == entry.key,
+                        onSelected: (_) =>
+                            setSheetState(() => tempSort = entry.key),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Commune d\'intervention',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    for (final c in communes)
+                      ChoiceChip(
+                        label: Text(c.isEmpty ? 'Toutes' : c),
+                        selected: tempCommune == c,
+                        onSelected: (_) =>
+                            setSheetState(() => tempCommune = c),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Text(
+                      'Note minimale : ',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    Text(
+                      tempMinRating == 0
+                          ? 'Toutes'
+                          : '${tempMinRating.toStringAsFixed(1)} ★',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: BabifixDesign.ciOrange,
+                      ),
+                    ),
+                  ],
+                ),
+                Slider(
+                  value: tempMinRating,
+                  min: 0,
+                  max: 5,
+                  divisions: 10,
+                  label: tempMinRating == 0
+                      ? 'Toutes'
+                      : '${tempMinRating.toStringAsFixed(1)} ★',
+                  activeColor: BabifixDesign.ciOrange,
+                  onChanged: (v) => setSheetState(() => tempMinRating = v),
+                ),
+                const SizedBox(height: 8),
+                // ── Distance maximale ────────────────────────────────────
+                Row(
+                  children: [
+                    const Icon(Icons.place_rounded, size: 16, color: BabifixDesign.ciOrange),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Distance max : ',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    Text(
+                      tempMaxDistance == 0
+                          ? 'Toutes'
+                          : '${tempMaxDistance.toStringAsFixed(0)} km',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: BabifixDesign.ciOrange,
+                      ),
+                    ),
+                  ],
+                ),
+                Slider(
+                  value: tempMaxDistance,
+                  min: 0,
+                  max: 50,
+                  divisions: 10,
+                  label: tempMaxDistance == 0
+                      ? 'Toutes'
+                      : '${tempMaxDistance.toStringAsFixed(0)} km',
+                  activeColor: BabifixDesign.ciOrange,
+                  onChanged: (v) => setSheetState(() => tempMaxDistance = v),
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final km in [0, 5, 15, 30, 50])
+                      ChoiceChip(
+                        label: Text(km == 0 ? 'Tous' : '≤ $km km'),
+                        selected: tempMaxDistance == km.toDouble(),
+                        onSelected: (_) =>
+                            setSheetState(() => tempMaxDistance = km.toDouble()),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  activeThumbColor: BabifixDesign.ciOrange,
+                  title: const Text('Disponibles uniquement',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  value: tempDispoOnly,
+                  onChanged: (v) => setSheetState(() => tempDispoOnly = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  activeThumbColor: BabifixDesign.ciOrange,
+                  title: const Text('Prestataires vérifiés uniquement',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  value: tempVerifiedOnly,
+                  onChanged: (v) => setSheetState(() => tempVerifiedOnly = v),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: BabifixDesign.ciOrange,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _filterMinRating = tempMinRating;
+                        _filterCommune = tempCommune;
+                        _filterMaxDistance = tempMaxDistance;
+                        _filterDispoOnly = tempDispoOnly;
+                        _filterVerifiedOnly = tempVerifiedOnly;
+                        _filterSort = tempSort;
+                      });
+                      Navigator.of(ctx).pop();
+                    },
+                    child: const Text(
+                      'Appliquer les filtres',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -3340,35 +4561,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Widget _buildShimmerCard(int index) {
-    final base = _isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B);
-    final hi = _isLight ? const Color(0xFFF8FAFC) : const Color(0xFF334155);
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('shimmer_$index'),
-      duration: Duration(milliseconds: 1400 + (index * 180)),
-      tween: Tween(begin: 0.0, end: 1.0),
-      curve: Curves.linear,
-      onEnd: () => setState(() {}),
-      builder: (context, t, _) {
-        final sweep = ((t * 3) - 1).clamp(0.0, 1.0);
-        return ShaderMask(
-          blendMode: BlendMode.srcATop,
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: Alignment(-1.5 + sweep * 3, 0),
-              end: Alignment(-0.5 + sweep * 3, 0),
-              colors: [base, hi, base],
-            ).createShader(bounds);
-          },
-          child: Container(
-            height: 168,
-            margin: const EdgeInsets.only(bottom: 14),
-            decoration: BoxDecoration(
-              color: base,
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
-        );
-      },
+    return const BabifixSkeletonScope(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: 14),
+        child: BabifixSkeletonCard(lines: 3),
+      ),
     );
   }
 
@@ -3496,337 +4693,301 @@ class _ClientHomePageState extends State<ClientHomePage> {
     final outlineStyle = OutlinedButton.styleFrom(
       foregroundColor: _textPrimary,
       side: BorderSide(
-        color: BabifixDesign.cyan.withValues(alpha: _isLight ? 0.55 : 0.65),
+        color: BabifixDesign.cyan.withValues(alpha: _isLight ? 0.45 : 0.6),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    );
-    final filledStyle = FilledButton.styleFrom(
-      backgroundColor: BabifixDesign.ciOrange,
-      foregroundColor: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      minimumSize: const Size(0, 38),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
     );
+    final tierStyle = BabifixTierVisual.fromTier(
+      tier: item.premiumTier,
+      isLight: _isLight,
+      disponible: item.disponible,
+    );
+    final catPretty = () {
+      final s = item.category.replaceAll('_', ' ').trim().toLowerCase();
+      return s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+    }();
+    final isTrulyNearby = item.distanceKm != null && item.distanceKm! <= 10.0;
+
     return Opacity(
-      opacity: item.disponible ? 1.0 : 0.45,
+      opacity: item.disponible ? 1.0 : 0.5,
       child: AnimatedContainer(
-        duration: Duration(milliseconds: 220 + (index * 40)),
-        margin: const EdgeInsets.only(bottom: 14),
+        duration: Duration(milliseconds: 180 + (index * 30).clamp(0, 240)),
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: _cardBg,
-          borderRadius: BorderRadius.circular(20),
+          color: tierStyle.headerTint ?? _cardBg,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: item.disponible
-                ? (_isLight ? const Color(0x140F172A) : const Color(0x12FFFFFF))
-                : (_isLight
-                      ? const Color(0x30CC0000)
-                      : const Color(0x30FF4444)),
+            color: tierStyle.borderColor,
+            width: tierStyle.borderWidth,
           ),
           boxShadow: [
             BoxShadow(
               color: _isLight
-                  ? const Color(0x0F0F172A)
-                  : const Color(0x24000000),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+                  ? const Color(0x0D0F172A)
+                  : const Color(0x22000000),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Hero(
-              tag: 'babifix-service-${item.providerId}',
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  height: 112,
-                  decoration: BoxDecoration(
-                    color: item.color,
-                    image: DecorationImage(
-                      image: _imageProvider(item.imageUrl),
-                      fit: BoxFit.cover,
-                      colorFilter: ColorFilter.mode(
-                        Colors.black.withValues(alpha: 0.22),
-                        BlendMode.darken,
-                      ),
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: 12,
-                        left: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 11,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.94),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.12),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            () {
-                              final s = item.category
-                                  .replaceAll('_', ' ')
-                                  .trim()
-                                  .toLowerCase();
-                              return s.isEmpty
-                                  ? s
-                                  : '${s[0].toUpperCase()}${s.substring(1)}';
-                            }(),
-                            style: TextStyle(
-                              color: BabifixDesign.navy,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 12,
-                        bottom: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.72),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.schedule_rounded,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                item.duration,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (!item.disponible)
-                        Positioned.fill(
-                          child: Container(
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.45),
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'Indisponible',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              child: Column(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item.title.replaceAll('—', '·'),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: _textPrimary,
-                      letterSpacing: -0.2,
-                      height: 1.25,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  // Note + vérifié + distance sur UNE seule ligne (carte
-                  // compacte). Le prix n'est plus affiché ici.
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.star_rounded,
-                              size: 16, color: Colors.amber.shade600),
-                          const SizedBox(width: 2),
-                          Text(
-                            '${item.rating}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: _textPrimary,
+                  Hero(
+                    tag: 'babifix-service-${item.providerId}',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(color: item.color),
+                              child: _buildMediaImage(
+                                item.imageUrl,
+                                fallbackAsset: 'assets/images/service-plomberie.jpg',
+                                fallbackIcon: Icons.handyman_rounded,
+                              ),
                             ),
-                          ),
-                        ],
+                            if (!item.disponible)
+                              Container(
+                                color: Colors.black.withValues(alpha: 0.52),
+                                alignment: Alignment.center,
+                                child: const Text(
+                                  'Indispo',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 10.5,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                      if (item.verified)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _isLight
-                                ? const Color(0xFFDCFCE7)
-                                : const Color(0xFF14532D)
-                                    .withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.verified_rounded,
-                                  size: 12,
-                                  color: _isLight
-                                      ? const Color(0xFF166534)
-                                      : const Color(0xFF86EFAC)),
-                              const SizedBox(width: 3),
-                              Text(
-                                'Vérifié',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: _isLight
-                                      ? const Color(0xFF166534)
-                                      : const Color(0xFF86EFAC),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: BabifixDesign.cyan.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  catPretty,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: _isLight
+                                        ? const Color(0xFF0369A1)
+                                        : const Color(0xFF7DD3FC),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 10.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (isTrulyNearby) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF16A34A).withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'Proche',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF15803D),
+                                  ),
                                 ),
                               ),
                             ],
-                          ),
+                          ],
                         ),
-                      if (item.distanceKm != null)
-                        BabifixDistanceChip(
-                          distanceKm: item.distanceKm!,
-                          compact: true,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: outlineStyle,
-                          onPressed: () => Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              // Même fiche prestataire que l'Accueil (profil
-                              // premium) pour un rendu identique partout.
-                              builder: (_) => ProviderProfilePremiumScreen(
-                                providerId: item.providerId,
-                                onStartReservation: (service) async {
-                                  final result = await Navigator.of(context)
-                                      .push<Map<String, dynamic>?>(
-                                    MaterialPageRoute(
-                                      builder: (_) => BookingFlowScreen(
-                                        serviceTitle: service.title,
-                                        servicePrice: service.price,
-                                        providerId: item.providerId,
-                                        onConfirm: (data) async {
-                                          final ok = await _createReservation(
-                                            service,
-                                            flowData: data,
-                                          );
-                                          if (ok && mounted) {
-                                            setState(() => navIndex = 3);
-                                          }
-                                          return ok
-                                              ? {'ok': true}
-                                              : {'ok': false};
-                                        },
-                                      ),
-                                    ),
-                                  );
-                                  return result?['ok'] == true;
-                                },
-                              ),
-                            ),
+                        const SizedBox(height: 5),
+                        Text(
+                          item.title.replaceAll(', ', ' · '),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14.5,
+                            color: _textPrimary,
+                            letterSpacing: -0.2,
+                            height: 1.2,
                           ),
-                          icon: const Icon(
-                            Icons.info_outline_rounded,
-                            size: 18,
-                          ),
-                          label: const Text('Details'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          style: filledStyle,
-                          onPressed: item.disponible
-                              ? () => Navigator.of(context).push<void>(
-                                  MaterialPageRoute(
-                                    builder: (_) => BookingFlowScreen(
-                                      serviceTitle: item.title,
-                                      servicePrice: item.price,
-                                      providerId: item.providerId,
-                                      onConfirm: (data) async {
-                                        final ok = await _createReservation(
-                                          item,
-                                          flowData: data,
-                                        );
-                                        if (ok && mounted)
-                                          setState(() => navIndex = 3);
-                                        return ok
-                                            ? {'ok': true}
-                                            : {'ok': false};
-                                      },
-                                    ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.star_rounded,
+                                    size: 14, color: Colors.amber.shade600),
+                                const SizedBox(width: 2),
+                                Text(
+                                  item.ratingCount > 0
+                                      ? '${item.rating.toStringAsFixed(1)} (${item.ratingCount})'
+                                      : 'Certifié',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textPrimary,
                                   ),
-                                )
-                              : null,
-                          child: const Text('Reserver'),
+                                ),
+                              ],
+                            ),
+                            if (item.distanceKm != null)
+                              BabifixDistanceChip(
+                                distanceKm: item.distanceKm!,
+                                compact: true,
+                              )
+                            else if (item.ville.isNotEmpty)
+                              Text(
+                                item.ville,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: _textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            BabifixTierBadge(
+                              tier: item.premiumTier,
+                              customLabel: item.premiumBadge,
+                              isLight: _isLight,
+                              compact: true,
+                            ),
+                            if (item.casierVerifie)
+                              BabifixCasierBadge(
+                                isLight: _isLight,
+                                compact: true,
+                              ),
+                          ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: outlineStyle,
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => ProviderProfilePremiumScreen(
+                            providerId: item.providerId,
+                            onStartReservation: (service) async {
+                              if (_blockNewReservationIfMaintenance()) {
+                                return false;
+                              }
+                              final result = await Navigator.of(context)
+                                  .push<Map<String, dynamic>?>(
+                                MaterialPageRoute(
+                                  builder: (_) => BookingFlowScreen(
+                                    serviceTitle: service.title,
+                                    servicePrice: service.price,
+                                    providerId: item.providerId,
+                                    onConfirm: (data) async {
+                                      final ok = await _createReservation(
+                                        service,
+                                        flowData: data,
+                                      );
+                                      if (ok && mounted) {
+                                        setState(() => navIndex = 3);
+                                      }
+                                      return ok
+                                          ? {'ok': true}
+                                          : {'ok': false};
+                                    },
+                                  ),
+                                ),
+                              );
+                              return result?['ok'] == true;
+                            },
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                      ),
+                      label: const Text('Détails', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: BabifixButton(
+                      label: 'Réserver',
+                      height: 38,
+                      onPressed: item.disponible
+                          ? () {
+                              if (_blockNewReservationIfMaintenance()) return;
+                              Navigator.of(context).push<void>(
+                              babifixRoute(
+                                (_) => BookingFlowScreen(
+                                  serviceTitle: item.title,
+                                  servicePrice: item.price,
+                                  providerId: item.providerId,
+                                  onConfirm: (data) async {
+                                    final ok = await _createReservation(
+                                      item,
+                                      flowData: data,
+                                    );
+                                    if (ok && mounted) {
+                                      setState(() => navIndex = 3);
+                                    }
+                                    return ok
+                                        ? {'ok': true}
+                                        : {'ok': false};
+                                  },
+                                ),
+                              ),
+                            );
+                            }
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ), // AnimatedContainer
-    ); // Opacity
+      ),
+    );
   }
 
   String _paymentLabelClient(String code) {
@@ -4287,17 +5448,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         decoration: BoxDecoration(
-          color: isPending
-              ? const Color(0xFF1E1508)
-              : isActive
-                  ? const Color(0xFF0A1B26)
-                  : _cardBg,
+          color: _isLight
+              ? Colors.white
+              : (isPending
+                  ? const Color(0xFF1E1508)
+                  : isActive
+                      ? const Color(0xFF0A1B26)
+                      : _cardBg),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isPending
-                ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
+                ? const Color(0xFFF59E0B).withValues(alpha: _isLight ? 0.55 : 0.3)
                 : isActive
-                    ? const Color(0xFF4CC9F0).withValues(alpha: 0.2)
+                    ? const Color(0xFF4CC9F0).withValues(alpha: _isLight ? 0.55 : 0.2)
                     : isCancelled
                         ? _isLight
                             ? const Color(0x0A0F172A)
@@ -4305,7 +5468,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         : _isLight
                             ? const Color(0x120F172A)
                             : const Color(0x22FFFFFF),
-            width: isPending ? 1.5 : 1,
+            width: (isPending || isActive) ? 1.5 : 1,
           ),
           boxShadow: isPending
               ? [
@@ -4405,9 +5568,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
-                                  color: isPending || isActive
-                                      ? Colors.white
-                                      : _textPrimary,
+                                  color: _isLight
+                                      ? _textPrimary
+                                      : (isPending || isActive
+                                          ? Colors.white
+                                          : _textPrimary),
                                 ),
                               ),
                             ),
@@ -4417,18 +5582,28 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             r.providerName.isNotEmpty) ...[
                           const SizedBox(height: 3),
                           Text(
-                            [
-                              if (r.serviceTitle.isNotEmpty) r.serviceTitle,
-                              if (r.providerName.isNotEmpty) r.providerName,
-                            ].join('  ·  '),
+                            () {
+                              final parts = <String>[];
+                              if (r.serviceTitle.isNotEmpty) {
+                                parts.add(r.serviceTitle);
+                              }
+                              if (r.providerName.isNotEmpty &&
+                                  r.providerName.toLowerCase() !=
+                                      r.serviceTitle.toLowerCase()) {
+                                parts.add(r.providerName);
+                              }
+                              return parts.join('  ·  ');
+                            }(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 12.5,
-                              color: isPending || isActive
-                                  ? Colors.white.withValues(alpha: 0.82)
-                                  : _textPrimary,
+                              color: _isLight
+                                  ? _textPrimary
+                                  : (isPending || isActive
+                                      ? Colors.white.withValues(alpha: 0.82)
+                                      : _textPrimary),
                             ),
                           ),
                         ],
@@ -4438,9 +5613,11 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: isPending || isActive
-                                ? Colors.white.withValues(alpha: 0.5)
-                                : _textSecondary,
+                            color: _isLight
+                                ? _textSecondary
+                                : (isPending || isActive
+                                    ? Colors.white.withValues(alpha: 0.5)
+                                    : _textSecondary),
                             fontSize: 12,
                           ),
                         ),
@@ -4452,7 +5629,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                             children: [
                               Icon(Icons.event_rounded,
                                   size: 13,
-                                  color: isPending || isActive
+                                  color: (!_isLight && (isPending || isActive))
                                       ? const Color(0xFF7EC8E3)
                                       : const Color(0xFF0084D1)),
                               const SizedBox(width: 4),
@@ -4461,7 +5638,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
-                                  color: isPending || isActive
+                                  color: (!_isLight && (isPending || isActive))
                                       ? const Color(0xFF7EC8E3)
                                       : const Color(0xFF0084D1),
                                 ),
@@ -4475,7 +5652,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: isPending || isActive
+                      color: (!_isLight && (isPending || isActive))
                           ? Colors.white.withValues(alpha: 0.08)
                           : isCancelled
                               ? const Color(0xFFEF4444).withValues(alpha: 0.08)
@@ -4487,7 +5664,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: isPending || isActive
+                        color: (!_isLight && (isPending || isActive))
                             ? Colors.white.withValues(alpha: 0.6)
                             : isCancelled
                                 ? const Color(0xFFEF4444)
@@ -4534,7 +5711,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
               child: Row(
                 children: [
                   Text(
-                    _formatAmountLabel(r.amount),
+                    () {
+                      final n = double.tryParse(r.amount) ?? 0;
+                      if (n <= 0) {
+                        return isDevis ? 'Devis à consulter' : 'Montant sur devis';
+                      }
+                      final formatted = formatFcfa(n.round());
+                      return isDevis ? 'Devis · $formatted' : formatted;
+                    }(),
                     style: TextStyle(
                       color: isPending
                           ? const Color(0xFFF59E0B)
@@ -4543,6 +5727,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               : _textSecondary,
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
+                      fontFeatures: BabifixDesign.tabularFigures,
                     ),
                   ),
                   const Spacer(),
@@ -4556,7 +5741,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ),
             // Actions rapides
             if (showActions) ...[
-              const Divider(height: 1, color: Color(0x15FFFFFF)),
+              Divider(height: 1, color: BabifixDesign.borderOf(context)),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
                 child: Wrap(
@@ -4566,12 +5751,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     if (r.canViewDevis || r.canAcceptDevis)
                       _QuickActionChip(
                         icon: Icons.description_outlined,
-                        label: r.canAcceptDevis ? 'Voir & accepter' : 'Voir le devis',
+                        label: 'Consulter le devis',
                         isPrimary: r.canAcceptDevis,
                         onTap: () {
                           Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => DevisKanbanScreen(
+                            babifixRoute(
+                              (_) => DevisKanbanScreen(
                                 reservationReference: r.reference,
                               ),
                             ),
@@ -4585,23 +5770,23 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         isPrimary: true,
                         onTap: () {
                           Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => ConfirmCompletionScreen(
+                            babifixRoute(
+                              (_) => ConfirmCompletionScreen(
                                 reservationReference: r.reference,
                               ),
                             ),
                           );
                         },
                       ),
-                    // Mon journal — disponible dès que la prestation est terminée
+                    // Mon journal : disponible dès que la prestation est terminée
                     _QuickActionChip(
                       icon: Icons.menu_book_outlined,
                       label: 'Mon journal',
                       color: const Color(0xFF0EA5E9),
                       onTap: () {
                         Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => ClientJournalScreen(
+                          babifixRoute(
+                            (_) => ClientJournalScreen(
                               reservationReference: r.reference,
                             ),
                           ),
@@ -4617,8 +5802,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         color: const Color(0xFF6366F1),
                         onTap: () {
                           Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => PremiumReceiptScreen(
+                            babifixRoute(
+                              (_) => PremiumReceiptScreen(
                                 reservationReference: r.reference,
                               ),
                             ),
@@ -4633,8 +5818,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
                         onTap: () {
                           if (r.id > 0) {
                             Navigator.of(context).push<void>(
-                              MaterialPageRoute(
-                                builder: (_) => PaymentScreen(
+                              babifixRoute(
+                                (_) => PaymentScreen(
                                   reservationId: r.id,
                                   serviceTitle: r.title,
                                 ),
@@ -4813,7 +5998,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                     child: AspectRatio(
                                       aspectRatio: 16 / 9,
                                       child: Image.network(
-                                        a.imageUrl,
+                                        babifixResolveMediaUrl(a.imageUrl),
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) => Container(
                                           color: const Color(0xFFE2E8F0),
@@ -4901,7 +6086,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         id: jsonInt(item['id']),
         titre: '${item['titre'] ?? ''}',
         description: '${item['description'] ?? ''}',
-        imageUrl: '${item['image_url'] ?? ''}',
+        imageUrl: babifixResolveMediaUrl('${item['image_url'] ?? ''}'),
         categorieTag: '${item['categorie_tag'] ?? ''}',
         dateLabel: '${item['date_publication'] ?? ''}'.split('T').first,
       );
@@ -4910,71 +6095,292 @@ class _ClientHomePageState extends State<ClientHomePage> {
     } catch (_) {}
   }
 
-  /// Explique le système d'escrow (argent bloqué) au client.
+  /// Explique le système d'escrow et affiche le détail du coffret séquestre client.
   Future<void> _showEscrowExplanation() async {
     if (!mounted) return;
-    await showDialog<void>(
+    final lockedItems = reservations
+        .where((r) => !r.fundsReleased && r.montantVerse > 0)
+        .toList();
+    final totalLocked = lockedItems
+        .map((r) => r.montantVerse.round())
+        .fold<int>(0, (sum, value) => sum + value);
+
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _isLight ? Colors.white : const Color(0xFF152A45),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: const Icon(Icons.shield_rounded,
-            size: 44, color: Color(0xFF22C55E)),
-        title: Text(
-          'Paiement sécurisé (escrow)',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: _textPrimary,
-            fontSize: 18,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Quand vous payez une intervention, votre argent n\'est PAS '
-              'versé directement au prestataire.',
-              style: TextStyle(color: _textSecondary, fontSize: 13.5, height: 1.5),
-            ),
-            const SizedBox(height: 12),
-            _escrowStep('1', 'Vous payez', 'Le montant est conservé en '
-                'sécurité par BABIFIX (ni vous, ni le prestataire ne peut y toucher).'),
-            _escrowStep('2', 'Le travail est fait', 'Le prestataire réalise '
-                'la mission à votre domicile.'),
-            _escrowStep('3', 'Vous confirmez', 'Une fois satisfait, vous '
-                'validez. L\'argent est alors libéré au prestataire.'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF22C55E).withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '🛡️ En cas de problème, vous pouvez ouvrir un litige : '
-                'l\'argent reste bloqué jusqu\'à la décision de BABIFIX.',
-                style: TextStyle(
-                  color: _textPrimary,
-                  fontSize: 12.5,
-                  height: 1.45,
+      isScrollControlled: true,
+      backgroundColor: _isLight ? Colors.white : const Color(0xFF0E1D36),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _textSecondary.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E).withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF22C55E).withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.verified_user_rounded,
+                        color: Color(0xFF22C55E),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Paiement Protege BABIFIX',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: _textPrimary,
+                              fontSize: 17,
+                            ),
+                          ),
+                          Text(
+                            'Votre argent est garde en securite jusqu\'a la fin',
+                            style: TextStyle(
+                              color: _textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _isLight
+                        ? const Color(0xFF0B1B34)
+                        : const Color(0xFF071122),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.42),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'FONDS BLOQUÉS EN GARANTIE',
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.9,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            totalLocked > 0
+                                ? formatFcfa(totalLocked)
+                                : '0 FCFA bloqué',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              fontFeatures: BabifixDesign.tabularFigures,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF22C55E).withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                            color: const Color(0xFF22C55E).withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          lockedItems.isEmpty
+                              ? 'Bouclier prêt'
+                              : '${lockedItems.length} mission${lockedItems.length > 1 ? "s" : ""}',
+                          style: const TextStyle(
+                            color: Color(0xFF4ADE80),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (lockedItems.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'MISSIONS ACTUELLEMENT PROTÉGÉES',
+                    style: TextStyle(
+                      color: _textSecondary,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...lockedItems.take(4).map((item) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _isLight
+                              ? const Color(0xFFF8FAFC)
+                              : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _isLight
+                                ? const Color(0xFFE2E8F0)
+                                : Colors.white.withValues(alpha: 0.10),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.lock_clock_rounded,
+                                size: 17, color: Color(0xFF22C55E)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.serviceTitle.isNotEmpty
+                                        ? item.serviceTitle
+                                        : 'Intervention BABIFIX',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: _textPrimary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    [
+                                      if (item.providerName.isNotEmpty)
+                                        item.providerName,
+                                      if (item.reference.isNotEmpty)
+                                        item.reference,
+                                    ].join(' · '),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: _textSecondary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              formatFcfa(item.montantVerse.round()),
+                              style: TextStyle(
+                                color: _textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFeatures: BabifixDesign.tabularFigures,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+                const SizedBox(height: 12),
+                _escrowStep(
+                    '1',
+                    'Dépôt cantonné',
+                    'Votre montant reste isolé chez BABIFIX : ni le client ni l\'artisan ne peuvent le retirer pendant le chantier.'),
+                _escrowStep(
+                    '2',
+                    'Intervention tracée',
+                    'Le prestataire exécute la prestation à l\'adresse prévue avec horodatage.'),
+                _escrowStep(
+                    '3',
+                    'Validation & libération',
+                    'Dès votre confirmation de fin de travaux, le net est transféré sur le Wallet du prestataire.'),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.gavel_rounded,
+                          size: 18, color: Color(0xFF16A34A)),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'En cas de litige, les fonds restent gelés automatiquement jusqu\'à l\'arbitrage BABIFIX sous 24 h.',
+                          style: TextStyle(
+                            color: _textPrimary,
+                            fontSize: 12.5,
+                            height: 1.4,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: BabifixDesign.cyan,
+                    foregroundColor: const Color(0xFF0B1B34),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    'Compris',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: FilledButton.styleFrom(
-              backgroundColor: BabifixDesign.cyan,
-              foregroundColor: const Color(0xFF0B1B34),
-            ),
-            child: const Text('J\'ai compris',
-                style: TextStyle(fontWeight: FontWeight.w800)),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -5057,17 +6463,25 @@ class _ClientHomePageState extends State<ClientHomePage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                // ── Hero card profil — navy PLAT (charte sobre) ──
+                // ── Hero card profil · adaptée au thème (Blanc / Clair / Bleu BABIFIX) ──
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 22, 16, 20),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    color: const Color(0xFF0B1B34),
-                    boxShadow: const [
+                    color: _isLight ? Colors.white : const Color(0xFF0B1B34),
+                    border: Border.all(
+                      color: _isLight
+                          ? BabifixDesign.cyan.withValues(alpha: 0.45)
+                          : Colors.white.withValues(alpha: 0.12),
+                      width: _isLight ? 1.5 : 1.0,
+                    ),
+                    boxShadow: [
                       BoxShadow(
-                        color: Color(0x1A0F172A),
+                        color: _isLight
+                            ? BabifixDesign.navy.withValues(alpha: 0.08)
+                            : const Color(0x1A0F172A),
                         blurRadius: 14,
-                        offset: Offset(0, 6),
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
@@ -5076,16 +6490,20 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     children: [
                       Row(
                         children: [
-                          // Avatar plat (sans halo cyan)
+                          // Avatar plat avec bordure de marque
                           Container(
                             child: Container(
                               width: 72,
                               height: 72,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: const Color(0xFF1B4B7C),
+                                color: _isLight
+                                    ? BabifixDesign.cyan.withValues(alpha: 0.16)
+                                    : const Color(0xFF1B4B7C),
                                 border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.18),
+                                  color: _isLight
+                                      ? BabifixDesign.cyan.withValues(alpha: 0.55)
+                                      : Colors.white.withValues(alpha: 0.18),
                                   width: 2,
                                 ),
                               ),
@@ -5103,8 +6521,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                         profileName.isNotEmpty
                                             ? profileName[0].toUpperCase()
                                             : '?',
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(
+                                          color: _isLight
+                                              ? BabifixDesign.navy
+                                              : Colors.white,
                                           fontSize: 28,
                                           fontWeight: FontWeight.w900,
                                         ),
@@ -5124,10 +6544,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                         profileName.isEmpty
                                             ? 'Mon compte'
                                             : profileName,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w900,
-                                          color: Colors.white,
+                                          color: _isLight
+                                              ? BabifixDesign.navy
+                                              : Colors.white,
                                           letterSpacing: 0.2,
                                         ),
                                         maxLines: 1,
@@ -5157,8 +6579,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                       ? 'Connectez-vous ou créez un compte'
                                       : profileEmail,
                                   style: TextStyle(
-                                    color: Colors.white
-                                        .withValues(alpha: 0.78),
+                                    color: _isLight
+                                        ? const Color(0xFF475569)
+                                        : Colors.white.withValues(alpha: 0.78),
                                     fontSize: 12.5,
                                   ),
                                   maxLines: 1,
@@ -5171,15 +6594,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                       Icon(
                                         Icons.phone_rounded,
                                         size: 12,
-                                        color: Colors.white
-                                            .withValues(alpha: 0.7),
+                                        color: _isLight
+                                            ? BabifixDesign.cyan
+                                            : Colors.white.withValues(alpha: 0.7),
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
                                         profilePhone,
                                         style: TextStyle(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.78),
+                                          color: _isLight
+                                              ? const Color(0xFF475569)
+                                              : Colors.white.withValues(alpha: 0.78),
                                           fontSize: 12,
                                         ),
                                       ),
@@ -5191,16 +6616,20 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           ),
                           // Bouton édition discret en haut à droite
                           Material(
-                            color: Colors.white.withValues(alpha: 0.12),
+                            color: _isLight
+                                ? BabifixDesign.cyan.withValues(alpha: 0.14)
+                                : Colors.white.withValues(alpha: 0.12),
                             shape: const CircleBorder(),
                             child: InkWell(
                               onTap: _openEditProfile,
                               customBorder: const CircleBorder(),
-                              child: const Padding(
-                                padding: EdgeInsets.all(10),
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
                                 child: Icon(
                                   Icons.edit_outlined,
-                                  color: Colors.white,
+                                  color: _isLight
+                                      ? BabifixDesign.navy
+                                      : Colors.white,
                                   size: 18,
                                 ),
                               ),
@@ -5210,7 +6639,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       ),
                       if (sessionLoggedIn) ...[
                         const SizedBox(height: 18),
-                        // 3 stats utiles, fond blanc translucide pour bon contraste
                         Row(
                           children: [
                             _HeroStat(
@@ -5223,7 +6651,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                               icon: Icons.pending_actions_rounded,
                               value: '$activeCount',
                               label: 'En cours',
-                              accent: const Color(0xFFFFC857),
+                              accent: const Color(0xFFF59E0B),
                             ),
                             const SizedBox(width: 10),
                             _HeroStat(
@@ -5232,75 +6660,221 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                   ? formatFcfa(totalEscrow)
                                   : '0 F',
                               label: 'Bloqué',
-                              accent: const Color(0xFF4ADE80),
+                              accent: const Color(0xFF22C55E),
                               valueFontSize: 13,
                             ),
                           ],
                         ),
-                        if (totalEscrow > 0) ...[
-                          const SizedBox(height: 10),
-                          GestureDetector(
-                            onTap: _showEscrowExplanation,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF22C55E)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: const Color(0xFF22C55E)
-                                      .withValues(alpha: 0.30),
-                                ),
+                        const SizedBox(height: 14),
+                        BabifixClientShieldCard(
+                          holderName: profileName.isEmpty
+                              ? 'Membre BABIFIX'
+                              : profileName,
+                          tierLabel: completedCount >= 10
+                              ? 'Or'
+                              : (completedCount >= 3 ? 'Argent' : 'Bronze'),
+                          creditFcfa: totalEscrow.toDouble(),
+                          points: completedCount * 25,
+                          missionsCount: completedCount,
+                          compact: true,
+                          actionLabel: 'Mon Programme',
+                          onTapAction: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => FideliteScreen(isLight: _isLight),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.shield_rounded,
-                                      color: Color(0xFF4ADE80), size: 16),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '${formatFcfa(totalEscrow)} bloqués en sécurité : '
-                                      'libérés au prestataire une fois la mission terminée.',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11.5,
-                                        height: 1.35,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(Icons.info_outline_rounded,
-                                      color: Colors.white54, size: 14),
-                                ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: _showEscrowExplanation,
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: _isLight
+                                  ? const Color(0xFFF8FAFC)
+                                  : const Color(0xFF102241),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: totalEscrow > 0
+                                    ? const Color(0xFF22C55E)
+                                        .withValues(alpha: 0.45)
+                                    : (_isLight
+                                        ? const Color(0xFFE2E8F0)
+                                        : Colors.white.withValues(alpha: 0.14)),
                               ),
                             ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 30,
+                                      height: 30,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF22C55E)
+                                            .withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(9),
+                                      ),
+                                      child: const Icon(
+                                        Icons.verified_user_rounded,
+                                        color: Color(0xFF22C55E),
+                                        size: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'PAIEMENT PROTEGE CLIENT',
+                                            style: TextStyle(
+                                              color: _isLight
+                                                  ? const Color(0xFF475569)
+                                                  : const Color(0xFF94A3B8),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                          Text(
+                                            totalEscrow > 0
+                                                ? '${formatFcfa(totalEscrow)} bloqués en garantie'
+                                                : 'Protection active · 0 F bloqué',
+                                            style: TextStyle(
+                                              color: _isLight
+                                                  ? const Color(0xFF0F172A)
+                                                  : Colors.white,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w800,
+                                              fontFeatures:
+                                                  BabifixDesign.tabularFigures,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF22C55E)
+                                            .withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(99),
+                                      ),
+                                      child: const Text(
+                                        'Protégé',
+                                        style: TextStyle(
+                                          color: Color(0xFF16A34A),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (totalEscrow > 0) ...[
+                                  const SizedBox(height: 10),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(99),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 2,
+                                          child: Container(
+                                            height: 5,
+                                            color: const Color(0xFF22C55E),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Container(
+                                            height: 5,
+                                            color: const Color(0xFF4CC9F0),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Expanded(
+                                          flex: 1,
+                                          child: Container(
+                                            height: 5,
+                                            color: _isLight
+                                                ? const Color(0xFFCBD5E1)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.16),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 7),
+                                ],
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        totalEscrow > 0
+                                            ? 'Dépôt isolé jusqu\'à votre confirmation de fin de travaux.'
+                                            : 'Chaque acompte en ligne est stocké en sécurité avant versement.',
+                                        style: TextStyle(
+                                          color: _isLight
+                                              ? const Color(0xFF475569)
+                                              : Colors.white70,
+                                          fontSize: 11.5,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 12,
+                                      color: _isLight
+                                          ? const Color(0xFF64748B)
+                                          : Colors.white54,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
+                        ),
                         if (completedCount > 0) ...[
                           const SizedBox(height: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
+                              color: _isLight
+                                  ? const Color(0xFFFFF7ED)
+                                  : Colors.white.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
+                                color: _isLight
+                                    ? BabifixDesign.ciOrange.withValues(alpha: 0.35)
+                                    : Colors.white.withValues(alpha: 0.12),
                               ),
                             ),
                             child: Row(
                               children: [
                                 const Icon(
                                   Icons.workspace_premium_rounded,
-                                  color: Color(0xFFFFC857),
+                                  color: Color(0xFFF59E0B),
                                   size: 16,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   '$completedCount chantier${completedCount > 1 ? "s" : ""} terminé${completedCount > 1 ? "s" : ""} avec BABIFIX',
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: _isLight
+                                        ? const Color(0xFF0F172A)
+                                        : Colors.white,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -5512,11 +7086,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      colors: _isLight
-                          ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
-                          : const [Color(0xFF052010), Color(0xFF073318)],
-                    ),
+                    color: _isWhite ? Colors.white : null,
+                    gradient: _isWhite
+                        ? null
+                        : LinearGradient(
+                            colors: _isLight
+                                ? const [Color(0xFFF0FDF4), Color(0xFFDCFCE7)]
+                                : const [Color(0xFF052010), Color(0xFF073318)],
+                          ),
                     border: Border.all(color: _isLight ? const Color(0xFF86EFAC) : const Color(0x3322C55E)),
                   ),
                   child: Row(
@@ -5556,11 +7133,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
-                      gradient: LinearGradient(
-                        colors: _isLight
-                            ? const [Color(0xFFFFF5F5), Color(0xFFFFEBEB)]
-                            : const [Color(0xFF1A0808), Color(0xFF220E0E)],
-                      ),
+                      color: _isWhite ? Colors.white : null,
+                      gradient: _isWhite
+                          ? null
+                          : LinearGradient(
+                              colors: _isLight
+                                  ? const [Color(0xFFFFF5F5), Color(0xFFFFEBEB)]
+                                  : const [Color(0xFF1A0808), Color(0xFF220E0E)],
+                            ),
                     ),
                     child: Material(
                       color: Colors.transparent,
@@ -5630,11 +7210,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.3)),
-                      gradient: LinearGradient(
-                        colors: _isLight
-                            ? const [Color(0xFFEFFAFF), Color(0xFFE0F7FE)]
-                            : const [Color(0xFF071523), Color(0xFF0B2035)],
-                      ),
+                      color: _isWhite ? Colors.white : null,
+                      gradient: _isWhite
+                          ? null
+                          : LinearGradient(
+                              colors: _isLight
+                                  ? const [Color(0xFFEFFAFF), Color(0xFFE0F7FE)]
+                                  : const [Color(0xFF071523), Color(0xFF0B2035)],
+                            ),
                     ),
                     child: Material(
                       color: Colors.transparent,
@@ -5685,6 +7268,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     // Le reste en best-effort, non bloquant (erreurs ignorées).
     if (authToken != null) {
       BabifixFcm.registerTokenWithBackend(authToken!).catchError((_) {});
+      _syncClientServerNotifications().catchError((_) {});
     }
     _initLiveKitForClientIfNeeded(authToken, context).catchError((_) {});
     _refreshUnreadChat().catchError((_) {});
@@ -5856,18 +7440,33 @@ class _ClientHomePageState extends State<ClientHomePage> {
             nom: '${x['nom'] ?? ''}',
             specialite: '${x['specialite'] ?? ''}',
             ville: '${x['ville'] ?? ''}',
-            imageUrl: '${x['photo_portrait_url'] ?? x['image_url'] ?? ''}',
+            imageUrl: babifixResolveMediaUrl(
+              '${x['photo_portrait_url'] ?? x['image_url'] ?? ''}',
+            ),
             tarif: null,
             disponible: x['disponible'] != false,
             distanceKm: dk,
             premiumTier: '${x['premium_tier'] ?? 'standard'}',
             premiumBadge: '${x['premium_badge'] ?? ''}',
+            averageRating: jsonDouble(x['average_rating']),
+            ratingCount: jsonInt(x['rating_count']),
+            isCertified: x['is_certified'] == true,
+            palier: '${x['palier'] ?? 'PALIER_1_PROXIMITE'}',
+            palierLabel: '${x['palier_label'] ?? 'Artisan terrain'}',
+            eliteScore: jsonDouble(x['elite_score']),
+            trustReasons: (x['trust_reasons'] as List<dynamic>? ?? const [])
+                .map((e) => '$e')
+                .where((e) => e.trim().isNotEmpty)
+                .toList(),
+            casierVerifie: x['casier_verifie'] == true,
+            regimeKyc: '${x['regime_kyc'] ?? 'STANDARD_TERRAIN'}',
+            avgResponseMin: jsonIntNullable(x['avg_response_min']),
+            completedJobs: jsonInt(x['completed_jobs']),
           );
         }).toList();
 
         // Convertir aussi en ClientService pour l'onglet Services (fallback sans auth)
         final publicServices = rp.map((p) {
-          // Use category_nom from API for proper category filtering
           final raw = rows.firstWhere(
             (r) => jsonInt(r['id']) == p.id,
             orElse: () => <String, dynamic>{},
@@ -5876,10 +7475,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
           return ClientService(
             title: p.nom,
             category: catName.isNotEmpty ? catName : p.specialite,
-            duration: 'Disponible',
+            duration: p.palierLabel,
             price: 0,
-            rating: 0.0,
+            rating: p.averageRating,
+            ratingCount: p.ratingCount,
             verified: true,
+            isCertified: p.isCertified,
+            palierLabel: p.palierLabel,
+            premiumTier: p.premiumTier,
+            eliteScore: p.eliteScore,
+            trustReasons: p.trustReasons,
+            ville: p.ville,
+            casierVerifie: p.casierVerifie,
+            regimeKyc: p.regimeKyc,
+            avgResponseMin: p.avgResponseMin,
+            completedJobs: p.completedJobs,
             color: const Color(0xFF0284c7),
             imageUrl: p.imageUrl.isNotEmpty
                 ? p.imageUrl
@@ -5887,6 +7497,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             providerId: p.id,
             distanceKm: p.distanceKm,
             disponible: p.disponible,
+            premiumBadge: p.premiumBadge,
           );
         }).toList();
 
@@ -5933,13 +7544,25 @@ class _ClientHomePageState extends State<ClientHomePage> {
           final pc = m['providers_count'];
           if (pc is num && pc <= 0) continue;
           final fk = babifixCategoryFilterKey(nom);
+          final iconSlug = '${m['icone_slug'] ?? ''}'.trim();
           final iconUrl = '${m['icone_url'] ?? ''}'.trim();
           nextTabs = [
             ...nextTabs,
             CategoryTab(
-              iconNetworkUrl: iconUrl.isNotEmpty ? iconUrl : null,
+              iconeSlug: iconSlug,
+              iconNetworkUrl: iconUrl.isNotEmpty
+                  ? babifixResolveMediaUrl(iconUrl)
+                  : null,
               label: nom,
               filterKey: fk,
+              groupe: '${m['groupe'] ?? 'Maison & Services'}',
+              regimeKyc: '${m['regime_kyc'] ?? 'STANDARD_TERRAIN'}',
+              searchKeywords: (m['search_keywords'] is List)
+                  ? (m['search_keywords'] as List)
+                        .map((e) => '$e'.trim())
+                        .where((e) => e.isNotEmpty)
+                        .join(' ')
+                  : '${m['search_keywords'] ?? ''}',
             ),
           ];
         }
@@ -5972,7 +7595,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
             id: jsonInt(m['id']),
             titre: '${m['titre'] ?? ''}',
             description: '${m['description'] ?? ''}',
-            imageUrl: '${m['image_url'] ?? ''}',
+            imageUrl: babifixResolveMediaUrl('${m['image_url'] ?? ''}'),
             categorieTag: '${m['categorie_tag'] ?? ''}',
             dateLabel: '${m['date_publication'] ?? ''}'.split('T').first,
           )).toList();
@@ -5992,8 +7615,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
         }
         if (gperm == LocationPermission.always || gperm == LocationPermission.whileInUse) {
           Position? pos = await Geolocator.getLastKnownPosition();
-          if (pos != null && pos.timestamp != null) {
-            final age = DateTime.now().difference(pos.timestamp!);
+          if (pos != null) {
+            final age = DateTime.now().difference(pos.timestamp);
             if (age.inMinutes > 5) pos = null;
           }
           if (pos == null || !isInCotedIvoire(pos.latitude, pos.longitude)) {
@@ -6010,21 +7633,26 @@ class _ClientHomePageState extends State<ClientHomePage> {
             params['lat'] = pos.latitude.toStringAsFixed(6);
             params['lon'] = pos.longitude.toStringAsFixed(6);
           } else {
-            // Hors CI (émulateur) : on préfère l'adresse réelle enregistrée.
+            // Hors CI (emulateur) : uniquement l'adresse enregistree si elle existe (pas d'Abidjan arbitraire).
             final saved = await BabifixUserStore.loadAddressCoords();
-            params['lat'] = (saved?.lat ?? kAbidjanLat).toStringAsFixed(6);
-            params['lon'] = (saved?.lng ?? kAbidjanLon).toStringAsFixed(6);
+            if (saved != null) {
+              params['lat'] = saved.lat.toStringAsFixed(6);
+              params['lon'] = saved.lng.toStringAsFixed(6);
+            }
           }
         } else {
-          // Pas de GPS : repli sur l'adresse enregistrée, sinon centre d'Abidjan.
           final saved = await BabifixUserStore.loadAddressCoords();
-          params['lat'] = (saved?.lat ?? kAbidjanLat).toStringAsFixed(6);
-          params['lon'] = (saved?.lng ?? kAbidjanLon).toStringAsFixed(6);
+          if (saved != null) {
+            params['lat'] = saved.lat.toStringAsFixed(6);
+            params['lon'] = saved.lng.toStringAsFixed(6);
+          }
         }
       } catch (_) {
         final saved = await BabifixUserStore.loadAddressCoords();
-        params['lat'] = (saved?.lat ?? kAbidjanLat).toStringAsFixed(6);
-        params['lon'] = (saved?.lng ?? kAbidjanLon).toStringAsFixed(6);
+        if (saved != null) {
+          params['lat'] = saved.lat.toStringAsFixed(6);
+          params['lon'] = saved.lng.toStringAsFixed(6);
+        }
       }
       final uri = Uri.parse('$base/api/client/home').replace(queryParameters: params.isNotEmpty ? params : null);
       final res = await BabifixUserStore.authGet(uri.toString());
@@ -6053,13 +7681,24 @@ class _ClientHomePageState extends State<ClientHomePage> {
             final nom = '${m['nom'] ?? m['name'] ?? ''}'.trim();
             if (nom.isEmpty) continue;
             final fk = babifixCategoryFilterKey(nom);
+            final iconSlug = '${m['icone_slug'] ?? ''}'.trim();
             final iconUrl = '${m['icone_url'] ?? ''}'.trim();
+            final kwRaw = (m['search_keywords'] as List<dynamic>? ?? const []);
             nextTabs = [
               ...nextTabs,
               CategoryTab(
-                iconNetworkUrl: iconUrl.isNotEmpty ? iconUrl : null,
+                iconeSlug: iconSlug,
+                iconNetworkUrl: iconUrl.isNotEmpty
+                    ? babifixResolveMediaUrl(iconUrl)
+                    : null,
                 label: nom,
                 filterKey: fk,
+                groupe: '${m['groupe'] ?? ''}'.trim(),
+                regimeKyc: '${m['regime_kyc'] ?? 'STANDARD_TERRAIN'}'.trim(),
+                searchKeywords: kwRaw
+                    .map((e) => '$e'.trim())
+                    .where((e) => e.isNotEmpty)
+                    .join(' '),
               ),
             ];
           }
@@ -6076,12 +7715,28 @@ class _ClientHomePageState extends State<ClientHomePage> {
               rating: jsonDouble(item['rating']),
               verified: item['verified'] == true,
               color: _parseHexColor('${item['color'] ?? '#244B5A'}'),
-              imageUrl: (item['image_url'] as String?)?.isNotEmpty == true
-                  ? item['image_url'] as String
+              imageUrl: babifixResolveMediaUrl('${item['image_url'] ?? ''}')
+                      .isNotEmpty
+                  ? babifixResolveMediaUrl('${item['image_url'] ?? ''}')
                   : 'assets/images/service-plomberie.jpg',
               providerId: jsonInt(item['provider_id']),
               disponible: item['disponible'] != false,
               distanceKm: jsonDoubleNullable(item['distance_km']),
+              premiumBadge: '${item['premium_badge'] ?? ''}',
+              premiumTier: '${item['premium_tier'] ?? 'standard'}',
+              palierLabel: '${item['palier_label'] ?? 'Artisan terrain'}',
+              isCertified: item['is_certified'] == true,
+              ratingCount: jsonInt(item['rating_count']),
+              eliteScore: jsonDouble(item['elite_score']),
+              ville: '${item['ville'] ?? ''}'.trim(),
+              casierVerifie: item['casier_verifie'] == true,
+              regimeKyc: '${item['regime_kyc'] ?? 'STANDARD_TERRAIN'}',
+              avgResponseMin: jsonIntNullable(item['avg_response_min']),
+              completedJobs: jsonInt(item['completed_jobs']),
+              trustReasons: (item['trust_reasons'] as List<dynamic>? ?? const [])
+                  .map((e) => '$e')
+                  .where((e) => e.trim().isNotEmpty)
+                  .toList(),
             ),
           )
           .toList();
@@ -6154,7 +7809,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               id: jsonInt(item['id']),
               titre: '${item['titre'] ?? ''}',
               description: '${item['description'] ?? ''}',
-              imageUrl: '${item['image_url'] ?? ''}',
+              imageUrl: babifixResolveMediaUrl('${item['image_url'] ?? ''}'),
               categorieTag: '${item['categorie_tag'] ?? ''}',
               dateLabel: '${item['date_publication'] ?? ''}'.split('T').first,
             ),
@@ -6194,12 +7849,25 @@ class _ClientHomePageState extends State<ClientHomePage> {
           nom: '${x['nom'] ?? ''}',
           specialite: '${x['specialite'] ?? ''}',
           ville: '${x['ville'] ?? ''}',
-          imageUrl: '${x['image_url'] ?? ''}',
+          imageUrl: babifixResolveMediaUrl(
+            '${x['photo_portrait_url'] ?? x['image_url'] ?? ''}',
+          ),
           tarif: null,
           disponible: x['disponible'] != false,
           distanceKm: jsonDoubleNullable(x['distance_km']),
           premiumTier: '${x['premium_tier'] ?? 'standard'}',
           premiumBadge: '${x['premium_badge'] ?? ''}',
+          averageRating: jsonDouble(x['average_rating']),
+          ratingCount: jsonInt(x['rating_count']),
+          isCertified: x['is_certified'] == true,
+          casierVerifie: x['casier_verifie'] == true,
+          palier: '${x['palier'] ?? 'PALIER_1_PROXIMITE'}',
+          palierLabel: '${x['palier_label'] ?? 'Artisan terrain'}',
+          eliteScore: jsonDouble(x['elite_score']),
+          trustReasons: (x['trust_reasons'] as List<dynamic>? ?? const [])
+              .map((e) => '$e')
+              .where((e) => e.trim().isNotEmpty)
+              .toList(),
         );
       }).toList();
       final adminMail = '${data['contact_admin_email'] ?? ''}'.trim();
@@ -6220,6 +7888,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
           services = remoteServices;
         }
         reservations = remoteReservations;
+        final activeFromRemote = remoteReservations
+            .where((r) => BabifixRemoteConfig.isReservationStatusActive(r.status))
+            .map((r) => <String, dynamic>{
+                  'reference': r.reference,
+                  'title': r.title,
+                  'statut': r.status,
+                })
+            .toList();
+        _detectedActiveInterventions = activeFromRemote;
+        _hasCheckedActiveOnMaintenance = true;
+        if (BabifixRemoteConfig.instance.current.maintenance &&
+            _bypassMaintenanceForActiveMission &&
+            activeFromRemote.isEmpty) {
+          _bypassMaintenanceForActiveMission = false;
+        }
         news = remoteNews;
         actualites = remoteActualites;
         paymentMethodsRemote = pm;
@@ -6368,6 +8051,9 @@ class _ClientHomePageState extends State<ClientHomePage> {
     ClientService service, {
     Map<String, dynamic>? flowData,
   }) async {
+    if (_blockNewReservationIfMaintenance()) {
+      return false;
+    }
     // Refresh token before request to avoid invalid_token
     final freshToken = await BabifixUserStore.getApiToken();
     if (freshToken == null || freshToken.isEmpty) {
@@ -6524,17 +8210,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
         if (flowData?['prix_propose'] != null)
           'prix_propose': flowData?['prix_propose'],
       };
-      debugPrint('📤 CREATE RESERVATION — URL: $uri');
+      debugPrint('📤 CREATE RESERVATION : URL: $uri');
       debugPrint('📤 BODY: provider_id=${body['provider_id'] ?? "null"}, title=${body['title']}, price=${body['price_fcfa']}');
       final res = await BabifixUserStore.authPost(
         uri.toString(),
         body: jsonEncode(body),
       );
-      debugPrint('📥 RESPONSE — status: ${res.statusCode}, body: ${res.body}');
+      debugPrint('📥 RESPONSE : status: ${res.statusCode}, body: ${res.body}');
       if (res.statusCode == 201) {
         final respJson = jsonDecode(res.body) as Map<String, dynamic>;
         final ref = respJson['reference'] ?? '?';
-        debugPrint('✅ RESERVATION CREATED — ref: $ref');
+        debugPrint('✅ RESERVATION CREATED : ref: $ref');
         if (mounted) {
           showBabifixToast(
         context,
@@ -6744,24 +8430,117 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
   }
 
-  /// POST pay-caution — renvoie true si réglé (utilisé par la sheet de paiement).
-  Future<bool> _postCaution(ClientReservation r, String op) async {
-    if (authToken == null || r.reference.isEmpty) return false;
+  /// Initie le paiement securise de la caution via GeniusPay (kind="caution").
+  /// Gere a la fois la validation immediate (sandbox / instantane) et le flux
+  /// live (checkout_url + polling /api/paiements/geniuspay/status/<tx>/).
+  Future<({bool ok, String? error})> _postCaution(
+    ClientReservation r,
+    String op,
+    String phone,
+  ) async {
+    if (authToken == null || r.reference.isEmpty) {
+      return (ok: false, error: 'Session expiree. Reconnectez-vous.');
+    }
     try {
-      final uri = Uri.parse(
-        '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(r.reference)}/pay-caution',
-      );
-      final res = await http.post(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'mobile_money_operator': op}),
-      );
-      return res.statusCode == 200;
+      final base = babifixApiBaseUrl();
+      final uri = Uri.parse('$base/api/paiements/geniuspay/initiate/');
+      final res = await http
+          .post(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $authToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'reservation': r.reference,
+              'kind': 'caution',
+              'payment_method': op,
+              'phone': phone,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      Map<String, dynamic> data = <String, dynamic>{};
+      try {
+        final parsed = jsonDecode(res.body);
+        if (parsed is Map<String, dynamic>) data = parsed;
+      } catch (_) {}
+
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        final msg = '${data['detail'] ?? data['error'] ?? ''}'.trim();
+        return (
+          ok: false,
+          error: msg.isNotEmpty
+              ? msg
+              : 'Paiement refuse (${res.statusCode}). Verifiez votre solde et reessayez.',
+        );
+      }
+
+      final st = '${data['status'] ?? ''}'.toUpperCase();
+      if (st == 'VALIDE' ||
+          st == 'COMPLETE' ||
+          st == 'COMPLETED' ||
+          st == 'PAID' ||
+          data['caution_payee'] == true) {
+        return (ok: true, error: null);
+      }
+
+      final checkoutUrl =
+          '${data['checkout_url'] ?? data['payment_url'] ?? ''}'.trim();
+      final txId = '${data['transaction_id'] ?? data['reference'] ?? ''}'.trim();
+      if (checkoutUrl.isNotEmpty) {
+        final parsedUrl = Uri.tryParse(checkoutUrl);
+        if (parsedUrl != null && await canLaunchUrl(parsedUrl)) {
+          await launchUrl(parsedUrl, mode: LaunchMode.externalApplication);
+        }
+      }
+
+      if (txId.isNotEmpty) {
+        for (var attempt = 0; attempt < 24; attempt++) {
+          await Future.delayed(const Duration(seconds: 3));
+          try {
+            final stRes = await http
+                .get(
+                  Uri.parse(
+                    '$base/api/paiements/geniuspay/status/${Uri.encodeComponent(txId)}/',
+                  ),
+                  headers: {'Authorization': 'Bearer $authToken'},
+                )
+                .timeout(const Duration(seconds: 10));
+            if (stRes.statusCode == 200) {
+              final sd = jsonDecode(stRes.body) as Map<String, dynamic>;
+              final cur = '${sd['status'] ?? ''}'.toUpperCase();
+              if (cur == 'VALIDE' ||
+                  cur == 'COMPLETE' ||
+                  cur == 'COMPLETED' ||
+                  cur == 'PAID') {
+                return (ok: true, error: null);
+              }
+              if (cur == 'ECHOUE' ||
+                  cur == 'FAILED' ||
+                  cur == 'CANCELLED' ||
+                  cur == 'ANNULE') {
+                return (
+                  ok: false,
+                  error: 'Paiement annule ou echoue cote operateur Mobile Money.',
+                );
+              }
+            }
+          } catch (_) {}
+        }
+        return (
+          ok: false,
+          error:
+              'Confirmation en attente. Si vous avez valide sur votre telephone, actualisez la reservation.',
+        );
+      }
+
+      return (ok: data['ok'] == true, error: null);
     } catch (_) {
-      return false;
+      return (
+        ok: false,
+        error: 'Connexion impossible au serveur de paiement. Reessayez.',
+      );
     }
   }
 
@@ -6829,18 +8608,17 @@ class _ClientHomePageState extends State<ClientHomePage> {
               errorMsg = null;
               phase = 'processing';
             });
-            // Traitement simulé (comme un paiement Mobile Money réel) puis appel.
-            await Future.delayed(const Duration(milliseconds: 1600));
-            final ok = await _postCaution(r, selectedOp);
+            final outcome = await _postCaution(r, selectedOp, phone);
             if (!ctx.mounted) return;
-            if (ok) {
+            if (outcome.ok) {
               setSheet(() => phase = 'success');
-              await Future.delayed(const Duration(milliseconds: 1200));
+              await Future.delayed(const Duration(milliseconds: 1100));
               if (ctx.mounted) Navigator.pop(ctx, true);
             } else {
               setSheet(() {
                 phase = 'error';
-                errorMsg = 'Paiement refusé. Vérifiez votre solde et réessayez.';
+                errorMsg = outcome.error ??
+                    'Paiement refuse. Verifiez votre solde et reessayez.';
               });
             }
           }
@@ -6851,15 +8629,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(height: 8),
-                const SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFF4CC9F0)),
-                  ),
-                ),
+                const BabifixRingLoader.cyan(size: 38),
                 const SizedBox(height: 16),
                 Text('Traitement du paiement…',
                     style: TextStyle(
@@ -7037,6 +8807,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                       child: FilledButton(
                         onPressed: pay,
                         style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
                           backgroundColor: BabifixDesign.ciOrange,
                           padding: const EdgeInsets.symmetric(vertical: 13),
                         ),
@@ -7245,6 +9016,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     child: FilledButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
                         backgroundColor: BabifixDesign.ciOrange,
                         padding: const EdgeInsets.symmetric(vertical: 13),
                       ),
@@ -7286,58 +9058,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
       ),
     );
     await _loadRemoteData();
-  }
-
-  Future<void> _sendPaymentAction({
-    required ClientReservation r,
-    required String endpoint,
-    required String successMsg,
-    required Map<String, String> body,
-  }) async {
-    if (authToken == null || r.reference.isEmpty) return;
-    try {
-      final uri = Uri.parse(
-        '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(r.reference)}/$endpoint',
-      );
-      final res = await http.post(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
-      if (!mounted) return;
-      if (res.statusCode == 200) {
-        showBabifixToast(context, type: BabifixToastType.success, message: successMsg);
-        await _loadRemoteData();
-      } else {
-        final detail = _extractDetail(res.body);
-        showBabifixToast(
-          context,
-          type: BabifixToastType.error,
-          message: detail ?? _friendlyHttpError(res.statusCode),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        showBabifixToast(
-          context,
-          type: BabifixToastType.error,
-          message: 'Erreur réseau. Veuillez réessayer.',
-        );
-      }
-    }
-  }
-
-  String? _extractDetail(String body) {
-    try {
-      final d = jsonDecode(body);
-      if (d is Map && d['detail'] != null && '${d['detail']}'.isNotEmpty) {
-        return '${d['detail']}';
-      }
-    } catch (_) {}
-    return null;
   }
 
   // ── Statut → style visuel (couleur, icône, libellé, étape timeline) ──
@@ -7391,7 +9111,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   String _formatAmountLabel(String raw) {
     final n = double.tryParse(raw);
-    if (n == null || n == 0) return raw;
+    if (n == null || n <= 0) return 'Montant sur devis';
     return formatFcfa(n.round());
   }
 
@@ -7796,7 +9516,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     if (r.canViewDevis || r.canAcceptDevis || r.status == 'DEVIS_ENVOYE') {
       actions.add(_resaActionBtn(
         icon: Icons.description_outlined,
-        label: r.canAcceptDevis ? 'Voir & accepter le devis' : 'Voir le devis',
+        label: 'Consulter le devis',
         primary: true,
         onTap: () {
           Navigator.pop(ctx);
@@ -7904,9 +9624,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
           Navigator.pop(ctx);
           Navigator.of(context).push<void>(
             MaterialPageRoute(
-              builder: (_) => DevisDetailScreen(
+              builder: (_) => DevisKanbanScreen(
                 reservationReference: r.reference,
-                onBack: () => Navigator.of(context).maybePop(),
               ),
             ),
           );
@@ -7941,11 +9660,52 @@ class _ClientHomePageState extends State<ClientHomePage> {
         accent: const Color(0xFFEF4444),
         onTap: () {
           Navigator.pop(ctx);
+          if (_blockNewReservationIfMaintenance()) return;
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => DisputeOpenScreen(
                 reservationReference: r.reference,
                 reservationTitle: r.title,
+              ),
+            ),
+          );
+        },
+      ));
+    }
+
+    final isRefused = r.status.toUpperCase().contains('REFUS') ||
+        r.statusLabel.toLowerCase().contains('refus');
+    if (isRefused) {
+      actions.add(_resaActionBtn(
+        icon: Icons.edit_calendar_rounded,
+        label: 'Modifier ma demande',
+        primary: true,
+        onTap: () {
+          Navigator.pop(ctx);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => BookingFlowScreen(
+                serviceTitle:
+                    r.serviceTitle.isNotEmpty ? r.serviceTitle : r.title,
+                servicePrice: 0,
+                onConfirm: (data) async {
+                  final ok = await _createReservation(
+                    ClientService(
+                      title: r.serviceTitle.isNotEmpty
+                          ? r.serviceTitle
+                          : r.title,
+                      category: 'SERVICE',
+                      duration: 'Disponible',
+                      price: 0,
+                      rating: 5.0,
+                      verified: true,
+                      color: const Color(0xFF0284C7),
+                      imageUrl: 'assets/images/service-plomberie.jpg',
+                    ),
+                    flowData: data,
+                  );
+                  return {'ok': ok};
+                },
               ),
             ),
           );
@@ -8004,54 +9764,22 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }) {
     final c = accent ?? const Color(0xFF4CC9F0);
     if (primary) {
-      return SizedBox(
+      return BabifixButton(
+        label: label,
+        icon: icon,
         height: 50,
-        child: FilledButton.icon(
-          onPressed: onTap,
-          icon: Icon(icon, size: 18),
-          label: Text(label,
-              style: const TextStyle(fontWeight: FontWeight.w800)),
-          style: FilledButton.styleFrom(
-            backgroundColor: c,
-            foregroundColor: const Color(0xFF0B1B34),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
-          ),
-        ),
-      );
-    }
-    return SizedBox(
-      height: 48,
-      child: OutlinedButton.icon(
+        backgroundColor: accent,
         onPressed: onTap,
-        icon: Icon(icon, size: 18, color: c),
-        label: Text(label,
-            style: TextStyle(color: c, fontWeight: FontWeight.w700)),
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: c.withValues(alpha: 0.6), width: 1.4),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
-      ),
-    );
-  }
-
-  /// Télécharge le reçu PDF (le backend accepte ?token= en query).
-  Future<void> _downloadReceipt(ClientReservation r) async {
-    final token = await BabifixUserStore.getApiToken();
-    if (token == null || r.reference.isEmpty) return;
-    final uri = Uri.parse(
-      '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(r.reference)}/receipt/pdf/',
-    ).replace(queryParameters: {'token': token});
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else if (mounted) {
-      showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Impossible d\'ouvrir le reçu.',
       );
     }
+    return BabifixButton(
+      label: label,
+      icon: icon,
+      height: 48,
+      isOutlined: true,
+      foregroundColor: c,
+      onPressed: onTap,
+    );
   }
 
   Future<void> _confirmPrestationClient(ClientReservation r) async {
@@ -8260,25 +9988,201 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Future<void> _contactAdminMail() async {
-    final e = contactAdminEmail.trim();
-    if (e.isEmpty) {
-      if (mounted) {
-        showBabifixToast(
-        context,
-        type: BabifixToastType.info,
-        message: 'Email admin non configure.',
-      );
-      }
-      return;
-    }
-    final uri = Uri(
-      scheme: 'mailto',
-      path: e,
-      queryParameters: {'subject': 'BABIFIX : Support client'},
+    final cfg = BabifixRemoteConfig.instance.current;
+    final email = contactAdminEmail.trim().isNotEmpty
+        ? contactAdminEmail.trim()
+        : cfg.supportEmail;
+    final phone = cfg.supportPhone.trim();
+    final whatsapp = cfg.supportWhatsapp.trim();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _isLight ? Colors.white : BabifixDesign.navySurface,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.ciOrange.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.support_agent_rounded,
+                    color: BabifixDesign.ciOrange,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Contacter le Support BABIFIX',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: _textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Assistance client disponible 7j/7',
+                        style: TextStyle(fontSize: 12.5, color: _textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            if (whatsapp.isNotEmpty)
+              _clientContactTile(
+                icon: Icons.chat_rounded,
+                color: const Color(0xFF16A34A),
+                title: 'Écrire sur WhatsApp',
+                subtitle: whatsapp,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final digits = whatsapp.replaceAll(RegExp(r'[^0-9]'), '');
+                  final msg = Uri.encodeComponent(
+                    'Bonjour Support BABIFIX, ici $profileName.',
+                  );
+                  final waUri = Uri.parse('https://wa.me/$digits?text=$msg');
+                  if (!await launchUrl(waUri, mode: LaunchMode.externalApplication)) {
+                    await Clipboard.setData(ClipboardData(text: whatsapp));
+                    if (mounted) {
+                      showBabifixToast(
+                        context,
+                        type: BabifixToastType.info,
+                        message: 'Numéro WhatsApp copié : $whatsapp',
+                      );
+                    }
+                  }
+                },
+              ),
+            if (phone.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _clientContactTile(
+                icon: Icons.phone_in_talk_rounded,
+                color: const Color(0xFF0284C7),
+                title: 'Appeler le Support',
+                subtitle: phone,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final telUri =
+                      Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
+                  if (!await launchUrl(telUri)) {
+                    await Clipboard.setData(ClipboardData(text: phone));
+                    if (mounted) {
+                      showBabifixToast(
+                        context,
+                        type: BabifixToastType.info,
+                        message: 'Numéro copié : $phone',
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+            const SizedBox(height: 10),
+            _clientContactTile(
+              icon: Icons.email_outlined,
+              color: BabifixDesign.ciOrange,
+              title: 'Envoyer un email',
+              subtitle: email,
+              onTap: () async {
+                Navigator.pop(ctx);
+                final mailUri = Uri(
+                  scheme: 'mailto',
+                  path: email,
+                  queryParameters: {'subject': 'BABIFIX : Support client'},
+                );
+                if (!await launchUrl(mailUri)) {
+                  await Clipboard.setData(ClipboardData(text: email));
+                  if (mounted) {
+                    showBabifixToast(
+                      context,
+                      type: BabifixToastType.success,
+                      message: 'Email support copié : $email',
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
     );
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
+  }
+
+  Widget _clientContactTile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    final bg = _isLight ? const Color(0xFFF8FAFC) : const Color(0xFF132645);
+    final border = _isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E3A63);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: _textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: _textSecondary, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: _textSecondary),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _rateReservation(ClientReservation r) async {
@@ -8431,15 +10335,10 @@ class _ClientHomePageState extends State<ClientHomePage> {
         .toList();
 
     try {
-      final uri = Uri.parse(
-        '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(r.reference)}/rating',
-      );
-      final res = await http.post(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
+      final path =
+          '/api/client/reservations/${Uri.encodeComponent(r.reference)}/rating';
+      final res = await BabifixUserStore.authPost(
+        path,
         body: jsonEncode({
           'note': stars,
           'commentaire': commentaire,
@@ -8481,14 +10380,49 @@ class _ClientHomePageState extends State<ClientHomePage> {
     return const Color(0xFF1F2937);
   }
 
-  ImageProvider _imageProvider(String path) {
-    if (path.isEmpty) {
-      return const AssetImage('assets/images/babifix-logo.png');
+  Widget _buildMediaImage(
+    String rawPath, {
+    String fallbackAsset = 'assets/images/babifix-logo.png',
+    IconData fallbackIcon = Icons.image_outlined,
+  }) {
+    final resolved = babifixResolveMediaUrl(rawPath);
+    Widget fallback() {
+      if (fallbackAsset.isNotEmpty) {
+        return Image.asset(
+          fallbackAsset,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => DecoratedBox(
+            decoration: const BoxDecoration(color: Color(0xFF0F172A)),
+            child: Center(
+              child: Icon(fallbackIcon, size: 32, color: Colors.white54),
+            ),
+          ),
+        );
+      }
+      return DecoratedBox(
+        decoration: const BoxDecoration(color: Color(0xFF0F172A)),
+        child: Center(
+          child: Icon(fallbackIcon, size: 32, color: Colors.white54),
+        ),
+      );
     }
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return NetworkImage(path);
+
+    if (resolved.isEmpty) return fallback();
+    if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
+      return Image.network(
+        resolved,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+      );
     }
-    return AssetImage(path);
+    if (resolved.startsWith('assets/')) {
+      return Image.asset(
+        resolved,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+      );
+    }
+    return fallback();
   }
 
   Future<void> _openAuth() async {
@@ -8554,65 +10488,58 @@ class _ClientHomePageState extends State<ClientHomePage> {
     return again != null && again.isNotEmpty;
   }
 
-  Future<void> _openSettings() async {
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _SettingsSheet(
-        currentMode: widget.paletteMode,
-        onModeChanged: widget.onPaletteChanged,
-        initialPhone: profilePhone,
-        initialAddress: profileAddress,
-        isLight: _isLight,
-        onProfileSaved: () {
-          Navigator.of(context).pop();
-          _loadProfile();
-        },
-      ),
-    );
-  }
-
   Widget _buildFloatingNavItem({
     required int index,
     required IconData icon,
     required String label,
+    int badgeCount = 0,
+  }) {
+    return Expanded(
+      child: _buildFloatingNavItemInner(
+        index: index,
+        icon: icon,
+        label: label,
+        badgeCount: badgeCount,
+      ),
+    );
+  }
+
+  Widget _buildFloatingNavItemInner({
+    required int index,
+    required IconData icon,
+    required String label,
+    int badgeCount = 0,
   }) {
     final selected = navIndex == index;
     final iconOff = _isLight
         ? const Color(0xFF475569)
-        : const Color(0xFFB4BAC7);
+        : const Color(0xFF94A3B8);
     final textOff = _isLight
-        ? const Color(0xFF334155)
-        : const Color(0xFFB4BAC7);
-    final textOn = _isLight ? const Color(0xFF0F172A) : Colors.white;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => navIndex = index),
+        ? const Color(0xFF475569)
+        : const Color(0xFF94A3B8);
+    final textOn = _isLight ? BabifixDesign.navy : Colors.white;
+    final activeTint = _isLight
+        ? BabifixDesign.navy.withValues(alpha: 0.08)
+        : BabifixDesign.cyan.withValues(alpha: 0.14);
+    final activeIndicator = _isLight
+        ? BabifixDesign.ciOrange
+        : BabifixDesign.cyan;
+    return GestureDetector(
+        onTap: () {
+          setState(() => navIndex = index);
+          if (index == 3 && authToken != null && authToken!.isNotEmpty) {
+            _loadClientHomeData();
+            _syncClientServerNotifications();
+          }
+        },
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: selected
-                ? const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0x4D8FE3FF), Color(0x1F8FE3FF)],
-                  )
-                : null,
-            boxShadow: selected
-                ? const [
-                    BoxShadow(
-                      color: Color(0x440EB8FF),
-                      blurRadius: 14,
-                      offset: Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            borderRadius: BorderRadius.circular(18),
+            color: selected ? activeTint : Colors.transparent,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -8624,19 +10551,56 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 margin: const EdgeInsets.only(bottom: 4),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(99),
-                  color: _isLight
-                      ? const Color(0xFF4CC9F0)
-                      : const Color(0xFFA6EBFF),
+                  color: activeIndicator,
                 ),
               ),
-              Icon(
-                icon,
-                size: 21,
-                color: selected
-                    ? (_isLight
-                          ? const Color(0xFF0369A1)
-                          : const Color(0xFF9FE6FF))
-                    : iconOff,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    icon,
+                    size: 21,
+                    color: selected
+                        ? (_isLight
+                              ? BabifixDesign.navy
+                              : BabifixDesign.cyan)
+                        : iconOff,
+                  ),
+                  if (badgeCount > 0)
+                    Positioned(
+                      right: -8,
+                      top: -5,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: _isLight
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
+                            width: 1.2,
+                          ),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          badgeCount > 99 ? '99+' : '$badgeCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 2),
               Text(
@@ -8644,7 +10608,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   color: selected ? textOn : textOff,
                 ),
@@ -8652,7 +10616,6 @@ class _ClientHomePageState extends State<ClientHomePage> {
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -8670,6 +10633,7 @@ class _ReservationStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final label = statusLabel.isNotEmpty
         ? statusLabel
         : (isDevis ? 'Devis reçu' : status);
@@ -8677,23 +10641,26 @@ class _ReservationStatusPill extends StatelessWidget {
     late Color bg;
     late Color fg;
     if (isDevis) {
-      bg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
-      fg = const Color(0xFFF59E0B);
+      fg = isLight ? const Color(0xFFB45309) : const Color(0xFFFBBF24);
+      bg = fg.withValues(alpha: 0.14);
     } else if (status == 'Confirmee' || status == 'DEVIS_ACCEPTE') {
-      bg = const Color(0xFF4CC9F0).withValues(alpha: 0.15);
-      fg = const Color(0xFF4CC9F0);
+      fg = isLight ? BabifixDesign.cyanDeep : BabifixDesign.cyan;
+      bg = fg.withValues(alpha: 0.14);
     } else if (status == 'INTERVENTION_EN_COURS') {
-      bg = const Color(0xFF7C3AED).withValues(alpha: 0.15);
-      fg = const Color(0xFF7C3AED);
+      fg = isLight ? const Color(0xFF6D28D9) : const Color(0xFFC4B5FD);
+      bg = fg.withValues(alpha: 0.14);
     } else if (status == 'Terminee' || status == 'DONE') {
-      bg = const Color(0xFF22C55E).withValues(alpha: 0.15);
-      fg = const Color(0xFF22C55E);
-    } else if (status == 'Annulee') {
-      bg = const Color(0xFFEF4444).withValues(alpha: 0.15);
-      fg = const Color(0xFFEF4444);
+      fg = isLight ? BabifixDesign.emeraldForest : const Color(0xFF4ADE80);
+      bg = fg.withValues(alpha: 0.14);
+    } else if (status == 'Annulee' ||
+        status == 'Refusee' ||
+        status == 'CANCELLED' ||
+        status == 'REJECTED') {
+      fg = isLight ? const Color(0xFFB91C1C) : const Color(0xFFFCA5A5);
+      bg = fg.withValues(alpha: 0.14);
     } else {
-      bg = const Color(0x1AFFFFFF);
-      fg = const Color(0xFF94A3B8);
+      bg = isLight ? const Color(0xFFF1F5F9) : const Color(0x1EFFFFFF);
+      fg = isLight ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
     }
 
     return Container(
@@ -9191,29 +11158,43 @@ class _HeroStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.10),
+          color: isLight
+              ? const Color(0xFFF8FAFC)
+              : const Color(0xFF0F2242),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.14),
+            color: isLight
+                ? const Color(0xFFE2E8F0)
+                : const Color(0xFF1E3A63),
           ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: accent, size: 18),
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: isLight ? 0.12 : 0.22),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: accent, size: 16),
+            ),
             const SizedBox(height: 6),
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
                 value,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: isLight ? BabifixDesign.navy : Colors.white,
                   fontWeight: FontWeight.w900,
                   fontSize: valueFontSize,
+                  fontFeatures: BabifixDesign.tabularFigures,
                   letterSpacing: 0.2,
                 ),
               ),
@@ -9222,7 +11203,9 @@ class _HeroStat extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: isLight
+                    ? const Color(0xFF475569)
+                    : Colors.white.withValues(alpha: 0.7),
                 fontSize: 10.5,
                 fontWeight: FontWeight.w600,
               ),
@@ -9309,6 +11292,7 @@ class _PremiumActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLight = Theme.of(context).brightness == Brightness.light;
+    final isWhiteBg = Theme.of(context).scaffoldBackgroundColor == const Color(0xFFFFFFFF);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -9319,12 +11303,16 @@ class _PremiumActionTile extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: isLight
-                ? const [Color(0xFFF8FAFC), Color(0xFFF1F5F9)]
-                : const [Color(0xFF1A2234), Color(0xFF121926)],
+            colors: isWhiteBg
+                ? const [Color(0xFFFFFFFF), Color(0xFFFFFFFF)]
+                : (isLight
+                    ? const [Color(0xFFFFFFFF), Color(0xFFF8FAFC)]
+                    : const [Color(0xFF1A2234), Color(0xFF121926)]),
           ),
           border: Border.all(
-            color: isLight ? const Color(0x120F172A) : const Color(0x22FFFFFF),
+            color: isWhiteBg
+                ? BabifixDesign.cyan.withValues(alpha: 0.35)
+                : (isLight ? const Color(0x120F172A) : const Color(0x22FFFFFF)),
           ),
         ),
         child: Row(
@@ -9406,194 +11394,8 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _SettingsSheet extends StatefulWidget {
-  const _SettingsSheet({
-    required this.currentMode,
-    required this.onModeChanged,
-    required this.initialPhone,
-    required this.initialAddress,
-    required this.isLight,
-    required this.onProfileSaved,
-  });
-
-  final AppPaletteMode currentMode;
-  final ValueChanged<AppPaletteMode> onModeChanged;
-  final String initialPhone;
-  final String initialAddress;
-  final bool isLight;
-  final VoidCallback onProfileSaved;
-
-  @override
-  State<_SettingsSheet> createState() => _SettingsSheetState();
-}
-
-class _SettingsSheetState extends State<_SettingsSheet> {
-  late final TextEditingController phoneCtrl;
-  late final TextEditingController addressCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    phoneCtrl = TextEditingController(text: widget.initialPhone);
-    addressCtrl = TextEditingController(text: widget.initialAddress);
-  }
-
-  @override
-  void dispose() {
-    phoneCtrl.dispose();
-    addressCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    await BabifixUserStore.saveProfile(
-      phone: phoneCtrl.text.trim(),
-      address: addressCtrl.text.trim(),
-    );
-    if (mounted) widget.onProfileSaved();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    final bg = widget.isLight
-        ? const Color(0xFFF8FAFC)
-        : const Color(0xFF111827);
-    final title = widget.isLight ? const Color(0xFF0F172A) : Colors.white;
-    final sub = widget.isLight
-        ? const Color(0xFF64748B)
-        : const Color(0xFF9CA3AF);
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(
-            color: const Color(0xFF4CC9F0).withValues(alpha: 0.25),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(
-                alpha: widget.isLight ? 0.08 : 0.35,
-              ),
-              blurRadius: 24,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: sub.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
-              Text(
-                'Parametres',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: title,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Telephone et adresse exacte pour vos interventions.',
-                style: TextStyle(color: sub, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: phoneCtrl,
-                keyboardType: TextInputType.phone,
-                style: TextStyle(color: title),
-                decoration: InputDecoration(
-                  labelText: 'Numero de telephone',
-                  prefixIcon: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: SvgPicture.asset(
-                      'assets/illustrations/icons/icon_phone.svg',
-                      width: 22,
-                      height: 22,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: addressCtrl,
-                maxLines: 3,
-                style: TextStyle(color: title),
-                decoration: InputDecoration(
-                  labelText: 'Adresse exacte',
-                  alignLabelWithHint: true,
-                  prefixIcon: Padding(
-                    padding: const EdgeInsets.only(top: 12, left: 12, right: 8),
-                    child: SvgPicture.asset(
-                      'assets/illustrations/icons/icon_map_pin.svg',
-                      width: 22,
-                      height: 22,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Theme',
-                style: TextStyle(fontWeight: FontWeight.w700, color: title),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Blanc'),
-                    selected: widget.currentMode == AppPaletteMode.white,
-                    onSelected: (_) =>
-                        widget.onModeChanged(AppPaletteMode.white),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Clair'),
-                    selected: widget.currentMode == AppPaletteMode.light,
-                    onSelected: (_) =>
-                        widget.onModeChanged(AppPaletteMode.light),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Bleu BABIFIX'),
-                    selected: widget.currentMode == AppPaletteMode.blue,
-                    onSelected: (_) =>
-                        widget.onModeChanged(AppPaletteMode.blue),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _save,
-                  child: const Text('Enregistrer'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// _RadiusBanner — bandeau "Recherche élargie à X km" affiché au-dessus de la
+// _RadiusBanner : bandeau "Recherche elargie a X km" affiche au-dessus de la
 // liste des prestataires quand le backend a dû élargir le rayon en mode auto.
 // ─────────────────────────────────────────────────────────────────────────────
 class _RadiusBanner extends StatefulWidget {
@@ -9653,6 +11455,597 @@ class _RadiusBannerState extends State<_RadiusBanner>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _ClientBiometricLockSheet extends StatefulWidget {
+  const _ClientBiometricLockSheet({required this.isLight});
+  final bool isLight;
+
+  @override
+  State<_ClientBiometricLockSheet> createState() =>
+      _ClientBiometricLockSheetState();
+}
+
+class _ClientBiometricLockSheetState extends State<_ClientBiometricLockSheet> {
+  bool _enabled = false;
+  bool _loading = true;
+  bool _busy = false;
+  bool _facePreferred = false;
+  String _kindLabel = 'Face ID / Empreinte digitale';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final e = await BiometricHelper.isBiometricEnabled();
+    final isFace = await BiometricHelper.isFacePreferred();
+    final label = await BiometricHelper.detectKindLabel();
+    if (!mounted) return;
+    setState(() {
+      _enabled = e;
+      _facePreferred = isFace;
+      _kindLabel = label;
+      _loading = false;
+    });
+  }
+
+  Future<void> _toggle(bool value) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      if (value) {
+        final canAuth = await BiometricHelper.canAuthenticate();
+        if (!canAuth) {
+          if (mounted) {
+            showBabifixToast(
+              context,
+              type: BabifixToastType.warning,
+              message:
+                  'Configurez d\'abord $_kindLabel ou le code d\'écran dans vos réglages.',
+            );
+          }
+          return;
+        }
+        final ok = await BiometricHelper.authenticate(
+          reason: 'Confirmez avec $_kindLabel pour activer l\'accès rapide',
+        );
+        if (!ok) return;
+        await BiometricHelper.enableBiometric();
+        if (mounted) {
+          setState(() => _enabled = true);
+          showBabifixToast(
+            context,
+            type: BabifixToastType.success,
+            message: '$_kindLabel activé pour votre compte BABIFIX.',
+          );
+        }
+      } else {
+        final ok = await BiometricHelper.authenticate(
+          reason: 'Confirmez pour désactiver la biométrie',
+        );
+        if (!ok) return;
+        await BiometricHelper.disableBiometric();
+        if (mounted) {
+          setState(() => _enabled = false);
+          showBabifixToast(
+            context,
+            type: BabifixToastType.info,
+            message: 'Connexion biométrique désactivée.',
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = widget.isLight;
+    final fg = isLight ? const Color(0xFF0F172A) : Colors.white;
+    final sub = isLight ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+    final accent = isLight ? BabifixDesign.cyanDeep : BabifixDesign.cyan;
+    final cardBg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF152540);
+    final border = isLight ? const Color(0xFFE2E8F0) : const Color(0xFF243B5E);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 34),
+      decoration: BoxDecoration(
+        color: isLight ? Colors.white : const Color(0xFF0B1B34),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(top: BorderSide(color: border)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: sub.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: (_enabled ? BabifixDesign.success : accent)
+                  .withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: (_enabled ? BabifixDesign.success : accent)
+                    .withValues(alpha: 0.35),
+                width: 1.5,
+              ),
+            ),
+            child: Icon(
+              _facePreferred
+                  ? Icons.face_retouching_natural_rounded
+                  : Icons.fingerprint_rounded,
+              size: 36,
+              color: _enabled ? BabifixDesign.success : accent,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _kindLabel,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: fg,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (_enabled ? BabifixDesign.success : sub)
+                      .withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  _enabled ? 'Actif' : 'Désactivé',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: _enabled
+                        ? (isLight
+                            ? const Color(0xFF15803D)
+                            : const Color(0xFF4ADE80))
+                        : sub,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Déverrouillez rapidement votre compte client et confirmez vos réservations avec $_kindLabel ou le code de votre appareil.',
+            style: TextStyle(color: sub, fontSize: 13, height: 1.45),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: BabifixRingLoader.cyan(size: 28),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: border),
+              ),
+              child: SwitchListTile(
+                value: _enabled,
+                onChanged: _busy ? null : _toggle,
+                activeThumbColor: BabifixDesign.success,
+                title: Text(
+                  'Activer $_kindLabel',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: fg),
+                ),
+                subtitle: Text(
+                  _enabled
+                      ? 'Accès biométrique actif'
+                      : 'Appuyez pour activer la protection',
+                  style: TextStyle(color: sub, fontSize: 12),
+                ),
+                secondary: Icon(
+                  _enabled
+                      ? Icons.verified_user_rounded
+                      : Icons.lock_open_rounded,
+                  color: _enabled ? BabifixDesign.success : accent,
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: fg,
+                side: BorderSide(color: border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+              child: const Text('Fermer',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Feuille de modification de mot de passe client connecté
+class _ClientChangePasswordModal extends StatefulWidget {
+  const _ClientChangePasswordModal({required this.isLight});
+  final bool isLight;
+
+  @override
+  State<_ClientChangePasswordModal> createState() => _ClientChangePasswordModalState();
+}
+
+class _ClientChangePasswordModalState extends State<_ClientChangePasswordModal> {
+  final _oldPwCtrl = TextEditingController();
+  final _newPwCtrl = TextEditingController();
+  final _confirmPwCtrl = TextEditingController();
+
+  bool _obscureOld = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _newPwCtrl.addListener(_refreshStrength);
+    _confirmPwCtrl.addListener(_refreshStrength);
+  }
+
+  void _refreshStrength() {
+    if (mounted) setState(() {});
+  }
+
+  int _passwordScore(String pw) {
+    if (pw.isEmpty) return 0;
+    var score = 0;
+    if (pw.length >= 6) score++;
+    if (pw.length >= 10) score++;
+    if (RegExp(r'[A-Z]').hasMatch(pw) && RegExp(r'[a-z]').hasMatch(pw)) score++;
+    if (RegExp(r'[0-9]').hasMatch(pw)) score++;
+    if (RegExp(r'[^A-Za-z0-9]').hasMatch(pw)) score++;
+    return score;
+  }
+
+  @override
+  void dispose() {
+    _oldPwCtrl.dispose();
+    _newPwCtrl.dispose();
+    _confirmPwCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final oldPw = _oldPwCtrl.text.trim();
+    final newPw = _newPwCtrl.text.trim();
+    final confirmPw = _confirmPwCtrl.text.trim();
+
+    if (oldPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
+      setState(() => _error = 'Tous les champs sont requis.');
+      return;
+    }
+    if (newPw != confirmPw) {
+      setState(() => _error = 'Les nouveaux mots de passe ne correspondent pas.');
+      return;
+    }
+    if (newPw.length < 6) {
+      setState(() => _error = 'Le mot de passe doit comporter au moins 6 caractères.');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final token = await BabifixUserStore.getApiToken();
+      final res = await http.post(
+        Uri.parse('${babifixApiBaseUrl()}/api/auth/change-password/'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'current_password': oldPw,
+          'new_password': newPw,
+        }),
+      );
+
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final newTok = data['token'] as String?;
+        if (newTok != null && newTok.isNotEmpty) {
+          await BabifixUserStore.saveApiToken(newTok);
+        }
+        Navigator.of(context).pop();
+        showBabifixToast(
+          context,
+          type: BabifixToastType.success,
+          message: 'Mot de passe modifié avec succès !',
+        );
+      } else {
+        String msg = 'Erreur lors du changement de mot de passe.';
+        try {
+          final data = jsonDecode(res.body) as Map<String, dynamic>;
+          msg = data['message'] ?? data['error'] ?? msg;
+          if (msg == 'invalid_current_password') msg = 'Le mot de passe actuel est incorrect.';
+        } catch (_) {}
+        setState(() {
+          _loading = false;
+          _error = msg;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Impossible de contacter le serveur BABIFIX.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = widget.isLight;
+    final bg = isLight ? Colors.white : const Color(0xFF0A1628);
+    final border = isLight ? const Color(0x18000000) : const Color(0xFF1E3250);
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: border),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isLight ? Colors.black26 : Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CC9F0).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.lock_reset_rounded, color: Color(0xFF4CC9F0), size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Modifier mon mot de passe',
+                          style: TextStyle(
+                            color: isLight ? const Color(0xFF0F172A) : Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Sécurité de votre compte client',
+                          style: TextStyle(
+                            color: isLight ? Colors.black54 : Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildField(
+                controller: _oldPwCtrl,
+                label: 'Mot de passe actuel',
+                isLight: isLight,
+                obscure: _obscureOld,
+                onToggle: () => setState(() => _obscureOld = !_obscureOld),
+              ),
+              const SizedBox(height: 12),
+              _buildField(
+                controller: _newPwCtrl,
+                label: 'Nouveau mot de passe (min. 6 caractères)',
+                isLight: isLight,
+                obscure: _obscureNew,
+                onToggle: () => setState(() => _obscureNew = !_obscureNew),
+              ),
+              if (_newPwCtrl.text.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Builder(builder: (_) {
+                  final score = _passwordScore(_newPwCtrl.text);
+                  final ratio = (score / 5).clamp(0.18, 1.0);
+                  final Color barColor = score <= 2
+                      ? const Color(0xFFEF4444)
+                      : (score == 3
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFF22C55E));
+                  final String label = score <= 2
+                      ? 'Robustesse faible'
+                      : (score == 3 ? 'Robustesse moyenne' : 'Mot de passe solide');
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: ratio,
+                          minHeight: 5,
+                          backgroundColor: isLight
+                              ? const Color(0xFFE2E8F0)
+                              : const Color(0xFF1E3250),
+                          valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: barColor,
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+              const SizedBox(height: 12),
+              _buildField(
+                controller: _confirmPwCtrl,
+                label: 'Confirmer le nouveau mot de passe',
+                isLight: isLight,
+                obscure: _obscureConfirm,
+                onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
+              if (_confirmPwCtrl.text.isNotEmpty &&
+                  _confirmPwCtrl.text == _newPwCtrl.text) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: const [
+                    Icon(Icons.check_circle_rounded,
+                        size: 14, color: Color(0xFF22C55E)),
+                    SizedBox(width: 6),
+                    Text(
+                      'Les mots de passe correspondent',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF22C55E),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0x20EF4444),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0x50EF4444)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 22),
+              BabifixButton(
+                label: 'Enregistrer le nouveau mot de passe',
+                isLoading: _loading,
+                height: 50,
+                onPressed: _submit,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String label,
+    required bool isLight,
+    required bool obscure,
+    required VoidCallback onToggle,
+  }) {
+    final fieldBg = isLight ? const Color(0xFFF1F5F9) : const Color(0xFF0F1E36);
+    final border = isLight ? const Color(0x20000000) : const Color(0xFF243B5A);
+    final textColor = isLight ? const Color(0xFF0F172A) : Colors.white;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: fieldBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        style: TextStyle(color: textColor, fontSize: 14),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: isLight ? Colors.black54 : Colors.white54, fontSize: 13),
+          prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF4CC9F0), size: 18),
+          suffixIcon: IconButton(
+            icon: Icon(
+              obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              color: isLight ? Colors.black45 : Colors.white54,
+              size: 18,
+            ),
+            onPressed: onToggle,
+          ),
+          filled: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
       ),
     );
   }

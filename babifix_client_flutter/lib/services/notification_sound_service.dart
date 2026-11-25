@@ -1,4 +1,6 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Service de notification locale avec son personnalisé.
@@ -8,8 +10,35 @@ class BabifixNotificationSoundService {
 
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  static final AudioPlayer _fgPlayer = AudioPlayer();
+  static DateTime? _lastChimeAt;
 
   static bool _initialized = false;
+
+  /// Joue le carillon in-app lors d'une arrivée temps réel (WS ou FCM foreground).
+  /// Cooldown de 900 ms pour éviter le chevauchement lors de rafales d'événements.
+  static Future<void> playForegroundChime({bool urgent = false}) async {
+    final now = DateTime.now();
+    if (_lastChimeAt != null &&
+        now.difference(_lastChimeAt!).inMilliseconds < 900) {
+      return;
+    }
+    _lastChimeAt = now;
+    try {
+      if (!kIsWeb) {
+        if (urgent) {
+          HapticFeedback.heavyImpact();
+        } else {
+          HapticFeedback.lightImpact();
+        }
+      }
+      await _fgPlayer.stop();
+      await _fgPlayer.setVolume(urgent ? 1.0 : 0.78);
+      await _fgPlayer.play(AssetSource('audio/notification_soft.mp3'));
+    } catch (e) {
+      debugPrint('BABIFIX Notification Sound foreground chime ignored: $e');
+    }
+  }
 
   /// Appelé quand l'utilisateur tape la notification locale (celle
   /// réellement affichée en foreground/background — voir showNotification).

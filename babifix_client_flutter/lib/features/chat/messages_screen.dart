@@ -8,6 +8,7 @@ import '../../babifix_design_system.dart';
 import '../../json_utils.dart';
 import '../../user_store.dart';
 import 'chat_room_screen.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
 class MessagesScreen extends StatefulWidget {
@@ -419,7 +420,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         itemBuilder: (context, i) {
                           final r = _filtered[i];
                           final name =
-                              '${r['prestataire_username'] ?? 'Prestataire'}';
+                              '${r['prestataire_name'] ?? r['prestataire_username'] ?? 'Prestataire'}';
                           final words = name.trim().split(RegExp(r'\s+'));
                           final initials = words.length >= 2
                               ? '${words[0][0]}${words[1][0]}'.toUpperCase()
@@ -438,8 +439,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                if (!context.mounted) return;
                                final convId = jsonInt(r['id']);
                                await Navigator.of(context).push(
-                                 MaterialPageRoute<void>(
-                                   builder: (_) => ChatRoomScreen(
+                                 babifixRoute<void>(
+                                   (_) => ChatRoomScreen(
                                      name: name,
                                      peerUserId: pid,
                                      conversationId: convId > 0 ? convId : null,
@@ -536,17 +537,42 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                         Row(
                                           children: [
                                             Expanded(
-                                              child: Text(
-                                                name,
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: hasUnread
-                                                      ? FontWeight.w800
-                                                      : FontWeight.w600,
-                                                  color: textPrimary,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
+                                              child: Row(
+                                                children: [
+                                                  Flexible(
+                                                    child: Text(
+                                                      name,
+                                                      style: TextStyle(
+                                                        fontSize: 15,
+                                                        fontWeight: hasUnread
+                                                            ? FontWeight.w800
+                                                            : FontWeight.w600,
+                                                        color: textPrimary,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                  if (((r['threads_count'] as num?)?.toInt() ?? 1) > 1) ...[
+                                                    const SizedBox(width: 6),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: BabifixDesign.cyan.withValues(alpha: 0.14),
+                                                        borderRadius: BorderRadius.circular(99),
+                                                      ),
+                                                      child: Text(
+                                                        '${(r['threads_count'] as num).toInt()} missions',
+                                                        style: const TextStyle(
+                                                          color: Color(0xFF0284C7),
+                                                          fontSize: 10,
+                                                          fontWeight: FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
                                               ),
                                             ),
                                             if (lastDate.isNotEmpty) ...[

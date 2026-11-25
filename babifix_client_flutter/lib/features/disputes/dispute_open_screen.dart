@@ -7,9 +7,9 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 import '../../babifix_api_config.dart';
-import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_sheet.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/babifix_suggestion_chips.dart';
 
@@ -84,12 +84,9 @@ class _DisputeOpenScreenState extends State<DisputeOpenScreen> {
       _showSnack('Maximum 5 photos.', color: _kAmber);
       return;
     }
-    final src = await showModalBottomSheet<ImageSource>(
+    final src = await showBabifixModalSheet<ImageSource>(
       context: context,
       backgroundColor: _kNavy,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
@@ -518,7 +515,10 @@ class _DisputeOpenScreenState extends State<DisputeOpenScreen> {
                 fontSize: 13,
                 height: 1.5,
               ),
+              filled: false,
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
               counterStyle: TextStyle(
                 color: Colors.white.withValues(alpha: 0.4),
                 fontSize: 11,

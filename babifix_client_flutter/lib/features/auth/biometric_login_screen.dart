@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../services/zego_call_service.dart';
-import '../../user_store.dart';
+import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
 class BiometricLoginScreen extends StatefulWidget {
@@ -22,8 +22,9 @@ class BiometricLoginScreen extends StatefulWidget {
 }
 
 class _BiometricLoginScreenState extends State<BiometricLoginScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _pulseController;
+  late final AnimationController _fadeController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _fadeAnimation;
 
@@ -53,14 +54,12 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    )..forward();
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: AnimationController(
-          duration: const Duration(milliseconds: 400),
-          vsync: this,
-        )..forward(),
-        curve: Curves.easeOut,
-      ),
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
     );
   }
 
@@ -224,19 +223,23 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen>
   @override
   void dispose() {
     _pulseController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final bg = Theme.of(context).scaffoldBackgroundColor;
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: bg,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              BabifixRingLoader.cyan(size: 28),
+              BabifixDesign.isDark(context)
+                  ? const BabifixRingLoader.cyan(size: 28)
+                  : const BabifixRingLoader.dark(size: 28),
               const SizedBox(height: 20),
               Text(
                 'Chargement...',
@@ -392,21 +395,12 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen>
 
                 // Retry button on error
                 if (_showError) ...[
-                  ElevatedButton.icon(
+                  BabifixButton(
+                    label: 'Réessayer',
+                    icon: Icons.refresh_rounded,
+                    backgroundColor: color,
+                    width: 220,
                     onPressed: _authenticate,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Réessayer'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: color,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 14,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -480,6 +474,59 @@ class BiometricHelper {
       if (!canCheck || !isSupported) return false;
       final biometrics = await localAuth.getAvailableBiometrics();
       return biometrics.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> canAuthenticate() async {
+    try {
+      final localAuth = LocalAuthentication();
+      final canCheck = await localAuth.canCheckBiometrics;
+      final isSupported = await localAuth.isDeviceSupported();
+      return canCheck || isSupported;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> isFacePreferred() async {
+    try {
+      final biometrics = await LocalAuthentication().getAvailableBiometrics();
+      return biometrics.contains(BiometricType.face);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<String> detectKindLabel() async {
+    try {
+      final biometrics = await LocalAuthentication().getAvailableBiometrics();
+      if (biometrics.contains(BiometricType.face)) {
+        return 'Face ID';
+      }
+      if (biometrics.contains(BiometricType.fingerprint) ||
+          biometrics.contains(BiometricType.strong)) {
+        return 'Empreinte digitale';
+      }
+      if (biometrics.contains(BiometricType.iris)) {
+        return 'Reconnaissance iris';
+      }
+    } catch (_) {}
+    return 'Biométrie ou code du téléphone';
+  }
+
+  static Future<bool> authenticate({
+    String reason = 'Confirmez votre identité pour BABIFIX',
+  }) async {
+    try {
+      return await LocalAuthentication().authenticate(
+        localizedReason: reason,
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: false,
+        ),
+      );
     } catch (_) {
       return false;
     }

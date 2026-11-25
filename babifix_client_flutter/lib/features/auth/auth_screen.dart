@@ -1,19 +1,17 @@
-import 'dart:convert';
-import 'dart:ui';
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../babifix_api_config.dart';
-import '../../services/zego_call_service.dart';
 import '../../user_store.dart';
 import 'biometric_login_screen.dart';
+import 'email_verification_screen.dart';
+import 'forgot_password_screen.dart';
 import 'post_signup_onboarding.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -55,7 +53,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   bool _showBiometricLogin = false;
   bool _isLoading = true;
 
-  static const _blue = Color(0xFF4CC9F0);
+  static const _blue = Color(0xFF0284C7);
 
   @override
   void initState() {
@@ -159,12 +157,29 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       _snack(err);
       return;
     }
-    // Inscription client : pas de page « Vérifiez votre email ». On entre
-    // directement dans l'application (onboarding éventuel puis succès).
-    showPostSignupOnboardingIfNeeded(
-      context,
-      onDone: widget.onAuthSuccess,
-    );
+    // Inscription client : redirection vers la vérification OTP par email
+    final registeredEmail = emailCtrl.text.trim();
+    if (registeredEmail.isNotEmpty) {
+      await Navigator.of(context).push(
+        babifixRoute(
+          (_) => EmailVerificationScreen(
+            email: registeredEmail,
+            onContinue: () {
+              Navigator.of(context).pop();
+              showPostSignupOnboardingIfNeeded(
+                context,
+                onDone: widget.onAuthSuccess,
+              );
+            },
+          ),
+        ),
+      );
+    } else {
+      showPostSignupOnboardingIfNeeded(
+        context,
+        onDone: widget.onAuthSuccess,
+      );
+    }
   }
 
   Future<void> _googleAuth() async {
@@ -188,114 +203,14 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   }
 
   void _showForgotPasswordDialog() {
-    final forgotEmailCtrl = TextEditingController(text: emailCtrl.text);
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0B1B34).withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Réinitialiser le mot de passe',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Entrez votre email pour recevoir un lien de réinitialisation.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.white.withValues(alpha: 0.55),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _PremiumField(
-                    controller: forgotEmailCtrl,
-                    label: 'Adresse email',
-                    icon: Icons.email_outlined,
-                    inputType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white54,
-                        ),
-                        child: const Text('Annuler'),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () async {
-                          final email = forgotEmailCtrl.text.trim();
-                          if (email.isEmpty) return;
-                          Navigator.of(ctx).pop();
-                          try {
-                            final res = await http.post(
-                              Uri.parse(
-                                '${babifixApiBaseUrl()}/api/auth/forgot-password',
-                              ),
-                              headers: {'Content-Type': 'application/json'},
-                              body: jsonEncode({'email': email}),
-                            );
-                            if (!mounted) return;
-                            if (res.statusCode == 200) {
-                              _snack('Email de réinitialisation envoyé ✓');
-                            } else {
-                              _snack(
-                                'Adresse email introuvable ou erreur serveur.',
-                              );
-                            }
-                          } catch (_) {
-                            if (mounted)
-                              _snack('Impossible de contacter le serveur.');
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _blue,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text(
-                            'Envoyer',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+    final prefill = emailCtrl.text.trim();
+    Navigator.of(context).push(
+      babifixRoute(
+        (_) => ForgotPasswordScreen(
+          initialEmail: prefill.contains('@') ? prefill : null,
         ),
       ),
-    ).then((_) => forgotEmailCtrl.dispose());
+    );
   }
 
   void _snack(String msg) {
@@ -396,22 +311,25 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
 
                     const SizedBox(height: 32),
 
-                    // ── Card principale glassmorphisme ─────────────────────
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.055),
-                            borderRadius: BorderRadius.circular(28),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.10),
-                              width: 1.5,
-                            ),
+                    // ── Card principale architecturée ─────────────────────
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0E1A2D),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: const Color(0xFF1E3250),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
                           ),
-                          child: Column(
-                            children: [
+                        ],
+                      ),
+                      child: Column(
+                        children: [
                               // Onglets personnalisés
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(
@@ -421,21 +339,25 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                                   0,
                                 ),
                                 child: Container(
-                                  height: 46,
+                                  height: 48,
+                                  padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.06),
+                                    color: const Color(0xFF081220),
                                     borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: const Color(0xFF1B2E47),
+                                    ),
                                   ),
                                   child: TabBar(
                                     controller: _tab,
                                     dividerColor: Colors.transparent,
+                                    indicatorSize: TabBarIndicatorSize.tab,
                                     indicator: BoxDecoration(
-                                      color: _blue,
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: const Color(0xFF0284C7),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                     labelColor: Colors.white,
-                                    unselectedLabelColor: Colors.white
-                                        .withValues(alpha: 0.4),
+                                    unselectedLabelColor: const Color(0xFF94A3B8),
                                     labelStyle: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 14,
@@ -464,8 +386,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                             ],
                           ),
                         ),
-                      ),
-                    ),
 
                     const SizedBox(height: 24),
 
@@ -537,12 +457,15 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         children: [
           _PremiumField(
             controller: emailCtrl,
-            label: 'Adresse email',
-            icon: Icons.email_outlined,
-            inputType: TextInputType.emailAddress,
+            // Le backend accepte l'email, le nom d'utilisateur ou le nom complet
+            // (adminpanel/views.py -> api_auth_login). On n'impose donc plus un
+            // format email ici : sinon les comptes sans email (ex. client_demo)
+            // etaient bloques par la validation avant meme d'appeler l'API.
+            label: 'Email ou identifiant',
+            icon: Icons.person_outline_rounded,
+            inputType: TextInputType.text,
             validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Email requis';
-              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim())) return 'Email invalide';
+              if (v == null || v.trim().isEmpty) return 'Email ou identifiant requis';
               return null;
             },
           ),
@@ -605,9 +528,9 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           // Téléphone avec drapeau
           Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+              color: const Color(0xFF081220),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF1E3250)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: IntlPhoneField(
@@ -762,7 +685,6 @@ class _PremiumField extends StatelessWidget {
     this.obscure = false,
     this.onToggleObscure,
     this.inputType,
-    this.textInputAction,
     this.onSubmitted,
     this.capWords = false,
     this.validator,
@@ -774,7 +696,6 @@ class _PremiumField extends StatelessWidget {
   final bool obscure;
   final VoidCallback? onToggleObscure;
   final TextInputType? inputType;
-  final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
   final bool capWords;
   final String? Function(String?)? validator;
@@ -783,15 +704,14 @@ class _PremiumField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        color: const Color(0xFF081220),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF1E3250)),
       ),
       child: TextFormField(
         controller: controller,
         obscureText: obscure,
         keyboardType: inputType,
-        textInputAction: textInputAction,
         onFieldSubmitted: onSubmitted,
         textCapitalization: capWords
             ? TextCapitalization.words
@@ -806,7 +726,7 @@ class _PremiumField extends StatelessWidget {
             fontSize: 14,
           ),
           floatingLabelStyle: const TextStyle(
-            color: Color(0xFF4CC9F0),
+            color: Color(0xFF38BDF8),
             fontSize: 12,
           ),
           errorStyle: const TextStyle(
@@ -830,7 +750,10 @@ class _PremiumField extends StatelessWidget {
                   ),
                 )
               : null,
+          filled: false,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
@@ -854,37 +777,12 @@ class _GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: loading ? null : onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 54,
-        decoration: BoxDecoration(
-          // Bleu pur (#2563EB) remplacé par le cyan de marque BABIFIX
-          // (#4CC9F0, même couleur que le bouton "Se connecter" de l'app
-          // presta) : l'ancien bleu tranchait avec le reste de la palette
-          // cyan/navy de l'app client au lieu de s'y fondre.
-          color: loading ? const Color(0xFF334155) : const Color(0xFF4CC9F0),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(
-          child: loading
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: BabifixRingLoader.cyan(size: 28),
-                )
-              : Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-        ),
-      ),
+    return BabifixButton(
+      label: label,
+      isLoading: loading,
+      width: double.infinity,
+      height: 52,
+      onPressed: loading ? null : onPressed,
     );
   }
 }
@@ -902,14 +800,18 @@ class _SocialButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: const Color(0xFF0E1A2D),
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: Color(0xFF1E3250)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -1,4 +1,4 @@
-/// Francs CFA (XOF) — affichage type « 12 500 FCFA » (espaces fines entre milliers).
+/// Francs CFA (XOF) : affichage type « 12 500 FCFA » (espaces fines entre milliers).
 
 String _spacedThousands(int n) {
   final s = n.abs().toString();

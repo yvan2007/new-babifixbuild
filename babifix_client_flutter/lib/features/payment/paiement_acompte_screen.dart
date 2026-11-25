@@ -11,6 +11,7 @@ import '../../babifix_money.dart';
 import '../../user_store.dart';
 import '../../shared/services/geniuspay_service.dart';
 import '../../shared/widgets/payment_method_logo.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_payment_error_banner.dart';
 import '../../shared/services/pending_payment_store.dart';
@@ -368,33 +369,13 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
             const SizedBox(height: 24),
 
             // Bouton payer
-            SizedBox(
+            BabifixButton(
+              label: 'Payer l\'acompte ${formatFcfa(_acompte.toInt())}',
+              icon: Icons.mobile_friendly_rounded,
+              isLoading: _loading,
               width: double.infinity,
-              child: FilledButton(
-                onPressed: _loading ? null : _pay,
-                style: FilledButton.styleFrom(
-                  backgroundColor: BabifixDesign.cyan,
-                  foregroundColor: BabifixDesign.navy,
-                  minimumSize: const Size(double.infinity, 58),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                ),
-                child: _loading
-                    ? const SizedBox(
-                        width: 22, height: 22,
-                        child: BabifixRingLoader.cyan(size: 28),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.mobile_friendly_rounded, size: 22),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Payer l\'acompte ${formatFcfa(_acompte.toInt())}',
-                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
-              ),
+              height: 56,
+              onPressed: _loading ? null : _pay,
             ),
 
             const SizedBox(height: 16),
@@ -636,21 +617,17 @@ class _PaiementAcompteScreenState extends State<PaiementAcompteScreen>
                 ),
               ),
               const SizedBox(height: 40),
-              SizedBox(
+              BabifixButton(
+                label: 'Retour à mes réservations',
+                icon: Icons.calendar_today_rounded,
+                backgroundColor: BabifixDesign.ciGreen,
+                foregroundColor: Colors.white,
                 width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    widget.onPaymentComplete();
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.calendar_today_rounded),
-                  label: const Text('Retour à mes réservations'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: BabifixDesign.ciGreen,
-                    minimumSize: const Size(double.infinity, 54),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                ),
+                height: 54,
+                onPressed: () {
+                  widget.onPaymentComplete();
+                  Navigator.pop(context);
+                },
               ),
             ],
           ),

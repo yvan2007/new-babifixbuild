@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../../babifix_design_system.dart';
+import '../services/smart_gps.dart';
 import 'babifix_ring_loader.dart';
 import 'babifix_snackbar.dart';
 
@@ -45,7 +44,10 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
         oldWidget.marker.longitude != widget.marker.longitude) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _mapController.move(widget.marker, _mapController.camera.zoom);
+        try {
+          final z = _mapController.camera.zoom;
+          _mapController.move(widget.marker, z > 0 ? z : 15);
+        } catch (_) {}
       });
     }
   }
@@ -53,31 +55,23 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
   Future<void> _useMyPosition() async {
     setState(() => _loadingGps = true);
     try {
-      final perm = await Permission.locationWhenInUse.request();
-      if (!perm.isGranted && !perm.isLimited) {
-        if (mounted) {
-          showBabifixToast(
-        context,
-        type: BabifixToastType.info,
-        message: 'Autorisez la localisation pour utiliser votre position.',
-      );
-        }
+      final gps = await acquireSmartGps(forceFresh: true);
+      if (!mounted) return;
+      if (gps.hasHardError) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.info,
+          message: gps.friendlyMessage ??
+              'Autorisez la localisation pour utiliser votre position.',
+        );
         return;
       }
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-      final p = LatLng(pos.latitude, pos.longitude);
-      widget.onMarkerMoved(p);
-      _mapController.move(p, 16);
-    } catch (_) {
-      if (mounted) {
-        showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Impossible de récupérer la position.',
-      );
+      if (gps.ok) {
+        final p = gps.position!;
+        widget.onMarkerMoved(p);
+        _mapController.move(p, gps.inCoteIvoire ? 16 : 14);
       }
+    } catch (_) {
     } finally {
       if (mounted) setState(() => _loadingGps = false);
     }
@@ -110,10 +104,9 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
                       // en thème sombre), sinon Voyager clair. {r} = Retina/HD.
                       urlTemplate: MediaQuery.platformBrightnessOf(context) ==
                               Brightness.dark
-                          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                          : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-                      subdomains: const ['a', 'b', 'c', 'd'],
-                      retinaMode: RetinaMode.isHighDensity(context),
+                          ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+                          : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                                            retinaMode: false,
                       userAgentPackageName: 'com.babifix.client',
                     ),
                     MarkerLayer(
@@ -169,7 +162,7 @@ class _BabifixOsmLocationPickerState extends State<BabifixOsmLocationPicker> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Text(
-                      '© OpenStreetMap',
+                      '© ESRI · ArcGIS',
                       style: TextStyle(fontSize: 9, color: Color(0xFF475569)),
                     ),
                   ),
@@ -267,10 +260,9 @@ class BabifixOsmStaticPreview extends StatelessWidget {
             TileLayer(
               urlTemplate: MediaQuery.platformBrightnessOf(context) ==
                       Brightness.dark
-                  ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                  : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-              subdomains: const ['a', 'b', 'c', 'd'],
-              retinaMode: RetinaMode.isHighDensity(context),
+                  ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+                  : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                            retinaMode: false,
               userAgentPackageName: 'com.babifix.client',
             ),
             MarkerLayer(
