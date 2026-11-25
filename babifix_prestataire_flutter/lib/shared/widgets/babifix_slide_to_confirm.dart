@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../babifix_design_system.dart';
+import 'babifix_ring_loader.dart';
 
-/// Bouton « glisser pour confirmer » premium : un curseur rond qu'on fait
-/// glisser de gauche à droite ; un remplissage coloré suit le doigt et l'action
-/// se déclenche une fois le bout atteint. Bien plus pro qu'un Dismissible.
+/// Bouton glisser pour confirmer BABIFIX.
+/// Piste sobre, remplissage fluide, retour haptique et indicateur orbital.
 class BabifixSlideToConfirm extends StatefulWidget {
   const BabifixSlideToConfirm({
     super.key,
@@ -10,8 +12,8 @@ class BabifixSlideToConfirm extends StatefulWidget {
     required this.onConfirmed,
     this.color = const Color(0xFF22C55E),
     this.icon = Icons.payments_rounded,
-    this.confirmingLabel = 'Confirmation…',
-    this.height = 60,
+    this.confirmingLabel = 'Confirmation...',
+    this.height = 58,
   });
 
   final String label;
@@ -27,15 +29,14 @@ class BabifixSlideToConfirm extends StatefulWidget {
 
 class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
     with SingleTickerProviderStateMixin {
-  double _dx = 0; // position du curseur (0 → max)
+  double _dx = 0;
   bool _busy = false;
   bool _done = false;
+  bool _snappedThreshold = false;
 
-  // Animation d'indice : des chevrons défilent vers la droite pour montrer
-  // clairement qu'il faut GLISSER (sinon le bouton n'est pas évident).
   late final AnimationController _hintCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1400),
+    duration: const Duration(milliseconds: 1450),
   )..repeat();
 
   @override
@@ -46,8 +47,11 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final h = widget.height;
     final thumb = h - 8;
+
     return LayoutBuilder(
       builder: (context, c) {
         final maxDx = (c.maxWidth - thumb - 8).clamp(0.0, double.infinity);
@@ -55,6 +59,7 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
 
         Future<void> finish() async {
           if (_busy || _done) return;
+          HapticFeedback.mediumImpact();
           setState(() => _busy = true);
           try {
             await widget.onConfirmed();
@@ -64,102 +69,128 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
               setState(() {
                 _busy = false;
                 _dx = 0;
+                _snappedThreshold = false;
               });
             }
           }
         }
 
+        final fillColor = Color.lerp(
+          widget.color.withValues(alpha: 0.90),
+          widget.color,
+          progress,
+        )!;
+
         return Container(
           height: h,
           decoration: BoxDecoration(
-            color: widget.color.withValues(alpha: 0.10),
+            color: isDark
+                ? widget.color.withValues(alpha: 0.14)
+                : widget.color.withValues(alpha: 0.09),
             borderRadius: BorderRadius.circular(h / 2),
-            border: Border.all(color: widget.color.withValues(alpha: 0.30)),
+            border: Border.all(
+              color: widget.color.withValues(alpha: progress > 0.1 ? 0.55 : 0.30),
+            ),
           ),
           child: Stack(
             alignment: Alignment.centerLeft,
             children: [
-              // Remplissage progressif (suit le curseur).
               AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
+                duration: reduce
+                    ? Duration.zero
+                    : const Duration(milliseconds: 90),
+                curve: BabifixDesign.curveOut,
                 width: _dx + thumb + 4,
                 height: h,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [widget.color, widget.color.withValues(alpha: 0.8)],
-                  ),
+                  color: fillColor,
                   borderRadius: BorderRadius.circular(h / 2),
                 ),
               ),
-              // Libellé centré.
               Positioned.fill(
                 child: Center(
                   child: Padding(
-                    padding: EdgeInsets.only(left: thumb * 0.5),
+                    padding: EdgeInsets.only(left: thumb * 0.45, right: 20),
                     child: Text(
                       _busy
                           ? widget.confirmingLabel
-                          : (_done ? 'Confirmé ✓' : widget.label),
+                          : (_done ? 'Confirme' : widget.label),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: progress > 0.45 ? Colors.white : widget.color,
+                        color: progress > 0.44
+                            ? Colors.white
+                            : (isDark ? Colors.white : widget.color),
                         fontWeight: FontWeight.w800,
                         fontSize: 13.5,
+                        letterSpacing: -0.1,
                       ),
                     ),
                   ),
                 ),
               ),
-              // Chevrons d'indice « ››› » : montrent clairement qu'il faut
-              // glisser vers la droite. Ils s'estompent au fur et à mesure.
-              if (!_busy && !_done)
+              if (!_busy && !_done && !reduce)
                 Positioned(
-                  right: 18,
+                  right: 16,
                   child: Opacity(
-                    opacity: (1 - progress * 2).clamp(0.0, 1.0),
-                    child: AnimatedBuilder(
-                      animation: _hintCtrl,
-                      builder: (_, __) {
-                        final t = _hintCtrl.value;
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: List.generate(3, (i) {
-                            final phase = ((t - i * 0.18) % 1.0);
-                            final op = (phase < 0.5
-                                    ? phase * 2
-                                    : (1 - phase) * 2)
-                                .clamp(0.25, 1.0);
-                            return Opacity(
-                              opacity: op,
-                              child: Icon(
-                                Icons.chevron_right_rounded,
-                                color: progress > 0.45
-                                    ? Colors.white
-                                    : widget.color,
-                                size: 20,
-                              ),
-                            );
-                          }),
-                        );
-                      },
+                    opacity: (1 - progress * 2.2).clamp(0.0, 1.0),
+                    child: RepaintBoundary(
+                      child: AnimatedBuilder(
+                        animation: _hintCtrl,
+                        builder: (_, __) {
+                          final t = _hintCtrl.value;
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(3, (i) {
+                              final phase = ((t - i * 0.18) % 1.0);
+                              final op = (phase < 0.5
+                                      ? phase * 2
+                                      : (1 - phase) * 2)
+                                  .clamp(0.22, 0.95);
+                              return Opacity(
+                                opacity: op,
+                                child: Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: progress > 0.44
+                                      ? Colors.white
+                                      : widget.color,
+                                  size: 19,
+                                ),
+                              );
+                            }),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              // Curseur draggable.
               Positioned(
                 left: 4 + _dx,
                 child: GestureDetector(
                   onHorizontalDragUpdate: (_busy || _done)
                       ? null
-                      : (d) => setState(
-                          () => _dx = (_dx + d.delta.dx).clamp(0.0, maxDx)),
+                      : (d) {
+                          final next = (_dx + d.delta.dx).clamp(0.0, maxDx);
+                          final p = maxDx > 0 ? next / maxDx : 0.0;
+                          if (p >= 0.88 && !_snappedThreshold) {
+                            _snappedThreshold = true;
+                            HapticFeedback.selectionClick();
+                          } else if (p < 0.82 && _snappedThreshold) {
+                            _snappedThreshold = false;
+                          }
+                          setState(() => _dx = next);
+                        },
                   onHorizontalDragEnd: (_busy || _done)
                       ? null
                       : (_) {
-                          if (progress >= 0.9) {
+                          if (progress >= 0.88) {
                             setState(() => _dx = maxDx);
                             finish();
                           } else {
-                            setState(() => _dx = 0);
+                            setState(() {
+                              _dx = 0;
+                              _snappedThreshold = false;
+                            });
                           }
                         },
                   child: Container(
@@ -168,27 +199,28 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.06),
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
+                          color: Colors.black.withValues(alpha: 0.14),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                     child: _busy
-                        ? Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(widget.color),
+                        ? Center(
+                            child: BabifixRingLoader.mono(
+                              size: 22,
+                              color: widget.color,
                             ),
                           )
                         : Icon(
                             _done ? Icons.check_rounded : widget.icon,
                             color: widget.color,
-                            size: 22,
+                            size: 21,
                           ),
                   ),
                 ),

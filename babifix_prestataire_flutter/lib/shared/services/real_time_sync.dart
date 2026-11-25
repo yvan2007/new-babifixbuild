@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../babifix_api_config.dart';
+import 'babifix_remote_config.dart';
 import 'babifix_user_store.dart';
 
 /// Service temps réel pour l'app prestataire BABIFIX.
@@ -62,6 +63,16 @@ class PrestataireRealTimeSyncService {
             : <String, dynamic>{};
         payload['_event'] = eventType;
         _reservationController.add(payload);
+      } else if (eventType == 'config.updated' ||
+          eventType == 'settings.updated') {
+        final payload = (msg['payload'] is Map)
+            ? Map<String, dynamic>.from(msg['payload'] as Map)
+            : null;
+        if (payload != null) {
+          BabifixRemoteConfig.instance.applyPayload(payload);
+        } else {
+          BabifixRemoteConfig.instance.refresh();
+        }
       }
     } catch (_) {}
   }

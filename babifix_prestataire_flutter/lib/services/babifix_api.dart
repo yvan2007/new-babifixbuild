@@ -172,6 +172,16 @@ class DevisApi {
     _ensureOk(r);
   }
 
+  /// Prise en charge atomique d'une mission BABIFIX SOS 24/7.
+  static Future<Map<String, dynamic>> claimSos(String reference) async {
+    final r = await BabifixUserStore.authPost(
+      '/api/prestataire/requests/$reference/sos-claim/',
+      body: jsonEncode(const {}),
+    );
+    _ensureOk(r);
+    return _decode(r);
+  }
+
   /// Annule la demande de visite TANT QUE la caution n'a pas été payée.
   static Future<void> cancelVisit(String reference) async {
     final r = await BabifixUserStore.authPost(

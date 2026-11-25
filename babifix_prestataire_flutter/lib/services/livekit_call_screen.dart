@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 
 import '../babifix_design_system.dart';
+import '../services/babifix_api.dart';
+import 'call_service.dart';
 import '../shared/widgets/babifix_snackbar.dart';
 
 class LiveKitCallScreen extends StatefulWidget {
+  final int? callId;
   final String liveKitUrl;
   final String token;
   final String roomName;
@@ -14,6 +18,7 @@ class LiveKitCallScreen extends StatefulWidget {
 
   const LiveKitCallScreen({
     super.key,
+    this.callId,
     required this.liveKitUrl,
     required this.token,
     required this.roomName,
@@ -34,15 +39,41 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
   String _connectionStatus = 'Connexion...';
   final List<EventsListener> _listeners = [];
   RemoteParticipant? _remoteParticipant;
+  StreamSubscription<Map<String, dynamic>>? _signalSub;
+  bool _closing = false;
 
   @override
   void initState() {
     super.initState();
+    _signalSub = CallService.signalStream.listen(_handleCallSignal);
     _connectToRoom();
+  }
+
+  void _handleCallSignal(Map<String, dynamic> event) {
+    final type = (event['type'] ?? '').toString();
+    if (type != 'call.ended' && type != 'call.rejected') return;
+    final evCallId = int.tryParse((event['call_id'] ?? '').toString());
+    final evRoom = (event['room_name'] ?? '').toString();
+    final matches = (widget.callId != null && evCallId == widget.callId) ||
+        (evRoom.isNotEmpty && evRoom == widget.roomName);
+    if (!matches) return;
+    _closeFromRemote(type == 'call.rejected' ? 'Appel refuse par le correspondant.' : 'Le correspondant a raccroche.');
+  }
+
+  Future<void> _closeFromRemote(String msg) async {
+    if (_closing) return;
+    _closing = true;
+    await _disconnectFromRoom();
+    if (!mounted) return;
+    showBabifixToast(context, type: BabifixToastType.info, message: msg);
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
   void dispose() {
+    _signalSub?.cancel();
     for (final listener in _listeners) {
       listener.dispose();
     }
@@ -81,11 +112,10 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
         })
         ..on<ParticipantDisconnectedEvent>((event) {
           debugPrint('[LiveKit] Participant disconnected: ${event.participant.identity}');
-          setState(() {
-            if (_remoteParticipant?.identity == event.participant.identity) {
-              _remoteParticipant = null;
-            }
-          });
+          if (_remoteParticipant?.identity == event.participant.identity) {
+            setState(() => _remoteParticipant = null);
+            _closeFromRemote('Le correspondant a raccroche.');
+          }
         })
         ..on<TrackPublishedEvent>((event) {
           debugPrint('[LiveKit] Track published: ${event.publication} by ${event.participant.identity}');
@@ -190,8 +220,19 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
     setState(() => _isCameraEnabled = newState);
   }
 
-  void _endCall() {
-    Navigator.of(context).pop();
+  Future<void> _endCall() async {
+    if (_closing) return;
+    _closing = true;
+    final cid = widget.callId;
+    if (cid != null) {
+      try {
+        await CallsApi.end(cid);
+      } catch (_) {}
+    }
+    await _disconnectFromRoom();
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -285,15 +326,9 @@ class _LiveKitCallScreenState extends State<LiveKitCallScreen> {
         ),
       );
     }
-    // Pas de vidéo distante : avatar + statut (appel audio, ou vidéo coupée).
+    // Pas de video distante : avatar + statut (fond uni Direction 3, zero degrade).
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [BabifixDesign.navy, Color(0xFF0A1020)],
-        ),
-      ),
+      color: BabifixDesign.navy,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

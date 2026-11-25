@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 
 int _envInt(String key, int defaultValue) {
   final v = dotenv.env[key];
@@ -40,7 +43,7 @@ bool get isZegoConfigured => kZegoAppID != 0 && kZegoAppSign.isNotEmpty;
 /// qui détient seul la clé via `LIVEKIT_API_SECRET` (env Django).
 
 /// Port du `python manage.py runserver` (aligné doc BABIFIX).
-const int kBabifixApiPort = 8002;
+const int kBabifixApiPort = 8000;
 
 /// URL production (Render).
 const String kBabifixProdUrl = 'https://new-babifixbuild.onrender.com';
@@ -52,13 +55,13 @@ const String kBabifixLocalIp =
 
 /// Base URL backend — auto-détectée pour que ça marche partout sans config :
 ///
-/// - **Émulateur Android** (debug) → `http://10.0.2.2:8002`
-/// - **iOS Simulator / Web** (debug) → `http://localhost:8002`
+/// - **Émulateur Android** (debug) → `http://10.0.2.2:8000`
+/// - **iOS Simulator / Web** (debug) → `http://localhost:8000`
 /// - **Vrai téléphone** sur Wi-Fi : `--dart-define=BABIFIX_LOCAL_IP=192.168.x.x`
 /// - **APK release** → Render production
 ///
 /// Ton Django doit écouter sur toutes les interfaces :
-///   python manage.py runserver 0.0.0.0:8002
+///   python manage.py runserver 0.0.0.0:8000
 String babifixApiBaseUrl() {
   final ov = BabifixApiOverride.current;
   if (ov != null && ov.isNotEmpty) {
@@ -96,11 +99,75 @@ abstract final class BabifixApiOverride {
   }
 }
 
+/// Auto-détecte en mode debug le port local du backend API Django (8000 ou 8011)
+/// pour éviter les erreurs 404 si la Vitrine occupe le port 8000.
+Future<void> babifixResolveLocalApiBaseUrl() async {
+  if (!kDebugMode) return;
+  if (BabifixApiOverride.current != null &&
+      BabifixApiOverride.current!.isNotEmpty) {
+    return;
+  }
+  const fromEnv = String.fromEnvironment('BABIFIX_API_BASE', defaultValue: '');
+  if (fromEnv.isNotEmpty) return;
+
+  final host = kBabifixLocalIp.isNotEmpty
+      ? kBabifixLocalIp
+      : (kIsWeb
+          ? '127.0.0.1'
+          : (defaultTargetPlatform == TargetPlatform.android
+              ? '10.0.2.2'
+              : 'localhost'));
+
+  final ports = <int>[
+    8011,
+    if (kBabifixApiPort != 8011) kBabifixApiPort,
+    if (kBabifixApiPort != 8000 && 8000 != 8011) 8000,
+  ];
+  for (final port in ports) {
+    final candidate = 'http://$host:$port';
+    try {
+      final res = await http
+          .get(Uri.parse('$candidate/api/health/'))
+          .timeout(const Duration(milliseconds: 800));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map && decoded['status'] == 'ok') {
+          if (port != kBabifixApiPort) {
+            BabifixApiOverride.set(candidate);
+          }
+          debugPrint('[BabifixApiConfig] Backend API détecté sur $candidate');
+          return;
+        }
+      }
+    } catch (_) {}
+  }
+}
+
 /// WebSocket Django Channels.
 String babifixWsBaseUrl() {
   final u = babifixApiBaseUrl();
   if (u.startsWith('https://')) return u.replaceFirst('https://', 'wss://');
   return u.replaceFirst('http://', 'ws://');
+}
+
+/// Normalise une URL media/static vers le backend actif (127.0.0.1 / 10.0.2.2 / localhost).
+String babifixResolveMediaUrl(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return '';
+  if (s.startsWith('assets/') || s.startsWith('data:')) return s;
+  final base = babifixApiBaseUrl();
+  if (s.startsWith('/')) return '$base$s';
+  if (s.startsWith('media/') || s.startsWith('static/')) return '$base/$s';
+  final parsed = Uri.tryParse(s);
+  if (parsed != null &&
+      parsed.hasAuthority &&
+      (parsed.host == '127.0.0.1' ||
+          parsed.host == 'localhost' ||
+          parsed.host == '10.0.2.2' ||
+          parsed.host == '0.0.0.0')) {
+    return '$base${parsed.path}${parsed.hasQuery ? '?${parsed.query}' : ''}';
+  }
+  return s;
 }
 
 bool get kIsProd => kBabifixEnv == 'production';

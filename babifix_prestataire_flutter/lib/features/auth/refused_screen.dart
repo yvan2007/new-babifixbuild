@@ -281,11 +281,12 @@ class _ProviderRefusedScreenState extends State<ProviderRefusedScreen>
                       // CTA principal: corriger et soumettre
                       SizedBox(
                         width: double.infinity,
+                        height: 52,
                         child: FilledButton.icon(
                           onPressed: widget.onEdit,
                           icon: const Icon(Icons.edit_document, size: 20),
                           label: const Text(
-                            'Corriger et soumettre à nouveau',
+                            'Corriger et soumettre a nouveau',
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 15,
@@ -294,12 +295,10 @@ class _ProviderRefusedScreenState extends State<ProviderRefusedScreen>
                           style: FilledButton.styleFrom(
                             backgroundColor: BabifixDesign.ciOrange,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            elevation: 4,
-                            shadowColor: BabifixDesign.ciOrange.withValues(alpha: 0.4),
                           ),
                         ),
                       ),
@@ -308,21 +307,22 @@ class _ProviderRefusedScreenState extends State<ProviderRefusedScreen>
                       // Contacter l'admin
                       SizedBox(
                         width: double.infinity,
+                        height: 50,
                         child: OutlinedButton.icon(
                           onPressed: () => _showAdminContact(context),
                           icon: const Icon(Icons.support_agent_rounded, size: 18),
                           label: const Text(
-                            'Contacter l\'administration',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+                            'Contacter l administration',
+                            style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: BabifixDesign.navy,
-                            side: BorderSide(
-                              color: BabifixDesign.navy.withValues(alpha: 0.35),
+                            side: const BorderSide(
+                              color: BabifixDesign.borderLight,
+                              width: 1.4,
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
                         ),
@@ -403,7 +403,7 @@ class _ProviderRefusedScreenState extends State<ProviderRefusedScreen>
                       color: BabifixDesign.ciOrange, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    'Heures d\'ouverture : Lun–Ven, 8h–18h',
+                    'Heures d\'ouverture : Lun - Ven, 8h - 18h',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.orange.shade800,

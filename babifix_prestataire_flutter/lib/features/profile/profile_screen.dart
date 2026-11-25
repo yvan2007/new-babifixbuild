@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -11,9 +12,11 @@ import '../../json_utils.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/services/app_lock_service.dart';
+import '../../shared/services/biometric_auth.dart';
+import '../../shared/services/babifix_remote_config.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
-import '../auth/registration_screen.dart';
 import '../availability/availability_screen.dart';
 import 'contrat_screen.dart';
 import '../disputes/presta_disputes_screen.dart';
@@ -23,7 +26,7 @@ import 'edit_profile_screen.dart' show EditProfilePrestataireScreen;
 import '../parrainage/parrainage_screen.dart';
 import '../premium/premium_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
-import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/in_app_notifications.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -35,6 +38,7 @@ class ProfileScreen extends StatefulWidget {
     required this.onNavigate,
     this.unreadChat,
     this.onMessagesOpened,
+    this.inAppNotifs,
   });
 
   final VoidCallback onBack;
@@ -44,6 +48,7 @@ class ProfileScreen extends StatefulWidget {
   final ValueChanged<String> onNavigate;
   final ValueNotifier<int>? unreadChat;
   final VoidCallback? onMessagesOpened;
+  final ValueNotifier<List<BabifixInAppNotif>>? inAppNotifs;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -191,18 +196,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
     try {
-      final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/me'),
-        headers: {'Authorization': 'Bearer $t'},
+      final res = await babifixAuthGet(
+        '${babifixApiBaseUrl()}/api/prestataire/me',
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         // Charger les avis reçus
         List<Map<String, dynamic>> avisList = [];
         try {
-          final avisRes = await http.get(
-            Uri.parse('${babifixApiBaseUrl()}/api/prestataire/ratings/'),
-            headers: {'Authorization': 'Bearer $t'},
+          final avisRes = await babifixAuthGet(
+            '${babifixApiBaseUrl()}/api/prestataire/ratings/',
           );
           if (avisRes.statusCode == 200) {
             final avisData = jsonDecode(avisRes.body);
@@ -231,21 +234,149 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openContactAdmin() async {
-    final e = _contactAdminEmail.trim();
-    if (e.isEmpty) {
-      if (mounted) {
-        showBabifixToast(
-        context,
-        type: BabifixToastType.info,
-        message: 'Email admin non configure (parametres site).',
-      );
-      }
-      return;
-    }
-    final uri = Uri(scheme: 'mailto', path: e, queryParameters: {'subject': 'BABIFIX \u2014 Support prestataire'});
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
+    final cfg = BabifixRemoteConfig.instance.current;
+    final email = _contactAdminEmail.trim().isNotEmpty
+        ? _contactAdminEmail.trim()
+        : cfg.supportEmail;
+    final phone = cfg.supportPhone.trim();
+    final whatsapp = cfg.supportWhatsapp.trim();
+    final isLight = widget.paletteMode != AppPaletteMode.blue;
+    final sheetBg = isLight ? Colors.white : const Color(0xFF0F1D33);
+    final fg = isLight ? const Color(0xFF0B1B34) : Colors.white;
+    final sub = isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: sheetBg,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.ciOrange.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.support_agent_rounded,
+                    color: BabifixDesign.ciOrange,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Contacter l\'administration',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: fg,
+                        ),
+                      ),
+                      Text(
+                        'Support artisans & gestion de compte 7j/7',
+                        style: TextStyle(fontSize: 12.5, color: sub),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            if (whatsapp.isNotEmpty)
+              _ContactChannelTile(
+                icon: Icons.chat_rounded,
+                color: const Color(0xFF16A34A),
+                title: 'Écrire sur WhatsApp',
+                subtitle: whatsapp,
+                isLight: isLight,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final digits = whatsapp.replaceAll(RegExp(r'[^0-9]'), '');
+                  final nom = '${_prov['nom'] ?? ''}'.trim();
+                  final msg = Uri.encodeComponent(
+                    'Bonjour Support BABIFIX, ici $nom (Espace Prestataire).',
+                  );
+                  final waUri = Uri.parse('https://wa.me/$digits?text=$msg');
+                  if (!await launchUrl(waUri, mode: LaunchMode.externalApplication)) {
+                    await Clipboard.setData(ClipboardData(text: whatsapp));
+                    if (mounted) {
+                      showBabifixToast(
+                        context,
+                        type: BabifixToastType.info,
+                        message: 'Numéro WhatsApp copié : $whatsapp',
+                      );
+                    }
+                  }
+                },
+              ),
+            if (phone.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _ContactChannelTile(
+                icon: Icons.phone_in_talk_rounded,
+                color: const Color(0xFF0284C7),
+                title: 'Appeler le Support',
+                subtitle: phone,
+                isLight: isLight,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final telUri = Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
+                  if (!await launchUrl(telUri)) {
+                    await Clipboard.setData(ClipboardData(text: phone));
+                    if (mounted) {
+                      showBabifixToast(
+                        context,
+                        type: BabifixToastType.info,
+                        message: 'Numéro copié : $phone',
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+            const SizedBox(height: 10),
+            _ContactChannelTile(
+              icon: Icons.email_outlined,
+              color: BabifixDesign.ciOrange,
+              title: 'Envoyer un email',
+              subtitle: email,
+              isLight: isLight,
+              onTap: () async {
+                Navigator.pop(ctx);
+                final mailUri = Uri(
+                  scheme: 'mailto',
+                  path: email,
+                  queryParameters: {'subject': 'BABIFIX : Support prestataire'},
+                );
+                if (!await launchUrl(mailUri)) {
+                  await Clipboard.setData(ClipboardData(text: email));
+                  if (mounted) {
+                    showBabifixToast(
+                      context,
+                      type: BabifixToastType.success,
+                      message: 'Email support copié : $email',
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _handleNavSelect(int index) {
@@ -286,46 +417,202 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showHelpSheet() {
+  void _showChangePasswordModal(bool isLight) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _ChangePasswordSheet(isLight: isLight),
+    );
+  }
+
+  void _showLegalSheet({required bool isCgu}) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      backgroundColor: const Color(0xFF0F1D33),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.55,
+        initialChildSize: 0.72,
+        maxChildSize: 0.92,
+        minChildSize: 0.45,
+        builder: (_, scrollCtrl) => ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Icon(
+                  isCgu ? Icons.gavel_rounded : Icons.privacy_tip_rounded,
+                  color: BabifixDesign.cyan,
+                  size: 24,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    isCgu
+                        ? 'Conditions Générales Prestataire (CGU)'
+                        : 'Politique de Confidentialité (Loi 2013-450)',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isCgu
+                  ? '1. Engagement Qualité & Paliers\n'
+                    'Tout prestataire inscrit sur BABIFIX s\'engage à réaliser ses interventions avec ponctualité, courtoisie et matériel adapté. Le plafond par mission évolue selon votre palier (Palier 1 Débutant : 30 000 FCFA, Palier 2 Confirmé : 100 000 FCFA, Palier 3 Pro : 300 000 FCFA, Palier 4 Élite : illimité).\n\n'
+                    '2. Devis, Séquestre & Rémunération\n'
+                    'Chaque prestation fait l\'objet d\'un devis clair accepté par le client avant travaux. Les paiements Mobile Money sont sécurisés sous séquestre BABIFIX et reversés sur votre portefeuille dès confirmation de fin de chantier.\n\n'
+                    '3. Respect du Réseau BABIFIX\n'
+                    'Le contournement de la plateforme ou la sollicitation directe hors application entraîne une pénalité sur le score de fiabilité et la suspension du compte.'
+                  : '1. Protection des Données Personnelles (Loi n° 2013-450)\n'
+                    'Conformément à la loi ivoirienne n° 2013-450 relative à la protection des données à caractère personnel (ARTCI), vos pièces d\'identité (CNI, photo portrait) et coordonnées sont chiffrées et strictement réservées à la vérification KYC et à la mise en relation client.\n\n'
+                    '2. Géolocalisation Consentie\n'
+                    'Votre position GPS n\'est utilisée que pour calculer la distance avec les demandes clients proches et vous afficher sur la carte des prestataires disponibles.\n\n'
+                    '3. Droits d\'Accès et d\'Effacement\n'
+                    'Vous pouvez à tout moment modifier vos informations ou demander la suppression définitive et l\'anonymisation de votre compte depuis la section Zone Danger de votre profil.',
+              style: const TextStyle(
+                color: Color(0xFFCBD5E1),
+                fontSize: 13.5,
+                height: 1.55,
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: FilledButton.styleFrom(
+                backgroundColor: BabifixDesign.cyan,
+                foregroundColor: BabifixDesign.navy,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text('Fermer', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showHelpSheet() {
+    final isLight = widget.paletteMode != AppPaletteMode.blue;
+    final sheetBg = isLight ? Colors.white : const Color(0xFF0F1D33);
+    final fg = isLight ? const Color(0xFF0B1B34) : Colors.white;
+    final sub = isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: sheetBg,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.58,
         maxChildSize: 0.92,
         minChildSize: 0.35,
         builder: (_, scrollCtrl) => ListView(
           controller: scrollCtrl,
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
           children: [
-            const Text(
-              'Aide BABIFIX',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.help_outline_rounded,
+                    color: Color(0xFF0284C7),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Aide BABIFIX Pro',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: fg,
+                        ),
+                      ),
+                      Text(
+                        'Guide rapide de l\'espace artisan',
+                        style: TextStyle(color: sub, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            const Text('Espace prestataire', style: TextStyle(color: Color(0xFF64748B), fontSize: 14)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _PrestHelpRow(
               icon: Icons.calendar_month,
-              title: 'Exigences & r\u00e9servations',
-              body: 'Consultez vos demandes, confirmez ou refusez selon vos disponibilit\u00e9s.',
+              title: 'Demandes & interventions',
+              body: 'Acceptez ou refusez les demandes selon vos disponibilités, puis établissez un devis transparent.',
             ),
             _PrestHelpRow(
               icon: Icons.account_balance_wallet,
-              title: 'Gains',
-              body: 'Suivez vos paiements et l\u2019historique des missions r\u00e9mun\u00e9r\u00e9es.',
+              title: 'Gains & Portefeuille',
+              body: 'Les paiements Mobile Money sont protégés sous séquestre et versés sur votre Wallet à la fin du chantier.',
             ),
             _PrestHelpRow(
               icon: Icons.chat_bubble_outline,
-              title: 'Messages',
-              body: '\u00c9changez avec les clients depuis l\u2019onglet Messages ou l\u2019ic\u00f4ne en haut \u00e0 droite.',
+              title: 'Messages clients',
+              body: 'Toutes les prestations avec un même client sont regroupées dans une conversation claire.',
             ),
             _PrestHelpRow(
               icon: Icons.palette_outlined,
-              title: 'Th\u00e8me',
-              body: 'Profil \u2192 Param\u00e8tres : blanc ou bleu BABIFIX.',
+              title: 'Apparence',
+              body: 'Profil -> Paramètres : Blanc par défaut, Clair ou Bleu BABIFIX.',
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _openContactAdmin();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: BabifixDesign.ciOrange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.support_agent_rounded, size: 20),
+              label: const Text(
+                'Contacter le Support BABIFIX',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
           ],
         ),
@@ -333,73 +620,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _openSettings() {
-    final isLight = widget.paletteMode != AppPaletteMode.blue;
-    final fg = isLight ? const Color(0xFF0F172A) : Colors.white;
-    final sub = isLight ? const Color(0xFF64748B) : const Color(0xFF9CA3AF);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Param\u00e8tres', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: fg)),
-            const SizedBox(height: 6),
-            Text('Th\u00e8me d\u2019affichage', style: TextStyle(color: sub, fontSize: 14)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ChoiceChip(
-                  label: const Text('Blanc'),
-                  selected: widget.paletteMode == AppPaletteMode.white,
-                  onSelected: (_) => widget.onPaletteChanged(AppPaletteMode.white),
+  Widget _topActionPill({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    required bool isLight,
+    int badge = 0,
+  }) {
+    final bg = isLight ? const Color(0xFFF1F5F9) : const Color(0xFF13294B);
+    final border = isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E3A63);
+    final fg = isLight ? const Color(0xFF0B1B34) : Colors.white;
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Tooltip(
+            message: tooltip,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(11),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: border),
                 ),
-                ChoiceChip(
-                  label: const Text('Clair'),
-                  selected: widget.paletteMode == AppPaletteMode.light,
-                  onSelected: (_) => widget.onPaletteChanged(AppPaletteMode.light),
-                ),
-                ChoiceChip(
-                  label: const Text('Bleu BABIFIX'),
-                  selected: widget.paletteMode == AppPaletteMode.blue,
-                  onSelected: (_) => widget.onPaletteChanged(AppPaletteMode.blue),
-                ),
-              ],
+                child: Icon(icon, size: 19, color: fg),
+              ),
             ),
-          ],
-        ),
+          ),
+          if (badge > 0)
+            Positioned(
+              right: -3,
+              top: -4,
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(color: Colors.white, width: 1.2),
+                  ),
+                  child: Text(
+                    badge > 99 ? '99+' : '$badge',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
   Widget _buildTopBar(bool isLight) {
     final width = MediaQuery.sizeOf(context).width;
-    final titleSize = width < 360 ? 28.0 : width < 430 ? 33.0 : 38.0;
-    final textPrimary = isLight ? const Color(0xFF0F172A) : Colors.white;
-    final iconMuted = isLight ? const Color(0xFF334155) : Colors.white70;
+    final titleSize = width < 360 ? 22.0 : 25.0;
+    final textPrimary = isLight ? const Color(0xFF0B1B34) : Colors.white;
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isLight ? const Color(0xFFE2E8F0) : const Color(0x1AFFFFFF),
+          ),
+        ),
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 8, 12),
+          padding: const EdgeInsets.fromLTRB(16, 8, 12, 10),
           child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 36,
+                height: 36,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   image: DecorationImage(image: AssetImage(_logoAsset), fit: BoxFit.cover),
                   boxShadow: [
-                    BoxShadow(color: Color(0x5509AEEF), blurRadius: 12, offset: Offset(0, 4)),
+                    BoxShadow(color: Color(0x3309AEEF), blurRadius: 8, offset: Offset(0, 2)),
                   ],
                 ),
               ),
@@ -412,72 +720,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: titleSize,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
+                    letterSpacing: -0.4,
                     color: textPrimary,
                   ),
                 ),
               ),
-              IconButton(
-                tooltip: 'Aide',
-                onPressed: _showHelpSheet,
-                icon: Icon(Icons.help_outline_rounded, size: 24, color: iconMuted),
+              _topActionPill(
+                icon: Icons.help_outline_rounded,
+                tooltip: 'Aide & FAQ',
+                isLight: isLight,
+                onTap: _showHelpSheet,
               ),
-              if (_contactAdminEmail.isNotEmpty)
-                IconButton(
-                  tooltip: 'Contacter administrateur',
-                  onPressed: _openContactAdmin,
-                  icon: Icon(Icons.support_agent_rounded, size: 24, color: iconMuted),
-                ),
-              IconButton(
-                tooltip: 'Notifications',
-                onPressed: () {
-                  showBabifixToast(
-        context,
-        type: BabifixToastType.info,
-        message: 'Aucune nouvelle notification pour l\u2019instant.',
-      );
-                },
-                icon: Icon(Icons.notifications_outlined, size: 24, color: iconMuted),
+              _topActionPill(
+                icon: Icons.support_agent_rounded,
+                tooltip: 'Contacter l\'administration',
+                isLight: isLight,
+                onTap: _openContactAdmin,
               ),
-              IconButton(
-                tooltip: 'Messages',
-                onPressed: () {
-                  widget.onMessagesOpened?.call();
-                  widget.onNavigate('messages');
-                },
-                icon: widget.unreadChat == null
-                    ? Icon(Icons.chat_bubble_outline_rounded, size: 24, color: iconMuted)
-                    : ValueListenableBuilder<int>(
-                        valueListenable: widget.unreadChat!,
-                        builder: (context, count, _) {
-                          return Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Icon(Icons.chat_bubble_outline_rounded, size: 24, color: iconMuted),
-                              if (count > 0)
-                                Positioned(
-                                  right: -4,
-                                  top: -4,
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(horizontal: count > 9 ? 5 : 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFF3B30),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: Colors.white, width: 1),
-                                    ),
-                                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                                    child: Text(
-                                      count > 99 ? '99+' : '$count',
-                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
+              if (widget.inAppNotifs != null)
+                ValueListenableBuilder<List<BabifixInAppNotif>>(
+                  valueListenable: widget.inAppNotifs!,
+                  builder: (context, list, _) {
+                    final unread = countUnreadInApp(
+                        widget.inAppNotifs!, BabifixNotifAudience.prestataire);
+                    return _topActionPill(
+                      icon: Icons.notifications_outlined,
+                      tooltip: 'Notifications',
+                      isLight: isLight,
+                      badge: unread,
+                      onTap: () => showPrestataireNotificationHub(
+                        context,
+                        widget.inAppNotifs!,
+                        widget.onNavigate,
                       ),
-              ),
+                    );
+                  },
+                )
+              else
+                _topActionPill(
+                  icon: Icons.notifications_outlined,
+                  tooltip: 'Notifications',
+                  isLight: isLight,
+                  onTap: () {
+                    showBabifixToast(
+                      context,
+                      type: BabifixToastType.info,
+                      message: 'Aucune nouvelle notification pour l\'instant.',
+                    );
+                  },
+                ),
+              if (widget.unreadChat == null)
+                _topActionPill(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  tooltip: 'Messages',
+                  isLight: isLight,
+                  onTap: () {
+                    widget.onMessagesOpened?.call();
+                    widget.onNavigate('messages');
+                  },
+                )
+              else
+                ValueListenableBuilder<int>(
+                  valueListenable: widget.unreadChat!,
+                  builder: (context, count, _) => _topActionPill(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    tooltip: 'Messages',
+                    isLight: isLight,
+                    badge: count,
+                    onTap: () {
+                      widget.onMessagesOpened?.call();
+                      widget.onNavigate('messages');
+                    },
+                  ),
+                ),
             ],
           ),
         ),
@@ -487,20 +802,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isWhite = widget.paletteMode == AppPaletteMode.white;
     final isLight = widget.paletteMode != AppPaletteMode.blue;
     final textPrimary = isLight ? const Color(0xFF0F172A) : Colors.white;
     final textSecondary = isLight ? const Color(0xFF475569) : const Color(0xFF9CA3AF);
-    final cardBg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF1A1F28);
+    final cardBg = isLight ? Colors.white : const Color(0xFF1A1F28);
 
     final nom = '${_prov['nom'] ?? ''}'.trim();
     final spec = '${_prov['specialite'] ?? ''}';
     final ville = '${_prov['ville'] ?? ''}';
     final bio = '${_prov['bio'] ?? ''}';
     final cat = '${_prov['category_nom'] ?? ''}';
-    final email = '${_prov['email'] ?? ''}'.trim();
-    final phone = '${_prov['telephone'] ?? _prov['phone'] ?? ''}'.trim();
-    // Le tarif horaire est d\u00e9sactiv\u00e9 : chaque devis a son propre prix
-    // calcul\u00e9 par le prestataire selon la prestation.
+    // Le tarif horaire est desactive : chaque devis a son propre prix
+    // calcule par le prestataire selon la prestation.
     const tarif = null;
     const tarifStr = '';
     final note = _prov['average_rating'];
@@ -516,7 +830,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (f.existsSync()) avatarProvider = FileImage(f);
     }
 
-    final gradient = isLight ? BabifixDesign.pageGradientLight : BabifixDesign.pageGradientDark;
+    final gradient = isWhite
+        ? BabifixDesign.pageGradientWhite
+        : (isLight ? BabifixDesign.pageGradientLight : BabifixDesign.pageGradientDark);
 
     return PopScope(
       canPop: false,
@@ -541,15 +857,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
-                          // ── Hero card profil — navy PLAT (charte sobre) ──
+                          // ── Hero card profil · adaptée au thème (Blanc / Clair / Bleu BABIFIX) ──
                           Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
-                              color: const Color(0xFF0B1B34),
-                              boxShadow: const [
+                              color: isLight ? Colors.white : const Color(0xFF0B1B34),
+                              border: Border.all(
+                                color: isLight
+                                    ? const Color(0xFF4CC9F0).withValues(alpha: 0.45)
+                                    : Colors.white.withValues(alpha: 0.12),
+                                width: isLight ? 1.5 : 1.0,
+                              ),
+                              boxShadow: [
                                 BoxShadow(
-                                  color: Color(0x1A0F172A),
-                                  blurRadius: 14, offset: Offset(0, 6),
+                                  color: isLight
+                                      ? const Color(0xFF0B1B34).withValues(alpha: 0.08)
+                                      : const Color(0x1A0F172A),
+                                  blurRadius: 14, offset: const Offset(0, 6),
                                 ),
                               ],
                             ),
@@ -568,33 +892,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             children: [
                                               Container(
                                                 width: 84, height: 84,
-                                                decoration: const BoxDecoration(
+                                                decoration: BoxDecoration(
                                                   shape: BoxShape.circle,
-                                                  color: Color(0xFF1B4B7C),
+                                                  color: isLight
+                                                      ? const Color(0xFF4CC9F0).withValues(alpha: 0.25)
+                                                      : const Color(0xFF1B4B7C),
                                                 ),
                                                 child: Padding(
                                                   padding: const EdgeInsets.all(3),
                                                   child: ClipOval(
                                                     child: avatarProvider != null
                                                         ? Image(
-                                                            image: avatarProvider!,
+                                                            image: avatarProvider,
                                                             fit: BoxFit.cover,
                                                             errorBuilder: (_, __, ___) => Container(
-                                                              color: const Color(0xFF0B2845),
+                                                              color: isLight
+                                                                  ? const Color(0xFFE0F2FE)
+                                                                  : const Color(0xFF0B2845),
                                                               child: Center(
                                                                 child: Text(
                                                                   nom.isNotEmpty ? nom[0].toUpperCase() : '?',
-                                                                  style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900),
+                                                                  style: TextStyle(
+                                                                    color: isLight ? const Color(0xFF0B1B34) : Colors.white,
+                                                                    fontSize: 30,
+                                                                    fontWeight: FontWeight.w900,
+                                                                  ),
                                                                 ),
                                                               ),
                                                             ),
                                                           )
                                                         : Container(
-                                                            color: const Color(0xFF0B2845),
+                                                            color: isLight
+                                                                ? const Color(0xFFE0F2FE)
+                                                                : const Color(0xFF0B2845),
                                                             child: Center(
                                                               child: Text(
                                                                 nom.isNotEmpty ? nom[0].toUpperCase() : '?',
-                                                                style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900),
+                                                                style: TextStyle(
+                                                                  color: isLight ? const Color(0xFF0B1B34) : Colors.white,
+                                                                  fontSize: 30,
+                                                                  fontWeight: FontWeight.w900,
+                                                                ),
                                                               ),
                                                             ),
                                                           ),
@@ -610,7 +948,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                     decoration: BoxDecoration(
                                                       color: const Color(0xFF22C55E),
                                                       shape: BoxShape.circle,
-                                                      border: Border.all(color: const Color(0xFF0B1B34), width: 2.5),
+                                                      border: Border.all(
+                                                        color: isLight ? Colors.white : const Color(0xFF0B1B34),
+                                                        width: 2.5,
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
@@ -624,7 +965,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 const SizedBox(height: 2),
                                                 Text(
                                                   nom.isEmpty ? 'Prestataire' : nom,
-                                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.3),
+                                                  style: TextStyle(
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: isLight ? const Color(0xFF0B1B34) : Colors.white,
+                                                    letterSpacing: -0.3,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                                 const SizedBox(height: 5),
                                                 if (spec.isNotEmpty || cat.isNotEmpty)
@@ -633,40 +981,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                     decoration: BoxDecoration(
                                                       color: const Color(0xFF4CC9F0).withValues(alpha: 0.15),
                                                       borderRadius: BorderRadius.circular(20),
-                                                      border: Border.all(color: const Color(0xFF4CC9F0).withValues(alpha: 0.3)),
+                                                      border: Border.all(color: const Color(0xFF4CC9F0).withValues(alpha: 0.35)),
                                                     ),
                                                     child: Text(
                                                       spec.isNotEmpty ? spec : cat,
-                                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF7DD3FC)),
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: isLight ? const Color(0xFF0284C7) : const Color(0xFF7DD3FC),
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
                                                     ),
                                                   ),
                                                 const SizedBox(height: 6),
                                                 if (ville.isNotEmpty)
                                                   Row(children: [
-                                                    Icon(Icons.location_on_rounded, size: 12, color: Colors.white.withValues(alpha: 0.45)),
+                                                    Icon(Icons.location_on_rounded, size: 12, color: isLight ? const Color(0xFF64748B) : Colors.white.withValues(alpha: 0.45)),
                                                     const SizedBox(width: 3),
-                                                    Text(ville, style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12)),
+                                                    Expanded(
+                                                      child: Text(
+                                                        ville,
+                                                        style: TextStyle(color: isLight ? const Color(0xFF475569) : Colors.white.withValues(alpha: 0.55), fontSize: 12),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
                                                   ]),
                                                 if (tarif != null)
                                                   Row(children: [
                                                     Icon(Icons.payments_outlined, size: 12, color: const Color(0xFFF97316).withValues(alpha: 0.8)),
                                                     const SizedBox(width: 3),
-                                                    Text(tarifStr, style: const TextStyle(color: Color(0xFFFB923C), fontSize: 12, fontWeight: FontWeight.w700)),
+                                                    Expanded(
+                                                      child: Text(
+                                                        tarifStr,
+                                                        style: const TextStyle(color: Color(0xFFFB923C), fontSize: 12, fontWeight: FontWeight.w700),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
                                                   ]),
                                               ],
                                             ),
                                           ),
+                                          const SizedBox(width: 8),
                                           // Bouton modifier
                                           if (approved)
                                             GestureDetector(
                                               onTap: _openEditRegistration,
                                               child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6.5),
                                                 decoration: BoxDecoration(
                                                   color: const Color(0xFFE87722),
                                                   borderRadius: BorderRadius.circular(10),
+                                                  boxShadow: const [
+                                                    BoxShadow(color: Color(0x33E87722), blurRadius: 6, offset: Offset(0, 2)),
+                                                  ],
                                                 ),
-                                                child: const Text('Modifier', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                                                child: const Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.edit_rounded, size: 13, color: Colors.white),
+                                                    SizedBox(width: 4),
+                                                    Text('Modifier', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11.5)),
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                         ],
@@ -697,24 +1076,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       if (bio.isNotEmpty) ...[
                                         const SizedBox(height: 14),
                                         Text(bio,
-                                          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13, height: 1.5),
+                                          style: TextStyle(
+                                            color: isLight ? const Color(0xFF475569) : Colors.white.withValues(alpha: 0.6),
+                                            fontSize: 13,
+                                            height: 1.5,
+                                          ),
                                           maxLines: 3, overflow: TextOverflow.ellipsis,
                                         ),
                                       ],
 
                                       const SizedBox(height: 18),
 
-                                      // ── Stats cards premium ─────────────────
-                                      Row(
-                                        children: [
-                                          _StatChip(label: 'Note', value: nnote, icon: Icons.star_rounded, color: const Color(0xFFF59E0B), isLight: isLight),
-                                          const SizedBox(width: 8),
-                                          _StatChip(label: 'Avis', value: '$rc', icon: Icons.chat_bubble_rounded, color: const Color(0xFF4CC9F0), isLight: isLight),
-                                          const SizedBox(width: 8),
-                                          _StatChip(label: 'Missions', value: '${jsonInt(_stats['reservations_total'])}', icon: Icons.task_alt_rounded, color: const Color(0xFF22C55E), isLight: isLight),
-                                          const SizedBox(width: 8),
-                                          _StatChip(label: 'Taux', value: '${jsonInt(_stats['taux_completion'])}%', icon: Icons.trending_up_rounded, color: const Color(0xFFF97316), isLight: isLight),
-                                        ],
+                                      // ── Stats unifiées haute finition ─────────────
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+                                        decoration: BoxDecoration(
+                                          color: isLight
+                                              ? const Color(0xFFF8FAFC)
+                                              : const Color(0xFF0F2242),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: isLight
+                                                ? const Color(0xFFE2E8F0)
+                                                : const Color(0xFF1E3A63),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            _StatChip(label: 'Note', value: nnote, icon: Icons.star_rounded, color: const Color(0xFFF59E0B), isLight: isLight),
+                                            _statDivider(isLight),
+                                            _StatChip(label: 'Avis', value: '$rc', icon: Icons.chat_bubble_rounded, color: const Color(0xFF0284C7), isLight: isLight),
+                                            _statDivider(isLight),
+                                            _StatChip(label: 'Missions', value: '${jsonInt(_stats['reservations_total'])}', icon: Icons.task_alt_rounded, color: const Color(0xFF16A34A), isLight: isLight),
+                                            _statDivider(isLight),
+                                            _StatChip(label: 'Taux', value: '${jsonInt(_stats['taux_completion'])}%', icon: Icons.trending_up_rounded, color: const Color(0xFFE87722), isLight: isLight),
+                                          ],
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -839,53 +1236,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               widget.onNavigate('messages');
                             },
                           ),
-                          if (bio.isNotEmpty || ville.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: cardBg,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: isLight
+                                    ? const Color(0xFFE2E8F0)
+                                    : const Color(0xFF1E3A63),
                               ),
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Row(children: [
-                                  Container(width: 28, height: 28,
-                                    decoration: BoxDecoration(shape: BoxShape.circle,
-                                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.12)),
-                                    child: const Icon(Icons.badge_outlined, size: 14, color: Color(0xFF4CC9F0)),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('Fiche pro', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary, fontSize: 14)),
-                                ]),
-                                if (bio.isNotEmpty) ...[
-                                  const SizedBox(height: 10),
-                                  Text(bio, style: TextStyle(color: textSecondary, height: 1.45, fontSize: 13)),
-                                ],
-                                if (ville.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Row(children: [
-                                    Icon(Icons.location_on_rounded, size: 14, color: textSecondary),
-                                    const SizedBox(width: 4),
-                                    Text(ville, style: TextStyle(color: textSecondary, fontSize: 13)),
-                                  ]),
-                                ],
-                                const SizedBox(height: 6),
-                                Row(children: [
-                                  Icon(_prov['disponible'] == true ? Icons.circle : Icons.circle_outlined,
-                                      size: 10,
-                                      color: _prov['disponible'] == true ? const Color(0xFF22C55E) : Colors.grey),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    _prov['disponible'] == true ? 'Disponible' : 'Indisponible',
-                                    style: TextStyle(
-                                        color: _prov['disponible'] == true ? const Color(0xFF22C55E) : textSecondary,
-                                        fontSize: 12, fontWeight: FontWeight.w600),
-                                  ),
-                                ]),
-                              ]),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: isLight ? 0.03 : 0.14),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
-                          ],
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.14),
+                                      ),
+                                      child: const Icon(
+                                        Icons.badge_outlined,
+                                        size: 18,
+                                        color: Color(0xFF0284C7),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Ma fiche publique client',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              color: textPrimary,
+                                              fontSize: 14.5,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Ce que voient les clients avant de réserver',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (approved)
+                                      TextButton(
+                                        onPressed: _openEditRegistration,
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          minimumSize: Size.zero,
+                                        ),
+                                        child: const Text(
+                                          'Éditer',
+                                          style: TextStyle(
+                                            color: Color(0xFFE87722),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Divider(
+                                  height: 1,
+                                  color: isLight
+                                      ? const Color(0xFFE2E8F0)
+                                      : const Color(0xFF1E3A63),
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    if (cat.isNotEmpty || spec.isNotEmpty)
+                                      _fichePill(
+                                        icon: Icons.build_circle_outlined,
+                                        label: spec.isNotEmpty ? spec : cat,
+                                        color: const Color(0xFF0284C7),
+                                        isLight: isLight,
+                                      ),
+                                    _fichePill(
+                                      icon: Icons.location_on_outlined,
+                                      label: ville.isNotEmpty ? ville : 'Abidjan',
+                                      color: const Color(0xFF475569),
+                                      isLight: isLight,
+                                    ),
+                                    _fichePill(
+                                      icon: _prov['disponible'] == true
+                                          ? Icons.check_circle_rounded
+                                          : Icons.pause_circle_outline_rounded,
+                                      label: _prov['disponible'] == true
+                                          ? 'En ligne · Disponible'
+                                          : 'Hors ligne · Indisponible',
+                                      color: _prov['disponible'] == true
+                                          ? const Color(0xFF16A34A)
+                                          : const Color(0xFF64748B),
+                                      isLight: isLight,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  bio.isNotEmpty
+                                      ? bio
+                                      : 'Aucune description ajoutée. Rédigez une courte présentation dans Modifier pour rassurer vos futurs clients.',
+                                  style: TextStyle(
+                                    color: bio.isNotEmpty
+                                        ? textSecondary
+                                        : textSecondary.withValues(alpha: 0.75),
+                                    height: 1.45,
+                                    fontSize: 12.5,
+                                    fontStyle: bio.isNotEmpty
+                                        ? FontStyle.normal
+                                        : FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                           if (_avis.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             Container(
@@ -977,7 +1466,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(
-                              color: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF121926),
+                              color: isLight ? Colors.white : const Color(0xFF121926),
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                             ),
@@ -1025,7 +1514,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF121926),
+                              color: isLight ? Colors.white : const Color(0xFF121926),
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                             ),
@@ -1043,7 +1532,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 title: 'Changer le mot de passe',
                                 subtitle: 'Modifier votre mot de passe de connexion',
                                 isLight: isLight,
-                                onTap: () {},
+                                onTap: () => _showChangePasswordModal(isLight),
                               ),
                             ]),
                           ),
@@ -1089,14 +1578,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(
-                              color: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF121926),
+                              color: isLight ? Colors.white : const Color(0xFF121926),
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: isLight ? const Color(0x10000000) : const Color(0x18FFFFFF)),
                             ),
                             child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                              _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: isLight, onTap: () {}),
+                              _LegalLink(label: 'CGU', icon: Icons.description_outlined, isLight: isLight, onTap: () => _showLegalSheet(isCgu: true)),
                               Container(width: 1, height: 32, color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF)),
-                              _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: isLight, onTap: () {}),
+                              _LegalLink(label: 'Confidentialité', icon: Icons.privacy_tip_outlined, isLight: isLight, onTap: () => _showLegalSheet(isCgu: false)),
                               Container(width: 1, height: 32, color: isLight ? const Color(0x15000000) : const Color(0x20FFFFFF)),
                               _LegalLink(label: 'Aide', icon: Icons.help_outline_rounded, isLight: isLight, onTap: _showHelpSheet),
                             ]),
@@ -1253,6 +1742,7 @@ class _PrestProfileActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isWhiteBg = Theme.of(context).scaffoldBackgroundColor == const Color(0xFFFFFFFF);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -1260,8 +1750,12 @@ class _PrestProfileActionTile extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF141C2B),
-          border: Border.all(color: isLight ? const Color(0x120F172A) : const Color(0x22FFFFFF)),
+          color: isLight ? Colors.white : const Color(0xFF141C2B),
+          border: Border.all(
+            color: isWhiteBg
+                ? const Color(0xFF4CC9F0).withValues(alpha: 0.35)
+                : (isLight ? const Color(0x120F172A) : const Color(0x22FFFFFF)),
+          ),
         ),
         child: Row(
           children: [
@@ -1390,6 +1884,121 @@ class _PrestHelpRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Stat chip compact
 // ─────────────────────────────────────────────────────────────────────────────
+Widget _statDivider(bool isLight) => Container(
+      width: 1,
+      height: 36,
+      color: isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E3A63),
+    );
+
+Widget _fichePill({
+  required IconData icon,
+  required String label,
+  required Color color,
+  required bool isLight,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: isLight ? 0.08 : 0.16),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color.withValues(alpha: 0.25)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isLight ? const Color(0xFF0B1B34) : Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ContactChannelTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final bool isLight;
+  final VoidCallback onTap;
+
+  const _ContactChannelTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.isLight,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF132645);
+    final border = isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E3A63);
+    final fg = isLight ? const Color(0xFF0B1B34) : Colors.white;
+    final sub = isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: fg,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: sub, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: sub),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _StatChip extends StatelessWidget {
   final String label;
   final String value;
@@ -1401,23 +2010,43 @@ class _StatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final valueColor = isLight ? const Color(0xFF0B1B34) : Colors.white;
+    final labelColor = isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: isLight ? 0.08 : 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(height: 3),
-            Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(label, style: TextStyle(color: color.withValues(alpha: 0.75), fontSize: 9, fontWeight: FontWeight.w600)),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isLight ? 0.12 : 0.20),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 15),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor,
+              fontWeight: FontWeight.w900,
+              fontSize: 15,
+              fontFeatures: BabifixDesign.tabularFigures,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            style: TextStyle(
+              color: labelColor,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1447,9 +2076,8 @@ class _KycStatusTileState extends State<_KycStatusTile> {
     try {
       final t = await readStoredApiToken();
       if (t == null) { setState(() => _status = 'not_submitted'); return; }
-      final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/kyc/status/'),
-        headers: {'Authorization': 'Bearer $t'},
+      final res = await babifixAuthGet(
+        '${babifixApiBaseUrl()}/api/prestataire/kyc/status/',
       ).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final d = jsonDecode(res.body) as Map<String, dynamic>;
@@ -1526,6 +2154,8 @@ class _BiometricLockSheetState extends State<_BiometricLockSheet> {
   bool _enabled = false;
   bool _loading = true;
   bool _busy = false;
+  bool _facePreferred = false;
+  String _kindLabel = 'Face ID / Empreinte digitale';
 
   @override
   void initState() {
@@ -1535,9 +2165,16 @@ class _BiometricLockSheetState extends State<_BiometricLockSheet> {
 
   Future<void> _load() async {
     final e = await AppLockService.isEnabled();
+    final isFace = await BiometricAuthService.isFaceIdAvailable();
+    final isFp = await BiometricAuthService.isFingerprintAvailable();
+    final label = isFace
+        ? 'Face ID'
+        : (isFp ? 'Empreinte digitale' : 'Biométrie ou code du téléphone');
     if (!mounted) return;
     setState(() {
       _enabled = e;
+      _facePreferred = isFace;
+      _kindLabel = label;
       _loading = false;
     });
   }
@@ -1547,31 +2184,43 @@ class _BiometricLockSheetState extends State<_BiometricLockSheet> {
     setState(() => _busy = true);
     try {
       if (value) {
-        // Vérifie qu'un moyen d'auth existe puis demande une authentification
-        // de confirmation avant d'activer.
         final canAuth = await AppLockService.canAuthenticate();
         if (!canAuth) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text(
-                  'Aucune biométrie ni code d\'écran configuré sur ce téléphone. Configurez-le dans les réglages Android/iOS.'),
-            ));
+            showBabifixToast(
+              context,
+              type: BabifixToastType.warning,
+              message:
+                  'Configurez d\'abord $_kindLabel ou le code d\'écran dans les réglages.',
+            );
           }
           return;
         }
         final ok = await AppLockService.authenticate(
-            reason: 'Confirmez pour activer le verrouillage');
+            reason: 'Confirmez avec $_kindLabel pour verrouiller BABIFIX Pro');
         if (!ok) return;
         await AppLockService.setEnabled(true);
-        if (mounted) setState(() => _enabled = true);
+        if (mounted) {
+          setState(() => _enabled = true);
+          showBabifixToast(
+            context,
+            type: BabifixToastType.success,
+            message: '$_kindLabel activé pour protéger BABIFIX Pro.',
+          );
+        }
       } else {
-        // Désactivation : on demande aussi une auth pour éviter qu'un tiers
-        // désactive le verrou.
         final ok = await AppLockService.authenticate(
             reason: 'Confirmez pour désactiver le verrouillage');
         if (!ok) return;
         await AppLockService.setEnabled(false);
-        if (mounted) setState(() => _enabled = false);
+        if (mounted) {
+          setState(() => _enabled = false);
+          showBabifixToast(
+            context,
+            type: BabifixToastType.info,
+            message: 'Verrouillage biométrique désactivé.',
+          );
+        }
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -1582,66 +2231,500 @@ class _BiometricLockSheetState extends State<_BiometricLockSheet> {
   Widget build(BuildContext context) {
     final isLight = widget.isLight;
     final fg = isLight ? const Color(0xFF0F172A) : Colors.white;
-    final sub = isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8);
+    final sub = isLight ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+    final accent = isLight ? BabifixDesign.cyanDeep : BabifixDesign.cyan;
+    final cardBg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF152540);
+    final border = isLight ? const Color(0xFFE2E8F0) : const Color(0xFF243B5E);
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 34),
       decoration: BoxDecoration(
-        color: isLight ? Colors.white : const Color(0xFF0D1B2E),
+        color: isLight ? Colors.white : const Color(0xFF0B1B34),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(top: BorderSide(color: border)),
       ),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(4))),
-        const SizedBox(height: 20),
-        const Icon(Icons.fingerprint_rounded, size: 56, color: Color(0xFF4CC9F0)),
-        const SizedBox(height: 14),
-        Text('Connexion biométrique',
-            style: TextStyle(
-                fontSize: 18, fontWeight: FontWeight.w800, color: fg)),
-        const SizedBox(height: 8),
-        Text(
-          'Exigez l\'empreinte, Face ID ou le code de votre téléphone pour ouvrir BABIFIX Pro (au démarrage et au retour d\'arrière-plan).',
-          style: TextStyle(color: sub, height: 1.45),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: CircularProgressIndicator(color: Color(0xFF4CC9F0)),
-          )
-        else
+              color: sub.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 18),
           Container(
+            width: 68,
+            height: 68,
             decoration: BoxDecoration(
-              color: isLight ? const Color(0xFFF1F5F9) : const Color(0xFF152138),
-              borderRadius: BorderRadius.circular(16),
+              color: (_enabled ? BabifixDesign.success : accent)
+                  .withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: (_enabled ? BabifixDesign.success : accent)
+                    .withValues(alpha: 0.35),
+                width: 1.5,
+              ),
             ),
-            child: SwitchListTile(
-              value: _enabled,
-              onChanged: _busy ? null : _toggle,
-              activeThumbColor: const Color(0xFF4CC9F0),
-              title: Text('Verrouiller l\'application',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: fg)),
-              subtitle: Text(_enabled ? 'Activé' : 'Désactivé',
-                  style: TextStyle(color: sub)),
-              secondary: Icon(
-                  _enabled ? Icons.lock_rounded : Icons.lock_open_rounded,
-                  color: const Color(0xFF4CC9F0)),
+            child: Icon(
+              _facePreferred
+                  ? Icons.face_retouching_natural_rounded
+                  : Icons.fingerprint_rounded,
+              size: 36,
+              color: _enabled ? BabifixDesign.success : accent,
             ),
           ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _kindLabel,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: fg,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (_enabled ? BabifixDesign.success : sub)
+                      .withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  _enabled ? 'Actif' : 'Désactivé',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: _enabled
+                        ? (isLight
+                            ? const Color(0xFF15803D)
+                            : const Color(0xFF4ADE80))
+                        : sub,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Protégez vos revenus, devis et échanges BABIFIX Pro dès l\'ouverture avec $_kindLabel ou le code de votre téléphone.',
+            style: TextStyle(color: sub, fontSize: 13, height: 1.45),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: BabifixRingLoader.cyan(size: 28),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: border),
+              ),
+              child: SwitchListTile(
+                value: _enabled,
+                onChanged: _busy ? null : _toggle,
+                activeThumbColor: BabifixDesign.success,
+                title: Text(
+                  'Verrouiller l\'accès Pro',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: fg),
+                ),
+                subtitle: Text(
+                  _enabled
+                      ? 'Protection $_kindLabel activée'
+                      : 'Appuyez pour activer la protection',
+                  style: TextStyle(color: sub, fontSize: 12),
+                ),
+                secondary: Icon(
+                  _enabled ? Icons.verified_user_rounded : Icons.lock_open_rounded,
+                  color: _enabled ? BabifixDesign.success : accent,
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: fg,
+                side: BorderSide(color: border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+              child: const Text('Fermer', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+/// Feuille de modification du mot de passe connecté
+class _ChangePasswordSheet extends StatefulWidget {
+  const _ChangePasswordSheet({required this.isLight});
+  final bool isLight;
+
+  @override
+  State<_ChangePasswordSheet> createState() => _ChangePasswordSheetState();
+}
+
+class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
+  final _oldPwCtrl = TextEditingController();
+  final _newPwCtrl = TextEditingController();
+  final _confirmPwCtrl = TextEditingController();
+
+  bool _obscureOld = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _newPwCtrl.addListener(_refreshStrength);
+    _confirmPwCtrl.addListener(_refreshStrength);
+  }
+
+  void _refreshStrength() {
+    if (mounted) setState(() {});
+  }
+
+  int _passwordScore(String pw) {
+    if (pw.isEmpty) return 0;
+    var score = 0;
+    if (pw.length >= 6) score++;
+    if (pw.length >= 10) score++;
+    if (RegExp(r'[A-Z]').hasMatch(pw) && RegExp(r'[a-z]').hasMatch(pw)) score++;
+    if (RegExp(r'[0-9]').hasMatch(pw)) score++;
+    if (RegExp(r'[^A-Za-z0-9]').hasMatch(pw)) score++;
+    return score;
+  }
+
+  @override
+  void dispose() {
+    _oldPwCtrl.dispose();
+    _newPwCtrl.dispose();
+    _confirmPwCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final oldPw = _oldPwCtrl.text.trim();
+    final newPw = _newPwCtrl.text.trim();
+    final confirmPw = _confirmPwCtrl.text.trim();
+
+    if (oldPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
+      setState(() => _error = 'Tous les champs sont obligatoires.');
+      return;
+    }
+    if (newPw != confirmPw) {
+      setState(() => _error = 'Les nouveaux mots de passe ne correspondent pas.');
+      return;
+    }
+    if (newPw.length < 6) {
+      setState(() => _error = 'Le nouveau mot de passe doit comporter au moins 6 caractères.');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final token = await readStoredApiToken();
+      final res = await http.post(
+        Uri.parse('${babifixApiBaseUrl()}/api/auth/change-password/'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'current_password': oldPw,
+          'new_password': newPw,
+        }),
+      );
+
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final newTok = data['token'] as String?;
+        if (newTok != null && newTok.isNotEmpty) {
+          await writeStoredApiToken(newTok);
+        }
+        Navigator.of(context).pop();
+        showBabifixToast(
+          context,
+          type: BabifixToastType.success,
+          message: 'Mot de passe modifié avec succès !',
+        );
+      } else {
+        String msg = 'Erreur lors du changement de mot de passe.';
+        try {
+          final data = jsonDecode(res.body) as Map<String, dynamic>;
+          msg = data['message'] ?? data['error'] ?? msg;
+          if (msg == 'invalid_current_password') msg = 'Le mot de passe actuel est incorrect.';
+        } catch (_) {}
+        setState(() {
+          _loading = false;
+          _error = msg;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Impossible de contacter le serveur BABIFIX.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = widget.isLight;
+    final bg = isLight ? Colors.white : const Color(0xFF0A1628);
+    final border = isLight ? const Color(0x18000000) : const Color(0xFF1E3250);
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: border),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isLight ? Colors.black26 : Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CC9F0).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.lock_reset_rounded, color: Color(0xFF4CC9F0), size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Modifier mon mot de passe',
+                          style: TextStyle(
+                            color: isLight ? const Color(0xFF0F172A) : Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Sécurité de votre compte professionnel',
+                          style: TextStyle(
+                            color: isLight ? Colors.black54 : Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildField(
+                controller: _oldPwCtrl,
+                label: 'Mot de passe actuel',
+                isLight: isLight,
+                obscure: _obscureOld,
+                onToggle: () => setState(() => _obscureOld = !_obscureOld),
+              ),
+              const SizedBox(height: 12),
+              _buildField(
+                controller: _newPwCtrl,
+                label: 'Nouveau mot de passe (min. 6 caractères)',
+                isLight: isLight,
+                obscure: _obscureNew,
+                onToggle: () => setState(() => _obscureNew = !_obscureNew),
+              ),
+              if (_newPwCtrl.text.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Builder(builder: (_) {
+                  final score = _passwordScore(_newPwCtrl.text);
+                  final ratio = (score / 5).clamp(0.18, 1.0);
+                  final Color barColor = score <= 2
+                      ? const Color(0xFFEF4444)
+                      : (score == 3
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFF22C55E));
+                  final String label = score <= 2
+                      ? 'Robustesse faible'
+                      : (score == 3 ? 'Robustesse moyenne' : 'Mot de passe solide');
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: ratio,
+                          minHeight: 5,
+                          backgroundColor: isLight
+                              ? const Color(0xFFE2E8F0)
+                              : const Color(0xFF1E3250),
+                          valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: barColor,
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+              const SizedBox(height: 12),
+              _buildField(
+                controller: _confirmPwCtrl,
+                label: 'Confirmer le nouveau mot de passe',
+                isLight: isLight,
+                obscure: _obscureConfirm,
+                onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
+              if (_confirmPwCtrl.text.isNotEmpty &&
+                  _confirmPwCtrl.text == _newPwCtrl.text) ...[
+                const SizedBox(height: 6),
+                const Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded,
+                        size: 14, color: Color(0xFF22C55E)),
+                    SizedBox(width: 6),
+                    Text(
+                      'Les mots de passe correspondent',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF22C55E),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0x20EF4444),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0x50EF4444)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 22),
+              BabifixButton(
+                label: 'Enregistrer le nouveau mot de passe',
+                loadingLabel: 'Enregistrement...',
+                isLoading: _loading,
+                onPressed: _loading ? null : _submit,
+              ),
+            ],
           ),
         ),
-      ]),
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String label,
+    required bool isLight,
+    required bool obscure,
+    required VoidCallback onToggle,
+  }) {
+    final fieldBg = isLight ? const Color(0xFFF1F5F9) : const Color(0xFF0F1E36);
+    final border = isLight ? const Color(0x20000000) : const Color(0xFF243B5A);
+    final textColor = isLight ? const Color(0xFF0F172A) : Colors.white;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: fieldBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        style: TextStyle(color: textColor, fontSize: 14),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: isLight ? Colors.black54 : Colors.white54, fontSize: 13),
+          prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF4CC9F0), size: 18),
+          suffixIcon: IconButton(
+            icon: Icon(
+              obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              color: isLight ? Colors.black45 : Colors.white54,
+              size: 18,
+            ),
+            onPressed: onToggle,
+          ),
+          filled: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+      ),
     );
   }
 }

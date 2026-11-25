@@ -1,315 +1,221 @@
 import 'package:flutter/material.dart';
+import '../../babifix_design_system.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/payment_method_logo.dart';
 
 class LandingScreen extends StatelessWidget {
   const LandingScreen({
     super.key,
     required this.onCreateAccount,
     required this.onLogin,
-    this.onDemoLogin,
   });
 
   final VoidCallback onCreateAccount;
   final VoidCallback onLogin;
-  /// Auto-login démo (`horzonzh / prest123`) pour explorer l'app sans
-  /// créer de compte. Si null, le bouton "Visite guidée" est masqué.
-  final VoidCallback? onDemoLogin;
-
-  static const _navy = Color(0xFF0B1B34);
-  static const _blue = Color(0xFF0084D1);
-  static const _cyan = Color(0xFF4CC9F0);
-  static const _orange = Color(0xFFFF9500);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F9FF),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Gradient background
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFFEFF6FF),
-                  const Color(0xFFF0F9FF),
-                  const Color(0xFFFFFBF5),
-                ],
-                stops: const [0.0, 0.55, 1.0],
-              ),
-            ),
-          ),
-          // Decorative top blob
-          Positioned(
-            top: -80,
-            right: -60,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _cyan.withValues(alpha: 0.12),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -60,
-            left: -80,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _orange.withValues(alpha: 0.08),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+    final lightTheme = ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: BabifixDesign.navy,
+        brightness: Brightness.light,
+      ).copyWith(
+        primary: BabifixDesign.navy,
+        onPrimary: Colors.white,
+        surface: Colors.white,
+        onSurface: BabifixDesign.textStrongLight,
+      ),
+    );
+    return Theme(
+      data: lightTheme,
+      child: Scaffold(
+        backgroundColor: BabifixDesign.bgSoft,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 30),
+
+              // En-tete marque + badge Pro
+              Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  const SizedBox(height: 40),
-
-                  // Logo + badge
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      Container(
-                        width: 90,
-                        height: 90,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          image: const DecorationImage(
-                            image: AssetImage('assets/images/babifix-logo.png'),
-                            fit: BoxFit.cover,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _blue.withValues(alpha: 0.28),
-                              blurRadius: 28,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF059669),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: const Text(
-                          'Pro',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Headline
-                  const Text(
-                    'BABIFIX Prestataire',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: _navy,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Développez votre activité en Côte d\'Ivoire',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.blueGrey.shade700,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Key benefits card
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
+                    width: 84,
+                    height: 84,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 20,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _BenefitRow(
-                          icon: Icons.people_alt_rounded,
-                          color: _blue,
-                          title: 'Clients vérifiés',
-                          subtitle:
-                              'Accédez à des milliers de particuliers qualifiés',
-                        ),
-                        const _Divider(),
-                        _BenefitRow(
-                          icon: Icons.lock_rounded,
-                          color: const Color(0xFF059669),
-                          title: 'Paiement sécurisé FCFA',
-                          subtitle:
-                              'Orange Money, MTN, Wave, Moov : paiement après validation',
-                        ),
-                        const _Divider(),
-                        _BenefitRow(
-                          icon: Icons.verified_rounded,
-                          color: _orange,
-                          title: 'Badge Vérifié BABIFIX',
-                          subtitle:
-                              'La validation admin renforce votre crédibilité',
-                        ),
-                        const _Divider(),
-                        _BenefitRow(
-                          icon: Icons.trending_up_rounded,
-                          color: const Color(0xFF7C3AED),
-                          title: 'Gagnez plus chaque mois',
-                          subtitle:
-                              'Jusqu\'à 300 000+ FCFA/mois pour les top prestataires',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Social proof strip
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _blue.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _blue.withValues(alpha: 0.15)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _MiniStat(value: '10 000+', label: 'Prestataires'),
-                        _VerticalDivider(),
-                        _MiniStat(value: '4,9 / 5', label: 'Note moyenne'),
-                        _VerticalDivider(),
-                        _MiniStat(value: '5 villes', label: 'Côte d\'Ivoire'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Primary CTA
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: onCreateAccount,
-                      icon: const Icon(Icons.person_add_rounded, size: 20),
-                      label: const Text(
-                        'Créer un compte Prestataire',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
+                      color: BabifixDesign.navy,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: BabifixDesign.borderLight,
+                        width: 1.2,
                       ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 4,
-                        shadowColor: _blue.withValues(alpha: 0.35),
+                      image: const DecorationImage(
+                        image: AssetImage('assets/images/babifix-logo.png'),
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-
-                  // Secondary CTA
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: onLogin,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _navy,
-                        side: BorderSide(
-                          color: _navy.withValues(alpha: 0.25),
-                          width: 1.5,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                  Positioned(
+                    right: -6,
+                    bottom: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: BabifixDesign.ciOrange,
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
                       child: const Text(
-                        'Déjà inscrit ? Se connecter',
+                        'PRO',
                         style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
                         ),
                       ),
                     ),
                   ),
-                  if (onDemoLogin != null) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton.icon(
-                        onPressed: onDemoLogin,
-                        icon: Icon(Icons.auto_awesome, color: _orange, size: 18),
-                        label: Text(
-                          'Visite guidée (compte démo)',
-                          style: TextStyle(
-                            color: _orange,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-
-                  // Legal note
-                  Text(
-                    'Inscription gratuite · Aucune commission cachée\nPaiements conformes ARTCI – Loi n°2013-450',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: Colors.blueGrey.shade400,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
                 ],
               ),
-            ),
+              const SizedBox(height: 22),
+
+              const Text(
+                'BABIFIX Prestataire',
+                style: TextStyle(
+                  fontSize: 27,
+                  fontWeight: FontWeight.w900,
+                  color: BabifixDesign.navy,
+                  letterSpacing: -0.6,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Developpez votre activite de terrain en Cote d Ivoire',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: BabifixDesign.textMutedLight,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Carte avantages structuree 1px
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.bgWhite,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: BabifixDesign.borderLight),
+                ),
+                child: const Column(
+                  children: [
+                    _BenefitRow(
+                      icon: Icons.people_alt_rounded,
+                      color: BabifixDesign.cyanDeep,
+                      title: 'Clients qualifies pres de vous',
+                      subtitle:
+                          'Demandes geolocalisees et contacts verifies a Abidjan et en region.',
+                    ),
+                    _Divider(),
+                    _BenefitRow(
+                      icon: Icons.lock_rounded,
+                      color: BabifixDesign.success,
+                      title: 'Paiement protege et garanti',
+                      subtitle:
+                          'Fonds garantis avant demarrage et retrait rapide sur Mobile Money.',
+                    ),
+                    _Divider(),
+                    _BenefitRow(
+                      icon: Icons.verified_rounded,
+                      color: BabifixDesign.ciOrange,
+                      title: 'Badge Artisan Verifie',
+                      subtitle:
+                          'Le controle KYC renforce la confiance des clients et vos commandes.',
+                    ),
+                    _Divider(),
+                    _BenefitRow(
+                      icon: Icons.trending_up_rounded,
+                      color: BabifixDesign.navy,
+                      title: 'Suivi clair de vos revenus',
+                      subtitle:
+                          'Wallet dedie, devis rapides et historique complet en FCFA.',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Bandeau chiffres & operateurs
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: BabifixDesign.bgWhite,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: BabifixDesign.borderLight),
+                ),
+                child: const Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _MiniStat(value: '10 000+', label: 'Artisans'),
+                        _VerticalDivider(),
+                        _MiniStat(value: '4,9 / 5', label: 'Satisfaction'),
+                        _VerticalDivider(),
+                        _MiniStat(value: '24/7', label: 'Retraits'),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    BabifixMobileMoneyLogoStrip(height: 22),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              BabifixButton(
+                label: 'Creer un compte Prestataire',
+                icon: Icons.person_add_rounded,
+                variant: BabifixButtonVariant.primary,
+                width: double.infinity,
+                onPressed: onCreateAccount,
+              ),
+              const SizedBox(height: 10),
+              BabifixButton(
+                label: 'Deja inscrit ? Se connecter',
+                icon: Icons.login_rounded,
+                variant: BabifixButtonVariant.outlined,
+                backgroundColor: Colors.white,
+                foregroundColor: BabifixDesign.navy,
+                width: double.infinity,
+                onPressed: onLogin,
+              ),
+              const SizedBox(height: 20),
+
+              const Text(
+                'Inscription gratuite · Aucun frais cache\nPaiements conformes ARTCI · Loi n°2013-450',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: BabifixDesign.textMutedLight,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 26),
+            ],
           ),
-        ],
+        ),
+      ),
       ),
     );
   }
@@ -336,15 +242,15 @@ class _BenefitRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: color, size: 21),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,15 +260,15 @@ class _BenefitRow extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
-                    color: Color(0xFF0B1B34),
+                    color: BabifixDesign.navy,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12.5,
-                    color: Colors.blueGrey.shade600,
+                    color: BabifixDesign.textMutedLight,
                     height: 1.4,
                   ),
                 ),
@@ -380,14 +286,16 @@ class _Divider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Divider(height: 1, color: const Color(0xFFF1F5F9));
+    return const Divider(height: 1, color: BabifixDesign.borderLight);
   }
 }
 
 class _VerticalDivider extends StatelessWidget {
+  const _VerticalDivider();
+
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 32, color: const Color(0xFFE2E8F0));
+    return Container(width: 1, height: 30, color: BabifixDesign.borderLight);
   }
 }
 
@@ -406,15 +314,16 @@ class _MiniStat extends StatelessWidget {
           style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF0084D1),
+            color: BabifixDesign.navy,
+            fontFeatures: BabifixDesign.tabularFigures,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 10.5,
-            color: Colors.blueGrey.shade500,
+          style: const TextStyle(
+            fontSize: 11,
+            color: BabifixDesign.textMutedLight,
             fontWeight: FontWeight.w600,
           ),
         ),

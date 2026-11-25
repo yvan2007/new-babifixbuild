@@ -89,7 +89,7 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
               id: jsonInt(item['id']),
               titre: '${item['titre'] ?? ''}',
               description: '${item['description'] ?? ''}',
-              imageUrl: '${item['image_url'] ?? ''}',
+              imageUrl: babifixResolveMediaUrl('${item['image_url'] ?? ''}'),
               categorieTag: '${item['categorie_tag'] ?? ''}',
               dateLabel: '${item['date_publication'] ?? ''}'.split('T').first,
             ),
@@ -119,7 +119,7 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
         id: jsonInt(item['id']),
         titre: '${item['titre'] ?? ''}',
         description: '${item['description'] ?? ''}',
-        imageUrl: '${item['image_url'] ?? ''}',
+        imageUrl: babifixResolveMediaUrl('${item['image_url'] ?? ''}'),
         categorieTag: '${item['categorie_tag'] ?? ''}',
         dateLabel: '${item['date_publication'] ?? ''}'.split('T').first,
       );
@@ -137,8 +137,11 @@ class _PrestataireActualitesScreenState extends State<PrestataireActualitesScree
 
   @override
   Widget build(BuildContext context) {
+    final isWhite = widget.paletteMode == AppPaletteMode.white;
     final isLight = widget.paletteMode != AppPaletteMode.blue;
-    final bg = isLight ? const Color(0xFFF6F8FC) : const Color(0xFF0B1B34);
+    final bg = isWhite
+        ? Colors.white
+        : (isLight ? const Color(0xFFF6F8FC) : const Color(0xFF0B1B34));
     final card = isLight ? Colors.white : const Color(0xFF151D2E);
     final text = isLight ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final sub = isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);

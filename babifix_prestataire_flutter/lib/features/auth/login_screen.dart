@@ -1,14 +1,14 @@
 import 'dart:convert';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import 'forgot_password_screen.dart';
-import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -83,15 +83,20 @@ class _LoginScreenState extends State<LoginScreen>
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final role = (data['role'] ?? '').toString().toLowerCase();
+        if (role.isNotEmpty && role != 'prestataire' && role != 'provider') {
+          if (mounted) {
+            _snack('Ce compte est un compte Client. Veuillez utiliser l\'application Babifix Client ou créer un profil prestataire.');
+            setState(() => _loading = false);
+          }
+          return;
+        }
         final tok = (data['token'] ?? data['access']) as String?;
         final refresh = data['refresh'] as String?;
         if (tok != null && tok.isNotEmpty) {
           await writeStoredApiToken(tok);
           if (refresh != null) await writeStoredRefreshToken(refresh);
           babifixRegisterFcm(tok);
-          // On NE réinitialise PAS _loading : le spinner reste affiché pendant
-          // le chargement du dashboard (bootstrap) jusqu'à la bascule d'écran,
-          // exactement comme l'app client (plus d'écran figé sans chargement).
           if (mounted) widget.onSuccess();
           return;
         }
@@ -211,128 +216,112 @@ class _LoginScreenState extends State<LoginScreen>
 
                           const SizedBox(height: 36),
 
-                          // ── Card glassmorphisme ───────────────────────────
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(28),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                              child: Container(
-                                padding: const EdgeInsets.fromLTRB(
-                                  24,
-                                  28,
-                                  24,
-                                  28,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.06),
-                                  borderRadius: BorderRadius.circular(28),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.12),
-                                    width: 1.5,
+                          // Carte architecturale sobre
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(22, 26, 22, 26),
+                            decoration: BoxDecoration(
+                              color: BabifixDesign.navySurface,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.10),
+                                width: 1,
+                              ),
+                            ),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Connexion',
+                                    style: TextStyle(
+                                      fontSize: 23,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                      letterSpacing: -0.4,
+                                    ),
                                   ),
-                                ),
-                                child: Form(
-                                  key: _formKey,
-                                  child: Center(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                    const Text(
-                                      'Connexion',
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w900,
-                                        color: Colors.white,
-                                        letterSpacing: -0.5,
-                                      ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Accedez a votre espace professionnel',
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      color: Colors.white.withValues(alpha: 0.60),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Accédez à votre espace professionnel',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
+                                  ),
+                                  const SizedBox(height: 22),
 
-                                    // Champ email
-                                    _PremiumField(
-                                      controller: _user,
-                                      label: 'Email ou nom complet',
-                                      icon: Icons.person_outline_rounded,
-                                      inputType: TextInputType.emailAddress,
-                                      textInputAction: TextInputAction.next,
-                                      validator: (v) {
-                                        if (v == null || v.trim().isEmpty) return 'Email ou nom requis';
-                                        return null;
-                                      },
-                                    ),
-                                    const SizedBox(height: 14),
+                                  _PremiumField(
+                                    controller: _user,
+                                    label: 'Email ou nom complet',
+                                    icon: Icons.person_outline_rounded,
+                                    inputType: TextInputType.emailAddress,
+                                    textInputAction: TextInputAction.next,
+                                    validator: (v) {
+                                      if (v == null || v.trim().isEmpty) {
+                                        return 'Email ou nom requis';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 14),
 
-                                    // Champ mot de passe
-                                    _PremiumField(
-                                      controller: _pass,
-                                      label: 'Mot de passe',
-                                      icon: Icons.lock_outline_rounded,
-                                      obscure: _obscure,
-                                      onToggleObscure: () =>
-                                          setState(() => _obscure = !_obscure),
-                                      textInputAction: TextInputAction.done,
-                                      onSubmitted: (_) => _submit(),
-                                      validator: (v) {
-                                        if (v == null || v.isEmpty) return 'Mot de passe requis';
-                                        return null;
-                                      },
-                                    ),
+                                  _PremiumField(
+                                    controller: _pass,
+                                    label: 'Mot de passe',
+                                    icon: Icons.lock_outline_rounded,
+                                    obscure: _obscure,
+                                    onToggleObscure: () =>
+                                        setState(() => _obscure = !_obscure),
+                                    textInputAction: TextInputAction.done,
+                                    onSubmitted: (_) => _submit(),
+                                    validator: (v) {
+                                      if (v == null || v.isEmpty) {
+                                        return 'Mot de passe requis';
+                                      }
+                                      return null;
+                                    },
+                                  ),
 
-                                    // Mot de passe oublié
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).push(
-                                              babifixRoute(
-                                                (_) => const ForgotPasswordScreen(),
-                                              ),
-                                            ),
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: _cyan,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 8,
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).push(
+                                        babifixRoute(
+                                          (_) => ForgotPasswordScreen(
+                                            initialEmail: _user.text.contains('@')
+                                                ? _user.text.trim()
+                                                : null,
                                           ),
                                         ),
-                                        child: const Text(
-                                          'Mot de passe oublié ?',
-                                          style: TextStyle(fontSize: 13),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: _cyan,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                          vertical: 8,
                                         ),
                                       ),
-                                    ),
-
-                                    const SizedBox(height: 8),
-
-                                    // Bouton connexion
-                                    _PremiumButton(
-                                      label: 'Se connecter',
-                                      loading: _loading,
-                                      onPressed: _submit,
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFF4CC9F0),
-                                          Color(0xFF4CC9F0),
-                                        ],
+                                      child: const Text(
+                                        'Mot de passe oublie ?',
+                                        style: TextStyle(fontSize: 13),
                                       ),
                                     ),
-                                   ],
-                                 ),
-                               ),
-                             ),
+                                  ),
+
+                                  const SizedBox(height: 8),
+
+                                  BabifixButton(
+                                    label: 'Se connecter',
+                                    loadingLabel: 'Connexion...',
+                                    isLoading: _loading,
+                                    onPressed: _submit,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
 
                             const SizedBox(height: 28),
 
@@ -453,57 +442,14 @@ class _PremiumField extends StatelessWidget {
                   ),
                 )
               : null,
+          filled: false,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PremiumButton extends StatelessWidget {
-  const _PremiumButton({
-    required this.label,
-    required this.loading,
-    required this.onPressed,
-    required this.gradient,
-  });
-
-  final String label;
-  final bool loading;
-  final VoidCallback onPressed;
-  final Gradient gradient;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: loading ? null : onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 54,
-        decoration: BoxDecoration(
-          color: loading ? const Color(0xFF334155) : gradient.colors.first,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(
-          child: loading
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: BabifixRingLoader.cyan(size: 28),
-                )
-              : Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                  ),
-                ),
         ),
       ),
     );

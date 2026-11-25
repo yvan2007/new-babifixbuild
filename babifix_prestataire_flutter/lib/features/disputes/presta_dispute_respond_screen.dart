@@ -518,7 +518,10 @@ class _PrestaDisputeRespondScreenState
             fontSize: 13,
             height: 1.5,
           ),
+          filled: false,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
           counterStyle: TextStyle(
             color: Colors.white.withValues(alpha: 0.4),
             fontSize: 11,

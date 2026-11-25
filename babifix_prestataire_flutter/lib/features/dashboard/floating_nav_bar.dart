@@ -24,16 +24,20 @@ class MessagesNavBadge extends StatelessWidget {
     super.key,
     this.notifier,
     this.icon = Icons.chat_bubble_outline_rounded,
+    this.iconColor,
+    this.iconSize = 21,
   });
 
   final ValueNotifier<int>? notifier;
   final IconData icon;
+  final Color? iconColor;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
     final n = notifier;
     if (n == null) {
-      return Icon(icon);
+      return Icon(icon, size: iconSize, color: iconColor);
     }
     return ValueListenableBuilder<int>(
       valueListenable: n,
@@ -42,22 +46,29 @@ class MessagesNavBadge extends StatelessWidget {
           clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: [
-            Icon(icon),
+            Icon(icon, size: iconSize, color: iconColor),
             if (count > 0)
               Positioned(
-                right: -6,
+                right: -8,
                 top: -6,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: count > 9 ? 5 : 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF3B30),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 1),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: count > 9 ? 4.5 : 5,
+                    vertical: 1.5,
                   ),
-                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.2),
+                  ),
+                  constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
                   child: Text(
                     count > 99 ? '99+' : '$count',
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -69,7 +80,7 @@ class MessagesNavBadge extends StatelessWidget {
   }
 }
 
-/// Barre de navigation inf\u00e9rieure \u00ab pilule \u00bb \u2014 m\u00eame principe que l\u2019app client BABIFIX.
+/// Barre de navigation inferieure flottante BABIFIX PRO.
 class PrestataireFloatingNavBar extends StatelessWidget {
   const PrestataireFloatingNavBar({
     super.key,
@@ -88,80 +99,84 @@ class PrestataireFloatingNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isWhiteBg =
+        Theme.of(context).scaffoldBackgroundColor == const Color(0xFFFFFFFF);
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(26),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isLight
-                    ? const [Color(0xEEF8FAFF), Color(0xEEEFF4FF)]
-                    : const [Color(0xE6232A3A), Color(0xE1161B2A)],
-              ),
+              borderRadius: BorderRadius.circular(26),
+              color: isWhiteBg
+                  ? const Color(0xFAFFFFFF)
+                  : (isLight
+                      ? const Color(0xF5FFFFFF)
+                      : const Color(0xEC101F3B)),
               border: Border.all(
-                color: isLight ? const Color(0x220F172A) : const Color(0x55FFFFFF),
+                color: isLight
+                    ? const Color(0x140F172A)
+                    : const Color(0x24FFFFFF),
+                width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: isLight ? const Color(0x220F172A) : const Color(0x66000000),
-                  blurRadius: 28,
-                  offset: const Offset(0, 10),
+                  color: isLight
+                      ? const Color(0x120B1B34)
+                      : const Color(0x52000000),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                _PrestataireFloatingNavItem(
-                  selected: selectedIndex == 0,
-                  isLight: isLight,
-                  icon: Icons.home_rounded,
-                  label: 'Accueil',
-                  onTap: () => onSelect(0),
-                ),
-                _PrestataireFloatingNavItem(
-                  selected: selectedIndex == 1,
-                  isLight: isLight,
-                  icon: Icons.calendar_month_rounded,
-                  label: 'Exigences',
-                  onTap: () => onSelect(1),
-                  // Badge « nouvelles demandes » (comme Messages).
-                  iconOverride: MessagesNavBadge(
-                    notifier: babifixNewRequestsCount,
-                    icon: Icons.calendar_month_rounded,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  _PrestataireFloatingNavItem(
+                    selected: selectedIndex == 0,
+                    isLight: isLight,
+                    icon: Icons.home_rounded,
+                    label: 'Accueil',
+                    onTap: () => onSelect(0),
                   ),
-                ),
-                _PrestataireFloatingNavItem(
-                  selected: selectedIndex == 2,
-                  isLight: isLight,
-                  icon: Icons.account_balance_wallet_rounded,
-                  label: 'Gains',
-                  onTap: () => onSelect(2),
-                ),
-                _PrestataireFloatingNavItem(
-                  selected: selectedIndex == 3,
-                  isLight: isLight,
-                  icon: Icons.chat_bubble_outline_rounded,
-                  label: 'Messages',
-                  onTap: () {
-                    onMessagesOpened?.call();
-                    onSelect(3);
-                  },
-                  iconOverride: MessagesNavBadge(notifier: unreadChat),
-                ),
-                _PrestataireFloatingNavItem(
-                  selected: selectedIndex == 4,
-                  isLight: isLight,
-                  icon: Icons.person,
-                  label: 'Profil',
-                  onTap: () => onSelect(4),
-                ),
-              ],
+                  _PrestataireFloatingNavItem(
+                    selected: selectedIndex == 1,
+                    isLight: isLight,
+                    icon: Icons.assignment_rounded,
+                    label: 'Missions',
+                    onTap: () => onSelect(1),
+                    badgeNotifier: babifixNewRequestsCount,
+                  ),
+                  _PrestataireFloatingNavItem(
+                    selected: selectedIndex == 2,
+                    isLight: isLight,
+                    icon: Icons.account_balance_wallet_rounded,
+                    label: 'Wallet',
+                    onTap: () => onSelect(2),
+                  ),
+                  _PrestataireFloatingNavItem(
+                    selected: selectedIndex == 3,
+                    isLight: isLight,
+                    icon: Icons.chat_bubble_outline_rounded,
+                    label: 'Messages',
+                    onTap: () {
+                      onMessagesOpened?.call();
+                      onSelect(3);
+                    },
+                    badgeNotifier: unreadChat,
+                  ),
+                  _PrestataireFloatingNavItem(
+                    selected: selectedIndex == 4,
+                    isLight: isLight,
+                    icon: Icons.person_outline_rounded,
+                    label: 'Profil',
+                    onTap: () => onSelect(4),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -177,7 +192,7 @@ class _PrestataireFloatingNavItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.iconOverride,
+    this.badgeNotifier,
   });
 
   final bool selected;
@@ -185,40 +200,32 @@ class _PrestataireFloatingNavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Widget? iconOverride;
+  final ValueNotifier<int>? badgeNotifier;
 
   @override
   Widget build(BuildContext context) {
-    final iconOff = isLight ? const Color(0xFF475569) : const Color(0xFFB4BAC7);
-    final textOff = isLight ? const Color(0xFF334155) : const Color(0xFFB4BAC7);
-    final textOn = isLight ? const Color(0xFF0F172A) : Colors.white;
-    final iconOn = isLight ? const Color(0xFF0369A1) : const Color(0xFF9FE6FF);
+    final iconOff = isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    final textOff = isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8);
+    final textOn = isLight ? const Color(0xFF0B1B34) : Colors.white;
+    final iconOn = isLight ? const Color(0xFFE87722) : const Color(0xFF4CC9F0);
+    final activeIconColor = selected ? iconOn : iconOff;
+    final pillFill = selected
+        ? (isLight
+            ? const Color(0xFF0B1B34).withValues(alpha: 0.06)
+            : Colors.white.withValues(alpha: 0.08))
+        : Colors.transparent;
+
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
+          curve: const Cubic(0.23, 1, 0.32, 1),
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            gradient: selected
-                ? const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0x4D8FE3FF), Color(0x1F8FE3FF)],
-                  )
-                : null,
-            boxShadow: selected
-                ? const [
-                    BoxShadow(
-                      color: Color(0x440EB8FF),
-                      blurRadius: 14,
-                      offset: Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            color: pillFill,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -226,25 +233,24 @@ class _PrestataireFloatingNavItem extends StatelessWidget {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 width: selected ? 18 : 0,
-                height: 3,
+                height: 2.5,
                 margin: const EdgeInsets.only(bottom: 4),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(99),
-                  color: isLight ? const Color(0xFF4CC9F0) : const Color(0xFFA6EBFF),
+                  color: iconOn,
                 ),
               ),
-              iconOverride != null
-                  ? SizedBox(
-                      height: 21,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: iconOverride!,
-                      ),
+              badgeNotifier != null
+                  ? MessagesNavBadge(
+                      notifier: badgeNotifier,
+                      icon: icon,
+                      iconColor: activeIconColor,
+                      iconSize: 21,
                     )
                   : Icon(
                       icon,
                       size: 21,
-                      color: selected ? iconOn : iconOff,
+                      color: activeIconColor,
                     ),
               const SizedBox(height: 2),
               Text(
@@ -252,7 +258,7 @@ class _PrestataireFloatingNavItem extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   color: selected ? textOn : textOff,
                 ),

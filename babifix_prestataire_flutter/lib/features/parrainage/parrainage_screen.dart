@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/services/babifix_user_store.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -70,26 +72,31 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF0D1B2A) : const Color(0xFFF0F4FF);
-    final cardBg = isDark ? const Color(0xFF1A2740) : Colors.white;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final cardBg = BabifixDesign.surfaceOf(context);
+    final borderCol = BabifixDesign.borderOf(context);
+    final textPrimary = BabifixDesign.textPrimaryOf(context);
 
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Parrainage'),
-        backgroundColor: const Color(0xFF1565C0),
-        foregroundColor: Colors.white,
+        title: Text(
+          'Parrainage',
+          style: TextStyle(color: textPrimary, fontWeight: FontWeight.w800),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: textPrimary,
         elevation: 0,
       ),
       body: _loading
-          ? const Center(child: BabifixRingLoader.cyan(size: 28))
+          ? const Center(child: BabifixRingLoader.cyan(size: 36))
           : _error != null
               ? Center(child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(_error!, style: const TextStyle(color: Colors.red)),
-                    TextButton(onPressed: _load, child: const Text('Réessayer')),
+                    Text(_error!, style: const TextStyle(color: BabifixDesign.error)),
+                    const SizedBox(height: 12),
+                    BabifixButton(label: 'Réessayer', width: 160, onPressed: _load),
                   ],
                 ))
               : RefreshIndicator(
@@ -100,27 +107,40 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Header
+                        // Header architectural matte
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
+                            color: BabifixDesign.navy,
                             borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: BabifixDesign.borderDark),
                           ),
                           child: Column(
                             children: [
-                              const Icon(Icons.people_alt_rounded, color: Colors.white, size: 48),
-                              const SizedBox(height: 12),
-                              const Text('Invitez vos amis', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: BabifixDesign.ciOrange.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(Icons.people_alt_rounded, color: BabifixDesign.ciOrange, size: 30),
+                              ),
+                              const SizedBox(height: 14),
+                              const Text(
+                                'Invitez vos confrères',
+                                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 'Vous gagnez $_creditParrain FCFA par filleul\nVotre filleul gagne $_creditFilleul FCFA',
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                style: const TextStyle(
+                                  color: BabifixDesign.textMutedDark,
+                                  fontSize: 13.5,
+                                  height: 1.45,
+                                  fontFeatures: BabifixDesign.tabularFigures,
+                                ),
                               ),
                             ],
                           ),
@@ -132,12 +152,19 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
                           decoration: BoxDecoration(
                             color: cardBg,
                             borderRadius: BorderRadius.circular(16),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12)],
+                            border: Border.all(color: borderCol),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Votre code de parrainage', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.grey)),
+                              Text(
+                                'Votre code de parrainage',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                  color: BabifixDesign.textMutedOf(context),
+                                ),
+                              ),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
@@ -145,9 +172,9 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF1565C0).withOpacity(0.08),
+                                        color: BabifixDesign.cyanDeep.withValues(alpha: 0.08),
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: const Color(0xFF1565C0).withOpacity(0.3)),
+                                        border: Border.all(color: BabifixDesign.cyanDeep.withValues(alpha: 0.30)),
                                       ),
                                       child: Text(
                                         _code.isEmpty ? 'N/A' : _code,
@@ -155,7 +182,8 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
                                           fontSize: 22,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: 4,
-                                          color: Color(0xFF1565C0),
+                                          color: BabifixDesign.cyanDeep,
+                                          fontFeatures: BabifixDesign.tabularFigures,
                                         ),
                                       ),
                                     ),
@@ -164,23 +192,18 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
                                   IconButton.filled(
                                     onPressed: _code.isEmpty ? null : _copyCode,
                                     icon: const Icon(Icons.copy_rounded),
-                                    style: IconButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: BabifixDesign.navy,
+                                      foregroundColor: Colors.white,
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  onPressed: _code.isEmpty ? null : _shareCode,
-                                  icon: const Icon(Icons.share_rounded),
-                                  label: const Text('Partager mon code'),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: const Color(0xFF2E7D32),
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                ),
+                              BabifixButton(
+                                label: 'Partager mon code',
+                                icon: Icons.share_rounded,
+                                onPressed: _code.isEmpty ? null : _shareCode,
                               ),
                             ],
                           ),
@@ -193,7 +216,7 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
                               icon: Icons.group_add_rounded,
                               value: '$_filleuls',
                               label: 'Filleuls',
-                              color: const Color(0xFF1565C0),
+                              color: BabifixDesign.cyanDeep,
                               cardBg: cardBg,
                             )),
                             const SizedBox(width: 12),
@@ -201,7 +224,7 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
                               icon: Icons.account_balance_wallet_rounded,
                               value: '${_creditsEarned.toStringAsFixed(0)} F',
                               label: 'Crédits gagnés',
-                              color: const Color(0xFF2E7D32),
+                              color: BabifixDesign.success,
                               cardBg: cardBg,
                             )),
                           ],
@@ -213,15 +236,22 @@ class _ParrainageScreenState extends State<ParrainageScreen> {
                           decoration: BoxDecoration(
                             color: cardBg,
                             borderRadius: BorderRadius.circular(16),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12)],
+                            border: Border.all(color: borderCol),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Comment ça marche ?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text(
+                                'Comment ça marche ?',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                  color: textPrimary,
+                                ),
+                              ),
                               const SizedBox(height: 16),
-                              _StepItem(step: '1', text: 'Partagez votre code unique à un ami'),
-                              _StepItem(step: '2', text: 'Votre ami s\'inscrit et utilise votre code'),
+                              const _StepItem(step: '1', text: 'Partagez votre code unique à un ami'),
+                              const _StepItem(step: '2', text: 'Votre ami s\'inscrit et utilise votre code'),
                               _StepItem(step: '3', text: 'À sa 1ère réservation, vous recevez $_creditParrain FCFA'),
                               _StepItem(step: '4', text: 'Votre ami reçoit $_creditFilleul FCFA de bienvenue'),
                             ],
@@ -249,15 +279,23 @@ class _StatCard extends StatelessWidget {
     decoration: BoxDecoration(
       color: cardBg,
       borderRadius: BorderRadius.circular(16),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12)],
+      border: Border.all(color: BabifixDesign.borderOf(context)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: color, size: 28),
+        Icon(icon, color: color, size: 26),
         const SizedBox(height: 8),
-        Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: color,
+            fontFeatures: BabifixDesign.tabularFigures,
+          ),
+        ),
+        Text(label, style: TextStyle(fontSize: 12, color: BabifixDesign.textMutedOf(context))),
       ],
     ),
   );
@@ -277,7 +315,7 @@ class _StepItem extends StatelessWidget {
         Container(
           width: 28, height: 28,
           alignment: Alignment.center,
-          decoration: const BoxDecoration(color: Color(0xFF1565C0), shape: BoxShape.circle),
+          decoration: const BoxDecoration(color: BabifixDesign.navy, shape: BoxShape.circle),
           child: Text(step, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
         ),
         const SizedBox(width: 12),

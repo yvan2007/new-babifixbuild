@@ -1,12 +1,17 @@
-﻿import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../babifix_api_config.dart';
+import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_page_route.dart';
+import 'devis_kanban_editor_screen.dart';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../babifix_design_system.dart';
 import '../../shared/error_utils.dart';
+import '../../shared/services/babifix_remote_config.dart';
 import '../../services/call_service.dart';
 import '../../services/babifix_api.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -18,7 +23,7 @@ import 'client_journal_viewer.dart';
 import 'execution_actions_widget.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
-class RequestDetailScreen extends StatelessWidget {
+class RequestDetailScreen extends StatefulWidget {
   const RequestDetailScreen({
     super.key,
     required this.reference,
@@ -54,6 +59,11 @@ class RequestDetailScreen extends StatelessWidget {
     this.scheduledDate = '',
     this.audioProbleme = '',
     this.videoProbleme = '',
+    this.sosMode = false,
+    this.sosIsNight = false,
+    this.sosFeeFcfa = 0,
+    this.sosSector = '',
+    this.sosUnclaimed = false,
   });
 
   final String reference;
@@ -74,7 +84,7 @@ class RequestDetailScreen extends StatelessWidget {
   final bool isUrgent;
   final double? prixPropose;
 
-  // Adresse structurée — affichée joliment avec une icône par champ.
+  // Adresse structurée : affichée joliment avec une icône par champ.
   final String addressStreet;
   final String addressQuartier;
   final String addressVille;
@@ -97,7 +107,7 @@ class RequestDetailScreen extends StatelessWidget {
   final bool cautionPayee;
   final bool visiteEffectuee;
 
-  /// Date prévue (ISO yyyy-mm-dd) choisie par le client — pour bloquer le
+  /// Date prévue (ISO yyyy-mm-dd) choisie par le client : pour bloquer le
   /// bouton « Démarrer » avant le jour J.
   final String scheduledDate;
 
@@ -107,10 +117,521 @@ class RequestDetailScreen extends StatelessWidget {
   /// Courte vidéo du client montrant le problème (URL). Vide si absente.
   final String videoProbleme;
 
+  final bool sosMode;
+  final bool sosIsNight;
+  final int sosFeeFcfa;
+  final String sosSector;
+  final bool sosUnclaimed;
+
+  @override
+  State<RequestDetailScreen> createState() => _RequestDetailScreenState();
+}
+
+class _RequestDetailScreenState extends State<RequestDetailScreen> {
+  bool _isSubmitting = false;
+  late String _currentStatus;
+  late bool _sosUnclaimed;
+
+  String get reference => widget.reference;
+  String get client => widget.client;
+  String get service => widget.service;
+  String get date => widget.date;
+  String get hour => widget.hour;
+  String get amount => widget.amount;
+  String get address => widget.address;
+  String get description => widget.description;
+  String get apiStatus => _currentStatus;
+  String get paymentType => widget.paymentType;
+  String get mobileMoneyOperator => widget.mobileMoneyOperator;
+  double get rating => widget.rating;
+  String get clientMessage => widget.clientMessage;
+  List<String> get clientPhotos => widget.clientPhotos;
+  String get disponibilitesClient => widget.disponibilitesClient;
+  bool get isUrgent => widget.isUrgent;
+  double? get prixPropose => widget.prixPropose;
+  String get addressStreet => widget.addressStreet;
+  String get addressQuartier => widget.addressQuartier;
+  String get addressVille => widget.addressVille;
+  String get addressPays => widget.addressPays;
+  String get addressRepere => widget.addressRepere;
+  double? get addressLat => widget.addressLat;
+  double? get addressLon => widget.addressLon;
+  bool get addressIsApproximate => widget.addressIsApproximate;
+  double? get distanceKm => widget.distanceKm;
+  Map<String, dynamic> get reponsesExigences => widget.reponsesExigences;
+  double get cautionMontant => widget.cautionMontant;
+  bool get cautionPayee => widget.cautionPayee;
+  bool get visiteEffectuee => widget.visiteEffectuee;
+  String get scheduledDate => widget.scheduledDate;
+  String get audioProbleme => widget.audioProbleme;
+  String get videoProbleme => widget.videoProbleme;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentStatus = widget.apiStatus;
+    _sosUnclaimed = widget.sosUnclaimed;
+  }
+
+  Future<void> _claimSos() async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
+      await DevisApi.claimSos(widget.reference);
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        _sosUnclaimed = false;
+        _currentStatus = 'DEVIS_EN_COURS';
+      });
+      showBabifixToast(
+        context,
+        type: BabifixToastType.success,
+        message: 'Mission SOS attribuee ! Preparez votre devis pour le client.',
+      );
+    } on BabifixApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      showBabifixToast(
+        context,
+        type: BabifixToastType.warning,
+        message: e.message,
+      );
+      if (e.statusCode == 409 || e.statusCode == 410) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        showBabifixToast(context, type: BabifixToastType.error, message: userFriendlyError(e));
+      }
+    }
+  }
+
+  bool get _isPending {
+    final s = _currentStatus.trim().toLowerCase();
+    return s == 'demande_envoyee' ||
+        s == 'en attente' ||
+        s == 'pending' ||
+        s == 'nouveau';
+  }
+
+  bool get _isDevisPending {
+    final s = _currentStatus.trim().toUpperCase();
+    return s == 'DEVIS_EN_COURS';
+  }
+
+  bool get _canStartIntervention {
+    final s = _currentStatus.trim().toUpperCase();
+    return s == 'DEVIS_ACCEPTE' ||
+        s == 'CONFIRMEE' ||
+        s == 'PAID' ||
+        s == 'ASSIGNED';
+  }
+
+  bool get _isInProgress {
+    final s = _currentStatus.trim().toUpperCase();
+    return s == 'INTERVENTION_EN_COURS' || s == 'IN_PROGRESS';
+  }
+
+  Future<void> _demarrerIntervention() async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
+      final res = await ReservationApi.demarrer(widget.reference);
+      if (res['error'] == 'acompte_required') {
+        if (!mounted) return;
+        final due = (res['amount_due_online'] as num?)?.toInt() ?? 0;
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Acompte client en attente'),
+            content: Text(
+              "Le client n'a pas encore versé l'acompte sécurisé (" + due.toString() + " FCFA). "
+              "L'intervention pourra demarrer des que la consignation sera validee.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Compris'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      setState(() => _currentStatus = 'INTERVENTION_EN_COURS');
+      if (mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.success,
+          message: 'En route ! Le client a ete notifie de votre depart.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: userFriendlyError(e),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _decide(String decision) async {
+    if (_isSubmitting) return;
+    if (decision == 'refuse') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Refuser la demande ?'),
+          content: const Text(
+            'Souhaitez-vous refuser cette demande ? Le client sera notifié pour pouvoir solliciter un autre prestataire.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Retour'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Refuser la demande'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
+    setState(() => _isSubmitting = true);
+    final token = await readStoredApiToken();
+    try {
+      final res = await http.post(
+        Uri.parse(
+          '${babifixApiBaseUrl()}/api/prestataire/requests/${widget.reference}/decision',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'decision': decision}),
+      );
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      if (res.statusCode == 200) {
+        if (decision == 'accept') {
+          setState(() => _currentStatus = 'DEVIS_EN_COURS');
+          showBabifixToast(
+            context,
+            message: 'Demande acceptée ! Ouverture du devis...',
+            type: BabifixToastType.success,
+          );
+          await Navigator.of(context).push<void>(
+            babifixRoute(
+              (_) => DevisKanbanEditorScreen(
+                reservationReference: widget.reference,
+                reservationTitle: service,
+                clientName: client,
+                clientProblem: clientMessage,
+                clientPhotos: clientPhotos,
+                reponsesExigences: reponsesExigences,
+              ),
+            ),
+          );
+          if (mounted) Navigator.of(context).pop(true);
+        } else {
+          showBabifixToast(
+            context,
+            message: 'Demande refusée.',
+            type: BabifixToastType.info,
+          );
+          Navigator.of(context).pop(true);
+        }
+      } else {
+        showBabifixToast(
+          context,
+          message: 'Erreur lors du traitement (${res.statusCode})',
+          type: BabifixToastType.error,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        showBabifixToast(
+          context,
+          message: 'Erreur réseau : $e',
+          type: BabifixToastType.error,
+        );
+      }
+    }
+  }
+
+  Widget? _buildBottomActions(BuildContext context) {
+    if (_sosUnclaimed && _isPending) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          border: Border(top: BorderSide(color: Color(0xFFC2410C), width: 2)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isSubmitting ? null : _claimSos,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFC2410C),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: _isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.emergency_share_rounded, size: 20),
+              label: Text(
+                _isSubmitting
+                    ? 'Attribution en cours...'
+                    : 'Prendre la mission SOS (${widget.sosFeeFcfa} FCFA)',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    if (_isPending) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          border: Border(top: BorderSide(color: Color(0xFF1E293B), width: 1.5)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x33000000),
+              offset: Offset(0, -4),
+              blurRadius: 16,
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: OutlinedButton.icon(
+                  onPressed: _isSubmitting ? null : () => _decide('refuse'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFEF4444),
+                    side: const BorderSide(color: Color(0xFFDC2626), width: 1.2),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  label: const Text(
+                    'Refuser',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 3,
+                child: FilledButton.icon(
+                  onPressed: _isSubmitting ? null : () => _decide('accept'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.check_circle_rounded, size: 18),
+                  label: Text(
+                    _isSubmitting ? 'Validation...' : 'Accepter la demande',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_isDevisPending) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          border: Border(top: BorderSide(color: Color(0xFF1E293B), width: 1.5)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(context).push<void>(
+                babifixRoute(
+                  (_) => DevisKanbanEditorScreen(
+                    reservationReference: widget.reference,
+                    reservationTitle: service,
+                    clientName: client,
+                    clientProblem: clientMessage,
+                    clientPhotos: clientPhotos,
+                    reponsesExigences: reponsesExigences,
+                  ),
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.edit_note_rounded, size: 20),
+              label: const Text(
+                'Rédiger / Modifier le devis',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_canStartIntervention) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          border: Border(top: BorderSide(color: Color(0xFF1E293B), width: 1.5)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x33000000),
+              offset: Offset(0, -4),
+              blurRadius: 16,
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isSubmitting ? null : _demarrerIntervention,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFE87722),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              icon: _isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.directions_car_rounded, size: 20),
+              label: Text(
+                _isSubmitting
+                    ? 'Notification en cours...'
+                    : 'Je pars en intervention (En route)',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_isInProgress) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          border: Border(top: BorderSide(color: Color(0xFF1E293B), width: 1.5)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF059669).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF059669).withValues(alpha: 0.4),
+              ),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.build_circle_rounded, color: Color(0xFF34D399), size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Intervention en cours chez le client',
+                  style: TextStyle(
+                    color: Color(0xFF34D399),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: BabifixDesign.navy,
+      bottomNavigationBar: _buildBottomActions(context),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -195,15 +716,16 @@ class RequestDetailScreen extends StatelessWidget {
                   distanceKm: distanceKm,
                 ),
                 _RequirementsAnswersCard(reponses: reponsesExigences),
-                // Carte moderne : emplacement du client (pin goutte).
+                // Carte moderne : emplacement du client (zone cercle si approximative).
                 if (addressLat != null && addressLon != null) ...[
                   const SizedBox(height: 12),
                   BabifixMiniMap(
                     lat: addressLat!,
                     lon: addressLon!,
                     height: 170,
-                    pinColor: const Color(0xFF4CC9F0),
+                    pinColor: const Color(0xFF0B1B34),
                     pinIcon: Icons.person_pin_circle_rounded,
+                    isApproximate: addressIsApproximate,
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -271,78 +793,147 @@ class RequestDetailScreen extends StatelessWidget {
                     ),
                     children: [
                       if (clientMessage.isNotEmpty)
-                        Text(
-                          clientMessage,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFFCBD5E1),
-                            height: 1.6,
-                          ),
+                        Builder(
+                          builder: (ctx) {
+                            final isLight =
+                                Theme.of(ctx).brightness == Brightness.light;
+                            return Text(
+                              clientMessage,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isLight
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFFCBD5E1),
+                                height: 1.55,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            );
+                          },
                         ),
-                      // Note vocale enregistrée par le client (façon WhatsApp).
+                      // Note vocale enregistree par le client (lecteur adaptatif clair/sombre).
                       if (audioProbleme.isNotEmpty) ...[
                         if (clientMessage.isNotEmpty) const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            const Icon(Icons.mic_rounded,
-                                size: 16, color: Color(0xFF38BDF8)),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: BabifixVoiceNotePlayer(
-                                url: MediaApi.absolute(audioProbleme),
-                                durationSeconds: 0,
-                                // isMe:false = lecteur "navy", pensé pour une
-                                // bulle de chat claire. _SectionCard a un
-                                // fond sombre en dur (0xFF122236) -> quasi
-                                // invisible (navy sur navy). isMe:true =
-                                // blanc, lisible sur ce fond.
-                                isMe: true,
+                        Builder(
+                          builder: (ctx) {
+                            final isLight =
+                                Theme.of(ctx).brightness == Brightness.light;
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isLight
+                                    ? const Color(0xFFEFF6FF)
+                                    : const Color(0xFF0F223B),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isLight
+                                      ? const Color(0xFFBFDBFE)
+                                      : const Color(0xFF1E3A5F),
+                                ),
                               ),
-                            ),
-                          ],
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.mic_rounded,
+                                        size: 15,
+                                        color: isLight
+                                            ? const Color(0xFF0284C7)
+                                            : const Color(0xFF38BDF8),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Note vocale du client',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: isLight
+                                              ? const Color(0xFF0369A1)
+                                              : const Color(0xFF7DD3FC),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  BabifixVoiceNotePlayer(
+                                    url: MediaApi.absolute(audioProbleme),
+                                    durationSeconds: 0,
+                                    isMe: !isLight,
+                                    foregroundColor: isLight
+                                        ? const Color(0xFF0B1B34)
+                                        : Colors.white,
+                                    reservationReference: reference,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ],
                       // Vidéo du problème, filmée par le client (30 s max).
-                      // Ouverture EXTERNE : cet écran est reconstruit une seule
-                      // fois (pas de scroll de liste), un lecteur embarqué
-                      // serait donc sûr ici, mais on reste cohérent avec le
-                      // choix fait dans la liste (léger, pas de dépendance
-                      // vidéo supplémentaire).
                       if (videoProbleme.isNotEmpty) ...[
                         if (clientMessage.isNotEmpty || audioProbleme.isNotEmpty)
                           const SizedBox(height: 12),
-                        InkWell(
-                          onTap: () => launchUrl(
-                            Uri.parse(MediaApi.absolute(videoProbleme)),
-                            mode: LaunchMode.externalApplication,
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F1D32),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: const Color(0xFF38BDF8)
-                                      .withValues(alpha: 0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.videocam_rounded,
-                                    size: 18, color: Color(0xFF38BDF8)),
-                                const SizedBox(width: 8),
-                                const Expanded(
-                                  child: Text('Vidéo du problème (30 s max)',
-                                      style: TextStyle(
-                                          color: Color(0xFFCBD5E1),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600)),
+                        Builder(
+                          builder: (ctx) {
+                            final isLight =
+                                Theme.of(ctx).brightness == Brightness.light;
+                            return InkWell(
+                              onTap: () => launchUrl(
+                                Uri.parse(MediaApi.absolute(videoProbleme)),
+                                mode: LaunchMode.externalApplication,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isLight
+                                      ? const Color(0xFFF1F5F9)
+                                      : const Color(0xFF0F1D32),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: isLight
+                                        ? const Color(0xFFCBD5E1)
+                                        : const Color(0xFF38BDF8)
+                                            .withValues(alpha: 0.3),
+                                  ),
                                 ),
-                                const Icon(Icons.open_in_new_rounded,
-                                    size: 16, color: Color(0xFF38BDF8)),
-                              ],
-                            ),
-                          ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.videocam_rounded,
+                                      size: 18,
+                                      color: isLight
+                                          ? const Color(0xFF0284C7)
+                                          : const Color(0xFF38BDF8),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Vidéo du problème (30 s max)',
+                                        style: TextStyle(
+                                          color: isLight
+                                              ? const Color(0xFF0F172A)
+                                              : const Color(0xFFCBD5E1),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.open_in_new_rounded,
+                                      size: 16,
+                                      color: isLight
+                                          ? const Color(0xFF0284C7)
+                                          : const Color(0xFF38BDF8),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ],
@@ -413,7 +1004,7 @@ class RequestDetailScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                 ],
 
-                // Amount — masqué tant qu'aucun montant réel (évite « 0 FCFA »)
+                // Amount : masqué tant qu'aucun montant réel (évite « 0 FCFA »)
                 if (amount.trim().isNotEmpty &&
                     !RegExp(r'^0+(\s|$)').hasMatch(amount.trim()))
                   Container(
@@ -498,7 +1089,7 @@ class RequestDetailScreen extends StatelessWidget {
                   statut: apiStatus,
                   scheduledDate: scheduledDate,
                 ),
-                // Bouton "Voir le journal client" — utile dès que la
+                // Bouton "Voir le journal client" : utile dès que la
                 // prestation est terminée pour comparer ce que le presta a
                 // déclaré et ce que le client en dit.
                 if (apiStatus == 'Terminee' ||
@@ -509,8 +1100,8 @@ class RequestDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => ClientJournalViewer(
+                        babifixRoute(
+                          (_) => ClientJournalViewer(
                             reservationReference: reference,
                           ),
                         ),
@@ -525,75 +1116,60 @@ class RequestDetailScreen extends StatelessWidget {
                 // OU la visite effectuée, ces boutons de DEMANDE disparaissent
                 // (inutile de re-demander une visite déjà en cours/faite).
                 if (addressIsApproximate && !cautionPayee && !visiteEffectuee) ...[
-                  const SizedBox(height: 12),
+                  if (BabifixRemoteConfig.instance.current.callsEnabled) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => CallService.startOutgoing(
+                          context: context,
+                          reservationReference: reference,
+                          targetName: client,
+                          isVideo: true,
+                          diagnostic: true,
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF0E3B2E),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                        ),
+                        icon: const Icon(Icons.videocam_rounded, size: 20),
+                        label: const Text(
+                          'Visio-diagnostic (avant devis)',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6, left: 4, right: 4),
+                      child: Text(
+                        'Evaluez le chantier en video avant de proposer un devis. '
+                        'Le client recoit un appel et peut decliner.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.4,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => CallService.startOutgoing(
-                        context: context,
-                        reservationReference: reference,
-                        targetName: client,
-                        isVideo: true,
-                        diagnostic: true,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showVisitDialog(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: BabifixDesign.textPrimaryOf(context),
+                        side: BorderSide(color: BabifixDesign.borderOf(context)),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
                       ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF06B6D4),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                      ),
-                      icon: const Icon(Icons.videocam_rounded, size: 20),
-                      label: const Text(
-                        'Visio-diagnostic (avant devis)',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
+                      icon: const Icon(Icons.home_repair_service_rounded,
+                          size: 18),
+                      label: const Text('Proposer une visite de diagnostic',
+                          style: TextStyle(fontSize: 12.5)),
                     ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6, left: 4, right: 4),
-                    child: Text(
-                      'Évaluez le chantier en vidéo avant de proposer un devis. '
-                      'Le client reçoit un appel et peut décliner.',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        height: 1.4,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showEstimationDialog(context),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white38),
-                            padding: const EdgeInsets.symmetric(vertical: 11),
-                          ),
-                          icon: const Icon(Icons.query_stats_rounded, size: 18),
-                          label: const Text('Estimation',
-                              style: TextStyle(fontSize: 12.5)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showVisitDialog(context),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white38),
-                            padding: const EdgeInsets.symmetric(vertical: 11),
-                          ),
-                          icon: const Icon(Icons.home_repair_service_rounded,
-                              size: 18),
-                          label: const Text('Visite',
-                              style: TextStyle(fontSize: 12.5)),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
                 // Visite proposée mais caution pas encore payée → le presta peut
@@ -614,44 +1190,46 @@ class RequestDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ],
-                // Appel direct au client + raccourci historique
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => CallService.startOutgoing(
-                          context: context,
-                          reservationReference: reference,
-                          targetName: client,
-                          isVideo: false,
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white38),
-                        ),
-                        icon: const Icon(Icons.call, size: 18),
-                        label: const Text('Appeler le client'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => const CallHistoryScreen(),
+                // Appel direct au client + raccourci historique (masques si LiveKit non configure)
+                if (BabifixRemoteConfig.instance.current.callsEnabled) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => CallService.startOutgoing(
+                            context: context,
+                            reservationReference: reference,
+                            targetName: client,
+                            isVideo: false,
                           ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                          ),
+                          icon: const Icon(Icons.call, size: 18),
+                          label: const Text('Appeler le client'),
                         ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white38),
-                        ),
-                        icon: const Icon(Icons.history, size: 18),
-                        label: const Text('Mes appels'),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).push<void>(
+                            babifixRoute(
+                              (_) => const CallHistoryScreen(),
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                          ),
+                          icon: const Icon(Icons.history, size: 18),
+                          label: const Text('Mes appels'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ]),
             ),
           ),
@@ -660,269 +1238,131 @@ class RequestDetailScreen extends StatelessWidget {
     );
   }
 
-  // ── Estimation (fourchette indicative) ──────────────────────────────────
-  Future<void> _showEstimationDialog(BuildContext context) async {
-    final diagCtrl = TextEditingController();
-    final minCtrl = TextEditingController();
-    final maxCtrl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Envoyer une estimation'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Fourchette indicative (non payable). Vous enverrez ensuite '
-                  'un devis ferme.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: diagCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Diagnostic',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              // Validation EN DIRECT. Avant : aucun retour tant qu'on n'avait
-              // pas appuyé sur « Envoyer », et surtout AUCUN contrôle que
-              // Min <= Max (on pouvait envoyer « 50 000 – 1 000 » au client).
-              StatefulBuilder(
-                builder: (ctx2, setField) {
-                  double? p(TextEditingController c) =>
-                      double.tryParse(c.text.replaceAll(',', '.').trim());
-                  final mn = p(minCtrl);
-                  final mx = p(maxCtrl);
-                  String? errMin;
-                  String? errMax;
-                  if (minCtrl.text.trim().isNotEmpty) {
-                    if (mn == null) {
-                      errMin = 'Invalide';
-                    } else if (mn <= 0) {
-                      errMin = '> 0 requis';
-                    }
-                  }
-                  if (maxCtrl.text.trim().isNotEmpty) {
-                    if (mx == null) {
-                      errMax = 'Invalide';
-                    } else if (mx <= 0) {
-                      errMax = '> 0 requis';
-                    } else if (mn != null && mn > 0 && mx < mn) {
-                      errMax = 'Doit être ≥ Min';
-                    }
-                  }
-                  final fmt = [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                  ];
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: minCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          inputFormatters: fmt,
-                          onChanged: (_) => setField(() {}),
-                          decoration: InputDecoration(
-                            labelText: 'Min',
-                            errorText: errMin,
-                            suffixText: 'FCFA',
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: maxCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          inputFormatters: fmt,
-                          onChanged: (_) => setField(() {}),
-                          decoration: InputDecoration(
-                            labelText: 'Max',
-                            errorText: errMax,
-                            suffixText: 'FCFA',
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Envoyer')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    final diag = diagCtrl.text.trim();
-    final min = double.tryParse(minCtrl.text.replaceAll(',', '.').trim()) ?? 0;
-    final max = double.tryParse(maxCtrl.text.replaceAll(',', '.').trim()) ?? 0;
-    if (!context.mounted) return;
-    if (diag.isEmpty || min <= 0 || max <= 0) {
-      showBabifixToast(context,
-          type: BabifixToastType.info,
-          message: 'Renseignez le diagnostic et la fourchette.');
-      return;
-    }
-    // Garde-fou : une fourchette inversée partirait telle quelle au client.
-    if (max < min) {
-      showBabifixToast(context,
-          type: BabifixToastType.error,
-          message: 'Le maximum doit être supérieur ou égal au minimum.');
-      return;
-    }
-    _showLoader(context, 'Envoi de l\'estimation…');
-    try {
-      await DevisApi.createEstimation(
-        reference: reference,
-        diagnostic: diag,
-        prixMin: min,
-        prixMax: max,
-      );
-      if (!context.mounted) return;
-      Navigator.of(context).pop(); // ferme le loader
-      showBabifixToast(context,
-          type: BabifixToastType.success,
-          message: 'Estimation envoyée au client.');
-      Navigator.of(context).pop(true);
-    } catch (e) {
-      if (!context.mounted) return;
-      Navigator.of(context).pop(); // ferme le loader
-      showBabifixToast(context,
-          type: BabifixToastType.error, message: 'Échec : $e');
-    }
-  }
-
-  // ── Demande de visite de diagnostic (caution) ───────────────────────────
+  // ── Demande de visite de diagnostic (3 paliers clairs) ───────────────────
   Future<void> _showVisitDialog(BuildContext context) async {
-    final cautionCtrl = TextEditingController();
+    int selectedCaution = 1500;
     final motifCtrl = TextEditingController();
+    final presets = <({int amount, String title, String subtitle})>[
+      (amount: 0, title: 'Visite gratuite (0 FCFA)', subtitle: 'Diagnostic offert sans frais de deplacement'),
+      (amount: 1500, title: 'Meme commune (1 500 FCFA)', subtitle: 'Deplacement local · 100 % deductible du devis'),
+      (amount: 2500, title: 'Commune voisine (2 500 FCFA)', subtitle: 'Secteur elargi · 100 % deductible du devis'),
+    ];
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Demander une visite'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Le client règle une caution (déductible du devis) avant que '
-                  'vous receviez l’adresse exacte. Montant maximum : 5 000 FCFA.',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDlgState) => AlertDialog(
+          title: const Text('Proposer une visite de diagnostic'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Choisissez le forfait de deplacement (100 % reverse au prestataire et deductible du devis final).',
                   style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                 ),
-              ),
-              const SizedBox(height: 12),
-              // Validation EN DIRECT : avant, on pouvait taper 100 000 sans
-              // rien voir, et n'apprendre le refus qu'après l'appel serveur.
-              StatefulBuilder(
-                builder: (ctx2, setField) {
-                  final saisi = double.tryParse(
-                      cautionCtrl.text.replaceAll(',', '.').trim());
-                  String? err;
-                  if (cautionCtrl.text.trim().isNotEmpty) {
-                    if (saisi == null) {
-                      err = 'Entrez un montant valide.';
-                    } else if (saisi <= 0) {
-                      err = 'Le montant doit être supérieur à 0.';
-                    } else if (saisi > 5000) {
-                      err = 'Maximum 5 000 FCFA.';
-                    }
-                  }
-                  return TextField(
-                    controller: cautionCtrl,
-                    autofocus: true,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    // Empêche carrément de saisir autre chose que des chiffres.
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                    ],
-                    onChanged: (_) => setField(() {}),
-                    decoration: InputDecoration(
-                      labelText: 'Montant de la caution',
-                      helperText: 'Transport, reversé à 100 % au prestataire',
-                      errorText: err,
-                      suffixText: 'FCFA',
-                      border: const OutlineInputBorder(),
+                const SizedBox(height: 12),
+                for (final p in presets) ...[
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => setDlgState(() => selectedCaution = p.amount),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: selectedCaution == p.amount
+                            ? const Color(0xFF0E3B2E).withValues(alpha: 0.08)
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selectedCaution == p.amount
+                              ? const Color(0xFF0E3B2E)
+                              : const Color(0xFFCBD5E1),
+                          width: selectedCaution == p.amount ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            selectedCaution == p.amount
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                            size: 20,
+                            color: selectedCaution == p.amount
+                                ? const Color(0xFF0E3B2E)
+                                : const Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  p.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13.5,
+                                    color: Color(0xFF0B1B34),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  p.subtitle,
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: Color(0xFF475569),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: motifCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Motif (optionnel)',
-                  hintText: 'Ex. mesures sur place nécessaires',
-                  border: OutlineInputBorder(),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                TextField(
+                  controller: motifCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Precision / motif (optionnel)',
+                    hintText: 'Ex. prise de cotes ou diagnostic tableau electrique',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler')),
+            FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0B1B34)),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Envoyer la proposition')),
+          ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Demander')),
-        ],
       ),
     );
     if (ok != true) return;
-    final caution =
-        double.tryParse(cautionCtrl.text.replaceAll(',', '.').trim()) ?? 0;
     if (!context.mounted) return;
-    if (caution <= 0) {
-      showBabifixToast(context,
-          type: BabifixToastType.info,
-          message: 'Indiquez un montant de caution.');
-      return;
-    }
-    if (caution > 5000) {
-      showBabifixToast(context,
-          type: BabifixToastType.error,
-          message: 'La caution ne peut pas dépasser 5 000 FCFA.');
-      return;
-    }
     try {
       await DevisApi.requestVisit(
         reference: reference,
-        cautionMontant: caution,
+        cautionMontant: selectedCaution.toDouble(),
         cautionMotif: motifCtrl.text.trim(),
       );
       if (!context.mounted) return;
       showBabifixToast(context,
           type: BabifixToastType.success,
-          message: 'Visite proposée au client.');
+          message: 'Visite proposee au client.');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!context.mounted) return;
       showBabifixToast(context,
-          type: BabifixToastType.error, message: 'Échec : $e');
+          type: BabifixToastType.error, message: 'Echec : $e');
     }
   }
 
@@ -1088,8 +1528,9 @@ class _StatusBadge extends StatelessWidget {
 
   Color _color() {
     final s = status.toLowerCase();
+    if (s == 'visite_diagnostic') return const Color(0xFFB45309);
     if (s.contains('attente') || s.contains('demande')) return const Color(0xFFF59E0B);
-    if (s.contains('devis')) return const Color(0xFF60A5FA);
+    if (s.contains('devis')) return const Color(0xFF0E3B2E);
     if (s.contains('cours')) return const Color(0xFF7C3AED);
     if (s.contains('termin')) return const Color(0xFF22C55E);
     if (s.contains('annul')) return const Color(0xFFF87171);
@@ -1100,6 +1541,7 @@ class _StatusBadge extends StatelessWidget {
   String _label() {
     final s = status;
     if (s == 'DEMANDE_ENVOYEE') return 'Nouvelle demande';
+    if (s == 'VISITE_DIAGNOSTIC') return 'Visite de diagnostic demandée';
     if (s == 'DEVIS_EN_COURS') return 'Devis à préparer';
     if (s == 'DEVIS_ENVOYE') return 'Devis envoyé';
     if (s == 'DEVIS_ACCEPTE') return 'Devis accepté';
@@ -1408,7 +1850,7 @@ class _SafeImage extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _RequirementsAnswersCard — réponses du client aux questions dynamiques de la
+// _RequirementsAnswersCard : réponses du client aux questions dynamiques de la
 // catégorie (Phase 2). Format {key: {label, value, unit?}}. Rien si vide.
 // ─────────────────────────────────────────────────────────────────────────────
 class _RequirementsAnswersCard extends StatelessWidget {
@@ -1427,7 +1869,7 @@ class _RequirementsAnswersCard extends StatelessWidget {
       final unit = (v['unit'] ?? '').toString().trim();
       if (value.isEmpty) continue;
       if (unit.isNotEmpty) value = '$value $unit';
-      rows.add(MapEntry(label.isEmpty ? '—' : label, value));
+      rows.add(MapEntry(label.isEmpty ? ', ' : label, value));
     }
     if (rows.isEmpty) return const SizedBox.shrink();
 
@@ -1435,8 +1877,11 @@ class _RequirementsAnswersCard extends StatelessWidget {
       padding: const EdgeInsets.only(top: 12),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: BabifixDesign.surfaceOf(context),
           borderRadius: BorderRadius.circular(16),
+          border: BabifixDesign.isDark(context)
+              ? Border.all(color: BabifixDesign.borderOf(context))
+              : null,
           boxShadow: const [
             BoxShadow(
                 color: Colors.black12, blurRadius: 12, offset: Offset(0, 4)),
@@ -1482,9 +1927,9 @@ class _RequirementsAnswersCard extends StatelessWidget {
                           flex: 5,
                           child: Text(
                             rows[i].key,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
-                              color: Color(0xFF64748B),
+                              color: BabifixDesign.textMutedOf(context),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1495,9 +1940,9 @@ class _RequirementsAnswersCard extends StatelessWidget {
                           child: Text(
                             rows[i].value,
                             textAlign: TextAlign.right,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13.5,
-                              color: Color(0xFF0B1B34),
+                              color: BabifixDesign.textPrimaryOf(context),
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -1505,7 +1950,8 @@ class _RequirementsAnswersCard extends StatelessWidget {
                       ],
                     ),
                     if (i != rows.length - 1)
-                      const Divider(height: 18, color: Color(0xFFF1F5F9)),
+                      Divider(
+                          height: 18, color: BabifixDesign.borderOf(context)),
                   ],
                 ],
               ),
@@ -1518,7 +1964,7 @@ class _RequirementsAnswersCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _AddressCard — affichage pro de l'adresse d'intervention (rue / quartier /
+// _AddressCard : affichage pro de l'adresse d'intervention (rue / quartier /
 // ville / pays / repère), chacun avec son icône colorée et un lien
 // "Ouvrir dans Google Maps" en bas.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1564,7 +2010,12 @@ class _AddressCard extends StatelessWidget {
   }
 
   Future<void> _openInMaps() async {
-    final query = Uri.encodeComponent(_formattedAddress);
+    final String query;
+    if (!isApproximate && lat != null && lon != null) {
+      query = '${lat!},${lon!}';
+    } else {
+      query = Uri.encodeComponent(_formattedAddress);
+    }
     final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -1735,11 +2186,11 @@ class _AddressCard extends StatelessWidget {
   }
 
   Widget _buildPreciseBody() {
-    // Adresse précise — affichage premium/grand
+    // Adresse précise : affichage premium/grand
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Quartier en grand — le plus important
+        // Quartier en grand : le plus important
         if (quartier.isNotEmpty) ...[
           Text(
             quartier.toUpperCase(),
@@ -1859,14 +2310,12 @@ class _AddressLine extends StatelessWidget {
     required this.color,
     required this.label,
     required this.value,
-    this.isHighlighted = false,
   });
 
   final IconData icon;
   final Color color;
   final String label;
   final String value;
-  final bool isHighlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -1899,29 +2348,12 @@ class _AddressLine extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Container(
-                  padding: isHighlighted
-                      ? const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4)
-                      : null,
-                  decoration: isHighlighted
-                      ? BoxDecoration(
-                          color: color.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: color.withValues(alpha: 0.3),
-                          ),
-                        )
-                      : null,
-                  child: Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: const Color(0xFF1E293B),
-                      fontWeight: isHighlighted
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                    ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1E293B),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],

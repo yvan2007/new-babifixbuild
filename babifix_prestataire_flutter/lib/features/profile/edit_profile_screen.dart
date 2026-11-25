@@ -4,13 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/services/nominatim_geocode.dart';
+import '../../shared/services/smart_gps.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_mini_map.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
-import '../../shared/widgets/babifix_suggestion_chips.dart';
+import '../../shared/widgets/smart_address_picker.dart';
 
 class EditProfilePrestataireScreen extends StatefulWidget {
   final String? apiBase;
@@ -37,6 +42,7 @@ class _EditProfilePrestataireScreenState
   String? _error;
   String? _success;
   String _statut = '';
+  String _categoryNom = '';
   String _cniRectoUrl = '';
   String _cniVersoUrl = '';
   String _portraitUrl = '';   // URL portrait actuel (serveur)
@@ -89,6 +95,7 @@ class _EditProfilePrestataireScreenState
         _expCtrl.text = d['years_experience'] != null ? '${d['years_experience']}' : '0';
         setState(() {
           _statut = d['statut'] as String? ?? '';
+          _categoryNom = (d['category_nom'] ?? d['category'] ?? '').toString().trim();
           _cniRectoUrl = d['cni_recto_url'] as String? ?? '';
           _cniVersoUrl = d['cni_verso_url'] as String? ?? '';
           _portraitUrl = d['photo_portrait_url'] as String? ?? '';
@@ -100,79 +107,136 @@ class _EditProfilePrestataireScreenState
     } catch (_) { setState(() => _loading = false); }
   }
 
-  /// Partage de la position GPS — AVEC consentement explicite du prestataire.
-  /// Demande l'autorisation, capture la position, renseigne la ville et
-  /// l'enregistre côté serveur (/api/prestataire/location/update).
+  /// Applique une position choisie (GPS, tap carte ou selecteur plein ecran),
+  /// met a jour automatiquement la carte ET le champ « Zone & commune »,
+  /// puis enregistre immediatement cote serveur.
+  Future<void> _applyAndPersistLocation(
+    double lat,
+    double lon, {
+    String? knownLabel,
+    bool showSuccessToast = true,
+  }) async {
+    String ville = (knownLabel ?? '').trim();
+    if (ville.isEmpty) {
+      try {
+        final place = await nominatimReverse(lat, lon);
+        ville = (place?.displayName ?? '').trim();
+      } catch (_) {}
+    }
+    if (ville.isEmpty) {
+      ville = resolveNearestCivCommune(lat, lon).displayName;
+    }
+    if (mounted) {
+      setState(() {
+        _lat = lat;
+        _lon = lon;
+        _villeCtrl.text = ville;
+      });
+    }
+    final token = await _token();
+    if (token == null) return;
+    try {
+      final res = await http.post(
+        Uri.parse('$_base/api/prestataire/location/update'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'latitude': lat,
+          'longitude': lon,
+          'explicit_city': true,
+          'ville': ville,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        if (showSuccessToast) {
+          showBabifixToast(
+            context,
+            type: BabifixToastType.success,
+            message: 'Position mise a jour : $ville',
+          );
+        }
+      } else {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Echec de l\'enregistrement (${res.statusCode}).',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.warning,
+          message: 'Position selectionnee localement. Cliquez sur Sauvegarder.',
+        );
+      }
+    }
+  }
+
+  /// Ouvre la carte interactive plein ecran (identique a l'app Client).
+  Future<void> _openFullMapPicker() async {
+    final picked = await Navigator.of(context).push<PickedProLocation>(
+      babifixRoute(
+        (_) => SmartProAddressPicker(
+          initialLat: _lat,
+          initialLon: _lon,
+          initialLabel: _villeCtrl.text.trim().isEmpty
+              ? null
+              : _villeCtrl.text.trim(),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _locating = true);
+    try {
+      await _applyAndPersistLocation(
+        picked.lat,
+        picked.lon,
+        knownLabel: picked.label,
+      );
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  /// Partage de la position GPS avec mise a jour automatique du champ Zone/Commune.
   Future<void> _shareMyLocation() async {
     if (_locating) return;
     setState(() { _locating = true; });
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        if (mounted) showBabifixToast(context, type: BabifixToastType.warning,
-            message: 'Activez la localisation (GPS) de votre téléphone.');
+      final gps = await acquireSmartGps(forceFresh: true);
+      if (!mounted) return;
+      if (gps.permissionDeniedForever) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.warning,
+          message: gps.friendlyMessage ?? 'Autorisation bloquee. Activez-la dans les reglages.',
+        );
+        await Geolocator.openAppSettings();
         return;
       }
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission(); // ← consentement
-      }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        if (mounted) showBabifixToast(context, type: BabifixToastType.warning,
-            message: 'Autorisation refusée. Vous pouvez l\'activer dans les réglages.');
+      if (gps.hasHardError) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.warning,
+          message: gps.friendlyMessage ?? 'Activez la localisation sur votre telephone.',
+        );
         return;
       }
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      ).timeout(const Duration(seconds: 12));
-      // Garde-fou CIV : si le GPS est hors Côte d'Ivoire (émulateur), on retombe
-      // sur Abidjan — MÊME logique que l'inscription et les cartes client — au
-      // lieu de refuser. La mise à jour aboutit toujours, jamais de coords
-      // étrangères enregistrées.
-      const latMin = 4.0, latMax = 11.0, lonMin = -9.0, lonMax = -2.0;
-      final outOfCiv = pos.latitude < latMin ||
-          pos.latitude > latMax ||
-          pos.longitude < lonMin ||
-          pos.longitude > lonMax;
-      final double lat = outOfCiv ? 5.345317 : pos.latitude;
-      final double lon = outOfCiv ? -4.024429 : pos.longitude;
-      // Ville (best-effort) via reverse geocoding.
-      String ville = _villeCtrl.text.trim();
-      if (outOfCiv && ville.isEmpty) ville = 'Abidjan';
-      try {
-        final place = await nominatimReverse(lat, lon);
-        final label = (place?.displayName ?? '').trim();
-        if (label.isNotEmpty) ville = label;
-      } catch (_) {}
-      final token = await _token();
-      if (token == null) return;
-      final res = await http.post(
-        Uri.parse('$_base/api/prestataire/location/update'),
-        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'latitude': lat,
-          'longitude': lon,
-          if (ville.isNotEmpty) 'ville': ville,
-        }),
-      ).timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) {
-        if (!mounted) return;
-        setState(() {
-          _lat = lat;
-          _lon = lon;
-          if (ville.isNotEmpty) _villeCtrl.text = ville;
-        });
-        showBabifixToast(context, type: BabifixToastType.info,
-            message: outOfCiv
-                ? 'GPS hors Côte d\'Ivoire : position par défaut : Abidjan. Ajustez si besoin.'
-                : 'Position enregistrée : vous êtes visible sur la carte.');
-      } else {
-        if (mounted) showBabifixToast(context, type: BabifixToastType.error,
-            message: 'Échec de l\'enregistrement (${res.statusCode}).');
+      final lat = gps.position?.latitude ?? kCivAbidjanLat;
+      final lon = gps.position?.longitude ?? kCivAbidjanLon;
+      await _applyAndPersistLocation(lat, lon);
+    } catch (_) {
+      if (mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.info,
+          message: 'Touchez la carte ou choisissez votre commune ci-dessus.',
+        );
       }
-    } catch (e) {
-      if (mounted) showBabifixToast(context, type: BabifixToastType.error,
-          message: 'Impossible d\'obtenir la position : $e');
     } finally {
       if (mounted) setState(() { _locating = false; });
     }
@@ -185,6 +249,8 @@ class _EditProfilePrestataireScreenState
     final payload = <String, dynamic>{
       'nom': _nomCtrl.text.trim(), 'specialite': _specialiteCtrl.text.trim(),
       'ville': _villeCtrl.text.trim(), 'bio': _bioCtrl.text.trim(),
+      if (_lat != null) 'latitude': _lat,
+      if (_lon != null) 'longitude': _lon,
     };
     // tarif_horaire désactivé pour le prestataire — chaque devis a son prix.
     if (_expCtrl.text.trim().isNotEmpty) payload['years_experience'] = int.tryParse(_expCtrl.text.trim());
@@ -293,8 +359,11 @@ class _EditProfilePrestataireScreenState
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Scaffold(
-      backgroundColor: BabifixDesign.navy,
+      backgroundColor: isLight
+          ? Theme.of(context).scaffoldBackgroundColor
+          : BabifixDesign.navy,
       body: _loading
           ? const Center(child: BabifixRingLoader.cyan(size: 28))
           : CustomScrollView(slivers: [
@@ -306,65 +375,72 @@ class _EditProfilePrestataireScreenState
   }
 
   Widget _buildAppBar() {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final fg = isLight ? const Color(0xFF0B1B34) : Colors.white;
+    final bg = isLight ? Colors.white : BabifixDesign.navy;
+    final subColor = isLight ? const Color(0xFF64748B) : Colors.white70;
     return SliverAppBar(
-      expandedHeight: 180,
-      floating: false,
       pinned: true,
-      backgroundColor: BabifixDesign.navy,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      backgroundColor: bg,
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        icon: Icon(Icons.arrow_back_rounded, color: fg),
         onPressed: () => Navigator.pop(context),
       ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [BabifixDesign.navy, Color(0xFF1A3A6E)],
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Modifier mon profil',
+            style: TextStyle(
+              color: fg,
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              letterSpacing: -0.3,
             ),
           ),
-          child: Stack(
-            children: [
-              Positioned(top: -40, right: -40, child: Container(
-                width: 180, height: 180,
-                decoration: BoxDecoration(shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [BabifixDesign.cyan.withValues(alpha: 0.12), Colors.transparent])),
-              )),
-              Positioned(top: -20, left: -20, child: Container(
-                width: 100, height: 100,
-                decoration: BoxDecoration(shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [BabifixDesign.ciOrange.withValues(alpha: 0.08), Colors.transparent])),
-              )),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 60, 24, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Modifier mon profil',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
-                    const SizedBox(height: 6),
-                    Text(_nomCtrl.text.isNotEmpty ? _nomCtrl.text : 'Prestataire',
-                        style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.6), fontWeight: FontWeight.w500)),
-                  ],
-                ),
+          if (_nomCtrl.text.trim().isNotEmpty)
+            Text(
+              _nomCtrl.text.trim(),
+              style: TextStyle(
+                color: subColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+        ],
+      ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Divider(
+          height: 1,
+          color: isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E3A63),
         ),
-        title: const Text('Modifier mon profil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
       ),
     );
   }
 
   Widget _buildBody() {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final isWhite =
+        Theme.of(context).scaffoldBackgroundColor == const Color(0xFFFFFFFF);
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [Color(0xFF0B1B34), Color(0xFF081428)],
-        ),
+      decoration: BoxDecoration(
+        color: isWhite
+            ? Colors.white
+            : (isLight ? const Color(0xFFF1F5F9) : null),
+        gradient: isLight
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF0B1B34), Color(0xFF081428)],
+              ),
       ),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
       child: Column(
@@ -387,11 +463,71 @@ class _EditProfilePrestataireScreenState
             color: BabifixDesign.cyan,
             child: Column(
               children: [
-                _PremiumField(controller: _nomCtrl, label: 'Nom complet', icon: Icons.badge_rounded),
+                _PremiumField(controller: _nomCtrl, label: "Nom complet ou raison sociale", icon: Icons.badge_rounded),
                 const SizedBox(height: 12),
-                _PremiumField(controller: _specialiteCtrl, label: 'Specialite', icon: Icons.work_rounded),
+                if (_categoryNom.isNotEmpty) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isLight
+                          ? const Color(0xFFF0F9FF)
+                          : const Color(0xFF0F2544),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.verified_rounded,
+                          size: 18,
+                          color: Color(0xFF0284C7),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Catégorie principale rattachée',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isLight
+                                      ? const Color(0xFF0369A1)
+                                      : const Color(0xFF7DD3FC),
+                                ),
+                              ),
+                              Text(
+                                _categoryNom,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isLight
+                                      ? const Color(0xFF0B1B34)
+                                      : Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _PremiumField(
+                  controller: _specialiteCtrl,
+                  label: "Précision / Savoir-faire",
+                  icon: Icons.work_rounded,
+                  hint: _categoryNom.isNotEmpty
+                      ? "Précisez votre spécialité en $_categoryNom"
+                      : "Ex: Recherche de fuite, installation...",
+                ),
                 const SizedBox(height: 12),
-                _PremiumField(controller: _villeCtrl, label: 'Ville & zone d\'intervention', icon: Icons.location_on_rounded, hint: 'Ex: Cocody, Abidjan'),
+                _PremiumField(controller: _villeCtrl, label: "Zone & commune d'intervention", icon: Icons.location_on_rounded, hint: "Ex: Cocody, Abidjan"),
               ],
             ),
           ),
@@ -401,13 +537,77 @@ class _EditProfilePrestataireScreenState
           _SectionCardPremium(
             icon: Icons.my_location_rounded,
             title: 'Ma position sur la carte',
-            subtitle: 'Partagez votre position pour être trouvé par les clients',
+            subtitle: 'Touchez la carte ou ouvrez-la pour choisir votre zone',
             color: BabifixDesign.ciGreen,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Stack(
+                  children: [
+                    BabifixMiniMap(
+                      lat: _lat ?? kCivAbidjanLat,
+                      lon: _lon ?? kCivAbidjanLon,
+                      height: 195,
+                      pinColor: BabifixDesign.ciGreen,
+                      pinIcon: Icons.location_on_rounded,
+                      zoom: 14.5,
+                      interactive: true,
+                      onTap: (LatLng p) async {
+                        if (_locating) return;
+                        setState(() => _locating = true);
+                        try {
+                          await _applyAndPersistLocation(
+                            p.latitude,
+                            p.longitude,
+                          );
+                        } finally {
+                          if (mounted) setState(() => _locating = false);
+                        }
+                      },
+                    ),
+                    Positioned(
+                      right: 10,
+                      top: 10,
+                      child: Material(
+                        color: Colors.white,
+                        elevation: 3,
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: _locating ? null : _openFullMapPicker,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.open_in_full_rounded,
+                                  size: 14,
+                                  color: Color(0xFF0B1B34),
+                                ),
+                                SizedBox(width: 5),
+                                Text(
+                                  'Agrandir',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0B1B34),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: (_lat != null && _lon != null
                             ? BabifixDesign.ciGreen
@@ -420,49 +620,84 @@ class _EditProfilePrestataireScreenState
                       Icon(
                         _lat != null && _lon != null
                             ? Icons.check_circle_rounded
-                            : Icons.location_off_rounded,
-                        size: 20,
+                            : Icons.place_outlined,
+                        size: 18,
                         color: _lat != null && _lon != null
                             ? BabifixDesign.ciGreen
                             : BabifixDesign.ciOrange,
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _lat != null && _lon != null
-                              ? 'Position partagée : vous apparaissez sur la carte des clients.'
-                              : 'Position non partagée : vous n\'apparaissez pas encore sur la carte.',
-                          style: const TextStyle(fontSize: 12.5, height: 1.3),
+                              ? (_villeCtrl.text.trim().isNotEmpty
+                                  ? 'Zone active : ${_villeCtrl.text.trim()}'
+                                  : 'Position partagee sur la carte.')
+                              : 'Touchez la carte ou choisissez votre position ci-dessous.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                            color: isLight ? const Color(0xFF0F172A) : Colors.white,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _locating ? null : _shareMyLocation,
-                    icon: _locating
-                        ? const SizedBox(
-                            width: 18, height: 18,
-                            child: BabifixRingLoader.cyan(size: 18))
-                        : const Icon(Icons.my_location_rounded, size: 18),
-                    label: Text(_lat != null && _lon != null
-                        ? 'Mettre à jour ma position'
-                        : 'Partager ma position (GPS)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: BabifixDesign.ciGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _locating ? null : _openFullMapPicker,
+                        icon: const Icon(Icons.map_rounded, size: 17),
+                        label: const Text(
+                          'Choisir sur carte',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: BabifixDesign.ciGreen,
+                          side: const BorderSide(color: BabifixDesign.ciGreen, width: 1.3),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _locating ? null : _shareMyLocation,
+                        icon: _locating
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: BabifixRingLoader.cyan(size: 16),
+                              )
+                            : const Icon(Icons.my_location_rounded, size: 17),
+                        label: const Text(
+                          'Me localiser',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: BabifixDesign.ciGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Votre position n\'est utilisée que pour vous proposer aux clients proches. Vous pouvez la mettre à jour à tout moment.',
+                  'Chaque choix sur la carte met a jour automatiquement votre commune dans le formulaire.',
                   style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), height: 1.3),
                 ),
               ],
@@ -473,36 +708,56 @@ class _EditProfilePrestataireScreenState
           // A propos
           _SectionCardPremium(
             icon: Icons.description_rounded,
-            title: 'A propos de vous',
-            subtitle: 'Decrirez votre experience',
+            title: 'À propos de vous',
+            subtitle: 'Décrivez votre expérience et vos garanties',
             color: BabifixDesign.ciOrange,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Assistant de présentation intelligent',
+                        style: TextStyle(
+                          color: isLight ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        final yrs = int.tryParse(_expCtrl.text.trim()) ?? 3;
+                        final spec = _specialiteCtrl.text.trim().isNotEmpty
+                            ? _specialiteCtrl.text.trim()
+                            : 'dépannage et installation';
+                        final vil = _villeCtrl.text.trim().isNotEmpty
+                            ? _villeCtrl.text.trim()
+                            : 'ma ville';
+                        final expText = yrs > 0 ? "$yrs ans d'expérience" : "une solide expérience terrain";
+                        setState(() {
+                          _bioCtrl.text =
+                              "Spécialiste en $spec avec $expText. "
+                              "J'interviens rapidement à $vil et ses environs pour tous vos travaux d'installation, diagnostic et réparation. "
+                              "Devis transparent, matériel professionnel et travail soigné garanti.";
+                        });
+                      },
+                      icon: const Icon(Icons.auto_awesome_rounded, size: 15, color: Color(0xFF38BDF8)),
+                      label: const Text(
+                        'Rédiger auto',
+                        style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 _PremiumTextField(
                   controller: _bioCtrl,
                   label: 'Biographie / Description',
-                  hint: 'Decrirez votre experience, vos competences...',
+                  hint: 'Décrivez votre expérience, vos compétences...',
                   maxLines: 4,
                   maxLength: 500,
-                ),
-                const SizedBox(height: 12),
-                // Bulles : on tape pour ajouter une phrase utile à la description.
-                BabifixSuggestionChips(
-                  controller: _bioCtrl,
-                  accent: BabifixDesign.ciOrange,
-                  separator: '. ',
-                  title: 'Phrases utiles',
-                  suggestions: const [
-                    'Plusieurs années d\'expérience',
-                    'Travail soigné et garanti',
-                    'Devis gratuit',
-                    'Disponible 7j/7',
-                    'Intervention rapide',
-                    'Matériel professionnel fourni',
-                    'Tarifs honnêtes',
-                    'Ponctuel et fiable',
-                  ],
                 ),
               ],
             ),
@@ -559,28 +814,25 @@ class _EditProfilePrestataireScreenState
   }
 
   Widget _buildSaveBar() {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Container(
       decoration: BoxDecoration(
-        color: BabifixDesign.navy,
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+        color: isLight ? Colors.white : BabifixDesign.navy,
+        border: Border(
+          top: BorderSide(
+            color: BabifixDesign.borderOf(context),
+          ),
+        ),
       ),
       padding: EdgeInsets.only(
         bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
         left: 16, right: 16, top: 12,
       ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: FilledButton(
-          onPressed: _saving ? null : _save,
-          style: FilledButton.styleFrom(
-            backgroundColor: _saving ? Colors.grey : BabifixDesign.cyan,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          child: _saving
-              ? const SizedBox(width: 22, height: 22, child: BabifixRingLoader.cyan(size: 28))
-              : const Text('Sauvegarder les modifications', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-        ),
+      child: BabifixButton(
+        label: 'Sauvegarder les modifications',
+        loadingLabel: 'Enregistrement...',
+        isLoading: _saving,
+        onPressed: _saving ? null : _save,
       ),
     );
   }
@@ -602,14 +854,19 @@ class _SectionCardPremium extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [const Color(0xFF0F1D33), const Color(0xFF0B1525)],
-        ),
-        border: Border.all(color: color.withValues(alpha: 0.15)),
+        color: isLight ? Colors.white : null,
+        gradient: isLight
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0F1D33), Color(0xFF0B1525)],
+              ),
+        border: Border.all(color: color.withValues(alpha: isLight ? 0.32 : 0.15)),
         boxShadow: [BoxShadow(color: color.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 8))],
       ),
       child: Padding(
@@ -631,8 +888,8 @@ class _SectionCardPremium extends StatelessWidget {
                 Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                    Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.45))),
+                    Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: isLight ? const Color(0xFF0F172A) : Colors.white)),
+                    Text(subtitle, style: TextStyle(fontSize: 11, color: isLight ? const Color(0xFF64748B) : Colors.white.withValues(alpha: 0.45))),
                   ],
                 )),
               ],
@@ -662,24 +919,27 @@ class _PremiumField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+      style: TextStyle(color: isLight ? const Color(0xFF0F172A) : Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
+        alignLabelWithHint: true,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         labelText: label,
         hintText: hint,
-        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
-        prefixIcon: Icon(icon, size: 18, color: BabifixDesign.cyan.withValues(alpha: 0.6)),
+        labelStyle: TextStyle(color: isLight ? const Color(0xFF475569) : Colors.white.withValues(alpha: 0.4), fontSize: 12),
+        prefixIcon: Icon(icon, size: 18, color: BabifixDesign.cyan.withValues(alpha: 0.85)),
         filled: true,
-        fillColor: const Color(0xFF0A1220),
+        fillColor: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0A1220),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: isLight ? const Color(0xFFCBD5E1) : Colors.white.withValues(alpha: 0.08)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: isLight ? const Color(0xFFCBD5E1) : Colors.white.withValues(alpha: 0.08)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -707,25 +967,28 @@ class _PremiumTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return TextField(
       controller: controller,
       maxLines: maxLines,
       maxLength: maxLength,
-      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+      style: TextStyle(color: isLight ? const Color(0xFF0F172A) : Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
+        alignLabelWithHint: true,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         labelText: label,
         hintText: hint,
-        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
-        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 12),
+        labelStyle: TextStyle(color: isLight ? const Color(0xFF475569) : Colors.white.withValues(alpha: 0.4), fontSize: 12),
+        hintStyle: TextStyle(color: isLight ? const Color(0xFF94A3B8) : Colors.white.withValues(alpha: 0.25), fontSize: 12),
         filled: true,
-        fillColor: const Color(0xFF0A1220),
+        fillColor: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0A1220),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: isLight ? const Color(0xFFCBD5E1) : Colors.white.withValues(alpha: 0.08)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: isLight ? const Color(0xFFCBD5E1) : Colors.white.withValues(alpha: 0.08)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -868,6 +1131,7 @@ class _CniUploaderPremiumState extends State<_CniUploaderPremium> {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final hasDoc = _url.isNotEmpty;
     return GestureDetector(
       onTap: _uploading ? null : _pick,
@@ -875,11 +1139,14 @@ class _CniUploaderPremiumState extends State<_CniUploaderPremium> {
         height: 120,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
+          color: (!hasDoc && isLight) ? const Color(0xFFF8FAFC) : null,
           gradient: hasDoc
               ? LinearGradient(colors: [const Color(0xFF1A3A6E).withValues(alpha: 0.3), const Color(0xFF0B1B34).withValues(alpha: 0.2)])
-              : LinearGradient(colors: [const Color(0xFF0A1220), const Color(0xFF081018)]),
+              : (isLight ? null : const LinearGradient(colors: [Color(0xFF0A1220), Color(0xFF081018)])),
           border: Border.all(
-            color: hasDoc ? BabifixDesign.ciOrange.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.08),
+            color: hasDoc
+                ? BabifixDesign.ciOrange.withValues(alpha: 0.4)
+                : (isLight ? const Color(0xFFCBD5E1) : Colors.white.withValues(alpha: 0.08)),
             width: hasDoc ? 1.5 : 1,
           ),
         ),
@@ -911,14 +1178,14 @@ class _CniUploaderPremiumState extends State<_CniUploaderPremium> {
                       decoration: BoxDecoration(shape: BoxShape.circle,
                         gradient: LinearGradient(colors: [BabifixDesign.cyan.withValues(alpha: 0.15), BabifixDesign.cyan.withValues(alpha: 0.05)]),
                       ),
-                      child: Icon(Icons.credit_card_rounded, color: BabifixDesign.iconOnDark, size: 20),
+                      child: Icon(Icons.credit_card_rounded, color: isLight ? BabifixDesign.cyan : BabifixDesign.iconOnDark, size: 20),
                     ),
                     const SizedBox(height: 8),
                     Text(widget.label, textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
+                        style: TextStyle(fontSize: 12, color: isLight ? const Color(0xFF0F172A) : Colors.white, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 3),
                     Text('Appuyer pour ajouter',
-                        style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.35))),
+                        style: TextStyle(fontSize: 10, color: isLight ? const Color(0xFF64748B) : Colors.white.withValues(alpha: 0.35))),
                   ]),
       ),
     );

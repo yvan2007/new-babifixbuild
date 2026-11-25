@@ -8,8 +8,11 @@ import 'package:image_picker/image_picker.dart';
 import '../../babifix_design_system.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
+import '../../shared/services/babifix_user_store.dart';
+import '../premium/premium_screen.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
-import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_sheet.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
 class DevisKanbanEditorScreen extends StatefulWidget {
@@ -19,6 +22,7 @@ class DevisKanbanEditorScreen extends StatefulWidget {
   final String clientName;
   final String clientProblem;
   final List<String> clientPhotos;
+  final Map<String, dynamic> reponsesExigences;
 
   const DevisKanbanEditorScreen({
     super.key,
@@ -28,6 +32,7 @@ class DevisKanbanEditorScreen extends StatefulWidget {
     this.clientName = '',
     this.clientProblem = '',
     this.clientPhotos = const [],
+    this.reponsesExigences = const {},
   });
 
   @override
@@ -45,11 +50,48 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
 
   final List<LigneDevis> _lignes = [];
   List<CatalogueItem> _catalogue = [];
+  List<Map<String, dynamic>> _smartItems = [];
+  List<Map<String, dynamic>> _quickTemplates = [];
+  Map<String, dynamic> _uiProfile = const {};
+  int _plafondFcfa = 100000;
+  String _artisanTier = 'palier_1_proximite';
+  Map<String, dynamic>? _meritProgress;
+  String _profilDevis = 'STANDARD';
+  String _categoryNom = '';
+  List<String> _recommendedUnits = const [];
   bool _sending = false;
   final List<String> _diagPhotos = [];
   final ImagePicker _picker = ImagePicker();
   bool _attemptedSend = false;
   double _remise = 0;
+
+  bool get _showFournitures => _uiProfile['show_fournitures'] != false;
+  bool get _showDiagPhotos => _uiProfile['show_diag_photos'] != false;
+  String get _diagnosticSectionTitle =>
+      '${_uiProfile['diagnostic_label'] ?? 'Diagnostic & planification'}';
+  String get _mainOeuvreLabel {
+    final labels = _uiProfile['line_labels'];
+    if (labels is Map && '${labels['MAIN_OEUVRE'] ?? ''}'.trim().isNotEmpty) {
+      return '${labels['MAIN_OEUVRE']}'.trim();
+    }
+    return "Main-d'oeuvre";
+  }
+
+  String get _fournitureLabel {
+    final labels = _uiProfile['line_labels'];
+    if (labels is Map && '${labels['FOURNITURE'] ?? ''}'.trim().isNotEmpty) {
+      return '${labels['FOURNITURE']}'.trim();
+    }
+    return 'Fourniture';
+  }
+
+  String get _emptyLinesHint {
+    final h = '${_uiProfile['empty_hint'] ?? ''}'.trim();
+    if (h.isNotEmpty) return h;
+    return _showFournitures
+        ? "Fournitures, main-d'oeuvre, deplacement..."
+        : 'Choisissez un modele rapide ci-dessus ou ajoutez une prestation.';
+  }
 
   double get _sousTotal => _lignes.fold<double>(0, (s, l) => s + l.total);
   double get _baseTotal {
@@ -89,6 +131,72 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     _loadCatalogue();
     _loadDraft();
     _loadCommissionRate();
+    _loadSmartAssist();
+  }
+
+  Future<void> _loadSmartAssist() async {
+    try {
+      final problemText = [
+        widget.reservationTitle,
+        widget.clientProblem,
+        _diagnosticCtl.text,
+      ].where((s) => s.trim().isNotEmpty).join(' ');
+      final params = <String, String>{};
+      if (problemText.isNotEmpty) params['description'] = problemText;
+      if (widget.categoryId != null) {
+        params['category_id'] = '${widget.categoryId}';
+      }
+      final uri = Uri(
+        path: '/api/prestataire/smart/devis-assist/',
+        queryParameters: params.isEmpty ? null : params,
+      );
+      final resp = await BabifixUserStore.authGet(uri.toString());
+      if (resp.statusCode == 200 && mounted) {
+        final data = jsonDecode(resp.body);
+        if (data is Map<String, dynamic>) {
+          final bench = data['benchmark'];
+          final benchMap =
+              bench is Map ? Map<String, dynamic>.from(bench) : null;
+          final rawItems = benchMap?['suggested_items'] ?? data['suggested_items'];
+          final unitsRaw = data['recommended_units'];
+          final uiProf = data['devis_ui_profile'];
+          final rawTemplates = data['quick_templates'];
+          final rawMerit = data['merit_progress'];
+          setState(() {
+            _profilDevis = '${data['profil_devis'] ?? 'STANDARD'}'.toUpperCase();
+            _categoryNom = '${data['category_nom'] ?? ''}'.trim();
+            if (uiProf is Map) {
+              _uiProfile = Map<String, dynamic>.from(uiProf);
+            }
+            if (rawTemplates is List) {
+              _quickTemplates = rawTemplates
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList();
+            }
+            final plaf = (data['plafond_intervention_fcfa'] as num?)?.toInt();
+            if (plaf != null && plaf > 0) _plafondFcfa = plaf;
+            final tier = '${data['artisan_tier'] ?? ''}'.trim();
+            if (tier.isNotEmpty) _artisanTier = tier;
+            if (rawMerit is Map) {
+              _meritProgress = Map<String, dynamic>.from(rawMerit);
+            }
+            if (unitsRaw is List) {
+              _recommendedUnits = unitsRaw
+                  .map((e) => '$e'.trim())
+                  .where((e) => e.isNotEmpty)
+                  .toList();
+            }
+            if (rawItems is List) {
+              _smartItems = rawItems
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList();
+            }
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadCommissionRate() async {
@@ -181,7 +289,63 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
         message: 'Brouillon enregistré.',
       );
     } on BabifixApiException catch (e) {
-      _snack(e.message);
+      if (e.code == 'devis_quota_reached' && mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Quota de devis atteint'),
+            content: Text(e.message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Fermer'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB45309)),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const PremiumScreen()),
+                  );
+                },
+                child: const Text('Passer Pro / Gold'),
+              ),
+            ],
+          ),
+        );
+      } else if (e.code == 'detail_required_high_amount' && mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Detail recommande pour ce montant'),
+            content: Text(
+              '${e.message}\n\nAjoutez au moins une 2e ligne (ou une note explicative de 15 caracteres minimum) pour rassurer le client.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Fermer'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0E3B2E),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _addEmptyLine(
+                    _showFournitures
+                        ? DevisLineType.fourniture
+                        : DevisLineType.mainOeuvre,
+                  );
+                },
+                child: const Text('Ajouter une ligne'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        _snack(e.message);
+      }
     } catch (e) {
       _snack(e.toString());
     } finally {
@@ -206,13 +370,79 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     } catch (_) {}
   }
 
+  String get _defaultLineUnit {
+    if (_recommendedUnits.isNotEmpty) return _recommendedUnits.first;
+    if (_profilDevis == 'SURFACE') return 'm²';
+    if (_profilDevis == 'FORFAIT') return 'forfait';
+    return 'u';
+  }
+
+  String get _diagnosticHint {
+    final profHint = '${_uiProfile['diagnostic_hint'] ?? ''}'.trim();
+    if (profHint.isNotEmpty) return profHint;
+    switch (_profilDevis) {
+      case 'SURFACE':
+        return 'Surface mesuree (m²), etat du support, preparation requise...';
+      case 'DIAGNOSTIC':
+        return 'Panne relevee sur appareil/installation, pieces et tests requis...';
+      case 'FORFAIT':
+        return 'Perimetre exact de la prestation, horaires, consignes et engagement...';
+      default:
+        return 'Analyse du probleme observe sur place';
+    }
+  }
+
+  void _applyQuickTemplate(Map<String, dynamic> tpl) {
+    final diag = '${tpl['diagnostic'] ?? ''}'.trim();
+    final linesRaw = tpl['lignes'];
+    final nextLines = <LigneDevis>[];
+    if (linesRaw is List) {
+      for (final raw in linesRaw) {
+        if (raw is! Map) continue;
+        final m = Map<String, dynamic>.from(raw);
+        final q = (m['quantite'] as num?)?.toDouble() ?? 1.0;
+        final p = (m['prix_unitaire'] as num?)?.toDouble() ?? 0.0;
+        nextLines.add(
+          LigneDevis(
+            typeLigne: DevisLineType.fromCode(
+              '${m['type_ligne'] ?? 'MAIN_OEUVRE'}',
+            ),
+            description: '${m['description'] ?? ''}'.trim(),
+            quantite: q,
+            prixUnitaire: p,
+            unite: '${m['unite'] ?? _defaultLineUnit}'.trim(),
+            total: q * p,
+          ),
+        );
+      }
+    }
+    setState(() {
+      if (diag.isNotEmpty) _diagnosticCtl.text = diag;
+      if (nextLines.isNotEmpty) {
+        _lignes
+          ..clear()
+          ..addAll(nextLines);
+      }
+    });
+    showBabifixToast(
+      context,
+      type: BabifixToastType.success,
+      message:
+          'Modele "${tpl['title'] ?? 'Rapide'}" applique. Ajustez les montants si besoin.',
+    );
+  }
+
   void _addEmptyLine(DevisLineType t) {
+    final unit = (t == DevisLineType.mainOeuvre && _profilDevis == 'FORFAIT')
+        ? 'forfait'
+        : _defaultLineUnit;
     setState(() {
       _lignes.add(LigneDevis(
         typeLigne: t,
         description: '',
         quantite: 1,
         prixUnitaire: 0,
+        unite: unit,
         total: 0,
       ));
     });
@@ -235,12 +465,9 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
         ? _catalogue
         : _catalogue.where((c) => c.typeLigne == section).toList();
     final searchCtl = TextEditingController();
-    final picked = await showModalBottomSheet<CatalogueItem>(
+    final picked = await showBabifixModalSheet<CatalogueItem>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.7,
         minChildSize: 0.4,
@@ -367,12 +594,9 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
       statut: DevisStatus.brouillon,
       lignes: _lignes,
     );
-    showModalBottomSheet(
+    showBabifixModalSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.85,
         minChildSize: 0.5,
@@ -490,7 +714,17 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final lightBase = ThemeData.light(useMaterial3: true);
+    return Theme(
+      data: lightBase.copyWith(
+        colorScheme: lightBase.colorScheme.copyWith(
+          primary: BabifixDesign.cyan,
+          secondary: BabifixDesign.ciOrange,
+          surface: Colors.white,
+          onSurface: BabifixDesign.navy,
+        ),
+      ),
+      child: Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
         title: Row(
@@ -538,13 +772,20 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               children: [
                 _clientRequestCard(),
+                if (_quickTemplates.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _quickTemplatesCard(),
+                ],
                 const SizedBox(height: 14),
                 _topInfosCard(),
-                const SizedBox(height: 14),
-                _diagPhotosCard(),
+                if (_showDiagPhotos) ...[
+                  const SizedBox(height: 14),
+                  _diagPhotosCard(),
+                ],
                 const SizedBox(height: 14),
                 _lignesCard(),
                 const SizedBox(height: 14),
+                _devisCoherenceBanner(),
                 _escrowNote(),
                 const SizedBox(height: 100),
               ],
@@ -553,6 +794,7 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
           _bottomBar(),
         ],
       ),
+    ),
     );
   }
 
@@ -562,7 +804,11 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     final hasProblem = widget.clientProblem.trim().isNotEmpty;
     final hasPhotos = widget.clientPhotos.isNotEmpty;
     final hasName = widget.clientName.trim().isNotEmpty;
-    if (!hasProblem && !hasPhotos && !hasName) return const SizedBox.shrink();
+    final hasExigences = widget.reponsesExigences.isNotEmpty;
+    final hasMeta = _categoryNom.isNotEmpty || _recommendedUnits.isNotEmpty;
+    if (!hasProblem && !hasPhotos && !hasName && !hasExigences && !hasMeta) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -653,6 +899,91 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
               ),
             ),
           ],
+          if (hasExigences || hasMeta) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F9FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFBAE6FD)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.assignment_turned_in_rounded,
+                          size: 15, color: Color(0xFF0369A1)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _categoryNom.isNotEmpty
+                              ? 'Fiche metier : $_categoryNom ($_profilDevis)'
+                              : 'Cahier des charges client ($_profilDevis)',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0369A1),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_recommendedUnits.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Unites recommandees : ${_recommendedUnits.join(', ')}',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF0C4A6E)),
+                    ),
+                  ],
+                  if (hasExigences) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final entry in widget.reponsesExigences.entries)
+                          Builder(builder: (_) {
+                            final v = entry.value;
+                            String label = entry.key;
+                            String valText = '$v';
+                            if (v is Map) {
+                              label = '${v['label'] ?? entry.key}';
+                              final unit = '${v['unit'] ?? ''}'.trim();
+                              final rawVal = v['value'];
+                              valText = rawVal is bool
+                                  ? (rawVal ? 'Oui' : 'Non')
+                                  : '$rawVal${unit.isNotEmpty ? ' $unit' : ''}';
+                            }
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFBAE6FD)),
+                              ),
+                              child: Text(
+                                '$label : $valText',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: BabifixDesign.navy,
+                                ),
+                              ),
+                            );
+                          }),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -685,6 +1016,123 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     );
   }
 
+  // ─── Modeles prets en 1 clic ─────────────────────────────────────────────
+
+  Widget _quickTemplatesCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: const Border(
+          left: BorderSide(color: Color(0xFF0E3B2E), width: 3),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x080F172A),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0E3B2E).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.flash_on_rounded,
+                  size: 16,
+                  color: Color(0xFF0E3B2E),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Modeles prets en 1 clic (${_categoryNom.isNotEmpty ? _categoryNom : 'Votre metier'})',
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: BabifixDesign.navy,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Touchez un modele pour pre-remplir automatiquement le devis. Vous modifiez ensuite les montants librement.',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 76,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _quickTemplates.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final tpl = _quickTemplates[i];
+                final title = '${tpl['title'] ?? 'Modele'}';
+                final subtitle = '${tpl['subtitle'] ?? ''}'.trim();
+                return InkWell(
+                  onTap: () => _applyQuickTemplate(tpl),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 215,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF0E3B2E).withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0E3B2E),
+                          ),
+                        ),
+                        if (subtitle.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            subtitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF334155),
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ─── Diagnostic & Scheduling Card ────────────────────────────────────────
 
   Widget _topInfosCard() {
@@ -709,11 +1157,23 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                   color: BabifixDesign.navy.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.biotech_rounded, size: 18, color: BabifixDesign.navy),
+                child: Icon(
+                  _showFournitures ? Icons.biotech_rounded : Icons.event_note_rounded,
+                  size: 18,
+                  color: BabifixDesign.navy,
+                ),
               ),
               const SizedBox(width: 10),
-              const Text('Diagnostic & planification',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: BabifixDesign.navy)),
+              Expanded(
+                child: Text(
+                  _diagnosticSectionTitle,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: BabifixDesign.navy,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -721,8 +1181,8 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
             controller: _diagnosticCtl,
             maxLines: 3,
             decoration: InputDecoration(
-              labelText: 'Diagnostic *',
-              hintText: 'Analyse du problème observé sur place',
+              labelText: '$_diagnosticSectionTitle *',
+              hintText: _diagnosticHint,
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
               border: OutlineInputBorder(
@@ -790,36 +1250,6 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _pickerTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: BabifixDesign.iconOnLight),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(label,
-                  style: const TextStyle(fontSize: 12, color: BabifixDesign.navy, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -971,6 +1401,10 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                 ),
             ],
           ),
+          if (_catalogue.isNotEmpty || _smartItems.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildQuickSuggestionsBar(),
+          ],
           const SizedBox(height: 14),
           if (_lignes.isEmpty)
             Container(
@@ -988,7 +1422,8 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                   Text('Ajoutez les lignes de votre devis',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: BabifixDesign.iconOnLight)),
                   const SizedBox(height: 4),
-                  Text('Fournitures, main-d\'œuvre, déplacement…',
+                  Text(_emptyLinesHint,
+                      textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 12, color: BabifixDesign.iconOnLight.withValues(alpha: 0.7))),
                 ],
               ),
@@ -1001,6 +1436,7 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                 child: _DevisLineEditor(
                   ligne: l,
                   highlightError: _attemptedSend && _ligneIncomplete(l),
+                  recommendedUnits: _recommendedUnits,
                   onChange: (nl) {
                     setState(() {
                       final idx = _lignes.indexOf(l);
@@ -1019,9 +1455,9 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _addTypeChip(DevisLineType.fourniture, 'Fourniture', Icons.inventory_2_rounded),
-              _addTypeChip(DevisLineType.mainOeuvre, 'Main-d\'œuvre', Icons.engineering_rounded),
-              // Déplacement retiré : il est compris dans la main-d'œuvre.
+              if (_showFournitures)
+                _addTypeChip(DevisLineType.fourniture, _fournitureLabel, Icons.inventory_2_rounded),
+              _addTypeChip(DevisLineType.mainOeuvre, _mainOeuvreLabel, Icons.engineering_rounded),
               _addTypeChip(DevisLineType.autre, 'Autre', Icons.add_circle_outline_rounded),
             ],
           ),
@@ -1108,7 +1544,252 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
     );
   }
 
+  // ─── Suggestions Rapides 1-Clic ──────────────────────────────────────────
+
+  Widget _buildQuickSuggestionsBar() {
+    final previewItems = _catalogue.length > 8 ? _catalogue.sublist(0, 8) : _catalogue;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_smartItems.isNotEmpty) ...[
+          Row(
+            children: [
+              const Icon(Icons.bolt_rounded, size: 15, color: BabifixDesign.ciOrange),
+              const SizedBox(width: 4),
+              Text(
+                'Kits recommandes pour ce diagnostic :',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: BabifixDesign.navy.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _smartItems.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (ctx, i) {
+                final it = _smartItems[i];
+                final nom = (it['nom'] ?? '').toString();
+                final prix = (it['prix'] as num?)?.toDouble() ?? 0;
+                final typeCode = (it['type_ligne'] ?? 'FOURNITURE').toString();
+                final unite = (it['unite'] ?? '').toString();
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _lignes.add(LigneDevis(
+                        typeLigne: DevisLineType.fromCode(typeCode),
+                        description: nom,
+                        quantite: 1,
+                        prixUnitaire: prix,
+                        unite: unite,
+                        total: prix,
+                      ));
+                    });
+                    showBabifixToast(
+                      context,
+                      type: BabifixToastType.success,
+                      message: '$nom ajoute.',
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFFFED7AA)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.add_circle_outline, size: 13, color: BabifixDesign.ciOrange),
+                        const SizedBox(width: 5),
+                        Text(
+                          '$nom (${fmtMoney(prix)})',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: BabifixDesign.navy,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          if (previewItems.isNotEmpty) const SizedBox(height: 10),
+        ],
+        if (previewItems.isNotEmpty) ...[
+          Row(
+            children: [
+              const Icon(Icons.inventory_2_outlined, size: 15, color: BabifixDesign.cyan),
+              const SizedBox(width: 4),
+              Text(
+                'Catalogue rapide (1-clic) :',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: BabifixDesign.navy.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: previewItems.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (ctx, i) {
+                final it = previewItems[i];
+                final isFourniture = it.typeLigne == DevisLineType.fourniture;
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _lignes.add(LigneDevis(
+                        typeLigne: it.typeLigne,
+                        description: it.nom,
+                        quantite: 1,
+                        prixUnitaire: it.prixUnitaireIndicatif,
+                        unite: it.unite,
+                        marque: it.marque,
+                        catalogueItemId: it.id,
+                        total: it.prixUnitaireIndicatif,
+                      ));
+                    });
+                    showBabifixToast(
+                      context,
+                      type: BabifixToastType.success,
+                      message: '${it.nom} ajoute.',
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isFourniture
+                          ? const Color(0xFFEFF6FF)
+                          : const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isFourniture
+                            ? const Color(0xFFBFDBFE)
+                            : const Color(0xFFBBF7D0),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isFourniture
+                              ? Icons.add_circle_outline
+                              : Icons.check_circle_outline,
+                          size: 13,
+                          color: isFourniture
+                              ? const Color(0xFF1D4ED8)
+                              : const Color(0xFF15803D),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          '${it.nom} (${fmtMoney(it.prixUnitaireIndicatif)})',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isFourniture
+                                ? const Color(0xFF1E40AF)
+                                : const Color(0xFF166534),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   // ─── Escrow Security Note ────────────────────────────────────────────────
+
+  Widget _devisCoherenceBanner() {
+    String? msg;
+    var isWarn = false;
+    final hasZeroLine = _lignes.any((l) => l.prixUnitaire <= 0);
+    final hasFourniture = _lignes.any((l) => l.typeLigne == DevisLineType.fourniture);
+    final hasMo = _lignes.any((l) => l.typeLigne == DevisLineType.mainOeuvre);
+    final exceedsCeiling = _baseTotal > _plafondFcfa && _plafondFcfa > 0;
+
+    if (_lignes.isNotEmpty && hasZeroLine) {
+      msg = 'Une ligne du devis a un prix unitaire a 0 FCFA.';
+      isWarn = true;
+    } else if (exceedsCeiling) {
+      final completed = (_meritProgress?['completed_missions'] as num?)?.toInt() ?? 0;
+      final needed = (_meritProgress?['target_missions'] as num?)?.toInt() ?? 10;
+      final tierLabel = _artisanTier == 'palier_2_maitre'
+          ? 'Niveau 2'
+          : (_artisanTier == 'palier_3_entreprise' ? 'Niveau 3' : 'Niveau 1');
+      msg = 'Montant superieur a ${fmtMoney(_plafondFcfa.toDouble())} ($tierLabel) : '
+          'le client paiera par Mobile Money securise. '
+          'Niveau 2 gratuit des $needed missions ($completed/$needed).';
+      isWarn = false;
+    } else if (_showFournitures && hasFourniture && !hasMo) {
+      msg = 'Vous avez ajoute des fournitures sans ligne de main-d\'oeuvre.';
+    }
+
+    if (msg == null) return const SizedBox.shrink();
+    final accent = isWarn
+        ? BabifixDesign.ciOrange
+        : (exceedsCeiling ? const Color(0xFF0E3B2E) : BabifixDesign.cyan);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: accent.withValues(alpha: 0.28)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isWarn
+                  ? Icons.warning_amber_rounded
+                  : (exceedsCeiling
+                      ? Icons.verified_user_outlined
+                      : Icons.tips_and_updates_outlined),
+              size: 18,
+              color: accent,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                msg,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                  color: BabifixDesign.navy,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _escrowNote() {
     return Container(
@@ -1138,8 +1819,8 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: BabifixDesign.navy)),
                 const SizedBox(height: 4),
                 Text(
-                  'Après acceptation, le client verse un acompte bloqué en séquestre. '
-                  'Tu es payé automatiquement à la fin de la mission : pas de risque d\'impayé.',
+                  'Des que le client accepte, son paiement est garde en securite par BABIFIX. '
+                  'Vous etes paye automatiquement a la fin du travail.',
                   style: TextStyle(fontSize: 12, height: 1.4, color: BabifixDesign.iconOnLight),
                 ),
               ],
@@ -1153,23 +1834,41 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
   // ─── Bottom Bar ──────────────────────────────────────────────────────────
 
   Widget _bottomBar() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          color: Colors.white,
-          child: MoneyBreakdownWidget(
-            sousTotal: _sousTotal,
-            remise: _remise,
-            commissionRate: _commissionRate,
-            commissionMontant: _commission,
-            totalTtc: _baseTotal,
-            netPrestataire: _net,
-            compact: true,
-            showProviderNet: true,
-          ),
-        ),
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 50;
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!isKeyboardOpen)
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              color: Colors.white,
+              child: MoneyBreakdownWidget(
+                sousTotal: _sousTotal,
+                remise: _remise,
+                commissionRate: _commissionRate,
+                commissionMontant: _commission,
+                totalTtc: _baseTotal,
+                netPrestataire: _net,
+                compact: true,
+                showProviderNet: true,
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: const Color(0xFFF8FAFC),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Net artisan :',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: BabifixDesign.navy)),
+                  Text('${_net.toStringAsFixed(0)} FCFA',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF16A34A))),
+                ],
+              ),
+            ),
         Container(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           decoration: BoxDecoration(
@@ -1190,39 +1889,32 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                   icon: const Icon(Icons.visibility_outlined, size: 18),
                   label: const Text('Aperçu'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: BabifixDesign.navy,
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    foregroundColor: BabifixDesign.textPrimaryOf(context),
+                    side: BorderSide(color: BabifixDesign.borderOf(context)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 flex: 2,
-                child: ElevatedButton.icon(
+                child: BabifixButton(
+                  label: 'Envoyer au client',
+                  loadingLabel: 'Envoi...',
+                  icon: Icons.send_rounded,
+                  height: 48,
+                  borderRadius: 14,
+                  isLoading: _sending,
                   onPressed: _sending ? null : _send,
-                  icon: _sending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: BabifixRingLoader.cyan(size: 28))
-                      : const Icon(Icons.send_rounded, size: 18),
-                  label: const Text('Envoyer au client'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: BabifixDesign.navy,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: BabifixDesign.navy.withValues(alpha: 0.5),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
                 ),
               ),
             ],
           ),
         ),
       ],
-    );
+    ),
+  );
   }
 }
 
@@ -1233,12 +1925,14 @@ class _DevisLineEditor extends StatefulWidget {
   final ValueChanged<LigneDevis> onChange;
   final VoidCallback onRemove;
   final bool highlightError;
+  final List<String> recommendedUnits;
 
   const _DevisLineEditor({
     required this.ligne,
     required this.onChange,
     required this.onRemove,
     this.highlightError = false,
+    this.recommendedUnits = const [],
   });
 
   @override
@@ -1476,6 +2170,11 @@ class _DevisLineEditorState extends State<_DevisLineEditor> {
                 Expanded(
                   child: TextField(
                     controller: _prix,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: BabifixDesign.navy,
+                    ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     // Saisie numérique uniquement : on bloque toute lettre/texte
                     // dans les champs de montant (chiffres + séparateur décimal).

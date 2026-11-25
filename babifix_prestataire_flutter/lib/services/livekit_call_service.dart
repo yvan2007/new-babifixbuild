@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../babifix_api_config.dart';
-import '../babifix_design_system.dart';
 import '../shared/auth_utils.dart';
 import 'livekit_call_screen.dart';
 import '../shared/widgets/babifix_snackbar.dart';

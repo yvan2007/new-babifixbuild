@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
-import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
 /// Écran permettant au prestataire d'évaluer le client après prestation.
@@ -176,12 +176,10 @@ class _RateClientScreenState extends State<RateClientScreen>
                       style: TextStyle(color: Colors.grey),
                     ),
                     const SizedBox(height: 28),
-                    FilledButton(
+                    BabifixButton(
+                      label: 'Retour',
+                      width: 180,
                       onPressed: () => Navigator.pop(context),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: BabifixDesign.ciOrange,
-                      ),
-                      child: const Text('Retour'),
                     ),
                   ],
                 ),
@@ -273,28 +271,11 @@ class _RateClientScreenState extends State<RateClientScreen>
                     ),
                   ),
                   const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: FilledButton(
-                      onPressed: _submitting ? null : _submit,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: BabifixDesign.ciOrange,
-                      ),
-                      child: _submitting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: BabifixRingLoader.cyan(size: 28),
-                            )
-                          : const Text(
-                              'Envoyer',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                    ),
+                  BabifixButton(
+                    label: 'Envoyer',
+                    loadingLabel: 'Envoi...',
+                    isLoading: _submitting,
+                    onPressed: _submitting ? null : _submit,
                   ),
                 ],
               ),

@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/in_app_notifications.dart';
 import 'floating_nav_bar.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_prestation_timer.dart';
+import '../../shared/widgets/babifix_skeleton.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Salutation selon l'heure (petite touche personnalisée).
@@ -79,6 +82,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   String _avertTitre = '';
   String _avertMessage = '';
 
+  bool get _isWhite => widget.paletteMode == AppPaletteMode.white;
   bool get _isLight => widget.paletteMode != AppPaletteMode.blue;
 
   @override
@@ -113,9 +117,8 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
       }
       // 60 s (et non 30) : le serveur Render se réveille après inactivité en
       // ~40-60 s. Un timeout trop court laissait l'intervention en cours VIDE.
-      final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/requests'),
-        headers: {'Authorization': 'Bearer $tok'},
+      final res = await babifixAuthGet(
+        '${babifixApiBaseUrl()}/api/prestataire/requests',
       ).timeout(const Duration(seconds: 60));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -168,9 +171,8 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
       for (int attempt = 0; attempt < 3; attempt++) {
         if (!mounted) return;
         try {
-          final res = await http.get(
-            Uri.parse('${babifixApiBaseUrl()}/api/prestataire/me'),
-            headers: {'Authorization': 'Bearer $tok'},
+          final res = await babifixAuthGet(
+            '${babifixApiBaseUrl()}/api/prestataire/me',
           ).timeout(const Duration(seconds: 60));
           if (res.statusCode == 200) {
             final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -240,22 +242,15 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   /// Carte de fiabilité : jauge + niveau + conseil. Toujours visible.
   Widget _buildFiabiliteCard() {
     final c = _fiabiliteColor();
-    final light = _isLight;
-    final bg = light ? Colors.white : const Color(0xFF152138);
-    final textPrimary = light ? const Color(0xFF0F172A) : Colors.white;
-    final textSec = light ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    final bg = BabifixDesign.surfaceOf(context);
+    final textPrimary = BabifixDesign.textPrimaryOf(context);
+    final textSec = BabifixDesign.textMutedOf(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: c.withValues(alpha: 0.30)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: light ? 0.05 : 0.20),
-              blurRadius: 12,
-              offset: const Offset(0, 4)),
-        ],
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       child: Row(
         children: [
@@ -271,15 +266,20 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                   child: CircularProgressIndicator(
                     value: _fiabiliteScore.clamp(0, 100) / 100.0,
                     strokeWidth: 6,
-                    backgroundColor: c.withValues(alpha: 0.15),
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: c.withValues(alpha: 0.14),
                     valueColor: AlwaysStoppedAnimation<Color>(c),
                   ),
                 ),
-                Text('$_fiabiliteScore',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: textPrimary)),
+                Text(
+                  '$_fiabiliteScore',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: textPrimary,
+                    fontFeatures: BabifixDesign.tabularFigures,
+                  ),
+                ),
               ],
             ),
           ),
@@ -419,14 +419,18 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
     final doneCount = steps.where((s) => s.done).length;
     if (doneCount >= steps.length) return const SizedBox.shrink();
 
-    const cyan = Color(0xFF4CC9F0);
+    const cyan = BabifixDesign.cyanDeep;
+    final light = _isLight;
+    final cardBg = BabifixDesign.surfaceOf(context);
+    final titleColor = BabifixDesign.textPrimaryOf(context);
+    final stepActiveColor = BabifixDesign.textPrimaryOf(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF152138),
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cyan.withValues(alpha: 0.3)),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,9 +439,9 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
             children: [
               const Icon(Icons.rocket_launch_rounded, color: cyan, size: 20),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text('Activez votre compte',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                    style: TextStyle(color: titleColor, fontWeight: FontWeight.w800, fontSize: 15)),
               ),
               Text('$doneCount/${steps.length}',
                   style: const TextStyle(color: cyan, fontWeight: FontWeight.w700, fontSize: 13)),
@@ -454,7 +458,9 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
             child: LinearProgressIndicator(
               value: doneCount / steps.length,
               minHeight: 6,
-              backgroundColor: Colors.white.withValues(alpha: 0.08),
+              backgroundColor: light
+                  ? const Color(0xFFE2E8F0)
+                  : Colors.white.withValues(alpha: 0.08),
               valueColor: const AlwaysStoppedAnimation(cyan),
             ),
           ),
@@ -476,7 +482,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                         child: Text(
                           s.label,
                           style: TextStyle(
-                            color: s.done ? const Color(0xFF94A3B8) : Colors.white,
+                            color: s.done ? const Color(0xFF94A3B8) : stepActiveColor,
                             fontWeight: s.done ? FontWeight.w500 : FontWeight.w600,
                             fontSize: 13.5,
                             decoration: s.done ? TextDecoration.lineThrough : null,
@@ -498,9 +504,8 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
     try {
       final tok = await readStoredApiToken();
       if (tok == null || tok.isEmpty) return;
-      final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/earnings/monthly/'),
-        headers: {'Authorization': 'Bearer $tok'},
+      final res = await babifixAuthGet(
+        '${babifixApiBaseUrl()}/api/prestataire/earnings/monthly/',
       ).timeout(const Duration(seconds: 60));
       if (res.statusCode != 200) return;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -608,14 +613,15 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                     inAppNotifs: widget.inAppNotifs,
                     onNavigate: widget.onNavigate,
                     photoUrl: _photoUrl,
+                    isPureWhite: _isWhite,
+                    onboardingChecklist: _buildOnboardingChecklist(),
                   )
                 : Container(
                     padding: EdgeInsets.fromLTRB(16, top + 44, 16, 18),
                     decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF0B1B34), Color(0xFF152A45)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                      color: BabifixDesign.navy,
+                      border: Border(
+                        bottom: BorderSide(color: BabifixDesign.borderDark),
                       ),
                     ),
                     child: Column(
@@ -739,56 +745,98 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 12),
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                Container(
+                  decoration: BoxDecoration(
+                    color: BabifixDesign.surfaceOf(context),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: BabifixDesign.borderOf(context)),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+                    padding: const EdgeInsets.fromLTRB(14, 18, 14, 10),
                     child: SizedBox(
-                        height: 180,
-                        child: _revenueByMonth.isEmpty
-                          ? const Center(child: Text('Aucune donn\u00e9e de revenus'))
+                      height: 185,
+                      child: _revenueByMonth.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Aucune donn\u00e9e de revenus',
+                                style: TextStyle(color: BabifixDesign.textMutedOf(context)),
+                              ),
+                            )
                           : BarChart(
                               BarChartData(
-                            alignment: BarChartAlignment.spaceAround,
-                            maxY: (_revenueByMonth.reduce((a, b) => a > b ? a : b) * 1.3).clamp(1000, double.infinity),
-                          barGroups: List.generate(_revenueByMonth.length, (i) =>
-                            BarChartGroupData(
-                              x: i,
-                              barRods: [
-                                BarChartRodData(
-                                  toY: _revenueByMonth[i],
-                                  color: const Color(0xFF0084D1),
-                                  width: 20,
-                                  borderRadius: BorderRadius.circular(6),
+                                alignment: BarChartAlignment.spaceAround,
+                                maxY: (_revenueByMonth.reduce((a, b) => a > b ? a : b) * 1.3).clamp(1000, double.infinity),
+                                barTouchData: BarTouchData(
+                                  touchTooltipData: BarTouchTooltipData(
+                                    getTooltipColor: (_) => BabifixDesign.navy,
+                                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                                      final label = groupIndex >= 0 && groupIndex < _revenueMonthLabels.length
+                                          ? _revenueMonthLabels[groupIndex]
+                                          : '';
+                                      return BarTooltipItem(
+                                        '$label\n${rod.toY.round()} FCFA',
+                                        const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 11.5,
+                                          fontFeatures: BabifixDesign.tabularFigures,
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: false,
-                            getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFE2E8F0), strokeWidth: 1),
-                          ),
-                          borderData: FlBorderData(show: false),
-                          titlesData: FlTitlesData(
-                            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                getTitlesWidget: (val, _) {
-                                  final idx = val.round();
-                                  if (idx < 0 || idx >= _revenueMonthLabels.length) return const SizedBox.shrink();
-                                  return Text(_revenueMonthLabels[idx],
-                                      style: const TextStyle(fontSize: 10));
-                                },
+                                barGroups: List.generate(
+                                  _revenueByMonth.length,
+                                  (i) => BarChartGroupData(
+                                    x: i,
+                                    barRods: [
+                                      BarChartRodData(
+                                        toY: _revenueByMonth[i],
+                                        color: i == _revenueByMonth.length - 1
+                                            ? BabifixDesign.ciOrange
+                                            : BabifixDesign.cyanDeep,
+                                        width: 22,
+                                        borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                gridData: FlGridData(
+                                  show: true,
+                                  drawVerticalLine: false,
+                                  getDrawingHorizontalLine: (_) => FlLine(
+                                    color: BabifixDesign.borderOf(context),
+                                    strokeWidth: 1,
+                                  ),
+                                ),
+                                borderData: FlBorderData(show: false),
+                                titlesData: FlTitlesData(
+                                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      getTitlesWidget: (val, _) {
+                                        final idx = val.round();
+                                        if (idx < 0 || idx >= _revenueMonthLabels.length) return const SizedBox.shrink();
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 6),
+                                          child: Text(
+                                            _revenueMonthLabels[idx],
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: BabifixDesign.textMutedOf(context),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      ),
                     ),
                   ),
                 ),
@@ -801,11 +849,17 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                 Row(
                   children: [
                     Expanded(
-                      child: _QuickAction(
-                        title: 'Demandes',
-                        subtitle: 'Voir les missions',
-                        icon: Icons.calendar_month,
-                        onTap: () => widget.onNavigate('requests'),
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: babifixNewRequestsCount,
+                        builder: (_, pendingCount, __) => _QuickAction(
+                          title: 'Demandes',
+                          subtitle: pendingCount > 0
+                              ? '$pendingCount nouvelle${pendingCount > 1 ? 's' : ''}'
+                              : 'Voir les missions',
+                          icon: Icons.calendar_month,
+                          badgeCount: pendingCount,
+                          onTap: () => widget.onNavigate('requests'),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -858,7 +912,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
           if (value == 1) {
             widget.onNavigate('requests');
           } else if (value == 2) {
-            widget.onNavigate('earnings');
+            widget.onNavigate('wallet');
           } else if (value == 3) {
             widget.onMessagesOpened?.call();
             widget.onNavigate('messages');
@@ -871,7 +925,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   }
 }
 
-/// En-t\u00eate bleu BABIFIX (#0084D1).
+/// En-tête Tableau de bord adapté aux modes Blanc et Clair.
 class _VibrantBlueDashboardHeader extends StatelessWidget {
   const _VibrantBlueDashboardHeader({
     required this.topInset,
@@ -883,6 +937,8 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
     required this.inAppNotifs,
     required this.onNavigate,
     this.photoUrl,
+    this.isPureWhite = false,
+    this.onboardingChecklist,
   });
 
   final double topInset;
@@ -894,20 +950,33 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
   final ValueNotifier<List<BabifixInAppNotif>> inAppNotifs;
   final ValueChanged<String> onNavigate;
   final String? photoUrl;
+  final bool isPureWhite;
+  final Widget? onboardingChecklist;
 
   static const _blue = Color(0xFF0084D1);
+  static const _cyan = Color(0xFF4CC9F0);
+  static const _navy = Color(0xFF0B1B34);
 
   @override
   Widget build(BuildContext context) {
     final vG = loading ? '\u2026' : '$gainsMonth FCFA';
     final vP = loading ? '\u2026' : prestations;
     final vN = loading ? '\u2026' : noteAvg;
+    final whiteMode = isPureWhite;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(16, topInset + 44, 16, 20),
-      decoration: const BoxDecoration(
-        color: _blue,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: whiteMode ? Colors.white : _blue,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+        border: whiteMode
+            ? const Border(
+                bottom: BorderSide(
+                  color: BabifixDesign.borderLight,
+                  width: 1,
+                ),
+              )
+            : null,
       ),
       child: Column(
         children: [
@@ -919,11 +988,17 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 26,
                   backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
-                  backgroundColor: const Color(0xFF006DAE),
+                  backgroundColor: whiteMode
+                      ? _cyan.withValues(alpha: 0.16)
+                      : const Color(0xFF006DAE),
                   child: photoUrl == null
                       ? Text(
                           greetingName.isNotEmpty ? greetingName[0].toUpperCase() : 'P',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20),
+                          style: TextStyle(
+                            color: whiteMode ? _navy : Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                          ),
                         )
                       : null,
                 ),
@@ -932,33 +1007,37 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Tableau de bord',
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        color: whiteMode ? _navy : Colors.white,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       '${babifixGreeting()}, $greetingName',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: whiteMode ? const Color(0xFF475569) : Colors.white,
                         fontSize: 15,
-                        fontWeight: FontWeight.w400,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
               ),
               _DashboardNotificationButton(
-                lightStyle: true,
+                lightStyle: !whiteMode,
                 hub: inAppNotifs,
                 onNavigate: onNavigate,
               ),
             ],
           ),
+          if (onboardingChecklist != null) ...[
+            const SizedBox(height: 16),
+            onboardingChecklist!,
+          ],
           const SizedBox(height: 18),
           Row(
             children: [
@@ -966,7 +1045,7 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
                 child: _Stat(
                   value: vG,
                   label: 'Gains (total)',
-                  variant: _StatVariant.onGradient,
+                  variant: whiteMode ? _StatVariant.onCard : _StatVariant.onGradient,
                 ),
               ),
               const SizedBox(width: 8),
@@ -974,7 +1053,7 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
                 child: _Stat(
                   value: vP,
                   label: 'R\u00e9servations',
-                  variant: _StatVariant.onGradient,
+                  variant: whiteMode ? _StatVariant.onCard : _StatVariant.onGradient,
                 ),
               ),
               const SizedBox(width: 8),
@@ -982,7 +1061,7 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
                 child: _Stat(
                   value: vN,
                   label: 'Note moy.',
-                  variant: _StatVariant.onGradient,
+                  variant: whiteMode ? _StatVariant.onCard : _StatVariant.onGradient,
                   valueSuffix: const Icon(
                     Icons.star_rounded,
                     size: 18,
@@ -1010,187 +1089,7 @@ class _DashboardNotificationButton extends StatelessWidget {
   final ValueChanged<String> onNavigate;
 
   void _openSheet(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.55,
-        maxChildSize: 0.92,
-        minChildSize: 0.35,
-        builder: (ctx, scrollCtrl) {
-          return ValueListenableBuilder<List<BabifixInAppNotif>>(
-            valueListenable: hub,
-            builder: (context, all, _) {
-              final items =
-                  all.where((e) => e.audience == BabifixNotifAudience.prestataire).toList();
-              final unread = items.where((e) => !e.read).length;
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 12, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Notifications',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ),
-                        if (unread > 0)
-                          TextButton(
-                            onPressed: () => markAllInAppRead(
-                              hub,
-                              BabifixNotifAudience.prestataire,
-                              persistStorageKey: BabifixInAppNotifStorageKeys.prestataire,
-                            ),
-                            child: const Text('Tout lu'),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: items.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.notifications_none_rounded,
-                                  size: 52,
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Rien pour l’instant.\n'
-                                  'Demandes, messages et alertes apparaîtront ici.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            controller: scrollCtrl,
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                            itemCount: items.length,
-                            itemBuilder: (_, i) {
-                              final n = items[i];
-                              final c = babifixNotifCategoryColor(n.category);
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: Material(
-                                  color: n.read
-                                      ? Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35)
-                                      : c.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(16),
-                                    onTap: () {
-                                      markOneRead(
-                                        hub,
-                                        n.id,
-                                        persistStorageKey: BabifixInAppNotifStorageKeys.prestataire,
-                                      );
-                                      final r = n.actionRoute;
-                                      if (r != null && r.isNotEmpty) {
-                                        Navigator.pop(ctx);
-                                        onNavigate(r);
-                                      }
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(14),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Container(
-                                            width: 46,
-                                            height: 46,
-                                            decoration: BoxDecoration(
-                                              color: c.withValues(alpha: 0.18),
-                                              borderRadius: BorderRadius.circular(14),
-                                            ),
-                                            child: Icon(
-                                              babifixNotifCategoryIcon(n.category),
-                                              color: c,
-                                              size: 24,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        n.title,
-                                                        style: TextStyle(
-                                                          fontWeight: FontWeight.w800,
-                                                          fontSize: 14,
-                                                          color: Theme.of(context).colorScheme.onSurface,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (!n.read)
-                                                      Container(
-                                                        width: 8,
-                                                        height: 8,
-                                                        decoration: BoxDecoration(
-                                                          color: c,
-                                                          shape: BoxShape.circle,
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  n.body,
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    height: 1.35,
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  n.dateLabel,
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      ),
-    );
+    showPrestataireNotificationHub(context, hub, onNavigate);
   }
 
   @override
@@ -1212,25 +1111,27 @@ class _DashboardNotificationButton extends StatelessWidget {
               Positioned(
                 right: 6,
                 top: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF3B30),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: lightStyle ? const Color(0xFF0084D1) : const Color(0xFF0B1B34),
-                      width: 1.5,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF3B30),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: lightStyle ? const Color(0xFF0084D1) : const Color(0xFF0B1B34),
+                        width: 1.5,
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    unread > 99 ? '99+' : '$unread',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
+                    child: Text(
+                      unread > 99 ? '99+' : '$unread',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
@@ -1262,9 +1163,11 @@ class _Stat extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF6F8FC),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(
+            color: BabifixDesign.borderLight,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1288,6 +1191,7 @@ class _Stat extends StatelessWidget {
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF0B1B34),
+                    fontFeatures: BabifixDesign.tabularFigures,
                   ),
                 ),
                 if (valueSuffix != null) valueSuffix!,
@@ -1300,8 +1204,9 @@ class _Stat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
+        color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1321,6 +1226,7 @@ class _Stat extends StatelessWidget {
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFFF8FAFC),
+                  fontFeatures: BabifixDesign.tabularFigures,
                 ),
               ),
               if (valueSuffix != null) valueSuffix!,
@@ -1365,24 +1271,20 @@ class _AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final cardBg = BabifixDesign.surfaceOf(context);
+    final borderCol = BabifixDesign.borderOf(context);
+    final titleCol = BabifixDesign.textPrimaryOf(context);
+    final subCol = BabifixDesign.textMutedOf(context);
     final card = BoxDecoration(
-      color: Colors.white,
+      color: cardBg,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE2E8F0)),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.06),
-          blurRadius: 16,
-          offset: const Offset(0, 6),
-        ),
-      ],
+      border: Border.all(color: borderCol),
     );
 
     if (loading) {
-      return Container(
-        height: 120,
-        decoration: card,
-        child: const Center(child: BabifixRingLoader.dark(size: 60)),
+      return const BabifixSkeletonScope(
+        child: BabifixSkeletonCard(),
       );
     }
 
@@ -1396,22 +1298,22 @@ class _AppointmentCard extends StatelessWidget {
             Container(
               width: 46,
               height: 46,
-              decoration: const BoxDecoration(
-                color: Color(0xFFEFF6FF),
+              decoration: BoxDecoration(
+                color: isLight ? const Color(0xFFEFF6FF) : const Color(0xFF1E3A5F),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.event_busy_rounded, color: Color(0xFF94A3B8)),
+              child: Icon(Icons.event_busy_rounded, color: subCol),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   Text('Aucune intervention en cours',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF0B1B34))),
-                  SizedBox(height: 3),
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: titleCol)),
+                  const SizedBox(height: 3),
                   Text('Vos demandes acceptées apparaîtront ici.',
-                      style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
+                      style: TextStyle(fontSize: 12.5, color: subCol)),
                 ],
               ),
             ),
@@ -1518,12 +1420,12 @@ class _AppointmentCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(service,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0B1B34))),
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w900, color: titleCol)),
               const SizedBox(height: 10),
-              _line(Icons.person_outline_rounded, meta.color, client),
+              _line(Icons.person_outline_rounded, meta.color, client, isLight),
               const SizedBox(height: 6),
-              _line(Icons.location_on_outlined, meta.color, ville),
+              _line(Icons.location_on_outlined, meta.color, ville, isLight),
               if (schedLabel.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 _line(
@@ -1532,6 +1434,7 @@ class _AppointmentCard extends StatelessWidget {
                   schedDays > 0
                       ? 'Prévu le $schedLabel · dans $schedDays jour${schedDays > 1 ? 's' : ''}'
                       : 'Prévu aujourd\'hui ($schedLabel)',
+                  isLight,
                 ),
               ],
               if (pay.isNotEmpty) ...[
@@ -1542,6 +1445,7 @@ class _AppointmentCard extends StatelessWidget {
                   pay == 'ESPECES'
                       ? 'Paiement : Espèces'
                       : 'Paiement : Mobile Money${mmOp.isNotEmpty ? ' ($mmOp)' : ''}',
+                  isLight,
                 ),
               ],
               if (started != null) ...[
@@ -1571,17 +1475,13 @@ class _AppointmentCard extends StatelessWidget {
                   ],
                   Expanded(
                     flex: hasItinerary ? 1 : 2,
-                    child: FilledButton.icon(
+                    child: BabifixButton(
+                      label: 'Ouvrir',
+                      icon: Icons.open_in_new_rounded,
+                      height: 46,
+                      borderRadius: 12,
+                      backgroundColor: meta.color,
                       onPressed: onOpen,
-                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                      label: const Text('Ouvrir'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: meta.color,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
                     ),
                   ),
                 ],
@@ -1601,7 +1501,7 @@ class _AppointmentCard extends StatelessWidget {
     } catch (_) {}
   }
 
-  Widget _line(IconData icon, Color color, String text) {
+  Widget _line(IconData icon, Color color, String text, bool isLight) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1609,8 +1509,10 @@ class _AppointmentCard extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(text,
-              style: const TextStyle(
-                  fontSize: 14, color: Color(0xFF334155), fontWeight: FontWeight.w600)),
+              style: TextStyle(
+                  fontSize: 14,
+                  color: isLight ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                  fontWeight: FontWeight.w600)),
         ),
       ],
     );
@@ -1623,46 +1525,83 @@ class _QuickAction extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
   final VoidCallback onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final cardBg = BabifixDesign.surfaceOf(context);
+    final borderCol = BabifixDesign.borderOf(context);
+    final titleCol = BabifixDesign.textPrimaryOf(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(
+            color: badgeCount > 0 ? const Color(0xFFEF4444).withValues(alpha: 0.45) : borderCol,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: const Color(0xFFE0F2FE),
-              child: Icon(icon, color: const Color(0xFF0084D1)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: (isLight ? BabifixDesign.cyanDeep : BabifixDesign.cyan)
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: isLight ? BabifixDesign.cyanDeep : BabifixDesign.cyan,
+                    size: 21,
+                  ),
+                ),
+                if (badgeCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      badgeCount > 99 ? '99+' : '$badgeCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            Text(title,
+                style: TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 15, color: titleCol)),
             const SizedBox(height: 2),
             Text(
               subtitle,
-              style: const TextStyle(fontSize: 12.5, color: Color(0xFF0084D1), fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 12.5,
+                color: BabifixDesign.textMutedOf(context),
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -1685,25 +1624,18 @@ class _AvailabilityToggleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final activeColor = const Color(0xFF22C55E);
-    final inactiveColor = cs.onSurfaceVariant;
+    final activeColor = BabifixDesign.success;
+    final inactiveColor = BabifixDesign.textMutedOf(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: cs.surface,
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isAvailable
-              ? activeColor.withValues(alpha: 0.4)
-              : cs.outlineVariant,
+              ? activeColor.withValues(alpha: 0.45)
+              : BabifixDesign.borderOf(context),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -1734,7 +1666,7 @@ class _AvailabilityToggleCard extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
-                    color: isAvailable ? activeColor : cs.onSurface,
+                    color: isAvailable ? activeColor : BabifixDesign.textPrimaryOf(context),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1744,7 +1676,7 @@ class _AvailabilityToggleCard extends StatelessWidget {
                       : 'Vous n\u2019apparaissez plus dans les recherches',
                   style: TextStyle(
                     fontSize: 12,
-                    color: cs.onSurfaceVariant,
+                    color: BabifixDesign.textMutedOf(context),
                   ),
                 ),
               ],
@@ -1760,7 +1692,7 @@ class _AvailabilityToggleCard extends StatelessWidget {
               : Switch(
                   value: isAvailable,
                   onChanged: onChanged,
-                  activeColor: activeColor,
+                  activeThumbColor: activeColor,
                 ),
         ],
       ),

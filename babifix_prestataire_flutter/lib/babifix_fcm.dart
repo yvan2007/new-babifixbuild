@@ -5,7 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'babifix_api_config.dart';
 import 'firebase_options.dart';
@@ -64,11 +66,6 @@ class BabifixFcm {
         } catch (_) {}
       }
       FirebaseMessaging.onBackgroundMessage(babifixFcmBackgroundHandler);
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
       await BabifixNotificationSoundService.ensureInitialized();
 
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
@@ -79,15 +76,137 @@ class BabifixFcm {
     }
   }
 
+  static bool _prepromptShowing = false;
+
+  /// Pré-prompt clair aux couleurs BABIFIX Pro avant le dialogue Android natif.
+  static Future<void> promptForPermissionIfNeeded(BuildContext context) async {
+    if (kIsWeb || !_initOK || _prepromptShowing || !context.mounted) return;
+    try {
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        return;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('babifix_pro_notif_preprompt_v1') == true) return;
+      if (!context.mounted) return;
+
+      _prepromptShowing = true;
+      await prefs.setBool('babifix_pro_notif_preprompt_v1', true);
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final bg = isDark ? const Color(0xFF13223B) : Colors.white;
+      final fg = isDark ? Colors.white : const Color(0xFF0B1B34);
+      final sub = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+
+      final wantEnable = await showDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => Dialog(
+          backgroundColor: bg,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.14)
+                  : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE87722).withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.notifications_active_rounded,
+                    size: 30,
+                    color: Color(0xFFE87722),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Ne manquez aucune mission',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17.5,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Recevez en direct les nouvelles demandes clients, validations de devis et paiements libérés.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13.5, height: 1.45, color: sub),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFC2410C),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Activer les alertes Pro',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(
+                    'Plus tard',
+                    style: TextStyle(
+                      color: sub,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (wantEnable == true) {
+        await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
+    } catch (_) {
+    } finally {
+      _prepromptShowing = false;
+    }
+  }
+
   static Future<void> _onForegroundMessage(RemoteMessage message) async {
     debugPrint('BABIFIX FCM: onMessage reçu');
     final data = message.data;
     final type = (data['type'] ?? '').toString();
     if (type != 'call.incoming') {
+      final isUrgent =
+          (data['is_urgent'] ?? '').toString() == 'true' ||
+          type == 'dispute.created';
+      await BabifixNotificationSoundService.playForegroundChime(urgent: isUrgent);
       await BabifixNotificationSoundService.showNotification(
         id: DateTime.now().millisecondsSinceEpoch % 100000,
-        title: data['title'] ?? 'BABIFIX',
-        body: data['body'] ?? '',
+        title: message.notification?.title ?? data['title'] ?? 'BABIFIX',
+        body: message.notification?.body ?? data['body'] ?? '',
         payload: jsonEncode({
           'type': data['type'] ?? '',
           'reference': data['reference'] ?? '',
@@ -110,14 +229,11 @@ class BabifixFcm {
     }
   }
 
-  /// A appeler apres un login API reussi (JWT).
+  /// À appeler après un login API réussi (JWT).
   static Future<void> registerTokenWithBackend(String apiBearerToken) async {
     if (apiBearerToken.isEmpty || kIsWeb) return;
-    if (!_initOK) {
-      debugPrint('BABIFIX FCM: non initialise, enregistrement du token ignore.');
-      return;
-    }
     try {
+      await ensureInitialized();
       final tok = await FirebaseMessaging.instance.getToken();
       if (tok == null || tok.isEmpty) return;
 

@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart' show readStoredApiToken;
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
 class WaitingPaymentScreen extends StatefulWidget {
@@ -33,11 +35,9 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
   late AnimationController _animController;
   late Animation<double> _pulseAnimation;
 
-  static const _navy = Color(0xFF0F172A);
-  static const _emerald = Color(0xFF22C55E);
-  static const _amber = Color(0xFFF59E0B);
-  static const _slate50 = Color(0xFFF8FAFC);
-  static const _slate400 = Color(0xFF94A3B8);
+  static const _emerald = BabifixDesign.success;
+  static const _amber = BabifixDesign.warning;
+  static const _slate400 = BabifixDesign.textMutedLight;
 
   @override
   void initState() {
@@ -148,22 +148,23 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
 
   @override
   Widget build(BuildContext context) {
+    final textPrimary = BabifixDesign.textPrimaryOf(context);
     return Scaffold(
-      backgroundColor: _slate50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _navy),
+          icon: Icon(Icons.arrow_back, color: textPrimary),
           onPressed: widget.onBack,
         ),
-        title: const Text(
+        title: Text(
           'En attente de paiement',
-          style: TextStyle(color: _navy, fontWeight: FontWeight.w600),
+          style: TextStyle(color: textPrimary, fontWeight: FontWeight.w700),
         ),
       ),
       body: _loading
-          ? const Center(child: BabifixRingLoader.cyan(size: 28))
+          ? const Center(child: BabifixRingLoader.cyan(size: 36))
           : _error != null
           ? _buildError()
           : _buildContent(),
@@ -206,52 +207,40 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
-              color: _navy,
+              color: BabifixDesign.textPrimaryOf(context),
             ),
           ),
           const SizedBox(height: 10),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14.5, color: _slate400, height: 1.5),
+            style: TextStyle(
+              fontSize: 14.5,
+              color: BabifixDesign.textMutedOf(context),
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 28),
           if (!notFound)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  setState(() {
-                    _loading = true;
-                    _error = null;
-                  });
-                  _loadReservation();
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: _emerald,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Réessayer'),
-              ),
+            BabifixButton(
+              label: 'Réessayer',
+              backgroundColor: _emerald,
+              onPressed: () {
+                setState(() {
+                  _loading = true;
+                  _error = null;
+                });
+                _loadReservation();
+              },
             ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: widget.onBack,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: _slate400),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Retour aux demandes'),
-            ),
+          BabifixButton(
+            label: 'Retour aux demandes',
+            variant: BabifixButtonVariant.outlined,
+            onPressed: widget.onBack,
           ),
         ],
       ),
@@ -281,40 +270,38 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
             ),
           ),
           const SizedBox(height: 32),
-          const Text(
+          Text(
             'En attente de paiement client',
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 23,
               fontWeight: FontWeight.w800,
-              color: _navy,
-              letterSpacing: -0.5,
+              color: BabifixDesign.textPrimaryOf(context),
+              letterSpacing: -0.4,
             ),
           ),
           const SizedBox(height: 12),
           Text(
             'Le client doit procéder au paiement\npour confirmer la réservation.',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16, color: _slate400, height: 1.5),
+            style: TextStyle(
+              fontSize: 15,
+              color: BabifixDesign.textMutedOf(context),
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 36),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: _navy.withValues(alpha: 0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              color: BabifixDesign.surfaceOf(context),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: BabifixDesign.borderOf(context)),
             ),
             child: Column(
               children: [
                 _detailRow(
-                  'R��servation',
+                  'Réservation',
                   _reservation?['reference'] ?? widget.reservationReference,
                 ),
                 const Divider(height: 24),
@@ -326,24 +313,25 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _slate400.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
+              color: BabifixDesign.elevatedSurfaceOf(context),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: BabifixDesign.borderOf(context)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.info_outline, color: _slate400, size: 20),
-                SizedBox(width: 12),
+                Icon(Icons.info_outline, color: BabifixDesign.textMutedOf(context), size: 20),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Vous serez notifié automatiquement dès que le client aura payé.',
                     style: TextStyle(
                       fontSize: 13,
-                      color: _slate400,
+                      color: BabifixDesign.textMutedOf(context),
                       height: 1.4,
                     ),
                   ),
@@ -351,20 +339,11 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
               ],
             ),
           ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: OutlinedButton(
-              onPressed: widget.onBack,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: _slate400),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text('Retour aux demandes'),
-            ),
+          const SizedBox(height: 28),
+          BabifixButton(
+            label: 'Retour aux demandes',
+            variant: BabifixButtonVariant.outlined,
+            onPressed: widget.onBack,
           ),
         ],
       ),
@@ -375,13 +354,20 @@ class _WaitingPaymentScreenState extends State<WaitingPaymentScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 14, color: _slate400)),
         Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: _navy,
+          label,
+          style: TextStyle(fontSize: 14, color: BabifixDesign.textMutedOf(context)),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: BabifixDesign.textPrimaryOf(context),
+              fontFeatures: BabifixDesign.tabularFigures,
+            ),
           ),
         ),
       ],

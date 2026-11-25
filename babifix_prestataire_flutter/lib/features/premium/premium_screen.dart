@@ -4,14 +4,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/error_utils.dart';
-import '../../shared/auth_utils.dart';
+import '../../shared/services/babifix_remote_config.dart';
 import '../../shared/services/babifix_user_store.dart';
-import '../../shared/widgets/babifix_page_route.dart';
-import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_skeleton.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/payment_method_logo.dart';
+import '../wallet/babifix_wallet_card.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -27,11 +28,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   bool _isPremium = false;
   String _currentTier = 'standard';
-  String? _premiumUntil;
   int _daysRemaining = 0;
   double _commissionEffective = 18;
   bool _trialAvailable = true;
   bool _isAnnual = false; // toggle Mensuel ↔ Annuel
+  double _simCaFcfa = 150000;
+  Map<String, dynamic>? _calcData;
 
   List<Map<String, dynamic>> _tiers = [];
 
@@ -60,7 +62,6 @@ class _PremiumScreenState extends State<PremiumScreen> {
         setState(() {
           _isPremium = d['is_premium'] ?? false;
           _currentTier = d['tier'] ?? 'standard';
-          _premiumUntil = d['premium_until'];
           _daysRemaining = d['days_remaining'] ?? 0;
           _commissionEffective = (d['commission_effective'] ?? 18).toDouble();
           _trialAvailable = d['trial_available'] ?? true;
@@ -71,11 +72,25 @@ class _PremiumScreenState extends State<PremiumScreen> {
         final d = jsonDecode(tiersResp.body);
         setState(() { _tiers = List<Map<String, dynamic>>.from(d['tiers'] ?? []); });
       }
+      await _loadCalculator(_simCaFcfa.round());
     } catch (e) {
       setState(() { _error = e.toString(); });
     } finally {
       setState(() { _loading = false; });
     }
+  }
+
+  Future<void> _loadCalculator(int caFcfa) async {
+    try {
+      final resp = await BabifixUserStore.authGet(
+        '/api/prestataire/premium/calculator/?ca=$caFcfa',
+      );
+      if (resp.statusCode == 200 && mounted) {
+        setState(() {
+          _calcData = jsonDecode(resp.body) as Map<String, dynamic>;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _subscribe(String tier, {required String billingPeriod}) async {
@@ -165,11 +180,17 @@ class _PremiumScreenState extends State<PremiumScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setStateDialog) => AlertDialog(
-          backgroundColor: const Color(0xFF152A45),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text(
+          backgroundColor: BabifixDesign.surfaceOf(context),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: BabifixDesign.borderOf(context)),
+          ),
+          title: Text(
             'Solde insuffisant',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: BabifixDesign.textPrimaryOf(context),
+              fontWeight: FontWeight.w800,
+            ),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -180,15 +201,20 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   "Prix de l'abonnement : ${price.toStringAsFixed(0)} FCFA\n"
                   "Votre solde : ${solde.toStringAsFixed(0)} FCFA\n"
                   "Reste à régler : ${diff.toStringAsFixed(0)} FCFA",
-                  style: const TextStyle(color: Color(0xFFB4C2D9), height: 1.5),
+                  style: TextStyle(
+                    color: BabifixDesign.textMutedOf(context),
+                    height: 1.5,
+                    fontFeatures: BabifixDesign.tabularFigures,
+                  ),
                 ),
                 const SizedBox(height: 14),
-                const Text(
+                Text(
                   'Choisissez un service Mobile Money :',
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700),
+                    color: BabifixDesign.textPrimaryOf(context),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -197,16 +223,48 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   children: operators.map((op) {
                     final code = op['code'] as String;
                     final sel = selectedOperator == code;
-                    return ChoiceChip(
-                      label: Text(op['label'] as String),
-                      selected: sel,
-                      onSelected: (_) =>
-                          setStateDialog(() => selectedOperator = code),
-                      selectedColor: (op['color'] as Color).withValues(alpha: 0.85),
-                      backgroundColor: const Color(0xFF0B1B34),
-                      labelStyle: TextStyle(
-                          color: sel ? Colors.white : const Color(0xFFB4C2D9),
-                          fontWeight: FontWeight.w600),
+                    final isDarkBg = Theme.of(context).brightness == Brightness.dark;
+                    return InkWell(
+                      onTap: () => setStateDialog(() => selectedOperator = code),
+                      borderRadius: BorderRadius.circular(14),
+                      child: AnimatedContainer(
+                        duration: BabifixDesign.durationFast,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? BabifixDesign.ciOrange.withValues(alpha: 0.14)
+                              : BabifixDesign.elevatedSurfaceOf(context),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: sel
+                                ? BabifixDesign.ciOrange
+                                : BabifixDesign.borderOf(context),
+                            width: sel ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            BabifixPaymentMethodBadge(
+                              methodId: code,
+                              size: 28,
+                              selected: sel,
+                              onDarkSurface: isDarkBg,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              op['label'] as String,
+                              style: TextStyle(
+                                color: sel
+                                    ? BabifixDesign.textPrimaryOf(context)
+                                    : BabifixDesign.textMutedOf(context),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     );
                   }).toList(),
                 ),
@@ -216,16 +274,16 @@ class _PremiumScreenState extends State<PremiumScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Annuler',
-                  style: TextStyle(color: Color(0xFFB4C2D9))),
-            ),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.phone_iphone, size: 18),
-              label: Text('Payer ${price.toStringAsFixed(0)} F'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: BabifixDesign.cyan,
-                foregroundColor: const Color(0xFF0B1B34),
+              child: Text(
+                'Annuler',
+                style: TextStyle(color: BabifixDesign.textMutedOf(context)),
               ),
+            ),
+            BabifixButton(
+              label: 'Payer ${price.toStringAsFixed(0)} F',
+              icon: Icons.phone_iphone_rounded,
+              height: 44,
+              width: 170,
               onPressed: selectedOperator == null
                   ? null
                   : () {
@@ -243,7 +301,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
-  /// Payer l'abonnement premium via Mobile Money (GeniusPay) — endpoint dédié.
+  /// Payer l'abonnement premium via Mobile Money (GeniusPay) : endpoint dédié.
   /// En simulation, l'abonnement est activé immédiatement (réponse ok:true).
   /// En paiement réel, une page de checkout s'ouvre ; le webhook GeniusPay
   /// activera l'abonnement à la confirmation.
@@ -335,7 +393,18 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: BabifixRingLoader.cyan(size: 28))
+          ? const BabifixSkeletonScope(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    BabifixSkeletonCard(),
+                    SizedBox(height: 14),
+                    BabifixSkeletonCard(),
+                  ],
+                ),
+              ),
+            )
           : _error != null
           ? _buildError()
           : RefreshIndicator(
@@ -367,6 +436,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     _buildBillingToggle(),
                     const SizedBox(height: 18),
                     ..._tiers.map((tier) => _buildTierCard(tier)),
+                    const SizedBox(height: 16),
+                    _buildProfitabilityCalculator(),
                     const SizedBox(height: 16),
                     _buildComparisonTable(),
                     const SizedBox(height: 16),
@@ -403,13 +474,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            FilledButton(
+            BabifixButton(
+              label: 'Réessayer',
+              width: 180,
               onPressed: _load,
-              style: FilledButton.styleFrom(
-                backgroundColor: BabifixDesign.cyan,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Reessayer'),
             ),
           ],
         ),
@@ -418,17 +486,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   Widget _buildCurrentStatus() {
-    final color = _tierColors[_currentTier] ?? BabifixDesign.cyan;
+    final color = _tierColors[_currentTier] ?? BabifixDesign.cyanDeep;
     return Container(
       padding: const EdgeInsets.all(20),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color, color.withValues(alpha: 0.6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: BabifixDesign.navy,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 1.5),
       ),
       child: Column(
         children: [
@@ -513,10 +578,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
           'Résilier l\'abonnement ?',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-        content: const Text(
-          'Vous repasserez en formule Standard : commission de base (18 %), '
-          '3 devis actifs et perte du badge. Cette action est immédiate.',
-          style: TextStyle(color: Color(0xFFB4C2D9), height: 1.5),
+        content: Text(
+          'Vous repasserez en formule Standard : commission de base '
+          '(${BabifixRemoteConfig.instance.current.commissionBasePct} %), '
+          '3 devis actifs et perte du badge. Cette action est immediate.',
+          style: const TextStyle(color: Color(0xFFB4C2D9), height: 1.5),
         ),
         actions: [
           TextButton(
@@ -577,16 +643,16 @@ class _PremiumScreenState extends State<PremiumScreen> {
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF152A45),
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BabifixDesign.warning.withValues(alpha: 0.2)),
+        border: Border.all(color: BabifixDesign.warning.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: BabifixDesign.warning.withValues(alpha: 0.12),
+              color: BabifixDesign.warning.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -598,8 +664,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
           const SizedBox(width: 14),
           Expanded(
             child: Text(
-              'Commission actuelle : ${_commissionEffective.toStringAsFixed(0)}%\nPassez Premium pour reduire votre commission !',
-              style: const TextStyle(fontSize: 13, color: Color(0xFFB4C2D9), height: 1.4),
+              'Commission actuelle : ${_commissionEffective.toStringAsFixed(0)}%\nPassez Premium pour réduire votre commission et personnaliser votre carte Wallet.',
+              style: TextStyle(
+                fontSize: 13,
+                color: BabifixDesign.textPrimaryOf(context),
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -611,9 +681,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF152A45),
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       child: Row(
         children: [
@@ -629,17 +699,17 @@ class _PremiumScreenState extends State<PremiumScreen> {
     return GestureDetector(
       onTap: () => setState(() => _isAnnual = annual),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: BabifixDesign.durationFast,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: sel ? BabifixDesign.cyan : Colors.transparent,
+          color: sel ? BabifixDesign.ciOrange : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
         alignment: Alignment.center,
         child: Text(
           label,
           style: TextStyle(
-            color: sel ? const Color(0xFF0B1B34) : const Color(0xFFB4C2D9),
+            color: sel ? Colors.white : BabifixDesign.textMutedOf(context),
             fontWeight: FontWeight.w800,
             fontSize: 13.5,
           ),
@@ -665,24 +735,23 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
     final trialAvailable = tier['trial_available'] == true && _trialAvailable;
 
+    final walletTier = tierId == 'gold'
+        ? BabifixWalletTier.gold
+        : tierId == 'silver'
+            ? BabifixWalletTier.silver
+            : BabifixWalletTier.standard;
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Container(
           margin: EdgeInsets.only(bottom: 16, top: isPopular ? 12 : 0),
           decoration: BoxDecoration(
-            gradient: isActive || isPopular
-                ? LinearGradient(
-                    colors: [color.withValues(alpha: 0.15), const Color(0xFF152A45)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            color: isActive || isPopular ? null : const Color(0xFF152A45),
+            color: BabifixDesign.surfaceOf(context),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isActive || isPopular ? color : const Color(0x1AFFFFFF),
-              width: isActive || isPopular ? 2 : 1,
+              color: isActive || isPopular ? color : BabifixDesign.borderOf(context),
+              width: isActive || isPopular ? 1.8 : 1,
             ),
           ),
           child: Column(
@@ -691,7 +760,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.08),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
                 ),
                 child: Row(
                   children: [
@@ -721,29 +790,33 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 18,
-                              color: color,
+                              color: BabifixDesign.textPrimaryOf(context),
                             ),
                           ),
                           if (isStandard)
-                            const Text(
+                            Text(
                               'Gratuit pour tous les prestataires vérifiés',
-                              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                              style: TextStyle(
+                                color: BabifixDesign.textMutedOf(context),
+                                fontSize: 12,
+                              ),
                             )
                           else
                             Row(
                               children: [
                                 Text(
                                   '$displayPrice FCFA',
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: BabifixDesign.textPrimaryOf(context),
                                     fontSize: 18,
                                     fontWeight: FontWeight.w900,
+                                    fontFeatures: BabifixDesign.tabularFigures,
                                   ),
                                 ),
                                 Text(
                                   ' $period',
-                                  style: const TextStyle(
-                                    color: Color(0xFF94A3B8),
+                                  style: TextStyle(
+                                    color: BabifixDesign.textMutedOf(context),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -754,15 +827,16 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                         horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: BabifixDesign.success
-                                          .withValues(alpha: 0.18),
+                                          .withValues(alpha: 0.16),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
-                                      '−$savingsPct%',
+                                      '-$savingsPct%',
                                       style: const TextStyle(
                                         color: BabifixDesign.success,
                                         fontSize: 11,
                                         fontWeight: FontWeight.w800,
+                                        fontFeatures: BabifixDesign.tabularFigures,
                                       ),
                                     ),
                                   ),
@@ -793,6 +867,32 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 ),
               ),
               Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Aperçu de votre carte Wallet',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                        color: BabifixDesign.textMutedOf(context),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    BabifixWalletCard(
+                      compactPreview: true,
+                      tier: walletTier,
+                      soldeFcfa: 0,
+                      prestataireName:
+                          'EDITION ${(tier['name'] ?? tierId).toString().toUpperCase()}',
+                      maskedCardNumber: '**** **** **** 2250',
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
@@ -807,8 +907,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             Expanded(
                               child: Text(
                                 f.toString(),
-                                style: const TextStyle(
-                                    fontSize: 13, color: Color(0xFFCBD5E1)),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: BabifixDesign.textPrimaryOf(context),
+                                ),
                               ),
                             ),
                           ],
@@ -817,68 +919,56 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     ),
                     if (!isActive && !isStandard) ...[
                       const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: FilledButton(
-                          onPressed: _subscribing
-                              ? null
-                              : () => _subscribe(
-                                    tierId,
-                                    billingPeriod:
-                                        _isAnnual ? 'annual' : 'monthly',
-                                  ),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: color,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: _subscribing
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: BabifixRingLoader.cyan(size: 28),
-                                )
-                              : Text(
-                                  _isAnnual
-                                      ? 'Souscrire ${tier['name']} – Annuel'
-                                      : 'Souscrire ${tier['name']}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 15,
-                                  ),
-                                ),
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: BabifixDesign.elevatedSurfaceOf(context),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: BabifixDesign.borderOf(context)),
                         ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.account_balance_wallet_rounded,
+                                size: 16, color: BabifixDesign.cyanDeep),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Déduit de votre solde Wallet BABIFIX (ou Mobile Money)',
+                                style: TextStyle(
+                                  color: BabifixDesign.textMutedOf(context),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      BabifixButton(
+                        label: _isAnnual
+                            ? 'Souscrire ${tier['name']} (Annuel)'
+                            : 'Souscrire ${tier['name']}',
+                        loadingLabel: 'Activation...',
+                        isLoading: _subscribing,
+                        backgroundColor: BabifixDesign.ciOrange,
+                        onPressed: _subscribing
+                            ? null
+                            : () => _subscribe(
+                                  tierId,
+                                  billingPeriod: _isAnnual ? 'annual' : 'monthly',
+                                ),
                       ),
                       if (trialAvailable) ...[
                         const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
+                        BabifixButton(
+                          label: 'Essai gratuit 7 jours',
+                          variant: BabifixButtonVariant.outlined,
+                          icon: Icons.bolt_rounded,
                           height: 44,
-                          child: OutlinedButton.icon(
-                            onPressed: _subscribing
-                                ? null
-                                : () => _subscribe(tierId,
-                                    billingPeriod: 'trial'),
-                            icon: Icon(Icons.bolt_rounded,
-                                size: 18, color: BabifixDesign.iconOnDark),
-                            label: const Text(
-                              'Essai gratuit 7 jours',
-                              style: TextStyle(
-                                color: BabifixDesign.cyan,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13.5,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                  color: BabifixDesign.cyan, width: 1.5),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
+                          onPressed: _subscribing
+                              ? null
+                              : () => _subscribe(tierId, billingPeriod: 'trial'),
                         ),
                       ],
                     ],
@@ -938,7 +1028,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: color ?? Colors.white,
+                color: color ?? BabifixDesign.textPrimaryOf(context),
                 fontWeight: FontWeight.w800,
                 fontSize: 12.5,
               ),
@@ -953,17 +1043,18 @@ class _PremiumScreenState extends State<PremiumScreen> {
               text,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: const Color(0xFFCBD5E1),
+                color: BabifixDesign.textPrimaryOf(context),
                 fontSize: 12,
-                fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                fontFeatures: BabifixDesign.tabularFigures,
               ),
             ),
           ),
         );
 
     Widget row(String label, List<String> values) => Container(
-          decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: Color(0x14FFFFFF))),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: BabifixDesign.borderOf(context))),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -975,8 +1066,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       vertical: 11, horizontal: 12),
                   child: Text(
                     label,
-                    style: const TextStyle(
-                      color: Color(0xFF94A3B8),
+                    style: TextStyle(
+                      color: BabifixDesign.textMutedOf(context),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -988,15 +1079,23 @@ class _PremiumScreenState extends State<PremiumScreen> {
           ),
         );
 
-    String commission(int red) => red == 0 ? '18 %' : '${18 - red} %';
-    String quota(int q) => q == -1 ? 'Illimités' : '$q';
+    final basePct = BabifixRemoteConfig.instance.current.commissionBasePct;
+    final floorPct = BabifixRemoteConfig.instance.current.commissionFloorPct;
+    String commissionFor(Map<String, dynamic> t) {
+      final eff = (t['commission_effective_pct'] as num?)?.toInt();
+      if (eff != null) return '$eff %';
+      final red = (t['commission_reduction'] as num?)?.toInt() ?? 0;
+      final computed = (basePct - red).clamp(floorPct, 50);
+      return '$computed %';
+    }
+    String quota(int q) => q == -1 ? 'Illimites' : '$q';
     String visibility(int pct) => pct == 0 ? 'Standard' : '+$pct %';
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF152A45),
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Column(
@@ -1005,12 +1104,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   flex: 1,
                   child: Text(
                     'Comparaison',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: BabifixDesign.textPrimaryOf(context),
                       fontWeight: FontWeight.w800,
                       fontSize: 13,
                     ),
@@ -1019,13 +1118,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 for (final t in _tiers)
                   header(
                     (t['name'] ?? '').toString(),
-                    _tierColors[t['id']] ?? Colors.white,
+                    _tierColors[t['id']] ?? BabifixDesign.textPrimaryOf(context),
                   ),
               ],
             ),
           ),
           row('Commission',
-              _tiers.map((t) => commission((t['commission_reduction'] ?? 0) as int)).toList()),
+              _tiers.map((t) => commissionFor(t)).toList()),
           row('Visibilité',
               _tiers.map((t) => visibility((t['visibility_boost_pct'] ?? 0) as int)).toList()),
           row('Devis actifs',
@@ -1033,12 +1132,120 @@ class _PremiumScreenState extends State<PremiumScreen> {
           row(
             'Badge profil',
             _tiers.map((t) {
+              final b = (t['badge'] ?? '').toString().trim();
+              if (b.isNotEmpty) return b;
               final id = t['id']?.toString() ?? '';
-              if (id == 'silver') return 'Argent';
-              if (id == 'gold') return 'Or';
-              return 'N/A';
+              if (id == 'silver') return 'Pro vérifié';
+              if (id == 'gold') return 'Top';
+              return 'Standard';
             }).toList(),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfitabilityCalculator() {
+    final comp = _calcData?['comparison'] as Map<String, dynamic>?;
+    final silverMap = comp?['silver'] as Map<String, dynamic>?;
+    final goldMap = comp?['gold'] as Map<String, dynamic>?;
+    final silverGain = (silverMap?['net_gain_vs_standard'] as num?)?.toInt() ?? 0;
+    final goldGain = (goldMap?['net_gain_vs_standard'] as num?)?.toInt() ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: BabifixDesign.surfaceOf(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.calculate_rounded, color: Color(0xFFB45309), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Simulateur de rentabilite mensuelle',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: BabifixDesign.textPrimaryOf(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Chiffre d\'affaires estime : ${(_simCaFcfa / 1000).round()} 000 FCFA / mois',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: BabifixDesign.textMutedOf(context),
+            ),
+          ),
+          Slider(
+            value: _simCaFcfa,
+            min: 50000,
+            max: 600000,
+            divisions: 11,
+            activeColor: const Color(0xFFB45309),
+            onChanged: (v) => setState(() => _simCaFcfa = v),
+            onChangeEnd: (v) => _loadCalculator(v.round()),
+          ),
+          if (silverMap != null && goldMap != null)
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0E3B2E).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Silver', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                        Text(
+                          '${silverGain >= 0 ? '+' : ''}$silverGain FCFA net',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13.5,
+                            color: silverGain >= 0 ? const Color(0xFF047857) : const Color(0xFFC2410C),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFB45309).withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Gold', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                        Text(
+                          '${goldGain >= 0 ? '+' : ''}$goldGain FCFA net',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13.5,
+                            color: goldGain >= 0 ? const Color(0xFF047857) : const Color(0xFFC2410C),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -1048,38 +1255,31 @@ class _PremiumScreenState extends State<PremiumScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            BabifixDesign.cyan.withValues(alpha: 0.18),
-            const Color(0xFF152A45),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BabifixDesign.cyan.withValues(alpha: 0.35)),
+        border: Border.all(color: BabifixDesign.cyanDeep.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          Icon(Icons.bolt_rounded, color: BabifixDesign.iconOnDark, size: 28),
+          const Icon(Icons.bolt_rounded, color: BabifixDesign.cyanDeep, size: 28),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Essai gratuit 7 jours',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: BabifixDesign.textPrimaryOf(context),
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Testez Argent ou Or gratuitement. Aucun débit, sans engagement.',
                   style: TextStyle(
-                    color: Color(0xFFB4C2D9),
+                    color: BabifixDesign.textMutedOf(context),
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -1096,23 +1296,27 @@ class _PremiumScreenState extends State<PremiumScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF152A45),
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             Icons.lightbulb_outline_rounded,
-            color: BabifixDesign.iconOnDark,
+            color: BabifixDesign.textMutedOf(context),
             size: 20,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Le montant est deduit de votre wallet BABIFIX. Si votre solde est insuffisant, vous pourrez payer via Mobile Money.',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), height: 1.4),
+              'Le montant est déduit de votre wallet BABIFIX. Si votre solde est insuffisant, vous pourrez payer via Mobile Money.',
+              style: TextStyle(
+                fontSize: 12,
+                color: BabifixDesign.textMutedOf(context),
+                height: 1.4,
+              ),
             ),
           ),
         ],

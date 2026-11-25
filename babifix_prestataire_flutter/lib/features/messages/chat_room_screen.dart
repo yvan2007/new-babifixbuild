@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -16,8 +15,10 @@ import '../../json_utils.dart';
 import '../../services/livekit_call_service.dart';
 import '../../services/call_service.dart';
 import '../../shared/error_utils.dart';
+import '../../shared/services/babifix_remote_config.dart';
 import '../../shared/services/haptics_service.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
+import '../../shared/widgets/babifix_sheet.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 import '../../shared/widgets/babifix_voice_note.dart';
 
@@ -66,6 +67,7 @@ class PrestApiChatMsg {
     this.payloadJson,
     this.audioUrl,
     this.audioDuration = 0,
+    this.audioTranscript,
   });
 
   final int id;
@@ -81,6 +83,7 @@ class PrestApiChatMsg {
   final Map<String, dynamic>? payloadJson;
   final String? audioUrl;
   final int audioDuration;
+  final String? audioTranscript;
 
   bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
 
@@ -231,6 +234,9 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
           payloadJson: payload,
           audioUrl: (m['audio_url'] as String?)?.isNotEmpty == true ? m['audio_url'] as String : null,
           audioDuration: jsonInt(m['audio_duration']),
+          audioTranscript: (m['audio_transcript'] as String?)?.trim().isNotEmpty == true
+              ? (m['audio_transcript'] as String).trim()
+              : null,
         ),
       );
     }
@@ -285,6 +291,25 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                if (mounted) setState(() => _peerTyping = false);
              }
            }
+
+            if (msgType == 'chat.message' ||
+                msgType == 'new_message' ||
+                msgType == 'chat_message') {
+              _reloadMessages();
+            }
+
+            if (msgType == 'chat.error' && mounted) {
+              final errCode = '${m['error'] ?? ''}';
+              showBabifixToast(
+                context,
+                type: BabifixToastType.warning,
+                message: errCode == 'contact_not_allowed'
+                    ? 'Messagerie disponible uniquement après acceptation du devis.'
+                    : (errCode == 'prestation_terminee'
+                        ? 'Prestation terminée : messagerie clôturée.'
+                        : 'Envoi impossible pour le moment.'),
+              );
+            }
 
             if (msgType == 'call_offer') {
               final roomName = '${m['room_name'] ?? ''}';
@@ -455,15 +480,15 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
   }
 
   void _showAttachmentMenu() {
-    showModalBottomSheet<void>(
+    showBabifixModalSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF0B1B34)),
+              leading: Icon(Icons.photo_library_outlined,
+                  color: BabifixDesign.iconColor(ctx)),
               title: const Text('Choisir une photo'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -471,7 +496,8 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.photo_camera_outlined, color: Color(0xFF0B1B34)),
+              leading: Icon(Icons.photo_camera_outlined,
+                  color: BabifixDesign.iconColor(ctx)),
               title: const Text('Prendre une photo'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -578,6 +604,7 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
+        backgroundColor: BabifixDesign.surfaceOf(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 26, 22, 18),
@@ -595,12 +622,12 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                     size: 42, color: Color(0xFF0EA5E9)),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Prestation terminée',
                 style: TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF0B1B34)),
+                    color: BabifixDesign.textPrimaryOf(ctx)),
               ),
               const SizedBox(height: 10),
               Text(
@@ -608,8 +635,10 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                     'La prestation est terminée : la messagerie est clôturée. '
                         'En cas de souci, utilisez « Signaler un problème ».',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 13.5, height: 1.45, color: Color(0xFF475569)),
+                style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.45,
+                    color: BabifixDesign.textMutedOf(ctx)),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -860,18 +889,20 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
         ),
         title: Text(widget.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.phone),
-            tooltip: 'Appel audio',
-            color: Theme.of(context).primaryColor,
-            onPressed: () => _startOutgoingCall(isVideo: false),
-          ),
-          IconButton(
-            icon: const Icon(Icons.videocam),
-            tooltip: 'Appel vidéo',
-            color: Theme.of(context).primaryColor,
-            onPressed: () => _startOutgoingCall(isVideo: true),
-          ),
+          if (BabifixRemoteConfig.instance.current.callsEnabled) ...[
+            IconButton(
+              icon: const Icon(Icons.phone),
+              tooltip: 'Appel audio',
+              color: Theme.of(context).primaryColor,
+              onPressed: () => _startOutgoingCall(isVideo: false),
+            ),
+            IconButton(
+              icon: const Icon(Icons.videocam),
+              tooltip: 'Appel vidéo',
+              color: Theme.of(context).primaryColor,
+              onPressed: () => _startOutgoingCall(isVideo: true),
+            ),
+          ],
           const SizedBox(width: 8),
         ],
       ),
@@ -890,7 +921,7 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                     );
                   }
                   final msg = _chat[i];
-                  // Phase C — DEVIS_CARD / SYSTEM
+                  // Phase C : DEVIS_CARD / SYSTEM
                   if (msg.kind == 'DEVIS_CARD' && msg.payloadJson != null) {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -949,7 +980,10 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                             _replyingTo!.snippet,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 13, color: Colors.blueGrey.shade800),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: BabifixDesign.textMutedOf(context),
+                            ),
                           ),
                         ],
                       ),
@@ -1008,7 +1042,7 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                   onPressed: _showAttachmentMenu,
                   icon: const Icon(Icons.add_circle_outline),
                   tooltip: 'Photo ou cam\u00e9ra',
-                  color: const Color(0xFF0B1B34),
+                  color: BabifixDesign.iconColor(context),
                 ),
                 Expanded(
                   child: TextField(
@@ -1031,7 +1065,9 @@ class _PrestChatRoomPageState extends State<PrestChatRoomPage> {
                 IconButton(
                   onPressed: _sendText,
                   icon: const Icon(Icons.send),
-                  color: const Color(0xFF0B1B34),
+                  color: BabifixDesign.isDark(context)
+                      ? BabifixDesign.cyan
+                      : BabifixDesign.navy,
                 ),
               ],
             ),
@@ -1056,15 +1092,15 @@ class _PrestApiChatBubble extends StatelessWidget {
   final VoidCallback? onDelete;
 
   void _showMessageMenu(BuildContext context) {
-    showModalBottomSheet<void>(
+    showBabifixModalSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.reply_rounded, color: Color(0xFF0B1B34)),
+              leading: Icon(Icons.reply_rounded,
+                  color: BabifixDesign.iconColor(ctx)),
               title: const Text('R\u00e9pondre'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1089,15 +1125,18 @@ class _PrestApiChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final me = message.me;
+    final isDark = BabifixDesign.isDark(context);
+    final ink = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
     final w = MediaQuery.sizeOf(context).width * 0.82;
     final bubble = Container(
       constraints: BoxConstraints(maxWidth: w),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: me ? const Color(0xFF4CC9F0) : Colors.white,
+        color: me ? const Color(0xFF4CC9F0) : BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(12),
-        border: me ? null : Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: me
+        border: me ? null : Border.all(color: BabifixDesign.borderOf(context)),
+        boxShadow: me || isDark
             ? null
             : [
                 BoxShadow(
@@ -1116,10 +1155,15 @@ class _PrestApiChatBubble extends StatelessWidget {
               padding: const EdgeInsets.all(8),
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
-                color: me ? const Color(0x330B1B34) : const Color(0xFFF1F5F9),
+                color: me
+                    ? const Color(0x330B1B34)
+                    : BabifixDesign.elevatedSurfaceOf(context),
                 borderRadius: BorderRadius.circular(8),
-                border: const Border(
-                  left: BorderSide(color: Color(0xFF4CC9F0), width: 3),
+                border: Border(
+                  left: BorderSide(
+                    color: me ? BabifixDesign.navy : BabifixDesign.cyan,
+                    width: 3,
+                  ),
                 ),
               ),
               child: Column(
@@ -1130,7 +1174,7 @@ class _PrestApiChatBubble extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 11,
-                      color: me ? const Color(0xFF0B1B34) : const Color(0xFF64748B),
+                      color: me ? BabifixDesign.navy : muted,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -1140,7 +1184,7 @@ class _PrestApiChatBubble extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
-                      color: me ? const Color(0xFF0B1B34) : const Color(0xFF334155),
+                      color: me ? BabifixDesign.navy : ink,
                     ),
                   ),
                 ],
@@ -1173,6 +1217,9 @@ class _PrestApiChatBubble extends StatelessWidget {
                 url: message.audioUrl!,
                 durationSeconds: message.audioDuration,
                 isMe: message.me,
+                foregroundColor: me ? BabifixDesign.navy : ink,
+                initialTranscript: message.audioTranscript,
+                messageId: message.serverMessageId,
               ),
             ),
           if (((message.imageUrl != null && message.imageUrl!.isNotEmpty) || (message.imageBytes != null)) &&
@@ -1183,7 +1230,7 @@ class _PrestApiChatBubble extends StatelessWidget {
             Text(
               message.text!,
               style: TextStyle(
-                color: me ? const Color(0xFF0B1B34) : const Color(0xFF111827),
+                color: me ? BabifixDesign.navy : ink,
               ),
             ),
         ],
@@ -1237,7 +1284,7 @@ class _PrestApiChatBubble extends StatelessWidget {
   }
 }
 
-// ── Typing indicator ──────────────────────────────────────────────────────────
+// Typing indicator
 
 class _TypingIndicator extends StatefulWidget {
   const _TypingIndicator();

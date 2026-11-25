@@ -249,10 +249,16 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
                 child: TextField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
+                  decoration: InputDecoration(
+                    filled: false,
                     labelText: 'Numéro (+225 XX XX XX XX)',
+                    labelStyle: TextStyle(color: textSecondary),
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     prefixText: '+225 ',
+                    prefixStyle: TextStyle(color: textPrimary, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -296,10 +302,14 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
                   maxLength: 6,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 28, letterSpacing: 8),
+                  style: TextStyle(fontSize: 28, letterSpacing: 8, color: textPrimary, fontWeight: FontWeight.w800),
                   decoration: InputDecoration(
+                    filled: false,
                     labelText: 'Code à 6 chiffres',
+                    labelStyle: TextStyle(color: textSecondary),
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     counterText: '',
                   ),
                   onSubmitted: (_) => _verifyCode(),

@@ -14,7 +14,6 @@ import '../social_auth_service.dart';
 class BabifixUserStore {
   BabifixUserStore._();
 
-  static const _kAccounts = 'babifix_accounts_v1';
   static const _kSession = 'babifix_session_logged_in';
   static const _kApiToken = 'babifix_api_token';
   static const _kRefreshToken = 'babifix_refresh_token';
@@ -141,7 +140,9 @@ class BabifixUserStore {
 
   static Future<bool> isLoggedIn() async {
     final p = await SharedPreferences.getInstance();
-    return p.getBool(_kSession) ?? false;
+    if (!(p.getBool(_kSession) ?? false)) return false;
+    final token = await getApiToken();
+    return token != null && token.isNotEmpty;
   }
 
   static Future<void> _setSession(bool v) async {
@@ -193,22 +194,6 @@ class BabifixUserStore {
     await prefs.remove(_kAvatarB64);
   }
 
-  static Future<Map<String, Map<String, String>>> _readAccounts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_kAccounts);
-    if (raw == null || raw.isEmpty) return {};
-    final decoded = jsonDecode(raw) as Map<String, dynamic>;
-    return decoded.map((k, v) {
-      final m = (v as Map).map((a, b) => MapEntry('$a', '$b'));
-      return MapEntry(k, Map<String, String>.from(m));
-    });
-  }
-
-  static Future<void> _writeAccounts(Map<String, Map<String, String>> m) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kAccounts, jsonEncode(m));
-  }
-
   static Future<String?> register({
     required String email,
     required String password,
@@ -225,17 +210,17 @@ class BabifixUserStore {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': key,
-          'email': key, // Ajouter le champ email
+          'email': key,
           'password': password,
-          'role': 'client',
+          'role': 'prestataire',
           'phone_e164': phone.trim(),
           'country_code': countryCode,
         }),
       ).timeout(_kTimeout);
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final token = data['token'] as String?;
-        if (token != null) {
+        final token = (data['token'] ?? data['access']) as String?;
+        if (token != null && token.isNotEmpty) {
           await _saveApiToken(token);
           await saveProfile(
             name: name.trim(),
@@ -253,36 +238,9 @@ class BabifixUserStore {
       } catch (_) {
         return 'Inscription impossible (HTTP ${res.statusCode}).';
       }
-    } catch (e) {
-      return _registerLocalFallback(email, password, name, phone);
+    } catch (_) {
+      return 'Serveur inaccessible. Vérifiez votre connexion réseau.';
     }
-  }
-
-  static Future<String?> _registerLocalFallback(
-    String email,
-    String password,
-    String name,
-    String phone,
-  ) async {
-    final key = email.trim().toLowerCase();
-    final accounts = await _readAccounts();
-    if (accounts.containsKey(key))
-      return 'Un compte existe deja avec cet email.';
-    accounts[key] = {
-      'password': password,
-      'name': name.trim(),
-      'phone': phone.trim(),
-    };
-    await _writeAccounts(accounts);
-    final ex = await loadProfile();
-    await saveProfile(
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      address: ex['address'],
-    );
-    await _setSession(true);
-    return null;
   }
 
   static Future<String?> login(String email, String password) async {
@@ -296,11 +254,10 @@ class BabifixUserStore {
       ).timeout(_kTimeout);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        // Support both {"token": "..."} and {"access": "...", "refresh": "..."} formats
         final token = (data['token'] ?? data['access']) as String?;
         final refreshToken = data['refresh'] as String?;
         final username = data['username'] as String? ?? key;
-        if (token != null) {
+        if (token != null && token.isNotEmpty) {
           await _saveApiToken(token);
           if (refreshToken != null) await _saveRefreshToken(refreshToken);
           await saveProfile(name: username, email: email.trim());
@@ -308,23 +265,18 @@ class BabifixUserStore {
           await BabifixFcm.registerTokenWithBackend(token);
           return null;
         }
+        return 'Réponse serveur invalide (jeton manquant).';
       }
+      if (res.statusCode == 400 || res.statusCode == 401) {
+        return 'Identifiant ou mot de passe incorrect.';
+      }
+      if (res.statusCode == 429) {
+        return 'Trop de tentatives. Réessayez dans quelques minutes.';
+      }
+      return 'Connexion refusée (HTTP ${res.statusCode}).';
     } catch (_) {
-      // fallback local
+      return 'Serveur inaccessible. Vérifiez votre connexion réseau.';
     }
-    final accounts = await _readAccounts();
-    final u = accounts[key];
-    if (u == null || u['password'] != password) {
-      return 'Email ou mot de passe incorrect.';
-    }
-    await saveProfile(
-      name: u['name'] ?? '',
-      email: email.trim(),
-      phone: u['phone'] ?? '',
-    );
-    await _setSession(true);
-    await _saveApiToken(null);
-    return null;
   }
 
   /// Sign in with Google via google_sign_in + backend BABIFIX.

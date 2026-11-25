@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/error_utils.dart';
+import '../../shared/widgets/babifix_button.dart';
 
 class CreateDevisScreen extends StatefulWidget {
   final String reservationReference;
@@ -38,14 +40,42 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
   bool _submitting = false;
 
   // Taux de commission EFFECTIF du prestataire (fraction, ex. 0.08 en GOLD).
-  // Récupéré depuis /api/prestataire/me — sinon 18 % par défaut. Sert au calcul
+  // Récupéré depuis /api/prestataire/me, sinon 18 % par défaut. Sert au calcul
   // ET à l'affichage du bon pourcentage (avant : 18 % figé, faux pour premium).
   double _commissionRate = 0.18;
+  Map<String, dynamic>? _smartBenchmark;
+  double _plafondInterventionFcfa = 0;
 
   @override
   void initState() {
     super.initState();
     _loadCommissionRate();
+    _loadSmartAssist();
+  }
+
+  Future<void> _loadSmartAssist() async {
+    try {
+      final token = await readStoredApiToken();
+      if (token == null || token.isEmpty) return;
+      final desc = [
+        widget.reservationDetails['title'] ?? '',
+        widget.reservationDetails['description_probleme'] ?? '',
+      ].where((s) => '$s'.trim().isNotEmpty).join(' ');
+      final uri = Uri.parse(
+        '${babifixApiBaseUrl()}/api/prestataire/smart/devis-assist/',
+      ).replace(queryParameters: {'description': desc});
+      final resp = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 6));
+      if (resp.statusCode == 200 && mounted) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final bench = data['benchmark'];
+        if (bench is Map<String, dynamic>) {
+          setState(() => _smartBenchmark = bench);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadCommissionRate() async {
@@ -62,8 +92,16 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
       final pct = prov['commission_rate_effective'] ??
           data['commission_rate_effective'];
       final v = (pct is num) ? pct.toDouble() : double.tryParse('$pct');
-      if (v != null && v > 0 && mounted) {
-        setState(() => _commissionRate = v / 100.0);
+      final plafondRaw = prov['plafond_intervention_fcfa'] ??
+          data['plafond_intervention_fcfa'];
+      final plafondVal = (plafondRaw is num)
+          ? plafondRaw.toDouble()
+          : (double.tryParse('$plafondRaw') ?? 0.0);
+      if (mounted) {
+        setState(() {
+          if (v != null && v > 0) _commissionRate = v / 100.0;
+          if (plafondVal > 0) _plafondInterventionFcfa = plafondVal;
+        });
       }
     } catch (_) {}
   }
@@ -338,7 +376,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Le client verra « ~min–max FCFA » à titre indicatif. Aucun '
+              'Le client verra « ~min - max FCFA » à titre indicatif. Aucun '
               'paiement ne sera demandé sur une estimation.',
               style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
             ),
@@ -359,7 +397,7 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('–',
+                  child: Text('-',
                       style: TextStyle(
                           fontSize: 18, fontWeight: FontWeight.w800)),
                 ),
@@ -560,7 +598,60 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
     );
   }
 
+  void _addSmartItem(Map<String, dynamic> item) {
+    final nom = '${item['nom'] ?? ''}'.trim();
+    if (nom.isEmpty) return;
+    final prix = (item['prix'] is num)
+        ? (item['prix'] as num).toDouble()
+        : (double.tryParse('${item['prix'] ?? 0}') ?? 0.0);
+    final rawType = '${item['type_ligne'] ?? 'FOURNITURE'}'.toUpperCase();
+    final type = const ['FOURNITURE', 'MAIN_OEUVRE', 'DEPLACEMENT', 'AUTRE']
+            .contains(rawType)
+        ? rawType
+        : 'FOURNITURE';
+    setState(() {
+      _lignes.add(
+        _LigneDevis(
+          type: type,
+          description: nom,
+          quantite: 1,
+          prixUnitaire: prix,
+        ),
+      );
+    });
+  }
+
+  String? _devisCoherenceWarning() {
+    if (_estEstimation || _sousTotal <= 0) return null;
+    if (_plafondInterventionFcfa > 0 && _sousTotal > _plafondInterventionFcfa) {
+      return 'Ce total depasse votre plafond d intervention actuel '
+          '(${_plafondInterventionFcfa.toStringAsFixed(0)} FCFA).';
+    }
+    final b = _smartBenchmark;
+    if (b == null) return null;
+    final minF = (b['min_fcfa'] is num) ? (b['min_fcfa'] as num).toDouble() : 0.0;
+    final maxF = (b['max_fcfa'] is num) ? (b['max_fcfa'] as num).toDouble() : 0.0;
+    if (minF > 0 && _sousTotal < minF * 0.45) {
+      return 'Montant bas par rapport aux constats Abidjan '
+          '(${minF.toStringAsFixed(0)} - ${maxF.toStringAsFixed(0)} FCFA) : '
+          'verifiez main-d oeuvre et deplacement.';
+    }
+    if (maxF > 0 && _sousTotal > maxF * 2.4) {
+      return 'Montant superieur a la moyenne constatee : detaillez bien '
+          'vos fournitures pour rassurer le client.';
+    }
+    return null;
+  }
+
   Widget _buildLignesSection() {
+    final suggested = (_smartBenchmark?['suggested_items'] as List<dynamic>? ??
+            const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    final minF = _smartBenchmark?['min_fcfa'];
+    final maxF = _smartBenchmark?['max_fcfa'];
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -611,6 +702,51 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
                 ),
               ],
             ),
+            if (minF != null && maxF != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Repere Abidjan : $minF - $maxF FCFA',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0369A1),
+                        fontFeatures: BabifixDesign.tabularFigures,
+                      ),
+                    ),
+                    if (suggested.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final item in suggested.take(3))
+                            ActionChip(
+                              visualDensity: VisualDensity.compact,
+                              label: Text(
+                                '+ ${item['nom']} (${item['prix']} F)',
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              onPressed: () => _addSmartItem(item),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             if (_lignes.isEmpty)
               const Text(
@@ -671,7 +807,9 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          TextField(
+          TextFormField(
+            key: ObjectKey(ligne),
+            initialValue: ligne.description,
             decoration: const InputDecoration(
               labelText: 'Description',
               isDense: true,
@@ -682,25 +820,34 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
           Row(
             children: [
               Expanded(
-                child: TextField(
+                child: TextFormField(
+                  key: ValueKey('${identityHashCode(ligne)}-qty'),
+                  initialValue: '${ligne.quantite}',
                   decoration: const InputDecoration(
                     labelText: 'Quantité',
                     isDense: true,
                   ),
                   keyboardType: TextInputType.number,
-                  onChanged: (v) => ligne.quantite = int.tryParse(v) ?? 1,
+                  onChanged: (v) => setState(
+                    () => ligne.quantite = int.tryParse(v) ?? 1,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: TextField(
+                child: TextFormField(
+                  key: ValueKey('${identityHashCode(ligne)}-pu'),
+                  initialValue: ligne.prixUnitaire > 0
+                      ? ligne.prixUnitaire.toStringAsFixed(0)
+                      : '',
                   decoration: const InputDecoration(
                     labelText: 'Prix unitaire (francs CFA)',
                     isDense: true,
                   ),
                   keyboardType: TextInputType.number,
-                  onChanged: (v) =>
-                      ligne.prixUnitaire = double.tryParse(v) ?? 0,
+                  onChanged: (v) => setState(
+                    () => ligne.prixUnitaire = double.tryParse(v) ?? 0,
+                  ),
                 ),
               ),
             ],
@@ -753,23 +900,65 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
     final commission = _sousTotal * _commissionRate;
     final net = _sousTotal - commission;
     final pct = (_commissionRate * 100).round();
+    final advisory = _devisCoherenceWarning();
 
-    return Card(
-      color: const Color(0xFF0A1628),
+    return Container(
+      decoration: BoxDecoration(
+        color: BabifixDesign.navy,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: BabifixDesign.borderDark),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           children: [
+            if (advisory != null) ...[
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: Color(0xFFFBBF24),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        advisory,
+                        style: const TextStyle(
+                          color: Color(0xFFFEF3C7),
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   'Prix pour le client',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: BabifixDesign.textMutedDark),
                 ),
                 Text(
-                  '${_sousTotal.toStringAsFixed(0)} francs CFA',
-                  style: const TextStyle(color: Colors.white),
+                  '${_sousTotal.toStringAsFixed(0)} FCFA',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: BabifixDesign.tabularFigures,
+                  ),
                 ),
               ],
             ),
@@ -779,15 +968,22 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
               children: [
                 Text(
                   'Commission BABIFIX ($pct%)',
-                  style: const TextStyle(color: Colors.white70),
+                  style: const TextStyle(color: BabifixDesign.textMutedDark),
                 ),
                 Text(
-                  '- ${commission.toStringAsFixed(0)} francs CFA',
-                  style: const TextStyle(color: Colors.white),
+                  '- ${commission.toStringAsFixed(0)} FCFA',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: BabifixDesign.tabularFigures,
+                  ),
                 ),
               ],
             ),
-            const Divider(color: Colors.white30),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(color: BabifixDesign.borderDark, height: 1),
+            ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -800,11 +996,12 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
                   ),
                 ),
                 Text(
-                  '${net.toStringAsFixed(0)} francs CFA',
+                  '${net.toStringAsFixed(0)} FCFA',
                   style: const TextStyle(
-                    color: Color(0xFF4CC9F0),
+                    color: BabifixDesign.cyan,
                     fontWeight: FontWeight.w800,
-                    fontSize: 18,
+                    fontSize: 19,
+                    fontFeatures: BabifixDesign.tabularFigures,
                   ),
                 ),
               ],
@@ -816,21 +1013,11 @@ class _CreateDevisScreenState extends State<CreateDevisScreen> {
   }
 
   Widget _buildSubmitButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton(
-        onPressed: _submitting ? null : _submit,
-        child: _submitting
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Text('Envoyer le devis'),
-      ),
+    return BabifixButton(
+      label: 'Envoyer le devis',
+      loadingLabel: 'Envoi en cours...',
+      isLoading: _submitting,
+      onPressed: _submitting ? null : _submit,
     );
   }
 }

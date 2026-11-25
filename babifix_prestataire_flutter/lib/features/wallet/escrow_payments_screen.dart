@@ -1,10 +1,3 @@
-﻿/// Écran "Mes paiements en attente" : liste des montants bloqués en
-/// escrow + état (acompte reçu / intervention en cours / en attente de
-/// confirmation client) avec montant net à recevoir par réservation.
-///
-/// Utile quand un prestataire jongle entre plusieurs chantiers en
-/// simultané : il voit d'un coup d'œil tout ce qui est verrouillé
-/// chez BABIFIX et qui sera libéré dès que les clients confirment.
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -16,9 +9,12 @@ import '../../services/babifix_api.dart';
 import '../../shared/services/babifix_user_store.dart';
 import '../../shared/widgets/animated_list_item.dart';
 import '../../shared/widgets/animated_money.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
-import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_skeleton.dart';
+import '../requests/devis_kanban_editor_screen.dart';
 
+/// Ecran Paiements en attente (sequestre BABIFIX).
 class PrestataireEscrowPaymentsScreen extends StatefulWidget {
   const PrestataireEscrowPaymentsScreen({super.key});
 
@@ -48,49 +44,57 @@ class _PrestataireEscrowPaymentsScreenState
       _error = null;
     });
     try {
-      // 1. Liste des demandes presta (toutes — on filtre côté client)
       final r = await BabifixUserStore.authGet('/api/prestataire/requests');
       if (r.statusCode >= 400) {
         throw BabifixApiException(
-            r.statusCode, 'http_error', 'HTTP ${r.statusCode}');
+          r.statusCode,
+          'http_error',
+          'HTTP ${r.statusCode}',
+        );
       }
       final j = jsonDecode(r.body) as Map<String, dynamic>;
-      final items = (j['items'] as List? ??
-              j['requests'] as List? ??
-              const [])
+      final items = (j['items'] as List? ?? j['requests'] as List? ?? const [])
           .whereType<Map>()
           .map((m) => Map<String, dynamic>.from(m))
           .toList();
 
-      // 2. Pour chacune dans un état "argent en escrow", on tire la quote
-      final entries = <_EscrowEntry>[];
+      final candidates = <Map<String, dynamic>>[];
       for (final it in items) {
         final statut = (it['status'] ?? it['statut'] ?? '').toString();
-        // On garde les états où il peut y avoir de l'argent en attente
         if (![
           'DEVIS_ACCEPTE',
+          'Confirmee',
           'INTERVENTION_EN_COURS',
           'En cours',
+          'En attente client',
           'Terminee',
         ].contains(statut)) {
           continue;
         }
         final ref = (it['reference'] ?? '').toString();
-        if (ref.isEmpty) continue;
-        try {
-          final quote = await EscrowApi.quote(ref);
-          if (quote.fundsReleasedAt != null) continue;
-          entries.add(_EscrowEntry(
-            reference: ref,
-            clientName: (it['client'] ?? it['client_name'] ?? '').toString(),
-            service: (it['service'] ?? it['title'] ?? '').toString(),
-            statut: statut,
-            quote: quote,
-          ));
-        } catch (_) {
-          // Pas grave si une résa n'a pas de quote (pas de devis)
-        }
+        if (ref.isNotEmpty) candidates.add(it);
       }
+
+      final fetched = await Future.wait(
+        candidates.map((it) async {
+          final ref = (it['reference'] ?? '').toString();
+          final statut = (it['status'] ?? it['statut'] ?? '').toString();
+          try {
+            final quote = await EscrowApi.quote(ref);
+            if (quote.fundsReleasedAt != null) return null;
+            return _EscrowEntry(
+              reference: ref,
+              clientName: (it['client'] ?? it['client_name'] ?? '').toString(),
+              service: (it['service'] ?? it['title'] ?? '').toString(),
+              statut: statut,
+              quote: quote,
+            );
+          } catch (_) {
+            return null;
+          }
+        }),
+      );
+      final entries = fetched.whereType<_EscrowEntry>().toList();
       if (!mounted) return;
       setState(() {
         _entries = entries;
@@ -107,22 +111,36 @@ class _PrestataireEscrowPaymentsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final text = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Paiements en attente'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0.5,
+        backgroundColor: bg,
+        foregroundColor: text,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: const Text('Paiements en sequestre'),
         actions: [
           IconButton(
             onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh_rounded, color: muted),
           ),
         ],
       ),
       body: _loading
-          ? const Center(child: BabifixRingLoader.dark(size: 80))
+          ? BabifixSkeletonScope(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const BabifixSkeletonBox(height: 112, borderRadius: 18),
+                  const SizedBox(height: 16),
+                  ...List.generate(4, (_) => const BabifixSkeletonCard(lines: 2)),
+                ],
+              ),
+            )
           : _error != null
               ? _errorView()
               : _entries.isEmpty
@@ -131,69 +149,80 @@ class _PrestataireEscrowPaymentsScreenState
     );
   }
 
-  Widget _errorView() => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline,
-                  color: BabifixDesign.error, size: 56),
-              const SizedBox(height: 12),
-              Text(_error ?? '', textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _load,
-                child: const Text('Réessayer'),
-              ),
-            ],
-          ),
+  Widget _errorView() {
+    final muted = BabifixDesign.textMutedOf(context);
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: BabifixDesign.error, size: 52),
+            const SizedBox(height: 12),
+            Text(
+              _error ?? '',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: muted),
+            ),
+            const SizedBox(height: 16),
+            BabifixButton(
+              label: 'Reessayer',
+              icon: Icons.refresh_rounded,
+              onPressed: _load,
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 
-  Widget _emptyView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.lock_open,
-                  size: 60, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
-              Text(
-                'Aucun paiement bloqué',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade700),
+  Widget _emptyView() {
+    final text = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_open_rounded, size: 54, color: muted),
+            const SizedBox(height: 14),
+            Text(
+              'Aucun paiement bloque',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: text,
               ),
-              const SizedBox(height: 6),
-              Text(
-                'Toutes vos prestations sont soldées.\n'
-                'Les fonds en escrow apparaîtront ici quand un client réservera.',
-                textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Toutes vos prestations sont soldees. Les fonds en sequestre apparaitront ici des reservation.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: muted, height: 1.4),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 
   Widget _content() {
+    final muted = BabifixDesign.textMutedOf(context);
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         children: [
           _totalBanner(),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Text(
             '${_entries.length} chantier${_entries.length > 1 ? 's' : ''} en cours',
             style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey.shade700),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: muted,
+            ),
           ),
           const SizedBox(height: 10),
           for (var i = 0; i < _entries.length; i++)
@@ -210,48 +239,50 @@ class _PrestataireEscrowPaymentsScreenState
   }
 
   Widget _totalBanner() {
+    final isDark = BabifixDesign.isDark(context);
+    final surface = BabifixDesign.surfaceOf(context);
+    final border = BabifixDesign.borderOf(context);
+    final text = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
+    final accent = isDark ? BabifixDesign.cyan : BabifixDesign.ciBlue;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            BabifixDesign.ciBlue.withValues(alpha: 0.10),
-            BabifixDesign.ciGreen.withValues(alpha: 0.10),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BabifixDesign.ciBlue.withValues(alpha: 0.25)),
+        color: surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Icon(Icons.account_balance, color: BabifixDesign.iconOnLight),
+              Icon(Icons.account_balance_rounded, color: accent, size: 18),
               const SizedBox(width: 8),
               Text(
-                'Total bloqué en escrow',
+                'Total bloque en sequestre',
                 style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: BabifixDesign.ciBlue,
-                    letterSpacing: 0.3),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: accent,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           AnimatedMoney(
             value: _totalLocked,
-            style: TextStyle(
-              fontSize: 30,
+            style: BabifixDesign.amountStyle(
+              color: text,
+              fontSize: 28,
               fontWeight: FontWeight.w900,
-              color: Colors.grey.shade900,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Libéré dans votre wallet dès que chaque client confirme les travaux.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            'Libere dans votre wallet des confirmation client de fin de travaux.',
+            style: TextStyle(fontSize: 12, color: muted),
           ),
         ],
       ),
@@ -259,9 +290,6 @@ class _PrestataireEscrowPaymentsScreenState
   }
 }
 
-// ---------------------------------------------------------------------------
-// Modèle local + carte de chaque escrow
-// ---------------------------------------------------------------------------
 class _EscrowEntry {
   final String reference;
   final String clientName;
@@ -277,16 +305,14 @@ class _EscrowEntry {
     required this.quote,
   });
 
-  /// Combien je toucherai au final (libération escrow)
   double get netExpected => quote.netPrestataire;
 
-  /// Phase actuelle : 1=acompte, 2=en cours, 3=terminé attente client
   ({String label, Color color, IconData icon, double progress}) get phase {
     if (statut == 'Terminee') {
       return (
         label: 'En attente de confirmation client',
         color: const Color(0xFF7C3AED),
-        icon: Icons.hourglass_top,
+        icon: Icons.hourglass_top_rounded,
         progress: 0.85,
       );
     }
@@ -294,22 +320,22 @@ class _EscrowEntry {
       return (
         label: 'Intervention en cours',
         color: BabifixDesign.ciBlue,
-        icon: Icons.engineering,
+        icon: Icons.engineering_rounded,
         progress: 0.55,
       );
     }
     if (quote.acompteValide) {
       return (
-        label: 'Acompte reçu : prêt à démarrer',
+        label: 'Acompte recu : pret a demarrer',
         color: BabifixDesign.ciGreen,
-        icon: Icons.check_circle_outline,
+        icon: Icons.check_circle_outline_rounded,
         progress: 0.30,
       );
     }
     return (
-      label: 'En attente d\'acompte client',
-      color: Colors.orange.shade700,
-      icon: Icons.hourglass_empty,
+      label: 'En attente d acompte client',
+      color: BabifixDesign.ciOrange,
+      icon: Icons.hourglass_empty_rounded,
       progress: 0.10,
     );
   }
@@ -323,30 +349,36 @@ class _EscrowCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ph = entry.phase;
     final fmt = NumberFormat.decimalPattern('fr_FR');
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    final surface = BabifixDesign.surfaceOf(context);
+    final border = BabifixDesign.borderOf(context);
+    final text = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              DevisKanbanEditorScreen(reservationReference: entry.reference),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: ph.color.withValues(alpha: 0.15),
+                  color: ph.color.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(ph.icon, color: ph.color, size: 18),
@@ -358,18 +390,16 @@ class _EscrowCard extends StatelessWidget {
                   children: [
                     Text(
                       entry.clientName.isEmpty ? 'Client' : entry.clientName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
+                        color: text,
                       ),
                     ),
                     if (entry.service.isNotEmpty)
                       Text(
                         entry.service,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
+                        style: TextStyle(fontSize: 12, color: muted),
                       ),
                   ],
                 ),
@@ -379,33 +409,31 @@ class _EscrowCard extends StatelessWidget {
                 children: [
                   Text(
                     '${fmt.format(entry.netExpected.round())} F',
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: BabifixDesign.amountStyle(
+                      color: BabifixDesign.success,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.w900,
-                      color: BabifixDesign.ciGreen,
                     ),
                   ),
                   Text(
-                    'à recevoir',
-                    style: TextStyle(
-                        fontSize: 10, color: Colors.grey.shade500),
+                    'a recevoir',
+                    style: TextStyle(fontSize: 10.5, color: muted),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          // Progress bar de phase
+          const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: ph.progress,
               minHeight: 6,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: muted.withValues(alpha: 0.16),
               valueColor: AlwaysStoppedAnimation(ph.color),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -421,40 +449,47 @@ class _EscrowCard extends StatelessWidget {
               Text(
                 entry.reference,
                 style: TextStyle(
-                    fontSize: 10, color: Colors.grey.shade500),
+                  fontSize: 10.5,
+                  color: muted,
+                  fontFeatures: BabifixDesign.tabularFigures,
+                ),
               ),
             ],
           ),
           if (entry.quote.isCash) ...[
             const SizedBox(height: 8),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(6),
+                color: BabifixDesign.ciOrange.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.payments_outlined,
-                      size: 12, color: Colors.orange.shade700),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Mode cash : ${fmt.format(entry.quote.cashRemainderDueToProvider.round())} F à percevoir en main propre',
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      color: Colors.orange.shade900,
-                      fontWeight: FontWeight.w600,
+                  const Icon(
+                    Icons.payments_outlined,
+                    size: 13,
+                    color: BabifixDesign.ciOrange,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Cash : ${fmt.format(entry.quote.cashRemainderDueToProvider.round())} F a percevoir sur place',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: BabifixDesign.ciOrange,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ],
-          // Status badge escrow strategy
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           EscrowStatusBadge.fromQuote(entry.quote),
         ],
+      ),
       ),
     );
   }

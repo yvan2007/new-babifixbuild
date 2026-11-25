@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import 'presta_dispute_respond_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
@@ -200,12 +203,11 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        const Center(
+        Center(
           child: Text(
             'Vos clients sont satisfaits.\nContinuez votre travail de qualité !',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+            style: TextStyle(color: BabifixDesign.textMutedOf(context), fontSize: 13),
           ),
         ),
       ],
@@ -225,17 +227,13 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
             Text(
               _error ?? '',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF94A3B8)),
+              style: TextStyle(color: BabifixDesign.textMutedOf(context)),
             ),
             const SizedBox(height: 16),
-            FilledButton(
+            BabifixButton(
+              label: 'Réessayer',
+              width: 180,
               onPressed: _load,
-              style: FilledButton.styleFrom(
-                backgroundColor: _kCyan,
-                foregroundColor: _kNavy,
-              ),
-              child: const Text('Réessayer',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
             ),
           ],
         ),
@@ -254,7 +252,7 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
     final reference = (d['reference'] ?? '').toString();
 
     return Material(
-      color: _kNavy,
+      color: BabifixDesign.surfaceOf(context),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -262,8 +260,8 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
             ? null
             : () async {
                 final ok = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) => PrestaDisputeRespondScreen(
+                  babifixRoute(
+                    (_) => PrestaDisputeRespondScreen(
                       disputeRef: reference,
                       categorieLabel:
                           (d['categorie_label'] ?? 'Litige').toString(),
@@ -285,7 +283,7 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
             border: Border.all(
               color: isOpen
                   ? decStyle.color.withValues(alpha: 0.45)
-                  : Colors.white.withValues(alpha: 0.08),
+                  : BabifixDesign.borderOf(context),
               width: isOpen ? 1.5 : 1,
             ),
           ),
@@ -341,8 +339,8 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
               const SizedBox(height: 12),
               Text(
                 (d['categorie_label'] ?? 'Litige').toString(),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: BabifixDesign.textPrimaryOf(context),
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
                 ),
@@ -351,7 +349,7 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
               Text(
                 'Client : ${d['client_name'] ?? 'N/A'}',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.65),
+                  color: BabifixDesign.textMutedOf(context),
                   fontSize: 12.5,
                 ),
               ),
@@ -359,7 +357,7 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
               Text(
                 (d['motif'] ?? '').toString(),
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85),
+                  color: BabifixDesign.textPrimaryOf(context).withValues(alpha: 0.85),
                   fontSize: 13,
                   height: 1.45,
                 ),
@@ -371,17 +369,37 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  _chip(Icons.tag_rounded, reference, _kCyan),
+                  _chip(
+                    Icons.tag_rounded,
+                    reference,
+                    BabifixDesign.isDark(context)
+                        ? _kCyan
+                        : BabifixDesign.cyanDeep,
+                  ),
                   if (montant > 0)
-                    _chip(Icons.shield_rounded,
-                        '${montant.toStringAsFixed(0)} F bloqués', _kAmber),
+                    _chip(
+                      Icons.shield_rounded,
+                      '${montant.toStringAsFixed(0)} F bloqués',
+                      BabifixDesign.isDark(context)
+                          ? _kAmber
+                          : BabifixDesign.ciOrange,
+                    ),
                   if (clientPhotos > 0)
-                    _chip(Icons.image_rounded,
-                        '$clientPhotos photo${clientPhotos > 1 ? "s" : ""}',
-                        _kCyan),
+                    _chip(
+                      Icons.image_rounded,
+                      '$clientPhotos photo${clientPhotos > 1 ? "s" : ""}',
+                      BabifixDesign.isDark(context)
+                          ? _kCyan
+                          : BabifixDesign.cyanDeep,
+                    ),
                   if (hasResponded)
-                    _chip(Icons.check_circle_rounded, 'Vous avez répondu',
-                        _kSuccess)
+                    _chip(
+                      Icons.check_circle_rounded,
+                      'Vous avez répondu',
+                      BabifixDesign.isDark(context)
+                          ? _kSuccess
+                          : BabifixDesign.emeraldForest,
+                    )
                   else if (isOpen)
                     _chip(Icons.priority_high_rounded, 'À répondre', _kError),
                 ],

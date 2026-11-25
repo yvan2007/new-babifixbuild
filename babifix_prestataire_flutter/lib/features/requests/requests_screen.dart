@@ -8,24 +8,24 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../shared/error_utils.dart';
+import '../../shared/services/babifix_remote_config.dart';
 
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../babifix_money.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_page_route.dart';
+import '../../shared/widgets/babifix_skeleton.dart';
 import '../../shared/widgets/babifix_slide_to_confirm.dart';
 import '../../shared/widgets/babifix_prestation_timer.dart';
 import '../../shared/widgets/payment_method_logo.dart';
 import '../../shared/widgets/babifix_voice_note.dart';
 import '../../services/babifix_api.dart' show MediaApi, DevisApi;
 import '../dashboard/floating_nav_bar.dart'
-    show babifixReservationsTick, babifixOpenReservationRef;
+    show babifixReservationsTick, babifixOpenReservationRef, babifixNewRequestsCount;
 import 'devis_kanban_editor_screen.dart';
-import 'client_journal_viewer.dart';
 import 'rate_client_screen.dart';
 import 'request_detail_screen.dart';
-import 'waiting_payment_screen.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
@@ -45,6 +45,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
   String? _selectedBucket;
+  bool _expandCompleted = false;
+  bool _expandRefused = false;
+  final Set<String> _expandedRefs = <String>{};
   Timer? _autoRefreshTimer;
 
   @override
@@ -143,7 +146,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
     if (t == 'Terminee' || t.toLowerCase().contains('termin'))
       return 'completed';
     if (t == 'DEMANDE_ENVOYEE') return 'pending';
-    if (t == 'DEVIS_EN_COURS') return 'devis_pending';
+    if (t == 'DEVIS_EN_COURS' || t == 'VISITE_DIAGNOSTIC') return 'devis_pending';
     if (t == 'DEVIS_ENVOYE') return 'devis_sent';
     return 'active';
   }
@@ -160,6 +163,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
         return 'En cours';
       case 'DEMANDE_ENVOYEE':
         return 'Demande envoy\u00e9e';
+      case 'VISITE_DIAGNOSTIC':
+        return 'Visite demand\u00e9e';
       case 'DEVIS_EN_COURS':
         return 'Devis en cours';
       case 'DEVIS_ENVOYE':
@@ -224,8 +229,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
       ),
     ];
 
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final pageBg = Theme.of(context).scaffoldBackgroundColor;
+    final titleColor = isLight ? const Color(0xFF0F172A) : Colors.white;
+    final subColor = isLight ? const Color(0xFF475569) : const Color(0xFF64748B);
+
     return Scaffold(
-      backgroundColor: BabifixDesign.navy,
+      backgroundColor: pageBg,
       body: loading
           ? _buildShimmer()
           : RefreshIndicator(
@@ -235,36 +245,37 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
           SliverAppBar(
-            backgroundColor: BabifixDesign.navy,
+            backgroundColor: pageBg,
             elevation: 0,
+            surfaceTintColor: Colors.transparent,
             leading: IconButton(
               onPressed: widget.onBack,
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: Icon(Icons.arrow_back, color: titleColor),
             ),
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'Demandes',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                    color: titleColor,
                   ),
                 ),
                 const SizedBox(width: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF38BDF8).withValues(alpha: 0.12),
+                    color: const Color(0xFF38BDF8).withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     '$total mission${total > 1 ? "s" : ""}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF38BDF8),
+                      color: isLight ? const Color(0xFF0284C7) : const Color(0xFF38BDF8),
                     ),
                   ),
                 ),
@@ -323,8 +334,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
                                 color: steps[i].count > 0
-                                    ? Colors.white.withValues(alpha: 0.6)
-                                    : const Color(0xFF64748B),
+                                    ? (isLight ? const Color(0xFF0F172A) : Colors.white.withValues(alpha: 0.6))
+                                    : subColor,
                               ),
                             ),
                             if (_selectedBucket == steps[i].bucket)
@@ -369,14 +380,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: (v) => setState(() => _searchQuery = v),
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: titleColor, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Rechercher client, service, reference…',
-                  hintStyle: TextStyle(color: const Color(0xFF64748B).withValues(alpha: 0.8)),
-                  prefixIcon: Icon(Icons.search_rounded, color: BabifixDesign.iconOnDark, size: 20),
+                  hintStyle: TextStyle(color: subColor.withValues(alpha: 0.8)),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: isLight ? BabifixDesign.iconOnLight : BabifixDesign.iconOnDark,
+                    size: 20,
+                  ),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, color: Color(0xFF64748B), size: 18),
+                          icon: Icon(Icons.clear_rounded, color: subColor, size: 18),
                           onPressed: () {
                             _searchCtrl.clear();
                             setState(() => _searchQuery = '');
@@ -384,11 +399,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         )
                       : null,
                   filled: true,
-                  fillColor: const Color(0xFF151D2E),
+                  fillColor: isLight ? Colors.white : const Color(0xFF151D2E),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: BabifixDesign.cyan.withValues(alpha: 0.25)),
+                    borderSide: BorderSide(color: BabifixDesign.cyan.withValues(alpha: isLight ? 0.45 : 0.25)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -416,10 +431,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                             ),
                           ),
                         ),
-                      if (_selectedBucket != null)
-                        // Flat list when a bucket is selected
+                      if (_selectedBucket != null || _searchQuery.trim().isNotEmpty)
+                        // Flat list when a bucket or global search query is active
                         ..._filteredItems.map((item) => _buildCardTappable(item)),
-                      if (_selectedBucket == null && _searchQuery.isEmpty)
+                      if (_selectedBucket == null && _searchQuery.trim().isEmpty)
                         // Full grouped view when no filter
                         ...[
                           if (pending.isNotEmpty) ...[
@@ -467,30 +482,55 @@ class _RequestsScreenState extends State<RequestsScreen> {
                             ...active.map((item) => _buildCardTappable(item)),
                           ],
                           if (completed.isNotEmpty) ...[
-                            _buildKanbanSectionHeader(
-                              title: 'Terminées',
-                              subtitle: 'Missions achevées',
-                              count: completed.length,
-                              color: const Color(0xFF22C55E),
-                              icon: Icons.task_alt_rounded,
-                              accentGradient: const LinearGradient(
-                                colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                            InkWell(
+                              onTap: () => setState(
+                                () => _expandCompleted = !_expandCompleted,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              child: _buildKanbanSectionHeader(
+                                title: 'Historique · Terminées',
+                                subtitle: _expandCompleted
+                                    ? 'Appuyez pour replier'
+                                    : 'Appuyez pour dérouler (${completed.length})',
+                                count: completed.length,
+                                color: const Color(0xFF22C55E),
+                                icon: Icons.task_alt_rounded,
+                                accentGradient: const LinearGradient(
+                                  colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                                ),
+                                expandIcon: _expandCompleted
+                                    ? Icons.expand_less_rounded
+                                    : Icons.expand_more_rounded,
                               ),
                             ),
-                            ...completed.map((item) => _buildCardTappable(item)),
+                            if (_expandCompleted || _searchQuery.isNotEmpty)
+                              ...completed.map((item) => _buildCardTappable(item)),
                           ],
                           if (refused.isNotEmpty) ...[
-                            _buildKanbanSectionHeader(
-                              title: 'Refusées / Annulées',
-                              subtitle: 'Demandes non retenues',
-                              count: refused.length,
-                              color: const Color(0xFFEF4444),
-                              icon: Icons.cancel_rounded,
-                              accentGradient: const LinearGradient(
-                                colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                            InkWell(
+                              onTap: () => setState(
+                                () => _expandRefused = !_expandRefused,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              child: _buildKanbanSectionHeader(
+                                title: 'Refusées / Annulées',
+                                subtitle: _expandRefused
+                                    ? 'Appuyez pour replier'
+                                    : 'Appuyez pour dérouler (${refused.length})',
+                                count: refused.length,
+                                color: const Color(0xFFEF4444),
+                                icon: Icons.cancel_rounded,
+                                accentGradient: const LinearGradient(
+                                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                                ),
+                                muted: true,
+                                expandIcon: _expandRefused
+                                    ? Icons.expand_less_rounded
+                                    : Icons.expand_more_rounded,
                               ),
                             ),
-                            ...refused.map((item) => _buildCardTappable(item)),
+                            if (_expandRefused || _searchQuery.isNotEmpty)
+                              ...refused.map((item) => _buildCardTappable(item)),
                           ],
                           if (_filteredItems.isEmpty && items.isNotEmpty)
                             Padding(
@@ -527,21 +567,21 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 20),
-                              const Text(
+                              Text(
                                 'Aucune mission',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
-                                  color: Colors.white,
+                                  color: titleColor,
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              const Text(
+                              Text(
                                 'Vos demandes de clients apparaîtront ici.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Color(0xFF64748B),
+                                  color: subColor,
                                   height: 1.4,
                                 ),
                               ),
@@ -565,7 +605,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
     required IconData icon,
     required Gradient accentGradient,
     bool muted = false,
+    IconData? expandIcon,
   }) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final titleCol = isLight ? const Color(0xFF0F172A) : Colors.white;
+    final subCol = isLight ? const Color(0xFF475569) : Colors.white.withValues(alpha: 0.5);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -574,13 +618,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            color.withValues(alpha: muted ? 0.05 : 0.08),
+            color.withValues(alpha: muted ? 0.05 : 0.10),
             color.withValues(alpha: muted ? 0.02 : 0.04),
           ],
         ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: color.withValues(alpha: muted ? 0.1 : 0.2),
+          color: color.withValues(alpha: muted ? 0.1 : 0.25),
           width: 1,
         ),
       ),
@@ -604,16 +648,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: muted ? Colors.white.withValues(alpha: 0.5) : Colors.white,
+                    color: muted ? titleCol.withValues(alpha: 0.5) : titleCol,
                   ),
                 ),
                 Text(
                   subtitle,
                   style: TextStyle(
                     fontSize: 11,
-                    color: muted
-                        ? Colors.white.withValues(alpha: 0.3)
-                        : Colors.white.withValues(alpha: 0.5),
+                    color: muted ? subCol.withValues(alpha: 0.6) : subCol,
                   ),
                 ),
               ],
@@ -643,23 +685,30 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ),
           ),
+          if (expandIcon != null) ...[
+            const SizedBox(width: 8),
+            Icon(expandIcon, size: 22, color: titleCol.withValues(alpha: 0.7)),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildShimmer() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: 5,
-      itemBuilder: (_, __) => const _ShimmerCard(),
+    return BabifixSkeletonScope(
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: 5,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, __) => const BabifixSkeletonCard(),
+      ),
     );
   }
 
   void _openRequestDetail(_RequestItem it) {
     Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => RequestDetailScreen(
+      babifixRoute(
+        (_) => RequestDetailScreen(
           reference: it.reference,
           client: it.client,
           service: it.service,
@@ -693,6 +742,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
           prixPropose: it.prixPropose,
           audioProbleme: it.audioProbleme,
           videoProbleme: it.videoProbleme,
+          sosMode: it.sosMode,
+          sosIsNight: it.sosIsNight,
+          sosFeeFcfa: it.sosFeeFcfa,
+          sosSector: it.sosSector,
+          sosUnclaimed: it.sosUnclaimed,
         ),
       ),
     ).then((_) => _loadRequests());
@@ -758,50 +812,48 @@ class _RequestsScreenState extends State<RequestsScreen> {
     final tagText = _labelStatut(it.apiStatus);
     final hasClientMsg = it.clientMessage.isNotEmpty;
     final hasPhotos = it.clientPhotos.isNotEmpty;
+    final isLight = Theme.of(context).brightness == Brightness.light;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF152A45), Color(0xFF1A3355)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: it.isUrgent ? const Color(0xFFEF4444) : const Color(0x1AFFFFFF),
-          width: it.isUrgent ? 1.5 : 1,
+          color: it.sosMode
+              ? const Color(0xFFC2410C)
+              : it.isUrgent
+                  ? const Color(0xFFEF4444)
+                  : BabifixDesign.borderOf(context),
+          width: (it.sosMode || it.isUrgent) ? 1.6 : 1,
         ),
-        boxShadow: it.isUrgent
-            ? [
-                BoxShadow(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.25),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Bandeau URGENT ────────────────────────────────────────────
-          if (it.isUrgent) ...[
+          // ── Bandeau SOS 24/7 / URGENT ─────────────────────────────────
+          if (it.sosMode || it.isUrgent) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444),
+                color: it.sosMode ? const Color(0xFFC2410C) : const Color(0xFFEF4444),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.bolt_rounded, color: Colors.white, size: 15),
-                  SizedBox(width: 4),
+                  Icon(
+                    it.sosMode ? Icons.emergency_share_rounded : Icons.bolt_rounded,
+                    color: Colors.white,
+                    size: 15,
+                  ),
+                  const SizedBox(width: 4),
                   Text(
-                    'INTERVENTION URGENTE',
-                    style: TextStyle(
+                    it.sosMode
+                        ? 'SOS 24/7${it.sosFeeFcfa > 0 ? ' · ${it.sosFeeFcfa} FCFA' : ''}'
+                        : 'INTERVENTION URGENTE',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 11,
@@ -859,12 +911,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: BabifixDesign.cyan.withValues(alpha: 0.12),
+                  color: BabifixDesign.cyan.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   Icons.person_outline_rounded,
-                  color: BabifixDesign.iconOnDark,
+                  color: isLight ? BabifixDesign.navy : BabifixDesign.iconOnDark,
                   size: 18,
                 ),
               ),
@@ -872,10 +924,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
               Expanded(
                 child: Text(
                   it.client,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: Colors.white,
+                    color: isLight ? const Color(0xFF0F172A) : Colors.white,
                   ),
                 ),
               ),
@@ -885,7 +937,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
           const SizedBox(height: 6),
           Text(
             it.service,
-            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+            style: TextStyle(
+              color: isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8),
+              fontSize: 13,
+            ),
           ),
           // Nature de la demande (panne, rénovation…) si le client l'a précisée.
           if (it.demandeTypeLabel.isNotEmpty) ...[
@@ -916,25 +971,68 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 8),
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              setState(() {
+                if (_expandedRefs.contains(it.reference)) {
+                  _expandedRefs.remove(it.reference);
+                } else {
+                  _expandedRefs.add(it.reference);
+                }
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+              child: Row(
+                children: [
+                  Icon(
+                    _expandedRefs.contains(it.reference)
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    size: 18,
+                    color: isLight ? BabifixDesign.cyanDeep : BabifixDesign.cyan,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _expandedRefs.contains(it.reference)
+                        ? 'Masquer les details'
+                        : 'Voir adresse, details & pieces jointes',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isLight ? BabifixDesign.cyanDeep : BabifixDesign.cyan,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expandedRefs.contains(it.reference)) ...[
           if (it.audioProbleme.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.mic_rounded,
-                    size: 15, color: Color(0xFF38BDF8)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: BabifixVoiceNotePlayer(
-                    url: MediaApi.absolute(it.audioProbleme),
-                    durationSeconds: 0,
-                    // isMe:false donne un lecteur en couleur "navy", pensé
-                    // pour une bulle de chat CLAIRE. Cette carte a un fond
-                    // sombre en dur -> le lecteur devenait quasi invisible
-                    // (navy sur navy). isMe:true = blanc, lisible ici.
-                    isMe: true,
-                  ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isLight
+                    ? const Color(0xFFEFF6FF)
+                    : const Color(0xFF0F223B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isLight
+                      ? const Color(0xFFBFDBFE)
+                      : const Color(0xFF1E3A5F),
                 ),
-              ],
+              ),
+              child: BabifixVoiceNotePlayer(
+                url: MediaApi.absolute(it.audioProbleme),
+                durationSeconds: 0,
+                isMe: !isLight,
+                foregroundColor:
+                    isLight ? const Color(0xFF0B1B34) : Colors.white,
+                reservationReference: it.reference,
+              ),
             ),
           ],
           if (it.videoProbleme.isNotEmpty) ...[
@@ -1069,10 +1167,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   if (it.addressQuartier.isNotEmpty)
                     Text(
                       it.addressQuartier,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        color: isLight ? const Color(0xFF0F172A) : Colors.white,
                         height: 1.3,
                       ),
                     ),
@@ -1080,10 +1178,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     if (it.addressQuartier.isNotEmpty) const SizedBox(height: 2),
                     Text(
                       it.addressStreet,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFFCBD5E1),
+                        color: isLight ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
                       ),
                     ),
                   ],
@@ -1091,9 +1189,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     const SizedBox(height: 2),
                     Text(
                       it.addressVille,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF94A3B8),
+                        color: isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                       ),
                     ),
                   ],
@@ -1195,13 +1293,16 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         const SizedBox(width: 6),
                         const Text(
                           'Dispo :',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             it.disponibilitesClient,
-                            style: const TextStyle(fontSize: 11, color: Color(0xFFCBD5E1)),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isLight ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                            ),
                           ),
                         ),
                       ],
@@ -1265,9 +1366,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   const SizedBox(height: 6),
                   Text(
                     it.clientMessage,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFFCBD5E1),
+                      color: isLight ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
                       height: 1.5,
                     ),
                   ),
@@ -1356,6 +1457,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 ],
               ),
             ),
+          ], // fin accordeon details client
 
           // ── Chrono de la prestation (preuve horodatée) ────────────────
           // Live pendant l'intervention, durée figée une fois terminé.
@@ -1390,10 +1492,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 const Spacer(),
                 Text(
                   formatFcfaFromString(it.amount),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
-                    color: BabifixDesign.cyan,
+                    color: isLight ? const Color(0xFF0284C7) : BabifixDesign.cyan,
                   ),
                 ),
               ],
@@ -1503,6 +1605,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   child: FilledButton(
                     onPressed: () => _decide(it, 'accept'),
                     style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
                       backgroundColor: BabifixDesign.success,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1525,10 +1628,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     babifixRoute(
                       (_) => DevisKanbanEditorScreen(
                         reservationReference: it.reference,
-                        reservationTitle: it.service ?? '',
+                        reservationTitle: it.service,
                         clientName: it.client,
                         clientProblem: it.clientMessage,
                         clientPhotos: it.clientPhotos,
+                        reponsesExigences: it.reponsesExigences,
                       ),
                     ),
                   ).then((_) => _loadRequests()),
@@ -1676,6 +1780,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
                     backgroundColor: BabifixDesign.success,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -1857,7 +1962,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
     if (!silent) setState(() => loading = true);
     try {
       final url = '${babifixApiBaseUrl()}/api/prestataire/requests';
-      debugPrint('📥 PRESTATAIRE LOAD REQUESTS — URL: $url');
+      debugPrint('📥 PRESTATAIRE LOAD REQUESTS : URL: $url');
       // Serveur Render (offre gratuite) : après une période d'inactivité, le 1er
       // appel réveille le serveur → « cold start » d'environ 40-60 s. Sans
       // timeout, le spinner tournait à l'infini. On borne à 60 s et on réessaie
@@ -1866,10 +1971,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
       http.Response? res;
       for (var attempt = 0; attempt < 2; attempt++) {
         try {
-          res = await http.get(
-            Uri.parse(url),
-            headers: {'Authorization': 'Bearer $authToken'},
-          ).timeout(const Duration(seconds: 60));
+          res = await babifixAuthGet(url).timeout(const Duration(seconds: 60));
+          final latestToken = await readStoredApiToken();
+          if (latestToken != null && latestToken.isNotEmpty) {
+            authToken = latestToken;
+          }
           break;
         } catch (e) {
           debugPrint('⏱️ requests attempt ${attempt + 1} échec: $e');
@@ -1878,7 +1984,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         }
       }
       if (res == null) return;
-      debugPrint('📥 RESPONSE — status: ${res.statusCode}, body: ${res.body}');
+      debugPrint('📥 RESPONSE : status: ${res.statusCode}, body: ${res.body}');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final itemsList = data['items'] as List<dynamic>? ?? [];
@@ -1935,6 +2041,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
             bookingId: (e['id'] as num?)?.toInt(),
             disponibilitesClient: '${e['disponibilites_client'] ?? ''}',
             isUrgent: e['is_urgent'] == true,
+            sosMode: e['sos_mode'] == true,
+            sosIsNight: e['sos_is_night'] == true,
+            sosFeeFcfa: (e['sos_fee_fcfa'] as num?)?.toInt() ?? 0,
+            sosSector: '${e['sos_sector'] ?? ''}',
+            sosUnclaimed: e['sos_unclaimed'] == true,
             prixPropose: (e['prix_propose'] as num?)?.toDouble(),
             devisRefusMotif: '${e['devis_refus_motif'] ?? ''}',
             interventionStartedAt:
@@ -1943,17 +2054,30 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 DateTime.tryParse('${e['prestation_terminee_at'] ?? ''}')?.toLocal(),
           );
         }).toList();
-        // Les demandes urgentes remontent en tête, sinon tri par date décroissante.
-        DateTime? _parseDate(_RequestItem it) {
+        // SOS actifs tout en haut, puis recence
+        DateTime? parseDate(_RequestItem it) {
           return DateTime.tryParse(it.date);
         }
         remote.sort((a, b) {
-          if (a.isUrgent != b.isUrgent) return a.isUrgent ? -1 : 1;
-          final da = _parseDate(a);
-          final db = _parseDate(b);
-          if (da != null && db != null) return db.compareTo(da);
-          return 0;
+          if (a.sosMode != b.sosMode) return a.sosMode ? -1 : 1;
+          final da = parseDate(a);
+          final db = parseDate(b);
+          if (da != null && db != null) {
+            final cmp = db.compareTo(da);
+            if (cmp != 0) return cmp;
+          }
+          return (b.bookingId ?? 0).compareTo(a.bookingId ?? 0);
         });
+        final pendingActionCount = remote
+            .where((it) =>
+                it.apiStatus == 'En attente' ||
+                it.apiStatus == 'DEMANDE_ENVOYEE' ||
+                it.apiStatus == 'DEVIS_EN_COURS' ||
+                it.apiStatus == 'DEVIS_ACCEPTE' ||
+                it.apiStatus == 'Confirmee' ||
+                it.apiStatus == 'Litige')
+            .length;
+        babifixNewRequestsCount.value = pendingActionCount;
         // On ne reconstruit l'UI que si la liste a réellement changé →
         // l'auto-refresh ne fait plus « clignoter » l'écran sans raison.
         if (mounted && _sig(remote) != _sig(items)) {
@@ -1961,7 +2085,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         }
         debugPrint('✅ LOADED ${remote.length} requests');
       } else {
-        debugPrint('❌ LOAD FAILED — status: ${res.statusCode}');
+        debugPrint('❌ LOAD FAILED : status: ${res.statusCode}');
       }
     } catch (e) {
       debugPrint('❌ LOAD ERROR: $e');
@@ -2041,6 +2165,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   Future<void> _decide(_RequestItem item, String decision) async {
+    if (decision == 'accept' &&
+        BabifixRemoteConfig.instance.current.maintenance) {
+      if (mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message:
+              'Maintenance en cours : impossible d accepter de nouvelles demandes. Finalisez vos interventions en cours.',
+        );
+      }
+      return;
+    }
     if (authToken == null) return;
     try {
       final res = await http.post(
@@ -2066,10 +2202,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
             babifixRoute(
               (_) => DevisKanbanEditorScreen(
                 reservationReference: item.reference,
-                reservationTitle: item.service ?? '',
+                reservationTitle: item.service,
                 clientName: item.client,
                 clientProblem: item.clientMessage,
                 clientPhotos: item.clientPhotos,
+                reponsesExigences: item.reponsesExigences,
               ),
             ),
           );
@@ -2082,49 +2219,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
         context,
         type: BabifixToastType.error,
         message: 'Action impossible hors connexion API',
-      );
-      }
-    }
-  }
-
-  Future<void> _postReservationStatus(
-    _RequestItem item,
-    String newStatus,
-  ) async {
-    if (authToken == null) return;
-    try {
-      final res = await http.post(
-        Uri.parse(
-          '${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/status',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-        },
-        body: jsonEncode({'status': newStatus}),
-      );
-      if (res.statusCode == 200 && mounted) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        final st = '${body['status'] ?? newStatus}';
-        setState(() => _applyStatusFromApi(item, st));
-        showBabifixToast(
-        context,
-        type: BabifixToastType.success,
-        message: 'Statut : ${_RequestsScreenState._labelStatut(st)}',
-      );
-      } else if (mounted) {
-        showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Erreur ${res.statusCode}',
-      );
-      }
-    } catch (_) {
-      if (mounted) {
-        showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Impossible de mettre à jour le statut',
       );
       }
     }
@@ -2171,6 +2265,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(),
             style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
                 backgroundColor: BabifixDesign.ciOrange),
             child: const Text('Compris'),
           ),
@@ -2226,6 +2321,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
               FilledButton(
                 onPressed: () => Navigator.of(ctx).pop(),
                 style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
                     backgroundColor: BabifixDesign.ciOrange),
                 child: const Text('Compris'),
               ),
@@ -2329,47 +2425,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
       }
     }
   }
-
-  void _navigateToWaitingPayment(_RequestItem item) {
-    Navigator.of(context).push<void>(
-      babifixRoute(
-        (_) => WaitingPaymentScreen(
-          reservationReference: item.reference,
-          onBack: () {
-            Navigator.pop(context);
-            _loadRequests();
-          },
-          onPaymentReceived: () {
-            Navigator.pop(context);
-            _loadRequests();
-          },
-          onCancelled: () {
-            Navigator.pop(context);
-            _loadRequests();
-          },
-        ),
-      ),
-    );
-  }
-
-  void _showWaitingPaymentDialog(_RequestItem item) {
-    Navigator.of(context).push<void>(
-      babifixRoute(
-        (_) => WaitingPaymentScreen(
-          reservationReference: item.reference,
-          onBack: () => Navigator.pop(context),
-          onPaymentReceived: () {
-            Navigator.pop(context);
-            _loadRequests();
-          },
-          onCancelled: () {
-            Navigator.pop(context);
-            _loadRequests();
-          },
-        ),
-      ),
-    );
-  }
 }
 
 // ── Modèle de données pour une demande de réservation ───────────────────────
@@ -2439,6 +2494,11 @@ class _RequestItem {
   /// Exigences du client
   final String disponibilitesClient;
   final bool isUrgent;
+  final bool sosMode;
+  final bool sosIsNight;
+  final int sosFeeFcfa;
+  final String sosSector;
+  final bool sosUnclaimed;
   final double? prixPropose;
 
   /// Motif fourni par le client s'il a refusé le devis précédent.
@@ -2499,6 +2559,11 @@ class _RequestItem {
     this.bookingId,
     this.disponibilitesClient = '',
     this.isUrgent = false,
+    this.sosMode = false,
+    this.sosIsNight = false,
+    this.sosFeeFcfa = 0,
+    this.sosSector = '',
+    this.sosUnclaimed = false,
     this.prixPropose,
     this.devisRefusMotif = '',
     this.interventionStartedAt,
@@ -2686,104 +2751,4 @@ class _KanbanStep {
   final Color color;
   final String? bucket;
   _KanbanStep({required this.label, required this.count, required this.icon, required this.color, this.bucket});
-}
-
-class _ShimmerCard extends StatefulWidget {
-  const _ShimmerCard();
-  @override
-  State<_ShimmerCard> createState() => _ShimmerCardState();
-}
-
-class _ShimmerCardState extends State<_ShimmerCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    )..repeat();
-    _anim = Tween<double>(begin: -1.5, end: 1.5).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment(_anim.value - 1, 0),
-              end: Alignment(_anim.value + 1, 0),
-              colors: const [
-                Color(0xFF152A45),
-                Color(0xFF1A3355),
-                Color(0xFF152A45),
-              ],
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _Box(w: 48, h: 48, r: 12),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _Box(w: double.infinity, h: 14, r: 6),
-                        const SizedBox(height: 6),
-                        _Box(w: 120, h: 12, r: 6),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  _Box(w: 60, h: 28, r: 14),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _Box(w: double.infinity, h: 12, r: 6),
-              const SizedBox(height: 6),
-              _Box(w: 180, h: 12, r: 6),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _Box extends StatelessWidget {
-  const _Box({required this.w, required this.h, required this.r});
-  final double w;
-  final double h;
-  final double r;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: w == double.infinity ? null : w,
-      height: h,
-      decoration: BoxDecoration(
-        color: const Color(0x1AFFFFFF),
-        borderRadius: BorderRadius.circular(r),
-      ),
-    );
-  }
 }

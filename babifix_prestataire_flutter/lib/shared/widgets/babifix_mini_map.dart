@@ -4,19 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-/// Mini-carte moderne réutilisable (même rendu que l'app client) :
-/// fond CartoDB Voyager en HD/Retina + pin « goutte » sur le point.
-/// Légèrement interactive (zoom/déplacement) mais compacte.
+/// Mini-carte moderne réutilisable :
+/// fond OpenStreetMap haute lisibilité + pin « goutte » centré sur la commune.
+/// Se recentre automatiquement dès que les coordonnées changent.
 class BabifixMiniMap extends StatelessWidget {
   const BabifixMiniMap({
     super.key,
     required this.lat,
     required this.lon,
     this.height = 180,
-    this.pinColor = const Color(0xFF4CC9F0),
+    this.pinColor = const Color(0xFF0B1B34),
     this.pinIcon = Icons.location_on_rounded,
     this.zoom = 15,
     this.interactive = true,
+    this.isApproximate = false,
+    this.onTap,
   });
 
   final double lat;
@@ -26,25 +28,27 @@ class BabifixMiniMap extends StatelessWidget {
   final IconData pinIcon;
   final double zoom;
   final bool interactive;
+  final bool isApproximate;
+  final ValueChanged<LatLng>? onTap;
 
   @override
   Widget build(BuildContext context) {
     final point = LatLng(lat, lon);
-    // Mode sombre : si le téléphone est en thème sombre → fond CartoDB Dark
-    // Matter ; sinon Voyager clair. {r} = tuiles HD/Retina.
-    final dark =
-        MediaQuery.platformBrightnessOf(context) == Brightness.dark;
-    final tilesUrl = dark
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tilesUrl = isDark
+        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+        : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+    final effectiveZoom = isApproximate ? (zoom > 13.5 ? 13.5 : zoom) : zoom;
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
         height: height,
         child: FlutterMap(
+          key: ValueKey('map_${lat.toStringAsFixed(5)}_${lon.toStringAsFixed(5)}_$isApproximate'),
           options: MapOptions(
             initialCenter: point,
-            initialZoom: zoom,
+            initialZoom: effectiveZoom,
+            onTap: onTap != null ? (_, p) => onTap!(p) : null,
             interactionOptions: InteractionOptions(
               flags: interactive
                   ? (InteractiveFlag.pinchZoom |
@@ -56,22 +60,34 @@ class BabifixMiniMap extends StatelessWidget {
           children: [
             TileLayer(
               urlTemplate: tilesUrl,
-              subdomains: const ['a', 'b', 'c', 'd'],
-              retinaMode: RetinaMode.isHighDensity(context),
               tileProvider: NetworkTileProvider(),
-              userAgentPackageName: 'app.babifix.prestataire',
+              userAgentPackageName: 'ci.babifix.prestataire',
             ),
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: point,
-                  width: 46,
-                  height: 58,
-                  alignment: Alignment.bottomCenter,
-                  child: _Teardrop(color: pinColor, icon: pinIcon),
-                ),
-              ],
-            ),
+            if (isApproximate)
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: point,
+                    radius: 650,
+                    useRadiusInMeter: true,
+                    color: const Color(0xFFB45309).withValues(alpha: 0.16),
+                    borderColor: const Color(0xFFB45309),
+                    borderStrokeWidth: 2,
+                  ),
+                ],
+              )
+            else
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: point,
+                    width: 46,
+                    height: 58,
+                    alignment: Alignment.bottomCenter,
+                    child: _Teardrop(color: pinColor, icon: pinIcon),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

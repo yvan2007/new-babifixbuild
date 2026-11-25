@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
-import '../../shared/widgets/babifix_ring_loader.dart';
+import '../../shared/widgets/babifix_button.dart';
+import '../../shared/widgets/babifix_skeleton.dart';
 
 class PaymentHistoryScreen extends StatefulWidget {
   final dynamic paletteMode;
@@ -25,61 +26,104 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final token = await readStoredApiToken();
       if (token == null) {
-        if (mounted) setState(() => _error = 'Non connecté');
+        if (mounted) {
+          setState(() {
+            _error = 'Non connecte';
+            _loading = false;
+          });
+        }
         return;
       }
-      final res = await http.get(
-        Uri.parse('${babifixApiBaseUrl()}/api/prestataire/payments/history/'),
-        headers: {'Authorization': 'Bearer $token'},
+      final res = await babifixAuthGet(
+        '${babifixApiBaseUrl()}/api/prestataire/payments/history/',
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final list = (data['payments'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        if (mounted) setState(() { _payments = list; _loading = false; });
+        final list =
+            (data['payments'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        if (mounted) {
+          setState(() {
+            _payments = list;
+            _loading = false;
+          });
+        }
       } else {
-        if (mounted) setState(() { _error = 'Erreur ${res.statusCode}'; _loading = false; });
+        if (mounted) {
+          setState(() {
+            _error = 'Erreur ${res.statusCode}';
+            _loading = false;
+          });
+        }
       }
-    } catch (e) {
-      if (mounted) setState(() { _error = 'Impossible de charger'; _loading = false; });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Impossible de charger';
+          _loading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLight = widget.paletteMode.toString().contains('light');
-    final bg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0B1B34);
-    final card = isLight ? Colors.white : const Color(0xFF152A45);
-    final text = isLight ? const Color(0xFF0F172A) : Colors.white;
-    final sub = isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
-    const cyan = Color(0xFF4CC9F0);
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final card = BabifixDesign.surfaceOf(context);
+    final border = BabifixDesign.borderOf(context);
+    final text = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
+    final isDark = BabifixDesign.isDark(context);
+    final accent = isDark ? BabifixDesign.cyan : BabifixDesign.ciOrange;
 
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: isLight ? Colors.white : const Color(0xFF0B1B34),
+        backgroundColor: bg,
         foregroundColor: text,
         elevation: 0,
-        title: Text('Historique des paiements', style: TextStyle(fontWeight: FontWeight.w800, color: text)),
+        scrolledUnderElevation: 0,
+        title: Text(
+          'Historique des paiements',
+          style: TextStyle(fontWeight: FontWeight.w800, color: text),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? const Center(child: BabifixRingLoader.cyan(size: 28))
+            ? BabifixSkeletonScope(
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: List.generate(
+                    5,
+                    (_) => const BabifixSkeletonCard(lines: 2),
+                  ),
+                ),
+              )
             : _error != null
                 ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.error_outline, size: 48, color: sub),
-                        const SizedBox(height: 12),
-                        Text(_error!, style: TextStyle(color: sub)),
-                        const SizedBox(height: 12),
-                        TextButton(onPressed: _load, child: const Text('Réessayer')),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.error_outline_rounded, size: 48, color: sub),
+                          const SizedBox(height: 12),
+                          Text(_error!, style: TextStyle(color: sub)),
+                          const SizedBox(height: 16),
+                          BabifixButton(
+                            label: 'Reessayer',
+                            icon: Icons.refresh_rounded,
+                            onPressed: _load,
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : _payments.isEmpty
@@ -87,11 +131,21 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.receipt_long_outlined, size: 64, color: sub),
+                            Icon(Icons.receipt_long_outlined, size: 58, color: sub),
                             const SizedBox(height: 12),
-                            Text('Aucun paiement', style: TextStyle(color: text, fontWeight: FontWeight.w700, fontSize: 16)),
+                            Text(
+                              'Aucun paiement',
+                              style: TextStyle(
+                                color: text,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
                             const SizedBox(height: 4),
-                            Text('Vos paiements apparaîtront ici.', style: TextStyle(color: sub)),
+                            Text(
+                              'Vos paiements apparaitront ici.',
+                              style: TextStyle(color: sub),
+                            ),
                           ],
                         ),
                       )
@@ -104,11 +158,11 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                           final date = (p['date'] as String? ?? '').split('T')[0];
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(14),
+                            padding: const EdgeInsets.all(15),
                             decoration: BoxDecoration(
                               color: card,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: isLight ? const Color(0xFFE2E8F0) : const Color(0x22FFFFFF)),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: border),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,60 +172,118 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                     Expanded(
                                       child: Text(
                                         p['client_name'] as String? ?? 'Client',
-                                        style: TextStyle(fontWeight: FontWeight.w700, color: text),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14.5,
+                                          color: text,
+                                        ),
                                       ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: isCompleted
-                                            ? const Color(0xFF059669).withValues(alpha: 0.12)
-                                            : const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(20),
+                                        color: (isCompleted
+                                                ? BabifixDesign.success
+                                                : BabifixDesign.warning)
+                                            .withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(99),
                                       ),
                                       child: Text(
-                                        isCompleted ? 'Payé' : 'En attente',
+                                        isCompleted ? 'Paye' : 'En attente',
                                         style: TextStyle(
-                                          color: isCompleted ? const Color(0xFF059669) : const Color(0xFFD97706),
-                                          fontSize: 12, fontWeight: FontWeight.w700,
+                                          color: isCompleted
+                                              ? BabifixDesign.success
+                                              : BabifixDesign.warning,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
-                                Text(p['service_title'] as String? ?? '', style: TextStyle(color: sub, fontSize: 13)),
+                                Text(
+                                  p['service_title'] as String? ?? '',
+                                  style: TextStyle(color: sub, fontSize: 13),
+                                ),
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    Text('Réf: ', style: TextStyle(color: sub, fontSize: 11)),
-                                    Text(p['reservation_reference'] as String? ?? '', style: TextStyle(color: text, fontSize: 11)),
+                                    Text(
+                                      'Ref: ${p['reservation_reference'] as String? ?? ''}',
+                                      style: TextStyle(
+                                        color: sub,
+                                        fontSize: 11.5,
+                                        fontFeatures: BabifixDesign.tabularFigures,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      date,
+                                      style: TextStyle(
+                                        color: sub,
+                                        fontSize: 11.5,
+                                        fontFeatures: BabifixDesign.tabularFigures,
+                                      ),
+                                    ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(date, style: TextStyle(color: sub, fontSize: 11)),
                                 const SizedBox(height: 10),
-                                const Divider(height: 1),
+                                Divider(height: 1, color: border),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    Text('Brut', style: TextStyle(color: sub, fontSize: 12)),
+                                    Text('Brut', style: TextStyle(color: sub, fontSize: 12.5)),
                                     const Spacer(),
-                                    Text('${p['montant_brut'] ?? 0} FCFA', style: TextStyle(color: text, fontSize: 12)),
+                                    Text(
+                                      '${p['montant_brut'] ?? 0} FCFA',
+                                      style: TextStyle(
+                                        color: text,
+                                        fontSize: 12.5,
+                                        fontFeatures: BabifixDesign.tabularFigures,
+                                      ),
+                                    ),
                                   ],
                                 ),
+                                const SizedBox(height: 3),
                                 Row(
                                   children: [
-                                    Text('Commission', style: TextStyle(color: sub, fontSize: 12)),
+                                    Text('Commission', style: TextStyle(color: sub, fontSize: 12.5)),
                                     const Spacer(),
-                                    Text('-${p['commission'] ?? 0} FCFA', style: const TextStyle(color: Colors.red, fontSize: 12)),
+                                    Text(
+                                      '-${p['commission'] ?? 0} FCFA',
+                                      style: const TextStyle(
+                                        color: BabifixDesign.error,
+                                        fontSize: 12.5,
+                                        fontFeatures: BabifixDesign.tabularFigures,
+                                      ),
+                                    ),
                                   ],
                                 ),
+                                const SizedBox(height: 3),
                                 Row(
                                   children: [
-                                    Text('Net reçu', style: TextStyle(fontWeight: FontWeight.w700, color: text, fontSize: 12)),
+                                    Text(
+                                      'Net recu',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: text,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
                                     const Spacer(),
-                                    Text('${p['net'] ?? 0} FCFA', style: TextStyle(color: cyan, fontWeight: FontWeight.w800, fontSize: 13)),
+                                    Text(
+                                      '${p['net'] ?? 0} FCFA',
+                                      style: TextStyle(
+                                        color: accent,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13.5,
+                                        fontFeatures: BabifixDesign.tabularFigures,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],

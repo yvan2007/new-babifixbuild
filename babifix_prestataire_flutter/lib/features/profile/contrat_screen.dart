@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -12,12 +11,10 @@ import '../../shared/app_palette_mode.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
-// ─── Premium Colors ────────────────────────────────────────────────────────
+// Premium Colors
 
 const _premiumGold = Color(0xFFFFD700);
-const _premiumGoldLight = Color(0xFFFFF4B0);
 const _deepNavy = Color(0xFF0B1B34);
-const _charcoal = Color(0xFF1A2744);
 const _darkSurface = Color(0xFF0A0E27);
 const _cardBg = Color(0xFF151B30);
 
@@ -228,14 +225,24 @@ class _ContratScreenState extends State<ContratScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final isWhite = widget.paletteMode == AppPaletteMode.white ||
+        Theme.of(context).scaffoldBackgroundColor == const Color(0xFFFFFFFF);
+    final textPrimary = isLight ? const Color(0xFF0F172A) : Colors.white;
+    final textSecondary = isLight ? const Color(0xFF475569) : Colors.white70;
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_deepNavy, _darkSurface, _deepNavy],
-          stops: [0.0, 0.5, 1.0],
-        ),
+      decoration: BoxDecoration(
+        color: isWhite
+            ? Colors.white
+            : (isLight ? const Color(0xFFF1F5F9) : null),
+        gradient: isLight
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [_deepNavy, _darkSurface, _deepNavy],
+                stops: [0.0, 0.5, 1.0],
+              ),
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -246,7 +253,7 @@ class _ContratScreenState extends State<ContratScreen>
           child: CustomScrollView(
             controller: _scrollCtrl,
             slivers: [
-              _buildAppBar(),
+              _buildAppBar(isLight: isLight, isWhite: isWhite),
             if (_loading)
               const SliverFillRemaining(
                 child: Center(
@@ -270,11 +277,11 @@ class _ContratScreenState extends State<ContratScreen>
                           shape: BoxShape.circle,
                           color: Colors.red.withValues(alpha: 0.1),
                         ),
-                        child: const Icon(Icons.error_outline_rounded,
-                            size: 40, color: Colors.white54),
+                        child: Icon(Icons.error_outline_rounded,
+                            size: 40, color: textSecondary),
                       ),
                       const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: Colors.white70)),
+                      Text(_error!, style: TextStyle(color: textPrimary)),
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: _load,
@@ -310,7 +317,7 @@ class _ContratScreenState extends State<ContratScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Icon(Icons.campaign_rounded,
-                                  color: _premiumGold, size: 22),
+                                  color: isLight ? const Color(0xFFD97706) : _premiumGold, size: 22),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
@@ -319,19 +326,19 @@ class _ContratScreenState extends State<ContratScreen>
                                     Text(
                                       'Le contrat a été mis à jour',
                                       style: TextStyle(
-                                          color: _premiumGold,
+                                          color: isLight ? const Color(0xFFB45309) : _premiumGold,
                                           fontWeight: FontWeight.w800,
                                           fontSize: 14),
                                     ),
                                     const SizedBox(height: 4),
-                                    const Text(
+                                    Text(
                                       'De nouvelles clauses ont été ajoutées : '
                                       'défraiement de transport, paiement sécurisé, '
                                       'score de fiabilité et suspension automatique. '
                                       'Merci de les lire et de les accepter pour '
                                       'continuer.',
                                       style: TextStyle(
-                                          color: Colors.white70,
+                                          color: textSecondary,
                                           fontSize: 12.5,
                                           height: 1.4),
                                     ),
@@ -385,25 +392,28 @@ class _ContratScreenState extends State<ContratScreen>
     );
   }
 
-  SliverAppBar _buildAppBar() {
+  SliverAppBar _buildAppBar({required bool isLight, required bool isWhite}) {
     final blocking = widget.mustAccept && _acceptedAt == null;
+    final fgColor = isWhite ? const Color(0xFF0B1B34) : Colors.white;
     return SliverAppBar(
       expandedHeight: 130,
       pinned: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: isWhite
+          ? Colors.white
+          : (isLight ? const Color(0xFF0284C7) : Colors.transparent),
       automaticallyImplyLeading: false,
       leading: blocking
           ? null
           : IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              icon: Icon(Icons.arrow_back_rounded, color: fgColor),
               onPressed: widget.onBack,
             ),
       flexibleSpace: FlexibleSpaceBar(
         titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
-        title: const Text(
+        title: Text(
           'Mon Contrat',
           style: TextStyle(
-            color: Colors.white,
+            color: fgColor,
             fontWeight: FontWeight.w800,
             fontSize: 20,
             letterSpacing: 0.3,
@@ -413,12 +423,24 @@ class _ContratScreenState extends State<ContratScreen>
           fit: StackFit.expand,
           children: [
             Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [_deepNavy, Color(0xFF1E3A6E), _deepNavy],
-                ),
+              decoration: BoxDecoration(
+                color: isWhite ? Colors.white : null,
+                border: isWhite
+                    ? Border(
+                        bottom: BorderSide(
+                          color: BabifixDesign.cyan.withValues(alpha: 0.35),
+                        ),
+                      )
+                    : null,
+                gradient: isWhite
+                    ? null
+                    : LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isLight
+                            ? const [Color(0xFF0284C7), Color(0xFF0369A1)]
+                            : const [_deepNavy, Color(0xFF1E3A6E), _deepNavy],
+                      ),
               ),
             ),
             Positioned(
@@ -479,21 +501,33 @@ class _StatsCard extends StatelessWidget {
     final isPremium = data['is_premium'] as bool? ?? false;
     final tier = data['premium_tier'] as String? ?? 'standard';
 
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final titleColor = isLight ? const Color(0xFF0F172A) : Colors.white;
+    final subColor = isLight ? const Color(0xFF475569) : Colors.white70;
+    final goldColor = isLight ? const Color(0xFFD97706) : _premiumGold;
+
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_cardBg, const Color(0xFF1A2744)],
-        ),
+        color: isLight ? Colors.white : null,
+        gradient: isLight
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_cardBg, const Color(0xFF1A2744)],
+              ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: _premiumGold.withValues(alpha: 0.2),
+          color: isLight
+              ? BabifixDesign.cyan.withValues(alpha: 0.35)
+              : _premiumGold.withValues(alpha: 0.2),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: _premiumGold.withValues(alpha: 0.08),
+            color: isLight
+                ? Colors.black.withValues(alpha: 0.05)
+                : _premiumGold.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -511,18 +545,18 @@ class _StatsCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      _premiumGold.withValues(alpha: 0.2),
-                      _premiumGold.withValues(alpha: 0.05),
+                      goldColor.withValues(alpha: 0.2),
+                      goldColor.withValues(alpha: 0.05),
                     ],
                   ),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: _premiumGold.withValues(alpha: 0.4),
+                    color: goldColor.withValues(alpha: 0.4),
                     width: 1.5,
                   ),
                 ),
-                child: const Icon(Icons.person_rounded,
-                    color: _premiumGold, size: 28),
+                child: Icon(Icons.person_rounded,
+                    color: goldColor, size: 28),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -530,15 +564,15 @@ class _StatsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(nom,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            color: titleColor,
                             letterSpacing: 0.3)),
                     const SizedBox(height: 2),
                     Text('$specialite • $ville',
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.white70)),
+                        style: TextStyle(
+                            fontSize: 12, color: subColor)),
                   ],
                 ),
               ),
@@ -551,26 +585,26 @@ class _StatsCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            _premiumGold.withValues(alpha: 0.2),
-                            _premiumGold.withValues(alpha: 0.05),
+                            goldColor.withValues(alpha: 0.2),
+                            goldColor.withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: _premiumGold.withValues(alpha: 0.4),
+                          color: goldColor.withValues(alpha: 0.4),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.verified_rounded,
-                              color: _premiumGold, size: 14),
-                          SizedBox(width: 4),
+                              color: goldColor, size: 14),
+                          const SizedBox(width: 4),
                           Text('Certifié',
                               style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
-                                  color: _premiumGold)),
+                                  color: goldColor)),
                         ],
                       ),
                     ),
@@ -581,27 +615,27 @@ class _StatsCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            _premiumGold.withValues(alpha: 0.2),
-                            _premiumGold.withValues(alpha: 0.05),
+                            goldColor.withValues(alpha: 0.2),
+                            goldColor.withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: _premiumGold.withValues(alpha: 0.4),
+                          color: goldColor.withValues(alpha: 0.4),
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.workspace_premium_rounded,
-                              color: _premiumGold, size: 14),
+                          Icon(Icons.workspace_premium_rounded,
+                              color: goldColor, size: 14),
                           const SizedBox(width: 4),
                           Text(
                             '${tier[0].toUpperCase()}${tier.substring(1)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                color: _premiumGold),
+                                color: goldColor),
                           ),
                         ],
                       ),
@@ -618,7 +652,7 @@ class _StatsCard extends StatelessWidget {
               gradient: LinearGradient(
                 colors: [
                   Colors.transparent,
-                  _premiumGold.withValues(alpha: 0.3),
+                  goldColor.withValues(alpha: 0.3),
                   Colors.transparent,
                 ],
               ),
@@ -635,16 +669,16 @@ class _StatsCard extends StatelessWidget {
                   color: const Color(0xFF22C55E),
                 ),
               ),
-              Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.1)),
+              Container(width: 1, height: 40, color: isLight ? const Color(0xFFE2E8F0) : Colors.white.withValues(alpha: 0.1)),
               Expanded(
                 child: _MiniStat(
                   icon: Icons.star_rounded,
                   label: 'Note moyenne',
                   value: rating > 0 ? rating.toStringAsFixed(1) : 'N/A',
-                  color: _premiumGold,
+                  color: goldColor,
                 ),
               ),
-              Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.1)),
+              Container(width: 1, height: 40, color: isLight ? const Color(0xFFE2E8F0) : Colors.white.withValues(alpha: 0.1)),
               Expanded(
                 child: _MiniStat(
                   icon: Icons.workspace_premium_rounded,
@@ -652,7 +686,7 @@ class _StatsCard extends StatelessWidget {
                   value: isPremium
                       ? '${tier[0].toUpperCase()}${tier.substring(1)}'
                       : 'Standard',
-                  color: isPremium ? _premiumGold : const Color(0xFF64748B),
+                  color: isPremium ? goldColor : const Color(0xFF64748B),
                 ),
               ),
             ],
@@ -676,6 +710,7 @@ class _MiniStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Column(
       children: [
         Icon(icon, color: color, size: 24),
@@ -685,7 +720,9 @@ class _MiniStat extends StatelessWidget {
                 fontSize: 16, fontWeight: FontWeight.w900, color: color)),
         const SizedBox(height: 2),
         Text(label,
-            style: const TextStyle(fontSize: 10, color: Colors.white54)),
+            style: TextStyle(
+                fontSize: 10,
+                color: isLight ? const Color(0xFF64748B) : Colors.white54)),
       ],
     );
   }
@@ -702,25 +739,36 @@ class _CommissionCard extends StatelessWidget {
     final rate = data['commission_rate'] as int? ?? 18;
     final base = data['commission_base'] as int? ?? 18;
     final reduction = data['premium_reduction'] as int? ?? 0;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final titleColor = isLight ? const Color(0xFF0F172A) : Colors.white;
+    final subColor = isLight ? const Color(0xFF475569) : Colors.white70;
+    final goldColor = isLight ? const Color(0xFFD97706) : _premiumGold;
 
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1A2744),
-            _cardBg,
-          ],
-        ),
+        color: isLight ? Colors.white : null,
+        gradient: isLight
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1A2744),
+                  _cardBg,
+                ],
+              ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: _premiumGold.withValues(alpha: 0.25),
+          color: isLight
+              ? BabifixDesign.cyan.withValues(alpha: 0.35)
+              : _premiumGold.withValues(alpha: 0.25),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: _premiumGold.withValues(alpha: 0.08),
+            color: isLight
+                ? Colors.black.withValues(alpha: 0.05)
+                : _premiumGold.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -738,34 +786,34 @@ class _CommissionCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      _premiumGold.withValues(alpha: 0.2),
-                      _premiumGold.withValues(alpha: 0.05),
+                      goldColor.withValues(alpha: 0.2),
+                      goldColor.withValues(alpha: 0.05),
                     ],
                   ),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: _premiumGold.withValues(alpha: 0.4),
+                    color: goldColor.withValues(alpha: 0.4),
                     width: 1.5,
                   ),
                 ),
-                child: const Icon(Icons.percent_rounded,
-                    color: _premiumGold, size: 24),
+                child: Icon(Icons.percent_rounded,
+                    color: goldColor, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Commission BABIFIX',
+                    Text('Commission BABIFIX',
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            color: titleColor,
                             letterSpacing: 0.3)),
                     const SizedBox(height: 2),
-                    const Text('Taux appliqué sur vos prestations',
+                    Text('Taux appliqué sur vos prestations',
                         style: TextStyle(
-                            fontSize: 12, color: Colors.white70)),
+                            fontSize: 12, color: subColor)),
                   ],
                 ),
               ),
@@ -774,19 +822,19 @@ class _CommissionCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      _premiumGold.withValues(alpha: 0.2),
-                      _premiumGold.withValues(alpha: 0.05),
+                      goldColor.withValues(alpha: 0.2),
+                      goldColor.withValues(alpha: 0.05),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: _premiumGold.withValues(alpha: 0.4),
+                    color: goldColor.withValues(alpha: 0.4),
                   ),
                 ),
                 child: Text(
                   '$rate%',
-                  style: const TextStyle(
-                      fontSize: 28, fontWeight: FontWeight.w900, color: _premiumGold),
+                  style: TextStyle(
+                      fontSize: 28, fontWeight: FontWeight.w900, color: goldColor),
                 ),
               ),
             ],
@@ -796,12 +844,15 @@ class _CommissionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF0A2E0A),
-                    const Color(0xFF0D3A0D),
-                  ],
-                ),
+                color: isLight ? const Color(0xFFECFDF5) : null,
+                gradient: isLight
+                    ? null
+                    : const LinearGradient(
+                        colors: [
+                          Color(0xFF0A2E0A),
+                          Color(0xFF0D3A0D),
+                        ],
+                      ),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: const Color(0xFF22C55E).withValues(alpha: 0.3),
@@ -815,9 +866,11 @@ class _CommissionCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'Réduction Premium : -$reduction% (taux de base $base% → $rate% effectif)',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF22C55E),
+                          color: isLight
+                              ? const Color(0xFF15803D)
+                              : const Color(0xFF22C55E),
                           fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -829,16 +882,20 @@ class _CommissionCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
+              color: isLight
+                  ? const Color(0xFFF8FAFC)
+                  : Colors.white.withValues(alpha: 0.03),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: isLight
+                    ? const Color(0xFFE2E8F0)
+                    : Colors.white.withValues(alpha: 0.06),
               ),
             ),
             child: Text(
               'Exemple : pour une prestation à 10 000 FCFA, BABIFIX prélève ${(10000 * rate / 100).round()} FCFA : vous recevez ${(10000 * (100 - rate) / 100).round()} FCFA net.',
-              style: const TextStyle(
-                  fontSize: 12, color: Colors.white54, height: 1.5),
+              style: TextStyle(
+                  fontSize: 12, color: subColor, height: 1.5),
             ),
           ),
         ],
@@ -864,6 +921,8 @@ class _ClausesSectionState extends State<_ClausesSection> {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final goldColor = isLight ? const Color(0xFFD97706) : _premiumGold;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -875,26 +934,26 @@ class _ClausesSectionState extends State<_ClausesSection> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _premiumGold.withValues(alpha: 0.2),
-                    _premiumGold.withValues(alpha: 0.05),
+                    goldColor.withValues(alpha: 0.2),
+                    goldColor.withValues(alpha: 0.05),
                   ],
                 ),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: _premiumGold.withValues(alpha: 0.4),
+                  color: goldColor.withValues(alpha: 0.4),
                 ),
               ),
-              child: const Icon(Icons.description_rounded,
-                  size: 16, color: _premiumGold),
+              child: Icon(Icons.description_rounded,
+                  size: 16, color: goldColor),
             ),
             const SizedBox(width: 10),
-            const Text(
+            Text(
               'CLAUSES DU CONTRAT',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.2,
-                color: Colors.white54,
+                color: isLight ? const Color(0xFF475569) : Colors.white54,
               ),
             ),
           ],
@@ -902,19 +961,26 @@ class _ClausesSectionState extends State<_ClausesSection> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [_cardBg, Color(0xFF1A2744)],
-            ),
+            color: isLight ? Colors.white : null,
+            gradient: isLight
+                ? null
+                : const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [_cardBg, Color(0xFF1A2744)],
+                  ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: _premiumGold.withValues(alpha: 0.2),
+              color: isLight
+                  ? BabifixDesign.cyan.withValues(alpha: 0.35)
+                  : _premiumGold.withValues(alpha: 0.2),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: _premiumGold.withValues(alpha: 0.06),
+                color: isLight
+                    ? Colors.black.withValues(alpha: 0.05)
+                    : _premiumGold.withValues(alpha: 0.06),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -931,7 +997,7 @@ class _ClausesSectionState extends State<_ClausesSection> {
                       gradient: LinearGradient(
                         colors: [
                           Colors.transparent,
-                          _premiumGold.withValues(alpha: 0.2),
+                          goldColor.withValues(alpha: 0.2),
                           Colors.transparent,
                         ],
                       ),
@@ -967,6 +1033,10 @@ class _ClauseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final titleColor = isLight ? const Color(0xFF0F172A) : Colors.white;
+    final bodyColor = isLight ? const Color(0xFF334155) : Colors.white70;
+    final goldColor = isLight ? const Color(0xFFD97706) : _premiumGold;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
@@ -983,22 +1053,22 @@ class _ClauseTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        _premiumGold.withValues(alpha: 0.2),
-                        _premiumGold.withValues(alpha: 0.05),
+                        goldColor.withValues(alpha: 0.2),
+                        goldColor.withValues(alpha: 0.05),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: _premiumGold.withValues(alpha: 0.4),
+                      color: goldColor.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Center(
                     child: Text(
                       '$index',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          color: _premiumGold),
+                          color: goldColor),
                     ),
                   ),
                 ),
@@ -1006,17 +1076,17 @@ class _ClauseTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     clause['titre'] as String? ?? '',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white),
+                        color: titleColor),
                   ),
                 ),
                 Icon(
                   isExpanded
                       ? Icons.keyboard_arrow_up_rounded
                       : Icons.keyboard_arrow_down_rounded,
-                  color: Colors.white54,
+                  color: isLight ? const Color(0xFF64748B) : Colors.white54,
                   size: 20,
                 ),
               ],
@@ -1027,9 +1097,9 @@ class _ClauseTile extends StatelessWidget {
                 padding: const EdgeInsets.only(left: 40),
                 child: Text(
                   clause['contenu'] as String? ?? '',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white70,
+                      color: bodyColor,
                       height: 1.6),
                 ),
               ),
@@ -1067,16 +1137,20 @@ class _AcceptanceFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     if (acceptedAt != null) {
       return Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF0A2E0A),
-              const Color(0xFF0D3A0D),
-            ],
-          ),
+          color: isLight ? const Color(0xFFECFDF5) : null,
+          gradient: isLight
+              ? null
+              : const LinearGradient(
+                  colors: [
+                    Color(0xFF0A2E0A),
+                    Color(0xFF0D3A0D),
+                  ],
+                ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: const Color(0xFF22C55E).withValues(alpha: 0.3),
@@ -1109,18 +1183,19 @@ class _AcceptanceFooter extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Contrat accepté',
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF22C55E)),
+                        color: isLight ? const Color(0xFF15803D) : const Color(0xFF22C55E)),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Le ${_fmt(acceptedAt!)}',
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.white70),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: isLight ? const Color(0xFF334155) : Colors.white70),
                   ),
                 ],
               ),
@@ -1135,11 +1210,13 @@ class _AcceptanceFooter extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        Text(
           'En acceptant ce contrat, vous confirmez avoir lu et compris l\'ensemble des clauses ci-dessus et vous engagez à les respecter.',
           textAlign: TextAlign.center,
           style: TextStyle(
-              fontSize: 12, color: Colors.white54, height: 1.5),
+              fontSize: 12,
+              color: isLight ? const Color(0xFF64748B) : Colors.white54,
+              height: 1.5),
         ),
         if (showEngagementCheckbox) ...[
           const SizedBox(height: 14),
@@ -1152,12 +1229,16 @@ class _AcceptanceFooter extends StatelessWidget {
               decoration: BoxDecoration(
                 color: engagementChecked
                     ? const Color(0xFF22C55E).withValues(alpha: 0.10)
-                    : Colors.white.withValues(alpha: 0.05),
+                    : (isLight
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.05)),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: engagementChecked
                       ? const Color(0xFF22C55E).withValues(alpha: 0.55)
-                      : Colors.white.withValues(alpha: 0.15),
+                      : (isLight
+                          ? const Color(0xFFCBD5E1)
+                          : Colors.white.withValues(alpha: 0.15)),
                 ),
               ),
               child: Row(
@@ -1168,15 +1249,15 @@ class _AcceptanceFooter extends StatelessWidget {
                         : Icons.check_box_outline_blank_rounded,
                     color: engagementChecked
                         ? const Color(0xFF22C55E)
-                        : Colors.white70,
+                        : (isLight ? const Color(0xFF64748B) : Colors.white70),
                     size: 22,
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Je m\'engage à respecter la charte BABIFIX et à fournir un service de qualité.',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: isLight ? const Color(0xFF0F172A) : Colors.white,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         height: 1.4,
@@ -1247,9 +1328,10 @@ class _MandatoryBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
     final color = scrolled
-        ? const Color(0xFF22C55E)
-        : const Color(0xFFFFD700);
+        ? (isDark ? const Color(0xFF22C55E) : BabifixDesign.emeraldForest)
+        : (isDark ? const Color(0xFFFFD700) : BabifixDesign.ciOrange);
     final icon = scrolled
         ? Icons.check_circle_rounded
         : Icons.menu_book_rounded;
@@ -1302,8 +1384,9 @@ class _MandatoryBanner extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Colors.white70,
+                  style: TextStyle(
+                    color: BabifixDesign.textPrimaryOf(context)
+                        .withValues(alpha: 0.8),
                     fontSize: 11.5,
                     height: 1.4,
                   ),

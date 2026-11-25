@@ -1,8 +1,8 @@
-/// Widget d'actions cycle exécution prestataire (Phase E — P3).
+/// Widget d'actions cycle exécution prestataire (Phase E, P3).
 ///
 /// - Bouton "Démarrer" : appelle ReservationApi.demarrer, gère HTTP 409
 ///   acompte_required avec un dialogue clair.
-/// - Bouton "Photos avant" / "Photos après" → ouvre l'uploader (P8).
+/// - Bouton "Photos avant" / "Photos après" : ouvre l'uploader (P8).
 /// - Bouton "Terminer" : exige au moins 1 photo après.
 ///
 /// Le widget connaît l'état escrow via [EscrowQuote] et désactive les
@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../babifix_design_system.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
+import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_phase_widgets.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
@@ -215,16 +216,11 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
     final notYet = canStart && waitDays > 0;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        // Fond sombre cohérent avec l'écran détail (avant : carte blanche qui
-        // jurait avec le thème navy).
-        gradient: const LinearGradient(
-          colors: [Color(0xFF152A45), Color(0xFF1A3355)],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.20)),
+        color: BabifixDesign.surfaceOf(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -288,15 +284,12 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
               ),
             )
           else if (canStart)
-            ElevatedButton.icon(
+            BabifixButton(
+              label: 'Démarrer l\'intervention',
+              icon: Icons.play_arrow_rounded,
+              backgroundColor: BabifixDesign.ciGreen,
+              isLoading: _busy,
               onPressed: _busy ? null : _demarrer,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Démarrer l\'intervention'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: BabifixDesign.ciGreen,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
             ),
           if (canFinish) ...[
             Row(
@@ -320,16 +313,13 @@ class _ExecutionActionsWidgetState extends State<ExecutionActionsWidget> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            ElevatedButton.icon(
+            const SizedBox(height: 10),
+            BabifixButton(
+              label: 'Marquer terminé',
+              icon: Icons.check_circle_rounded,
+              backgroundColor: BabifixDesign.ciBlue,
+              isLoading: _busy,
               onPressed: _busy ? null : _terminer,
-              icon: const Icon(Icons.check_circle),
-              label: const Text('Marquer terminé'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: BabifixDesign.ciBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
             ),
           ],
           if (!canStart && !canFinish && !acompteEnAttente)

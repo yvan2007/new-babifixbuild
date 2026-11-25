@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -5,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../babifix_api_config.dart';
 import '../babifix_fcm.dart';
+import 'widgets/error_reporter.dart';
 
 const kBabifixApiToken = 'babifix_api_token';
 const _kRefreshToken = 'babifix_refresh_token';
@@ -19,16 +21,24 @@ Future<void> babifixSaveProfile({
 }) async {
   final p = await SharedPreferences.getInstance();
   await p.setString(_kProfileName, name);
-  await p.setString(_kProfileEmail, email);
-  if (id != null) await p.setInt(_kProfileId, id);
+  // PII sensibles : stockage chiffre via flutter_secure_storage
+  await _secureStorage.write(key: _kProfileEmail, value: email);
+  if (id != null) await _secureStorage.write(key: _kProfileId, value: id.toString());
+  // Nettoyage des anciennes valeurs en clair
+  await p.remove(_kProfileEmail);
+  await p.remove(_kProfileId);
 }
 
 Future<Map<String, dynamic>> babifixLoadProfileFull() async {
   final p = await SharedPreferences.getInstance();
+  // Migration : lire depuis secure storage, repli sur SharedPreferences
+  final email = await _secureStorage.read(key: _kProfileEmail) ?? p.getString(_kProfileEmail) ?? '';
+  final idStr = await _secureStorage.read(key: _kProfileId);
+  final id = idStr != null ? int.tryParse(idStr) : p.getInt(_kProfileId);
   return {
     'name': p.getString(_kProfileName) ?? '',
-    'email': p.getString(_kProfileEmail) ?? '',
-    'id': p.getInt(_kProfileId),
+    'email': email,
+    'id': id,
   };
 }
 
@@ -88,6 +98,7 @@ Future<http.Response> babifixAuthGet(
   Map<String, String> extraHeaders = const {},
 }) async {
   var token = await readStoredApiToken();
+  final sw = Stopwatch()..start();
   var res = await http.get(
     Uri.parse(url),
     headers: {
@@ -104,6 +115,15 @@ Future<http.Response> babifixAuthGet(
       );
     }
   }
+  sw.stop();
+  if (res.statusCode >= 500 || sw.elapsedMilliseconds >= 1500) {
+    unawaited(BabifixErrorReporter.reportHttpIssue(
+      endpoint: Uri.tryParse(url)?.path ?? url,
+      method: 'GET',
+      statusCode: res.statusCode,
+      durationMs: sw.elapsedMilliseconds,
+    ));
+  }
   return res;
 }
 
@@ -119,6 +139,7 @@ Future<http.Response> babifixAuthPost(
     'Content-Type': 'application/json',
     ...extraHeaders,
   };
+  final sw = Stopwatch()..start();
   var res = await http.post(Uri.parse(url), headers: headers, body: body);
   if (res.statusCode == 401) {
     final fresh = await babifixRefreshAccessToken();
@@ -130,6 +151,15 @@ Future<http.Response> babifixAuthPost(
       };
       res = await http.post(Uri.parse(url), headers: h2, body: body);
     }
+  }
+  sw.stop();
+  if (res.statusCode >= 500 || sw.elapsedMilliseconds >= 1500) {
+    unawaited(BabifixErrorReporter.reportHttpIssue(
+      endpoint: Uri.tryParse(url)?.path ?? url,
+      method: 'POST',
+      statusCode: res.statusCode,
+      durationMs: sw.elapsedMilliseconds,
+    ));
   }
   return res;
 }

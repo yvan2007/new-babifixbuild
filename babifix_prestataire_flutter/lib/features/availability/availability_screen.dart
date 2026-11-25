@@ -277,7 +277,10 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
 
     end = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: start.hour + 1, minute: start.minute),
+      initialTime: TimeOfDay(
+        hour: start.hour == 23 ? 23 : start.hour + 1,
+        minute: start.hour == 23 ? 59 : start.minute,
+      ),
       helpText: 'Heure de fin',
       builder: (context, child) {
         return Theme(
@@ -406,7 +409,7 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
                   Wrap(
                     spacing: 8,
                     children: [
-                      _preset('Lun–Ven', () {
+                      _preset('Lun - Ven', () {
                         setLocal(() {
                           selected
                             ..clear()
@@ -1266,7 +1269,7 @@ class _SlotCard extends StatelessWidget {
           ),
         ),
         title: Text(
-          '${_fmt(slot.start)} – ${_fmt(slot.end)}',
+          '${_fmt(slot.start)} - ${_fmt(slot.end)}',
           style: const TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 15,
@@ -1735,6 +1738,7 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
                 child: FilledButton(
                   onPressed: widget.onConfirm,
                   style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
                     backgroundColor: _red,
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(

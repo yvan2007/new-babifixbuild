@@ -117,7 +117,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isLight = cs.brightness == Brightness.light;
-    final bg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0D1117);
+    final isWhite = Theme.of(context).scaffoldBackgroundColor == const Color(0xFFFFFFFF);
+    final bg = isWhite
+        ? Colors.white
+        : (isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0D1117));
     final cardBg = isLight ? Colors.white : const Color(0xFF161B22);
     final textPrimary = isLight ? const Color(0xFF0F172A) : Colors.white;
     final textSecondary = isLight ? const Color(0xFF64748B) : const Color(0xFF9CA3AF);
@@ -391,15 +394,39 @@ class _ConvTile extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          name,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w600,
-                            color: textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w600,
+                                  color: textPrimary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (((row['threads_count'] as num?)?.toInt() ?? 1) > 1) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                child: Text(
+                                  '${(row['threads_count'] as num).toInt()} missions',
+                                  style: const TextStyle(
+                                    color: Color(0xFF0284C7),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       if (lastDate.isNotEmpty) ...[

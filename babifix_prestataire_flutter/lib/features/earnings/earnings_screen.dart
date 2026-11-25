@@ -2,16 +2,17 @@ import 'dart:convert';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
-import 'payment_history_screen.dart';
+import '../../shared/services/haptics_service.dart';
+import '../../shared/widgets/babifix_page_route.dart';
+import '../../shared/widgets/babifix_skeleton.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
-
-Future<String?> _getToken() async {
-  return readStoredApiToken();
-}
+import 'payment_history_screen.dart';
 
 class EarningsScreen extends StatefulWidget {
   const EarningsScreen({super.key, required this.paletteMode, this.onBack});
@@ -32,14 +33,15 @@ class _EarningsScreenState extends State<EarningsScreen>
   int _missionCount = 0;
   List<Map<String, String>> _transactions = [];
   List<_BarData> _chartData = [];
-  late AnimationController _animCtrl;
+  late final AnimationController _animCtrl;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
     _animCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 520),
     );
     _init();
   }
@@ -51,11 +53,9 @@ class _EarningsScreenState extends State<EarningsScreen>
   }
 
   Future<void> _init() async {
-    _token = await _getToken();
+    _token = await readStoredApiToken();
     await _load();
   }
-
-  String? _loadError;
 
   Future<void> _load() async {
     setState(() {
@@ -67,16 +67,13 @@ class _EarningsScreenState extends State<EarningsScreen>
       final periodParam = _period == 'Jour'
           ? 'day'
           : _period == 'Semaine'
-          ? 'week'
-          : _period == 'Tout'
-          ? 'all'
-          : 'month';
+              ? 'week'
+              : _period == 'Tout'
+                  ? 'all'
+                  : 'month';
       if (_token != null) {
-        final res = await http.get(
-          Uri.parse(
-            '${babifixApiBaseUrl()}/api/prestataire/earnings?period=$periodParam',
-          ),
-          headers: {'Authorization': 'Bearer $_token'},
+        final res = await babifixAuthGet(
+          '${babifixApiBaseUrl()}/api/prestataire/earnings?period=$periodParam',
         );
         if (res.statusCode == 200) {
           final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -97,14 +94,12 @@ class _EarningsScreenState extends State<EarningsScreen>
           }
           return;
         }
-        if (mounted)
-          setState(() => _loadError = 'Erreur serveur (${res.statusCode})');
+        if (mounted) setState(() => _loadError = 'Erreur serveur (${res.statusCode})');
       } else {
         if (mounted) setState(() => _loadError = 'Connexion requise');
       }
     } catch (_) {
-      if (mounted)
-        setState(() => _loadError = 'Impossible de charger les gains');
+      if (mounted) setState(() => _loadError = 'Impossible de charger les gains');
     }
     if (mounted) {
       setState(() {
@@ -146,42 +141,31 @@ class _EarningsScreenState extends State<EarningsScreen>
   }
 
   Future<void> _exportCsv() async {
-    if (_token == null) return;
-    final periodParam = _period == 'Jour'
-        ? 'day'
-        : _period == 'Semaine'
-        ? 'week'
-        : _period == 'Tout'
-        ? 'all'
-        : 'month';
-    final url =
-        '${babifixApiBaseUrl()}/api/admin/export/paiements/?period=$periodParam';
-    // Show URL in snackbar — deep link to browser download
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Export CSV prêt : ouvrez l\'URL dans votre navigateur',
-          ),
-          action: SnackBarAction(label: 'OK', onPressed: () {}),
-        ),
-      );
+    final buf = StringBuffer()
+      ..writeln('Periode;Total Net FCFA;Missions')
+      ..writeln('$_period;$_totalAmount;$_missionCount')
+      ..writeln()
+      ..writeln('Date;Client;Service;Montant');
+    for (final tx in _transactions) {
+      final date = (tx['date'] ?? '').replaceAll(';', ',');
+      final client = (tx['client'] ?? '').replaceAll(';', ',');
+      final service = (tx['service'] ?? '').replaceAll(';', ',');
+      final amount = (tx['amount'] ?? '').replaceAll(';', ',');
+      buf.writeln('$date;$client;$service;$amount');
     }
-    // In a production app, use url_launcher: launchUrl(Uri.parse(url))
-    // For now, copy to clipboard via a direct API download attempt
+    final csv = buf.toString();
+    await Clipboard.setData(ClipboardData(text: csv));
     try {
-      final res = await http.get(
-        Uri.parse(url),
-        headers: {'Authorization': 'Bearer $_token'},
-      );
-      if (res.statusCode == 200 && mounted) {
+      await Share.share(csv, subject: 'Releve Revenus BABIFIX ($_period)');
+    } catch (_) {
+      if (mounted) {
         showBabifixToast(
-        context,
-        type: BabifixToastType.success,
-        message: 'Export CSV téléchargé avec succès',
-      );
+          context,
+          type: BabifixToastType.success,
+          message: 'Releve CSV copie dans le presse-papiers.',
+        );
       }
-    } catch (_) {}
+    }
   }
 
   String _formatFcfa(int v) {
@@ -198,12 +182,13 @@ class _EarningsScreenState extends State<EarningsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isLight = widget.paletteMode.toString().contains('light');
-    final bg = isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0B1B34);
-    final card = isLight ? Colors.white : const Color(0xFF152A45);
-    final text = isLight ? const Color(0xFF0F172A) : Colors.white;
-    final sub = isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
-    const cyan = Color(0xFF4CC9F0);
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final surface = BabifixDesign.surfaceOf(context);
+    final border = BabifixDesign.borderOf(context);
+    final text = BabifixDesign.textPrimaryOf(context);
+    final sub = BabifixDesign.textMutedOf(context);
+    final isDark = BabifixDesign.isDark(context);
+    final accent = isDark ? BabifixDesign.cyan : BabifixDesign.ciOrange;
 
     final maxBar = _chartData.isEmpty
         ? 1.0
@@ -212,13 +197,14 @@ class _EarningsScreenState extends State<EarningsScreen>
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: isLight ? Colors.white : const Color(0xFF0B1B34),
+        backgroundColor: bg,
         foregroundColor: text,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: widget.onBack != null
             ? IconButton(
                 onPressed: widget.onBack,
-                icon: const Icon(Icons.arrow_back_rounded),
+                icon: Icon(Icons.arrow_back_ios_new_rounded, color: text, size: 20),
               )
             : null,
         title: Text(
@@ -229,8 +215,8 @@ class _EarningsScreenState extends State<EarningsScreen>
           IconButton(
             tooltip: 'Historique des paiements',
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PaymentHistoryScreen(paletteMode: widget.paletteMode),
+              babifixRoute(
+                (_) => PaymentHistoryScreen(paletteMode: widget.paletteMode),
               ),
             ),
             icon: Icon(Icons.history_rounded, color: text),
@@ -245,355 +231,347 @@ class _EarningsScreenState extends State<EarningsScreen>
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
           children: [
-            // Sélecteur période
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            // Barre de periode segmentee
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: border),
+              ),
               child: Row(
-                children: ['Jour', 'Semaine', 'Mois', 'Tout']
-                    .map(
-                      (t) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(t),
-                          selected: _period == t,
-                          selectedColor: cyan,
-                          labelStyle: TextStyle(
-                            color: _period == t
-                                ? const Color(0xFF0B1B34)
-                                : text,
-                            fontWeight: FontWeight.w700,
+                children: ['Jour', 'Semaine', 'Mois', 'Tout'].map((t) {
+                  final sel = _period == t;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticsService.selection();
+                        setState(() => _period = t);
+                        _load();
+                      },
+                      child: AnimatedContainer(
+                        duration: BabifixDesign.durationFast,
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        decoration: BoxDecoration(
+                          color: sel ? accent : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          t,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                            color: sel
+                                ? (isDark ? BabifixDesign.navy : Colors.white)
+                                : sub,
                           ),
-                          onSelected: (_) {
-                            setState(() => _period = t);
-                            _load();
-                          },
                         ),
                       ),
-                    )
-                    .toList(),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
+            const SizedBox(height: 14),
             if (_loading)
-              const Padding(
-                padding: EdgeInsets.only(top: 8, bottom: 8),
-                child: LinearProgressIndicator(color: Color(0xFF4CC9F0)),
-              ),
-            if (_loadError != null && !_loading)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFECACA)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Color(0xFFEF4444),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _loadError!,
-                          style: const TextStyle(
-                            color: Color(0xFF991B1B),
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: _load,
-                        child: const Text('Réessayer'),
-                      ),
-                    ],
-                  ),
+              BabifixSkeletonScope(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const BabifixSkeletonBox(height: 108, borderRadius: 20),
+                    const SizedBox(height: 16),
+                    const BabifixSkeletonBox(height: 196, borderRadius: 18),
+                    const SizedBox(height: 16),
+                    ...List.generate(3, (_) => const BabifixSkeletonCard(lines: 2)),
+                  ],
                 ),
-              ),
-            const SizedBox(height: 12),
-
-            // KPI card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: isLight
-                    ? null
-                    : const LinearGradient(
-                        colors: [Color(0xFF0B1B34), Color(0xFF152A45)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+              )
+            else ...[
+              if (_loadError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: BabifixDesign.error.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: BabifixDesign.error.withValues(alpha: 0.30),
                       ),
-                color: isLight ? Colors.white : null,
-                border: isLight
-                    ? Border.all(color: const Color(0xFFE2E8F0))
-                    : null,
-                boxShadow: isLight
-                    ? [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF0B1B34,
-                          ).withValues(alpha: 0.07),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          'Total des gains',
-                          style: TextStyle(
-                            color: sub,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        const Icon(
+                          Icons.error_outline,
+                          color: BabifixDesign.error,
+                          size: 18,
                         ),
-                        const SizedBox(height: 6),
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 400),
+                        const SizedBox(width: 8),
+                        Expanded(
                           child: Text(
-                            _formatFcfa(_totalAmount),
-                            key: ValueKey(_totalAmount),
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              color: cyan,
-                            ),
+                            _loadError!,
+                            style: TextStyle(color: text, fontSize: 13),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '$_missionCount prestation(s)',
-                          style: TextStyle(color: sub, fontSize: 13),
-                        ),
+                        TextButton(onPressed: _load, child: const Text('Reessayer')),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: cyan.withValues(alpha: 0.15),
-                    ),
-                    child: const Icon(
-                      Icons.payments_rounded,
-                      color: Color(0xFF4CC9F0),
-                      size: 28,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
+                ),
 
-            // Graphique barres fl_chart
-            if (_chartData.isEmpty && !_loading)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Column(
+              // Carte KPI principale
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: border),
+                ),
+                child: Row(
                   children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'TOTAL DES GAINS NETS',
+                            style: TextStyle(
+                              color: sub,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.9,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          AnimatedSwitcher(
+                            duration: BabifixDesign.durationStandard,
+                            child: Text(
+                              _formatFcfa(_totalAmount),
+                              key: ValueKey(_totalAmount),
+                              style: BabifixDesign.amountStyle(
+                                color: accent,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$_missionCount prestation${_missionCount > 1 ? 's' : ''}',
+                            style: TextStyle(
+                              color: sub,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     Container(
-                      width: 64,
-                      height: 64,
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4CC9F0).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(16),
+                        color: accent.withValues(alpha: 0.14),
                       ),
-                      child: const Icon(
-                        Icons.bar_chart_rounded,
-                        size: 32,
-                        color: Color(0xFF4CC9F0),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Aucune donnée sur cette période',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: text,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Vos gains apparaîtront ici\naprès vos premières missions.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: sub,
-                        height: 1.4,
-                      ),
+                      child: Icon(Icons.payments_rounded, color: accent, size: 28),
                     ),
                   ],
                 ),
               ),
-            if (_chartData.isNotEmpty) ...[
-              Text(
-                'Évolution des gains',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: text,
+              const SizedBox(height: 18),
+
+              if (_chartData.isEmpty && _loadError == null)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: border),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: accent.withValues(alpha: 0.12),
+                        ),
+                        child: Icon(Icons.bar_chart_rounded, size: 30, color: accent),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Aucune donnee sur cette periode',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: text,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Vos gains apparaitront ici apres vos premieres missions.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: sub),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                height: 200,
-                padding: const EdgeInsets.fromLTRB(0, 12, 16, 8),
-                decoration: BoxDecoration(
-                  color: card,
-                  borderRadius: BorderRadius.circular(16),
-                  border: isLight
-                      ? Border.all(color: const Color(0xFFE2E8F0))
-                      : null,
+
+              if (_chartData.isNotEmpty) ...[
+                Text(
+                  'Evolution des gains',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15.5,
+                    color: text,
+                  ),
                 ),
-                child: AnimatedBuilder(
-                  animation: _animCtrl,
-                  builder: (_, __) => BarChart(
-                    BarChartData(
-                      alignment: BarChartAlignment.spaceAround,
-                      maxY: maxBar,
-                      barTouchData: BarTouchData(
-                        touchTooltipData: BarTouchTooltipData(
-                          getTooltipItem: (group, groupIndex, rod, rodIndex) =>
-                              BarTooltipItem(
-                                _formatFcfa(rod.toY.round()),
-                                const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                              ),
-                        ),
-                      ),
-                      titlesData: FlTitlesData(
-                        show: true,
-                        rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (v, _) {
-                              final i = v.toInt();
-                              if (i < 0 || i >= _chartData.length) {
-                                return const SizedBox.shrink();
-                              }
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  _chartData[i].label,
-                                  style: TextStyle(fontSize: 11, color: sub),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 44,
-                            getTitlesWidget: (v, _) {
-                              if (v == 0) return const SizedBox.shrink();
-                              return Text(
-                                v >= 1000
-                                    ? '${(v / 1000).round()}K'
-                                    : v.round().toString(),
-                                style: TextStyle(fontSize: 10, color: sub),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      gridData: FlGridData(
-                        show: true,
-                        drawVerticalLine: false,
-                        getDrawingHorizontalLine: (_) => FlLine(
-                          color: sub.withValues(alpha: 0.2),
-                          strokeWidth: 1,
-                        ),
-                      ),
-                      borderData: FlBorderData(show: false),
-                      barGroups: List.generate(
-                        _chartData.length,
-                        (i) => BarChartGroupData(
-                          x: i,
-                          barRods: [
-                            BarChartRodData(
-                              toY:
-                                  _chartData[i].value.toDouble() *
-                                  _animCtrl.value,
-                              width: 18,
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(6),
-                              ),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF4CC9F0), Color(0xFF4CC9F0)],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
+                const SizedBox(height: 10),
+                Container(
+                  height: 204,
+                  padding: const EdgeInsets.fromLTRB(4, 16, 16, 10),
+                  decoration: BoxDecoration(
+                    color: surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: border),
+                  ),
+                  child: AnimatedBuilder(
+                    animation: _animCtrl,
+                    builder: (_, __) => BarChart(
+                      BarChartData(
+                        alignment: BarChartAlignment.spaceAround,
+                        maxY: maxBar,
+                        barTouchData: BarTouchData(
+                          touchTooltipData: BarTouchTooltipData(
+                            getTooltipColor: (_) => BabifixDesign.navy,
+                            getTooltipItem: (group, groupIndex, rod, rodIndex) =>
+                                BarTooltipItem(
+                              _formatFcfa(rod.toY.round()),
+                              const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                fontFeatures: BabifixDesign.tabularFigures,
                               ),
                             ),
-                          ],
+                          ),
+                        ),
+                        titlesData: FlTitlesData(
+                          show: true,
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (v, _) {
+                                final i = v.toInt();
+                                if (i < 0 || i >= _chartData.length) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    _chartData[i].label,
+                                    style: TextStyle(fontSize: 11, color: sub),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 44,
+                              getTitlesWidget: (v, _) {
+                                if (v == 0) return const SizedBox.shrink();
+                                return Text(
+                                  v >= 1000
+                                      ? '${(v / 1000).round()}K'
+                                      : v.round().toString(),
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: sub,
+                                    fontFeatures: BabifixDesign.tabularFigures,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          getDrawingHorizontalLine: (_) => FlLine(
+                            color: sub.withValues(alpha: 0.16),
+                            strokeWidth: 1,
+                          ),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        barGroups: List.generate(
+                          _chartData.length,
+                          (i) => BarChartGroupData(
+                            x: i,
+                            barRods: [
+                              BarChartRodData(
+                                toY: _chartData[i].value.toDouble() * _animCtrl.value,
+                                width: 18,
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(6),
+                                ),
+                                color: accent,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 18),
+              ],
 
-            // Transactions
-            if (_transactions.isNotEmpty) ...[
-              Text(
-                'Transactions',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: text,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ..._transactions.map(
-                (t) => _TxnCard(
-                  client: t['client'] ?? '',
-                  service: t['service'] ?? '',
-                  gross: t['gross'] ?? '',
-                  commission: t['commission'] ?? '',
-                  net: t['net'] ?? '',
-                  status: t['status'] ?? '',
-                  isLight: isLight,
-                  textColor: text,
-                  subColor: sub,
-                ),
-              ),
-            ] else if (!_loading)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 24),
-                  child: Text(
-                    'Aucune transaction sur cette période.',
-                    style: TextStyle(color: sub),
+              if (_transactions.isNotEmpty) ...[
+                Text(
+                  'Detail des transactions',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15.5,
+                    color: text,
                   ),
                 ),
-              ),
-            const SizedBox(height: 40),
+                const SizedBox(height: 10),
+                ..._transactions.map(
+                  (t) => _TxnCard(
+                    client: t['client'] ?? '',
+                    service: t['service'] ?? '',
+                    gross: t['gross'] ?? '',
+                    commission: t['commission'] ?? '',
+                    net: t['net'] ?? '',
+                    status: t['status'] ?? '',
+                    textColor: text,
+                    subColor: sub,
+                    accent: accent,
+                  ),
+                ),
+              ] else ...[
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text(
+                      'Aucune transaction sur cette periode.',
+                      style: TextStyle(color: sub),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ],
         ),
       ),
@@ -615,9 +593,9 @@ class _TxnCard extends StatelessWidget {
     required this.commission,
     required this.net,
     required this.status,
-    required this.isLight,
     required this.textColor,
     required this.subColor,
+    required this.accent,
   });
 
   final String client;
@@ -626,22 +604,23 @@ class _TxnCard extends StatelessWidget {
   final String commission;
   final String net;
   final String status;
-  final bool isLight;
   final Color textColor;
   final Color subColor;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     final bool paid = status.toLowerCase().contains('pay');
+    final surface = BabifixDesign.surfaceOf(context);
+    final border = BabifixDesign.borderOf(context);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: isLight ? Colors.white : const Color(0xFF152A45),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isLight ? const Color(0xFFE2E8F0) : const Color(0x22FFFFFF),
-        ),
+        color: surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -652,81 +631,95 @@ class _TxnCard extends StatelessWidget {
                 child: Text(
                   client,
                   style: TextStyle(
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
                     color: textColor,
                   ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: paid
-                      ? const Color(0xFF059669).withValues(alpha: 0.12)
-                      : const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
+                  color: (paid ? BabifixDesign.success : BabifixDesign.warning)
+                      .withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(99),
                 ),
                 child: Text(
                   status,
                   style: TextStyle(
-                    color: paid
-                        ? const Color(0xFF059669)
-                        : const Color(0xFFD97706),
-                    fontSize: 12,
+                    color: paid ? BabifixDesign.success : BabifixDesign.warning,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(service, style: TextStyle(color: subColor, fontSize: 13)),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Text('Brut', style: TextStyle(color: subColor, fontSize: 13)),
-              const Spacer(),
-              Text(gross, style: TextStyle(color: textColor, fontSize: 13)),
-            ],
+          Divider(height: 1, color: border),
+          const SizedBox(height: 8),
+          _BreakdownRow(label: 'Brut', value: gross, labelColor: subColor, valueColor: textColor),
+          const SizedBox(height: 3),
+          _BreakdownRow(
+            label: 'Commission',
+            value: commission,
+            labelColor: subColor,
+            valueColor: BabifixDesign.error,
           ),
-          Row(
-            children: [
-              Text(
-                'Commission',
-                style: TextStyle(color: subColor, fontSize: 13),
-              ),
-              const Spacer(),
-              Text(
-                commission,
-                style: const TextStyle(color: Colors.red, fontSize: 13),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              Text(
-                'Net',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: textColor,
-                  fontSize: 13,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                net,
-                style: const TextStyle(
-                  color: Color(0xFF4CC9F0),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
-              ),
-            ],
+          const SizedBox(height: 3),
+          _BreakdownRow(
+            label: 'Net percu',
+            value: net,
+            labelColor: textColor,
+            valueColor: accent,
+            bold: true,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BreakdownRow extends StatelessWidget {
+  const _BreakdownRow({
+    required this.label,
+    required this.value,
+    required this.labelColor,
+    required this.valueColor,
+    this.bold = false,
+  });
+
+  final String label;
+  final String value;
+  final Color labelColor;
+  final Color valueColor;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+            color: labelColor,
+            fontSize: 12.5,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor,
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+            fontSize: 13,
+            fontFeatures: BabifixDesign.tabularFigures,
+          ),
+        ),
+      ],
     );
   }
 }

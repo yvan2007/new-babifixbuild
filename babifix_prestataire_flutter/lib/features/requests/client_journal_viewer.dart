@@ -68,18 +68,25 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
 
   @override
   Widget build(BuildContext context) {
+    final surface = BabifixDesign.surfaceOf(context);
+    final bg = BabifixDesign.isDark(context)
+        ? Theme.of(context).scaffoldBackgroundColor
+        : (BabifixDesign.isWhiteMode(context)
+            ? Colors.white
+            : const Color(0xFFF8FAFC));
+    final textPri = BabifixDesign.textPrimaryOf(context);
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: bg,
       appBar: AppBar(
         title: const Text('Témoignage du client'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: surface,
+        foregroundColor: textPri,
         elevation: 0.5,
       ),
       body: _loading
           ? const Center(child: BabifixRingLoader.dark(size: 80))
           : _error != null
-              ? Center(child: Text(_error!))
+              ? Center(child: Text(_error!, style: TextStyle(color: textPri)))
               : _empty
                   ? _emptyView()
                   : _body(),
@@ -90,18 +97,20 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
       _photosAvant.isEmpty && _photosApres.isEmpty && _note.trim().isEmpty;
 
   Widget _emptyView() {
+    final textMut = BabifixDesign.textMutedOf(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.book_outlined, size: 60, color: Colors.grey.shade400),
+            Icon(Icons.book_outlined,
+                size: 60, color: textMut.withValues(alpha: 0.55)),
             const SizedBox(height: 12),
             Text(
               "Le client n'a pas encore écrit de témoignage pour cette intervention.",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: textMut),
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
@@ -117,6 +126,10 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
 
   Widget _body() {
     final f = DateFormat('dd/MM/yyyy HH:mm');
+    final textPri = BabifixDesign.textPrimaryOf(context);
+    final textMut = BabifixDesign.textMutedOf(context);
+    final surface = BabifixDesign.surfaceOf(context);
+    final borderCol = BabifixDesign.borderOf(context);
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -147,8 +160,7 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
                       if (_updatedAt != null)
                         Text(
                           'Mis à jour : ${f.format(_updatedAt!.toLocal())}',
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade700),
+                          style: TextStyle(fontSize: 11, color: textMut),
                         ),
                     ],
                   ),
@@ -167,18 +179,18 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade700)),
+                    color: textMut)),
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: surface,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: borderCol),
               ),
               child: Text(
                 _note,
-                style: const TextStyle(fontSize: 13, height: 1.4),
+                style: TextStyle(fontSize: 13, height: 1.4, color: textPri),
               ),
             ),
           ],
@@ -189,6 +201,8 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
   }
 
   Widget _photoStrip(String title, List<String> urls) {
+    final textMut = BabifixDesign.textMutedOf(context);
+    final fallbackBg = BabifixDesign.elevatedSurfaceOf(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -198,7 +212,7 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade700)),
+                  color: textMut)),
           const SizedBox(height: 6),
           SizedBox(
             height: 110,
@@ -219,8 +233,8 @@ class _ClientJournalViewerState extends State<ClientJournalViewer> {
                     errorBuilder: (_, __, ___) => Container(
                       width: 110,
                       height: 110,
-                      color: Colors.grey.shade200,
-                      child: const Icon(Icons.broken_image_outlined),
+                      color: fallbackBg,
+                      child: Icon(Icons.broken_image_outlined, color: textMut),
                     ),
                   ),
                 );

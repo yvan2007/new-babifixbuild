@@ -1,4 +1,6 @@
 /// Historique des appels (C8 / P10).
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -6,6 +8,7 @@ import '../../babifix_design_system.dart';
 import '../../models/babifix_models.dart';
 import '../../services/babifix_api.dart';
 import '../../services/call_service.dart';
+import '../../shared/auth_utils.dart';
 import '../../shared/widgets/animated_list_item.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 
@@ -18,6 +21,7 @@ class CallHistoryScreen extends StatefulWidget {
 
 class _CallHistoryScreenState extends State<CallHistoryScreen> {
   List<CallRecord> _calls = [];
+  int? _myUserId;
   bool _loading = true;
   String? _error;
 
@@ -27,9 +31,26 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
     _load();
   }
 
+  static int? _extractUserIdFromJwt(String? token) {
+    if (token == null || token.isEmpty) return null;
+    final parts = token.split('.');
+    if (parts.length < 2) return null;
+    try {
+      final norm = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(norm)));
+      if (payload is Map) {
+        final raw = payload['user_id'] ?? payload['sub'] ?? payload['id'];
+        if (raw is int) return raw;
+        return int.tryParse(raw?.toString() ?? '');
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
+      _myUserId = _extractUserIdFromJwt(await readStoredApiToken());
       _calls = await CallsApi.history();
       _error = null;
     } on BabifixApiException catch (e) {
@@ -42,15 +63,20 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes appels'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0.5,
+        backgroundColor: BabifixDesign.surfaceOf(context),
+        foregroundColor: BabifixDesign.textPrimaryOf(context),
+        elevation: 0,
       ),
       body: _loading
-          ? const Center(child: BabifixRingLoader.cyan(size: 28))
+          ? Center(
+              child: isDark
+                  ? const BabifixRingLoader.cyan(size: 28)
+                  : const BabifixRingLoader.dark(size: 28),
+            )
           : _error != null
               ? Center(child: Text(_error!))
               : _calls.isEmpty
@@ -60,7 +86,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
                       child: ListView.separated(
                         itemCount: _calls.length,
                         separatorBuilder: (_, __) =>
-                            const Divider(height: 1),
+                            Divider(height: 1, color: BabifixDesign.borderOf(context)),
                         itemBuilder: (_, i) => AnimatedListItem(
                           index: i,
                           child: _tile(_calls[i]),
@@ -77,11 +103,11 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.call_outlined,
-                  size: 60, color: Colors.grey.shade400),
+                  size: 60, color: BabifixDesign.textMutedOf(context)),
               const SizedBox(height: 12),
               Text(
                 "Aucun appel pour l'instant.",
-                style: TextStyle(color: Colors.grey.shade600),
+                style: TextStyle(color: BabifixDesign.textMutedOf(context)),
               ),
             ],
           ),
@@ -89,12 +115,11 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
       );
 
   Widget _tile(CallRecord c) {
-    final isOutgoing = c.callerId.toString() ==
-        c.callerId.toString(); // best-effort sans current user id
+    final isOutgoing = _myUserId != null ? c.callerId == _myUserId : true;
     final dur = c.durationSeconds;
     final durStr = dur > 0
         ? '${(dur ~/ 60).toString().padLeft(2, '0')}:${(dur % 60).toString().padLeft(2, '0')}'
-        : 'N/A';
+        : 'Non abouti';
     final color = _statusColor(c.status);
     final f = DateFormat('dd/MM HH:mm');
     return ListTile(

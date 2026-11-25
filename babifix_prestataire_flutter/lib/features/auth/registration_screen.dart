@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -18,10 +17,14 @@ import '../../babifix_api_config.dart';
 import '../../json_utils.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/services/nominatim_geocode.dart';
+import '../../shared/services/smart_gps.dart';
 import '../../shared/widgets/address_search_field.dart';
 import '../../shared/widgets/babifix_mini_map.dart';
+import '../../shared/widgets/babifix_page_route.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
+import '../../shared/widgets/smart_address_picker.dart';
+import 'email_verification_screen.dart';
 
 // =============================================================================
 // Wizard d'inscription prestataire — 3 étapes
@@ -31,13 +34,12 @@ import '../../shared/widgets/babifix_snackbar.dart';
 // =============================================================================
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const _kNavyDeep = Color(0xFF050D1A);
-const _kNavy = Color(0xFF0A1628);
-const _kCyan = Color(0xFF4CC9F0);
-const _kBlue = Color(0xFF4CC9F0);
-const _kBlueDark = Color(0xFF1D4ED8);
-const _kGreen = Color(0xFF22C55E);
-const _kBlueDeep = Color(0xFF1E40AF);
+const _kNavyDeep = Color(0xFF08101E);
+const _kNavy = Color(0xFF0B1626);
+const _kCyan = Color(0xFF0284C7);
+const _kBlue = Color(0xFF0284C7);
+const _kGreen = Color(0xFF059669);
+const _kBlueDeep = Color(0xFF0284C7);
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({
@@ -72,9 +74,11 @@ class RegistrationScreen extends StatefulWidget {
 
 class _RegistrationScreenState extends State<RegistrationScreen>
     with SingleTickerProviderStateMixin {
-  // ── Étapes ────────────────────────────────────────────────────────────────
+  // ── Etapes ────────────────────────────────────────────────────────────────
   int _step = 0;
   static const int _kSteps = 3;
+  bool _expressMode = false;
+  int get _totalSteps => _expressMode ? 2 : _kSteps;
 
   // ── Clés de formulaire par étape ─────────────────────────────────────────
   final _formStep0 = GlobalKey<FormState>();
@@ -93,8 +97,11 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   // ── Controllers étape 1 ───────────────────────────────────────────────────
   final _villeCtrl = TextEditingController();
   final _bioCtrl = TextEditingController();
+  final _metierProposeCtrl = TextEditingController();
   String? _specialite;
   int? _categoryId;
+  String _metierPropose = '';
+  final Map<String, dynamic> _specAnswers = {};
   List<Map<String, dynamic>> _publicCategories = [];
   bool _loadingCategories = true;
   double _yearsExperience = 3;
@@ -102,60 +109,57 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   String _villeAddressLabel = '';
   bool _locating = false;
 
-  /// « Me localiser » : récupère la position GPS et remplit la ville
-  /// automatiquement (reverse geocoding) — plus de saisie 100 % manuelle.
-  Future<void> _locateMe() async {
-    if (_locating) return;
-    setState(() => _locating = true);
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        _snack('Activez la localisation de votre téléphone.');
-        return;
-      }
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.deniedForever) {
-        _snack('Accès position bloqué. Activez-le dans les réglages.');
-        await Geolocator.openAppSettings();
-        return;
-      }
-      if (perm == LocationPermission.denied) {
-        _snack('Autorisez l\'accès à la position pour vous localiser.');
-        return;
-      }
-      // Position : cache d'abord (instantané), sinon position fraîche bornée à
-      // 12 s (sans timeout, getCurrentPosition peut bloquer/planter sur émulateur).
-      Position? pos = await Geolocator.getLastKnownPosition();
-      pos ??= await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-      ).timeout(const Duration(seconds: 12));
-      if (!mounted) return;
-      // BABIFIX opère en Côte d'Ivoire : on REFUSE toute position hors CIV
-      // (ex. GPS d'émulateur à Shanghai) — sinon le prestataire se retrouve sur
-      // la carte au mauvais endroit. L'utilisateur saisit alors sa commune.
-      const latMin = 4.0, latMax = 11.0, lonMin = -9.0, lonMax = -2.0;
-      final inCiv = pos!.latitude >= latMin &&
-          pos.latitude <= latMax &&
-          pos.longitude >= lonMin &&
-          pos.longitude <= lonMax;
-      if (!inCiv) {
-        // GPS hors CIV (ex. émulateur à Shanghai) : « Me localiser » aboutit
-        // quand même en retombant sur Abidjan (comme les cartes client) — on
-        // n'enregistre JAMAIS de coordonnées hors Côte d'Ivoire.
-        setState(() {
-          _villePin = const LatLng(5.345317, -4.024429); // Abidjan
-          if (_villeCtrl.text.trim().isEmpty) _villeCtrl.text = 'Abidjan';
-        });
-        _snack('GPS hors Côte d\'Ivoire : position par défaut : Abidjan. Ajustez si besoin.');
-        return;
-      }
-      // On pose le pin GPS TOUT DE SUITE (même si le reverse-geocoding échoue).
-      setState(() => _villePin = LatLng(pos!.latitude, pos.longitude));
-      // Reverse-geocoding best-effort pour pré-remplir la ville.
+  Map<String, dynamic>? get _selectedCategory {
+    if (_categoryId == null) return null;
+    for (final c in _publicCategories) {
+      if (jsonInt(c['id']) == _categoryId) return c;
+    }
+    return null;
+  }
+
+  bool get _isSensibleCategory =>
+      (_selectedCategory?['regime_kyc'] ?? '').toString() == 'SENSIBLE_CASIER';
+
+  List<Map<String, dynamic>> get _registrationQuestions {
+    final raw = _selectedCategory?['registration_questions'];
+    if (raw is List) {
+      return raw
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((e) => (e['key'] ?? '').toString().isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
+  static String _normalizeRegSearch(String input) {
+    var s = input.toLowerCase().trim();
+    const pairs = {
+      'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a',
+      'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+      'î': 'i', 'ï': 'i', 'ì': 'i', 'í': 'i',
+      'ô': 'o', 'ö': 'o', 'ò': 'o', 'ó': 'o',
+      'ù': 'u', 'û': 'u', 'ü': 'u', 'ú': 'u',
+      'ç': 'c', 'ñ': 'n',
+    };
+    pairs.forEach((k, v) => s = s.replaceAll(k, v));
+    return s;
+  }
+
+  Future<void> _applyRegistrationPin(LatLng pin, {String? knownLabel}) async {
+    final immediate = (knownLabel ?? '').trim().isNotEmpty
+        ? knownLabel!.trim()
+        : resolveNearestCivCommune(pin.latitude, pin.longitude).displayName;
+    if (mounted) {
+      setState(() {
+        _villePin = pin;
+        _villeCtrl.text = immediate;
+        _villeAddressLabel = immediate;
+      });
+    }
+    if ((knownLabel ?? '').trim().isEmpty) {
       try {
-        final place = await nominatimReverse(pos.latitude, pos.longitude);
+        final place = await nominatimReverse(pin.latitude, pin.longitude);
         final label = (place?.displayName ?? '').trim();
         if (label.isNotEmpty && mounted) {
           setState(() {
@@ -163,37 +167,175 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             _villeAddressLabel = label;
           });
         }
-      } catch (_) {/* la ville reste à saisir, le GPS est déjà capté */}
-      _snack('Position captée ✓');
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _openRegistrationMapPicker() async {
+    final picked = await Navigator.of(context).push<PickedProLocation>(
+      babifixRoute(
+        (_) => SmartProAddressPicker(
+          initialLat: _villePin?.latitude,
+          initialLon: _villePin?.longitude,
+          initialLabel: _villeCtrl.text.trim().isEmpty
+              ? null
+              : _villeCtrl.text.trim(),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    await _applyRegistrationPin(
+      LatLng(picked.lat, picked.lon),
+      knownLabel: picked.label,
+    );
+  }
+
+  /// « Me localiser » : recupere la position GPS et remplit la commune
+  /// automatiquement (reverse geocoding + repli propre sans erreur).
+  Future<void> _locateMe() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      final gps = await acquireSmartGps(forceFresh: true);
+      if (!mounted) return;
+      if (gps.permissionDeniedForever) {
+        _snack(gps.friendlyMessage ?? 'Acces position bloque. Activez-le dans les reglages.');
+        await Geolocator.openAppSettings();
+        return;
+      }
+      if (gps.hasHardError) {
+        _snack(gps.friendlyMessage ?? 'Activez la localisation sur votre telephone.');
+        return;
+      }
+      final pin = gps.position ?? const LatLng(kCivAbidjanLat, kCivAbidjanLon);
+      await _applyRegistrationPin(pin);
+      if (mounted) {
+        _snack('Commune definie : ${_villeCtrl.text}');
+      }
     } catch (_) {
-      _snack('Localisation indisponible ici. Saisissez votre ville manuellement.');
+      await _applyRegistrationPin(const LatLng(kCivAbidjanLat, kCivAbidjanLon));
     } finally {
       if (mounted) setState(() => _locating = false);
     }
   }
 
-  /// Puce d'aide à la rédaction de la bio : insère une amorce de phrase que le
-  /// prestataire complète ensuite. Rend la description plus structurée et pro.
-  Widget _bioChip(String label, String snippet) {
-    return ActionChip(
-      label: Text(label),
-      labelStyle: const TextStyle(
-          fontSize: 12, fontWeight: FontWeight.w600, color: _kCyan),
-      backgroundColor: _kCyan.withValues(alpha: 0.10),
-      side: BorderSide(color: _kCyan.withValues(alpha: 0.35)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      onPressed: () {
-        final cur = _bioCtrl.text;
-        final sep = (cur.isEmpty || cur.endsWith(' ') || cur.endsWith('\n'))
-            ? ''
-            : ' ';
-        final newText = '$cur$sep$snippet';
-        _bioCtrl.value = TextEditingValue(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newText.length),
-        );
-        setState(() {});
-      },
+  String _resolvedMetierLabel() {
+    if (_specialite != null && _specialite!.trim().isNotEmpty) {
+      return _specialite!.trim();
+    }
+    if (_categoryId != null && _publicCategories.isNotEmpty) {
+      final match = _publicCategories.firstWhere(
+        (c) => jsonInt(c['id']) == _categoryId,
+        orElse: () => <String, dynamic>{},
+      );
+      final nom = '${match['nom'] ?? ''}'.trim();
+      if (nom.isNotEmpty) return nom;
+    }
+    return 'dépannage et travaux techniques';
+  }
+
+  String _resolvedZoneLabel() {
+    final v = _villeCtrl.text.trim();
+    if (v.isNotEmpty && v.toLowerCase() != 'abidjan') return v;
+    if (_villeAddressLabel.trim().isNotEmpty) return _villeAddressLabel.trim();
+    return 'Cocody, Marcory, Plateau et dans tout Abidjan';
+  }
+
+  void _syncBioExperienceYears(int years) {
+    final cur = _bioCtrl.text;
+    if (cur.isEmpty) return;
+    final label = years <= 1 ? '1 an' : '$years ans';
+    final updated = cur
+        .replaceAll(RegExp(r"(\d+|X)\s+ans?\s+d'exp[ée]rience"), "$label d'expérience")
+        .replaceAll("J'ai X ans", "Fort de $label");
+    if (updated != cur) {
+      _bioCtrl.value = TextEditingValue(
+        text: updated,
+        selection: TextSelection.collapsed(offset: updated.length),
+      );
+    }
+  }
+
+  void _generateFullSmartBio() {
+    final yrs = _yearsExperience.round();
+    final expPhrase = yrs <= 0
+        ? 'Artisan qualifié et rigoureux'
+        : (yrs == 1
+            ? "Fort d'un an d'expérience terrain"
+            : "Fort de $yrs ans d'expérience terrain");
+    final metier = _resolvedMetierLabel();
+    final zone = _resolvedZoneLabel();
+    final fullBio =
+        "$expPhrase, je suis spécialisé en $metier (diagnostic précis, installation, entretien et dépannage rapide). "
+        "J'interviens rapidement à $zone avec mon outillage professionnel complet. "
+        "Devis clair avant travaux, ponctualité et prestation garantie aux normes Babifix.";
+    _bioCtrl.value = TextEditingValue(
+      text: fullBio,
+      selection: TextSelection.collapsed(offset: fullBio.length),
+    );
+    setState(() {});
+  }
+
+  void _appendSmartBioSnippet(String snippet) {
+    var cur = _bioCtrl.text.trim();
+    // Nettoie tout ancien texte placeholder éventuel ("J'ai X ans...", "Mes spécialités : .")
+    cur = cur
+        .replaceAll("J'ai X ans d'expérience.", '')
+        .replaceAll("Mes spécialités : .", '')
+        .replaceAll("J'interviens à Abidjan (préciser communes).", '')
+        .trim();
+    if (cur.contains(snippet.trim())) return;
+    final sep = (cur.isEmpty || cur.endsWith('.')) ? (cur.isEmpty ? '' : ' ') : '. ';
+    final newText = '$cur$sep${snippet.trim()}';
+    _bioCtrl.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
+    );
+    setState(() {});
+  }
+
+  Widget _smartBioChip({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    bool isAccent = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isAccent ? const Color(0xFF0284C7) : const Color(0xFF0E1A2D),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isAccent ? const Color(0xFF38BDF8) : const Color(0xFF1E3250),
+              width: isAccent ? 1.4 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isAccent ? Colors.white : const Color(0xFF38BDF8),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isAccent ? FontWeight.w800 : FontWeight.w600,
+                  color: isAccent ? Colors.white : const Color(0xFFE2E8F0),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -229,6 +371,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   @override
   void initState() {
     super.initState();
+    _expressMode = !widget.credentialLock && !widget.documentsLocked;
     _stepAnim = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 280),
@@ -397,12 +540,41 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     _pass2Ctrl.dispose();
     _villeCtrl.dispose();
     _bioCtrl.dispose();
+    _metierProposeCtrl.dispose();
     _cguTap.dispose();
     _privacyTap.dispose();
     super.dispose();
   }
 
   // ── Navigation entre étapes ───────────────────────────────────────────────
+  bool _validateStep1() {
+    if (!(_formStep1.currentState?.validate() ?? false)) return false;
+    if (_categoryId == null &&
+        _metierPropose.trim().isEmpty &&
+        (_specialite ?? '').trim().isEmpty) {
+      _snack('Choisissez votre metier ou proposez un nouveau metier.');
+      return false;
+    }
+    if (!_expressMode) {
+      for (final q in _registrationQuestions) {
+        if (q['required'] == true) {
+          final k = '${q['key'] ?? ''}';
+          final v = _specAnswers[k];
+          final empty = v == null || (v is String && v.trim().isEmpty);
+          if (empty) {
+            _snack('Precisez : ${q['label'] ?? k}');
+            return false;
+          }
+        }
+      }
+    }
+    if (_villeCtrl.text.trim().length < 3) {
+      _snack('Veuillez indiquer votre ville ou commune.');
+      return false;
+    }
+    return true;
+  }
+
   void _nextStep() {
     if (_step == 0) {
       if (!widget.credentialLock &&
@@ -410,14 +582,14 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         return;
       }
     } else if (_step == 1) {
-      if (!(_formStep1.currentState?.validate() ?? false)) return;
-      if (_villeCtrl.text.trim().length < 3) {
-        _snack('Veuillez indiquer votre ville via le champ de recherche.');
+      if (!_validateStep1()) return;
+      if (_expressMode) {
+        _submit();
         return;
       }
     }
     setState(() {
-      _step = (_step + 1).clamp(0, _kSteps - 1);
+      _step = (_step + 1).clamp(0, _totalSteps - 1);
       _stepAnim.forward(from: 0);
     });
   }
@@ -434,7 +606,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   }
 
   Future<void> _submit() async {
-    if (!widget.documentsLocked) {
+    if (!_expressMode && !widget.documentsLocked) {
       if (_cniRectoPath == null || _cniRectoPath!.isEmpty) {
         _snack('Importez votre CNI recto pour continuer.');
         return;
@@ -446,7 +618,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     }
     // Consentement obligatoire.
     if (!_acceptedTerms) {
-      _snack('Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialité pour continuer.');
+      _snack('Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialite pour continuer.');
       return;
     }
     setState(() => _submitting = true);
@@ -456,7 +628,33 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     if (result.ok) {
       await widget.onAuthReady();
       if (!mounted) return;
-      widget.onSubmit();
+      if (_expressMode) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.success,
+          message:
+              'Pre-inscription Express reussie ! Explorez votre espace Pro et completez votre KYC CNI en 2 min.',
+        );
+        widget.onSubmit();
+        return;
+      }
+      final registeredEmail = _emailCtrl.text.trim();
+      if (registeredEmail.isNotEmpty) {
+        // Redirection vers la saisie du code OTP 6 chiffres envoye par email
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EmailVerificationScreen(
+              email: registeredEmail,
+              onContinue: () {
+                Navigator.of(context).pop();
+                widget.onSubmit();
+              },
+            ),
+          ),
+        );
+      } else {
+        widget.onSubmit();
+      }
     } else {
       _snack(result.message);
     }
@@ -511,11 +709,13 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           SafeArea(
             child: Column(
               children: [
-                // Header personnalisé
+                // Header personnalise
                 _buildHeader(),
+                if (!widget.credentialLock && !widget.documentsLocked)
+                  _buildModeToggle(),
                 // Barre de progression
                 _buildProgressBar(),
-                // Indicateur étapes
+                // Indicateur etapes
                 _buildStepIndicator(),
                 // Contenu de l'étape courant
                 Expanded(
@@ -592,32 +792,100 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     );
   }
 
+  // ── Selecteur Express (60 s) vs Complet ───────────────────────────────────
+  Widget _buildModeToggle() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 2),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E1A2D),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF1E3250)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() {
+                  _expressMode = true;
+                  if (_step > 1) _step = 1;
+                }),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  decoration: BoxDecoration(
+                    color: _expressMode
+                        ? const Color(0xFF0E3B2E)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Express (60 s · sans CNI)',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: _expressMode ? Colors.white : Colors.white60,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _expressMode = false),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  decoration: BoxDecoration(
+                    color: !_expressMode
+                        ? const Color(0xFF0284C7)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Complet (avec CNI)',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: !_expressMode ? Colors.white : Colors.white60,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Barre de progression ──────────────────────────────────────────────────
   Widget _buildProgressBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
       child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: (_step + 1) / _kSteps),
-        duration: const Duration(milliseconds: 400),
+        tween: Tween(begin: 0, end: (_step + 1) / _totalSteps),
+        duration: const Duration(milliseconds: 350),
         curve: Curves.easeOutCubic,
         builder: (context, v, _) => ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(2),
           child: SizedBox(
-            height: 4,
+            height: 3,
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: Container(color: Colors.white.withValues(alpha: 0.08)),
+                  child: Container(color: const Color(0xFF1E293B)),
                 ),
                 FractionallySizedBox(
                   widthFactor: v,
                   child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [_kCyan, Color(0xFF4CC9F0)],
-                      ),
-                      borderRadius: BorderRadius.all(Radius.circular(4)),
-                    ),
+                    color: _expressMode
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFF0284C7),
                   ),
                 ),
               ],
@@ -628,26 +896,23 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     );
   }
 
-  // ── Indicateur étapes ─────────────────────────────────────────────────────
+  // ── Indicateur etapes ─────────────────────────────────────────────────────
   Widget _buildStepIndicator() {
-    const labels = ['Identité', 'Profil pro', 'Documents'];
+    final labels = _expressMode
+        ? const ['Identite', 'Metier & Zone']
+        : const ['Identite', 'Profil pro', 'Documents'];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 10),
       child: Row(
-        children: List.generate(_kSteps * 2 - 1, (i) {
+        children: List.generate(_totalSteps * 2 - 1, (i) {
           if (i.isOdd) {
             final filled = i ~/ 2 < _step;
             return Expanded(
               child: Container(
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: filled
-                      ? const LinearGradient(
-                          colors: [_kCyan, Color(0xFF4CC9F0)],
-                        )
-                      : null,
-                  color: filled ? null : Colors.white.withValues(alpha: 0.1),
-                ),
+                height: 2,
+                color: filled
+                    ? const Color(0xFFE87722)
+                    : const Color(0xFF1E293B),
               ),
             );
           }
@@ -657,44 +922,24 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           return Column(
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 280),
-                width: 32,
-                height: 32,
+                duration: const Duration(milliseconds: 220),
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: active
-                      ? const LinearGradient(
-                          colors: [_kCyan, Color(0xFF4CC9F0)],
-                        )
-                      : null,
                   color: done
-                      ? _kGreen
+                      ? const Color(0xFF16A34A)
                       : active
-                      ? null
-                      : Colors.white.withValues(alpha: 0.08),
-                  border: active
-                      ? null
-                      : Border.all(
-                          color: done
-                              ? _kGreen
-                              : Colors.white.withValues(alpha: 0.15),
-                          width: 1.5,
-                        ),
-                  boxShadow: active
-                      ? [
-                          BoxShadow(
-                            color: _kCyan.withValues(alpha: 0.45),
-                            blurRadius: 12,
-                          ),
-                        ]
-                      : done
-                      ? [
-                          BoxShadow(
-                            color: _kGreen.withValues(alpha: 0.35),
-                            blurRadius: 8,
-                          ),
-                        ]
-                      : null,
+                          ? const Color(0xFFE87722)
+                          : const Color(0xFF0E1A2D),
+                  border: Border.all(
+                    color: done
+                        ? const Color(0xFF22C55E)
+                        : active
+                            ? const Color(0xFFFB923C)
+                            : const Color(0xFF1E3250),
+                    width: active ? 2 : 1.2,
+                  ),
                 ),
                 child: Center(
                   child: done
@@ -708,22 +953,22 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 13,
-                            color: active ? _kNavy : Colors.white38,
+                            color: active ? Colors.white : const Color(0xFF64748B),
                           ),
                         ),
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 6),
               Text(
                 labels[idx],
                 style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                  fontSize: 11.5,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                   color: active
-                      ? _kCyan
+                      ? Colors.white
                       : done
-                      ? _kGreen
-                      : Colors.white38,
+                          ? const Color(0xFF4ADE80)
+                          : const Color(0xFF64748B),
                 ),
               ),
             ],
@@ -778,36 +1023,36 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             Theme(
               data: ThemeData.dark().copyWith(
                 colorScheme: ThemeData.dark().colorScheme.copyWith(
-                  primary: _kCyan,
-                  outline: Colors.white.withValues(alpha: 0.12),
-                  surface: const Color(0xFF0D1F3C),
+                  primary: const Color(0xFF0284C7),
+                  outline: const Color(0xFF1E3250),
+                  surface: const Color(0xFF0E1A2D),
                 ),
                 inputDecorationTheme: InputDecorationTheme(
                   filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.07),
-                  labelStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                  fillColor: const Color(0xFF081220),
+                  labelStyle: const TextStyle(
+                    color: Color(0xFF94A3B8),
                     fontSize: 14,
                   ),
                   floatingLabelStyle: const TextStyle(
-                    color: _kCyan,
+                    color: Color(0xFF38BDF8),
                     fontSize: 12,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF1E3250),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF1E3250),
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: _kCyan, width: 1.5),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -992,15 +1237,13 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [_kBlue, _kBlueDark],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
+                          color: const Color(0xFF0284C7),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           '${_yearsExperience.round()} an${_yearsExperience.round() > 1 ? 's' : ''}',
                           style: const TextStyle(
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w700,
                             color: Colors.white,
                             fontSize: 13,
                           ),
@@ -1010,10 +1253,10 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                   ),
                   SliderTheme(
                     data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: _kBlue,
-                      inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
-                      thumbColor: _kBlue,
-                      overlayColor: _kBlue.withValues(alpha: 0.2),
+                      activeTrackColor: const Color(0xFF0284C7),
+                      inactiveTrackColor: const Color(0xFF1E293B),
+                      thumbColor: const Color(0xFF38BDF8),
+                      overlayColor: const Color(0xFF0284C7).withValues(alpha: 0.15),
                     ),
                     child: Slider(
                       value: _yearsExperience,
@@ -1021,7 +1264,12 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                       max: 40,
                       divisions: 40,
                       label: '${_yearsExperience.round()} ans',
-                      onChanged: (v) => setState(() => _yearsExperience = v),
+                      onChanged: (v) {
+                        setState(() {
+                          _yearsExperience = v;
+                          _syncBioExperienceYears(v.round());
+                        });
+                      },
                     ),
                   ),
                 ],
@@ -1029,39 +1277,180 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             ),
             const SizedBox(height: 16),
 
-            // Bio
-            _DarkFormField(
-              label: 'Décrivez votre activité',
-              controller: _bioCtrl,
-              icon: Icons.description_outlined,
-              maxLines: 4,
-              hint:
-                  'Ex. : Plombier depuis 8 ans, spécialisé en rénovation et dépannage rapide...',
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: const [
-                Icon(Icons.visibility_outlined, size: 14, color: _kCyan),
-                SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Ce texte est visible par les clients : soyez précis et rassurant.',
-                    style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+            // Bio professionnelle encadrée proprement (sans label coupé)
+            _DarkCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _kCyan.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.description_outlined,
+                          color: _kCyan,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Décrivez votre activité',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              'Visible par les clients sur votre profil',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _generateFullSmartBio,
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFF0284C7).withValues(alpha: 0.18),
+                          foregroundColor: const Color(0xFF38BDF8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(color: Color(0xFF0284C7)),
+                          ),
+                        ),
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 14, color: Color(0xFF38BDF8)),
+                        label: const Text(
+                          'Rédiger auto',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF38BDF8),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _bioChip('Expérience', 'J\'ai X ans d\'expérience. '),
-                _bioChip('Spécialités', 'Mes spécialités : . '),
-                _bioChip('Zone', 'J\'interviens à Abidjan (préciser communes). '),
-                _bioChip('Garanties', 'Devis gratuit, travail garanti, ponctuel. '),
-                _bioChip('Équipement', 'Je viens avec mon matériel. '),
-              ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _bioCtrl,
+                    maxLines: 4,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                      height: 1.4,
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Veuillez décrire votre activité (ou appuyez sur Rédiger auto)' : null,
+                    decoration: InputDecoration(
+                      hintText:
+                          'Appuyez sur « Rédiger auto » ou sur les boutons intelligents ci-dessous pour générer votre présentation professionnelle...',
+                      hintStyle: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFF081220),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1E3250)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1E3250)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFEF4444)),
+                      ),
+                      contentPadding: const EdgeInsets.all(14),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    clipBehavior: Clip.none,
+                    child: Row(
+                      children: [
+                        _smartBioChip(
+                          label: 'Bio complète (${_yearsExperience.round()} ans)',
+                          icon: Icons.auto_awesome_rounded,
+                          isAccent: true,
+                          onTap: _generateFullSmartBio,
+                        ),
+                        const SizedBox(width: 8),
+                        _smartBioChip(
+                          label: '+ Expérience (${_yearsExperience.round()} ans)',
+                          icon: Icons.workspace_premium_rounded,
+                          onTap: () {
+                            final yrs = _yearsExperience.round();
+                            final expTxt = yrs <= 1
+                                ? "Fort d'un an d'expérience terrain en ${_resolvedMetierLabel()}, j'assure des interventions fiables et soignées."
+                                : "Fort de $yrs ans d'expérience terrain en ${_resolvedMetierLabel()}, j'assure des interventions fiables et soignées.";
+                            _appendSmartBioSnippet(expTxt);
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _smartBioChip(
+                          label: '+ Spécialités',
+                          icon: Icons.build_circle_outlined,
+                          onTap: () {
+                            _appendSmartBioSnippet(
+                              "Spécialisé en ${_resolvedMetierLabel()} : diagnostic précis, installation, maintenance et dépannage rapide.",
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _smartBioChip(
+                          label: '+ Zone (${_villeCtrl.text.trim().isNotEmpty ? _villeCtrl.text.trim().split(',').first : 'Abidjan'})',
+                          icon: Icons.place_outlined,
+                          onTap: () {
+                            _appendSmartBioSnippet(
+                              "J'interviens rapidement à ${_resolvedZoneLabel()} et dans les communes voisines.",
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _smartBioChip(
+                          label: '+ Garanties',
+                          icon: Icons.verified_user_outlined,
+                          onTap: () {
+                            _appendSmartBioSnippet(
+                              "Devis détaillé gratuit avant travaux, ponctualité et travail garanti aux normes Babifix.",
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _smartBioChip(
+                          label: '+ Équipement Pro',
+                          icon: Icons.handyman_outlined,
+                          onTap: () {
+                            _appendSmartBioSnippet(
+                              "Équipé de mon outillage professionnel complet et d'appareils de contrôle certifiés.",
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -1117,27 +1506,27 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                       ),
                       inputDecorationTheme: InputDecorationTheme(
                         filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.06),
-                        labelStyle: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
+                        fillColor: const Color(0xFF081220),
+                        labelStyle: const TextStyle(
+                          color: Color(0xFF94A3B8),
                         ),
-                        floatingLabelStyle: const TextStyle(color: _kCyan),
+                        floatingLabelStyle: const TextStyle(color: Color(0xFF38BDF8)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.10),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF1E3250),
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.10),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF1E3250),
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(
-                            color: _kCyan,
+                            color: Color(0xFF0284C7),
                             width: 1.5,
                           ),
                         ),
@@ -1153,71 +1542,252 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                     ),
                   ),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _locating ? null : _locateMe,
-                      icon: _locating
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: _kCyan),
-                            )
-                          : const Icon(Icons.my_location_rounded,
-                              size: 18, color: _kCyan),
-                      label: Text(
-                        _locating ? 'Localisation…' : 'Me localiser (GPS)',
-                        style: const TextStyle(color: _kCyan, fontWeight: FontWeight.w600),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _kCyan),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  if (_villePin != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          size: 14,
-                          color: _kGreen,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Position enregistrée',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _kGreen,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _locating ? null : _openRegistrationMapPicker,
+                          icon: const Icon(Icons.map_rounded,
+                              size: 17, color: Color(0xFF10B981)),
+                          label: const Text(
+                            'Choisir sur carte',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Color(0xFF10B981),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF10B981), width: 1.2),
+                            backgroundColor: const Color(0xFF081220),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _locating ? null : _locateMe,
+                          icon: _locating
+                              ? const SizedBox(
+                                  width: 15,
+                                  height: 15,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Color(0xFF38BDF8)),
+                                )
+                              : const Icon(Icons.my_location_rounded,
+                                  size: 17, color: Color(0xFF38BDF8)),
+                          label: Text(
+                            _locating ? 'Localisation...' : 'Me localiser',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF38BDF8),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF0284C7), width: 1.2),
+                            backgroundColor: const Color(0xFF081220),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Ou choisissez votre commune en 1 clic :',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final c in kCivCommunesReference.take(10))
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ActionChip(
+                              backgroundColor: _villeCtrl.text.contains(c.displayName.split('·').first.trim())
+                                  ? const Color(0xFF0284C7)
+                                  : const Color(0xFF081220),
+                              side: BorderSide(
+                                color: _villeCtrl.text.contains(c.displayName.split('·').first.trim())
+                                    ? const Color(0xFF38BDF8)
+                                    : const Color(0xFF1E3250),
+                              ),
+                              avatar: Icon(
+                                Icons.location_on_rounded,
+                                size: 14,
+                                color: _villeCtrl.text.contains(c.displayName.split('·').first.trim())
+                                    ? Colors.white
+                                    : const Color(0xFF38BDF8),
+                              ),
+                              label: Text(
+                                c.displayName.replaceAll(', Abidjan', ''),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: _villeCtrl.text.contains(c.displayName.split('·').first.trim())
+                                      ? Colors.white
+                                      : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _villeCtrl.text = c.displayName;
+                                  _villeAddressLabel = c.displayName;
+                                  _villePin = LatLng(c.latitude, c.longitude);
+                                });
+                              },
+                            ),
+                          ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    // Carte moderne : aperçu de la zone du prestataire.
-                    BabifixMiniMap(
-                      lat: _villePin!.latitude,
-                      lon: _villePin!.longitude,
-                      height: 160,
-                      pinColor: _kGreen,
-                      pinIcon: Icons.home_work_rounded,
-                    ),
-                  ],
+                  ),
+                  const SizedBox(height: 10),
+                  BabifixMiniMap(
+                    lat: _villePin?.latitude ?? kCivAbidjanLat,
+                    lon: _villePin?.longitude ?? kCivAbidjanLon,
+                    height: 170,
+                    pinColor: _kGreen,
+                    pinIcon: Icons.home_work_rounded,
+                    onTap: (p) => _applyRegistrationPin(p),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        _villePin != null
+                            ? Icons.check_circle_rounded
+                            : Icons.touch_app_rounded,
+                        size: 14,
+                        color: _villePin != null ? _kGreen : const Color(0xFF94A3B8),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _villePin != null
+                              ? 'Position definie : ${_villeCtrl.text.trim()}'
+                              : 'Touchez la carte pour placer votre repere',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: _villePin != null
+                                ? _kGreen
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 28),
-            _DarkGradientButton(
-              label: 'Suivant : Documents d\'identité',
-              icon: Icons.arrow_forward_rounded,
-              onPressed: _nextStep,
-            ),
+            if (_expressMode) ...[
+              const SizedBox(height: 18),
+              _DarkInfoBox(
+                icon: Icons.bolt_rounded,
+                color: const Color(0xFF10B981),
+                text:
+                    'Inscription rapide : accedez tout de suite a votre espace Pro. '
+                    'Vous pourrez ajouter votre CNI plus tard avant votre premiere mission.',
+              ),
+              const SizedBox(height: 14),
+              InkWell(
+                onTap: () => setState(() => _acceptedTerms = !_acceptedTerms),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: _acceptedTerms,
+                          onChanged: (v) =>
+                              setState(() => _acceptedTerms = v ?? false),
+                          activeColor: const Color(0xFF10B981),
+                          checkColor: const Color(0xFF0B1B34),
+                          side: const BorderSide(color: Colors.white38, width: 1.5),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text.rich(
+                            TextSpan(
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white70,
+                                height: 1.45,
+                              ),
+                              children: [
+                                const TextSpan(text: 'J\'accepte les '),
+                                TextSpan(
+                                  text: 'Conditions d\'utilisation',
+                                  recognizer: _cguTap,
+                                  style: const TextStyle(
+                                    color: _kCyan,
+                                    fontWeight: FontWeight.w700,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                                const TextSpan(text: ' et la '),
+                                TextSpan(
+                                  text: 'Politique de confidentialite',
+                                  recognizer: _privacyTap,
+                                  style: const TextStyle(
+                                    color: _kCyan,
+                                    fontWeight: FontWeight.w700,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                                const TextSpan(text: ' de BABIFIX.'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              _DarkGradientButton(
+                label: _submitting
+                    ? 'Creation de votre espace Pro...'
+                    : 'Creer mon compte Express (60 s)',
+                icon: Icons.check_circle_outline_rounded,
+                onPressed: _submitting ? () {} : _nextStep,
+              ),
+            ] else ...[
+              const SizedBox(height: 28),
+              _DarkGradientButton(
+                label: 'Suivant : Documents d\'identite',
+                icon: Icons.arrow_forward_rounded,
+                onPressed: _nextStep,
+              ),
+            ],
           ],
         ),
       ),
@@ -1227,21 +1797,21 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   Widget _buildDarkDropdown() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        color: const Color(0xFF081220),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF1E3250)),
       ),
       child: Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: ThemeData.dark().colorScheme.copyWith(
-            primary: _kCyan,
-            surface: const Color(0xFF0D1F3C),
+            primary: const Color(0xFF0284C7),
+            surface: const Color(0xFF0E1A2D),
           ),
         ),
         child: DropdownButtonFormField<int>(
           key: ValueKey(_categoryId),
           initialValue: _categoryId,
-          dropdownColor: const Color(0xFF0D1F3C),
+          dropdownColor: const Color(0xFF0E1A2D),
           items: [
             for (final c in _publicCategories)
               DropdownMenuItem<int>(
@@ -1251,9 +1821,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                     SizedBox(
                       width: 28,
                       height: 28,
-                      child: ('${c['icone_url'] ?? ''}'.isNotEmpty)
-                          ? SvgPicture.network(
-                              '${c['icone_url']}',
+                      child: ('${c['icone_slug'] ?? ''}'.trim().isNotEmpty)
+                          ? SvgPicture.asset(
+                              'assets/category-icons/${'${c['icone_slug'] ?? ''}'.trim()}.svg',
                               fit: BoxFit.contain,
                               placeholderBuilder: (_) => const Icon(
                                 Icons.category_outlined,
@@ -1261,11 +1831,21 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                                 color: Colors.white54,
                               ),
                             )
-                          : const Icon(
-                              Icons.category_outlined,
-                              size: 20,
-                              color: Colors.white54,
-                            ),
+                          : (('${c['icone_url'] ?? ''}'.isNotEmpty)
+                              ? SvgPicture.network(
+                                  babifixResolveMediaUrl('${c['icone_url']}'),
+                                  fit: BoxFit.contain,
+                                  placeholderBuilder: (_) => const Icon(
+                                    Icons.category_outlined,
+                                    size: 20,
+                                    color: Colors.white54,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.category_outlined,
+                                  size: 20,
+                                  color: Colors.white54,
+                                )),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1516,7 +2096,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           const SizedBox(height: 10),
           Center(
             child: Text(
-              'Votre dossier sera examiné par l\'équipe BABIFIX (48–72 h)',
+              'Votre dossier sera examiné par l\'équipe BABIFIX (48 - 72 h)',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11.5,
@@ -1551,9 +2131,16 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         : villeText;
 
     var body = jsonEncode({
+      'mode': _expressMode ? 'express' : 'full',
       'nom': '${_prenomCtrl.text.trim()} ${_nomCtrl.text.trim()}'.trim(),
-      'specialite': _specialite ?? '',
-      if (_categoryId != null) 'category_id': _categoryId,
+      'specialite': _metierPropose.trim().isNotEmpty
+          ? _metierPropose.trim()
+          : (_specialite ?? ''),
+      if (_categoryId != null && _metierPropose.trim().isEmpty)
+        'category_id': _categoryId,
+      if (_metierPropose.trim().isNotEmpty)
+        'metier_propose': _metierPropose.trim(),
+      if (_specAnswers.isNotEmpty) 'spec_answers': _specAnswers,
       'ville': compactCity,
       'service_city': compactCity,
       'service_address_label': addrLabel.length > 500
@@ -1628,7 +2215,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
         );
         if (res.statusCode == 201) {
           final data = jsonDecode(res.body) as Map<String, dynamic>;
-          final t = data['token'] as String?;
+          final t = (data['token'] ?? data['access']) as String?;
+          final r = data['refresh'] as String?;
+          if (r != null && r.isNotEmpty) await writeStoredRefreshToken(r);
           debugPrint(
             'BABIFIX REG: token from register: ${t != null ? "exists (${t.length} chars)" : "null"}',
           );
@@ -1647,7 +2236,9 @@ class _RegistrationScreenState extends State<RegistrationScreen>
             debugPrint('BABIFIX REG: login status=${loginRes.statusCode}');
             if (loginRes.statusCode == 200) {
               final d = jsonDecode(loginRes.body) as Map<String, dynamic>;
-              final t = d['token'] as String?;
+              final t = (d['token'] ?? d['access']) as String?;
+              final r = d['refresh'] as String?;
+              if (r != null && r.isNotEmpty) await writeStoredRefreshToken(r);
               debugPrint(
                 'BABIFIX REG: login token: ${t != null ? "exists" : "null"}',
               );
@@ -1780,20 +2371,14 @@ class _DarkCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-          ),
-          child: child,
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E1A2D),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E3250)),
       ),
+      child: child,
     );
   }
 }
@@ -1818,10 +2403,11 @@ class _DarkSectionHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(14),
+            color: const Color(0xFF0E1A2D),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1E3250)),
           ),
-          child: Icon(icon, color: iconColor, size: 22),
+          child: Icon(icon, color: const Color(0xFF38BDF8), size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1839,9 +2425,9 @@ class _DarkSectionHeader extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12.5,
-                  color: Colors.white.withValues(alpha: 0.45),
+                  color: Color(0xFF94A3B8),
                   height: 1.4,
                 ),
               ),
@@ -1859,25 +2445,20 @@ class _DarkFormField extends StatelessWidget {
     required this.controller,
     this.icon,
     this.keyboardType,
-    this.maxLines = 1,
     this.textInputAction,
     this.validator,
-    this.hint,
   });
   final String label;
   final TextEditingController controller;
   final IconData? icon;
   final TextInputType? keyboardType;
-  final int maxLines;
   final TextInputAction? textInputAction;
   final FormFieldValidator<String>? validator;
-  final String? hint;
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
-      maxLines: maxLines,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
       style: const TextStyle(color: Colors.white, fontSize: 15),
@@ -1886,39 +2467,34 @@ class _DarkFormField extends StatelessWidget {
           (v) => (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
       decoration: InputDecoration(
         labelText: label,
-        hintText: hint,
-        hintStyle: TextStyle(
-          color: Colors.white.withValues(alpha: 0.3),
-          fontSize: 13,
-        ),
-        labelStyle: TextStyle(
-          color: Colors.white.withValues(alpha: 0.5),
+        labelStyle: const TextStyle(
+          color: Color(0xFF94A3B8),
           fontSize: 14,
         ),
-        floatingLabelStyle: const TextStyle(color: _kCyan, fontSize: 12),
+        floatingLabelStyle: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
         prefixIcon: icon != null
-            ? Icon(icon, color: Colors.white.withValues(alpha: 0.4), size: 20)
+            ? Icon(icon, color: const Color(0xFF64748B), size: 20)
             : null,
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.07),
+        fillColor: const Color(0xFF081220),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF1E3250)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF1E3250)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _kCyan, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFEF4444)),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
         ),
         errorStyle: const TextStyle(color: Color(0xFFFC8181)),
@@ -1954,44 +2530,44 @@ class _DarkFormFieldPassword extends StatelessWidget {
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(
-          color: Colors.white.withValues(alpha: 0.5),
+        labelStyle: const TextStyle(
+          color: Color(0xFF94A3B8),
           fontSize: 14,
         ),
-        floatingLabelStyle: const TextStyle(color: _kCyan, fontSize: 12),
-        prefixIcon: Icon(
+        floatingLabelStyle: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
+        prefixIcon: const Icon(
           Icons.lock_outline_rounded,
-          color: Colors.white.withValues(alpha: 0.4),
+          color: Color(0xFF64748B),
           size: 20,
         ),
         suffixIcon: IconButton(
           onPressed: onToggle,
           icon: Icon(
             visible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            color: Colors.white.withValues(alpha: 0.4),
+            color: const Color(0xFF64748B),
             size: 20,
           ),
         ),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.07),
+        fillColor: const Color(0xFF081220),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF1E3250)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF1E3250)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _kCyan, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFEF4444)),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
         ),
         errorStyle: const TextStyle(color: Color(0xFFFC8181)),
@@ -2019,20 +2595,20 @@ class _DarkInfoBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: const Color(0xFF0E1A2D),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.20)),
+        border: Border.all(color: const Color(0xFF1E3250)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 18),
+          Icon(icon, color: const Color(0xFF38BDF8), size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
                 fontSize: 12.5,
                 height: 1.45,
               ),
@@ -2056,35 +2632,30 @@ class _DarkGradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        height: 54,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [_kCyan, Color(0xFF4CC9F0)]),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: _kCyan.withValues(alpha: 0.4),
-              blurRadius: 18,
-              offset: const Offset(0, 7),
-            ),
-          ],
+    return SizedBox(
+      height: 52,
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFE87722),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
-              ),
-            ),
+            Text(label),
             const SizedBox(width: 8),
-            Icon(icon, color: Colors.white, size: 18),
+            Icon(icon, size: 18),
           ],
         ),
       ),
@@ -2133,26 +2704,16 @@ class _DarkDocPickerCard extends StatelessWidget {
         duration: const Duration(milliseconds: 220),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: hasImage && !locked
-              ? accentColor.withValues(alpha: 0.08)
-              : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(18),
+          color: const Color(0xFF0E1A2D),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: locked
-                ? Colors.white.withValues(alpha: 0.08)
+                ? const Color(0xFF1B2E47)
                 : hasImage
-                ? accentColor.withValues(alpha: 0.40)
-                : Colors.white.withValues(alpha: 0.10),
+                ? const Color(0xFF0284C7)
+                : const Color(0xFF1E3250),
             width: hasImage && !locked ? 1.5 : 1,
           ),
-          boxShadow: hasImage && !locked
-              ? [
-                  BoxShadow(
-                    color: accentColor.withValues(alpha: 0.15),
-                    blurRadius: 12,
-                  ),
-                ]
-              : null,
         ),
         child: Row(
           children: [
@@ -2271,6 +2832,355 @@ class _DarkDocPickerCard extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.25),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryPickerSheet extends StatefulWidget {
+  const _CategoryPickerSheet({
+    required this.categories,
+    required this.selectedCategoryId,
+    required this.initialProposed,
+    required this.normalize,
+    required this.onErrorSnack,
+    required this.onSelectCategory,
+    required this.onProposeMetier,
+  });
+
+  final List<Map<String, dynamic>> categories;
+  final int? selectedCategoryId;
+  final String initialProposed;
+  final String Function(String) normalize;
+  final void Function(String) onErrorSnack;
+  final void Function(int cid, String nom) onSelectCategory;
+  final void Function(String proposed) onProposeMetier;
+
+  @override
+  State<_CategoryPickerSheet> createState() => _CategoryPickerSheetState();
+}
+
+class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
+  late final TextEditingController _searchCtrl = TextEditingController();
+  late final TextEditingController _proposeCtrl = TextEditingController(
+    text: widget.initialProposed,
+  );
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _proposeCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = widget.normalize(_searchCtrl.text);
+    final filtered = widget.categories.where((c) {
+      if (q.isEmpty) return true;
+      final kw = c['search_keywords'] is List
+          ? (c['search_keywords'] as List).join(' ')
+          : '${c['search_keywords'] ?? ''}';
+      final hay = widget.normalize('${c['nom'] ?? ''} ${c['groupe'] ?? ''} $kw');
+      return hay.contains(q);
+    }).toList();
+
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final c in filtered) {
+      final g = '${c['groupe'] ?? 'Autres metiers'}'.trim();
+      grouped.putIfAbsent(g.isEmpty ? 'Autres metiers' : g, () => []).add(c);
+    }
+
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final maxH = MediaQuery.of(context).size.height * 0.88;
+
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: maxH,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomInset + 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Choisir votre metier BABIFIX',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.close_rounded, color: Colors.white60),
+                  ),
+                ],
+              ),
+              TextField(
+                controller: _searchCtrl,
+                autofocus: false,
+                style: const TextStyle(color: Colors.white),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Rechercher un metier (plombier, nounou, froid...)',
+                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 13.5),
+                  prefixIcon: const Icon(Icons.search_rounded, color: _kCyan),
+                  suffixIcon: _searchCtrl.text.isNotEmpty
+                      ? IconButton(
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() {});
+                          },
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            color: Colors.white54,
+                            size: 18,
+                          ),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: const Color(0xFF081220),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFF1E3250)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFF1E3250)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: _kCyan),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  children: [
+                    for (final entry in grouped.entries) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10, bottom: 6),
+                        child: Text(
+                          entry.key.toUpperCase(),
+                          style: const TextStyle(
+                            color: Color(0xFF38BDF8),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                      for (final c in entry.value)
+                        Builder(
+                          builder: (_) {
+                            final cid = jsonInt(c['id']);
+                            final selected =
+                                widget.initialProposed.trim().isEmpty &&
+                                widget.selectedCategoryId == cid;
+                            final iconSlug = '${c['icone_slug'] ?? ''}'.trim();
+                            final iconUrl = babifixResolveMediaUrl(
+                              '${c['icone_url'] ?? ''}',
+                            );
+                            final isSens =
+                                '${c['regime_kyc'] ?? ''}' == 'SENSIBLE_CASIER';
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? _kCyan.withValues(alpha: 0.16)
+                                    : const Color(0xFF0E1A2D),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected ? _kCyan : const Color(0xFF1E3250),
+                                ),
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: ListTile(
+                                  dense: true,
+                                  leading: SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: iconSlug.isNotEmpty
+                                        ? SvgPicture.asset(
+                                            'assets/category-icons/$iconSlug.svg',
+                                            fit: BoxFit.contain,
+                                            placeholderBuilder: (_) => const Icon(
+                                              Icons.build_circle_outlined,
+                                              color: _kCyan,
+                                            ),
+                                          )
+                                        : (iconUrl.isNotEmpty
+                                            ? SvgPicture.network(
+                                                iconUrl,
+                                                fit: BoxFit.contain,
+                                                placeholderBuilder: (_) =>
+                                                    const Icon(
+                                                  Icons.build_circle_outlined,
+                                                  color: _kCyan,
+                                                ),
+                                              )
+                                            : const Icon(
+                                                Icons.build_circle_outlined,
+                                                color: _kCyan,
+                                              )),
+                                  ),
+                                  title: Text(
+                                    '${c['nom'] ?? ''}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  subtitle: isSens
+                                      ? const Text(
+                                          'Metier sensible : casier + reference au KYC',
+                                          style: TextStyle(
+                                            color: Color(0xFF5EEAD4),
+                                            fontSize: 11,
+                                          ),
+                                        )
+                                      : null,
+                                  trailing: selected
+                                      ? const Icon(Icons.check_circle_rounded, color: _kCyan)
+                                      : const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: Colors.white30,
+                                        ),
+                                  onTap: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    widget.onSelectCategory(
+                                      cid,
+                                      '${c['nom'] ?? ''}'.trim(),
+                                    );
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF17223B),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0x55F59E0B)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.add_business_rounded,
+                                color: Color(0xFFFBBF24),
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Votre metier n\'est pas encore dans la liste ?',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Proposez votre metier : votre dossier est pre-enregistre des maintenant et l\'equipe Babifix cree la categorie.',
+                            style: TextStyle(
+                              color: Color(0xFFCBD5E1),
+                              fontSize: 11.5,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: _proposeCtrl,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: _searchCtrl.text.trim().isNotEmpty
+                                  ? 'Ex : ${_searchCtrl.text.trim()}'
+                                  : 'Nom de votre metier exact (ex : Pisciniste)',
+                              hintStyle: const TextStyle(
+                                color: Colors.white38,
+                                fontSize: 13,
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFF081220),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFF334155)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                final proposed = _proposeCtrl.text.trim().isNotEmpty
+                                    ? _proposeCtrl.text.trim()
+                                    : _searchCtrl.text.trim();
+                                if (proposed.length < 3) {
+                                  widget.onErrorSnack(
+                                    'Indiquez au moins 3 caracteres pour votre metier.',
+                                  );
+                                  return;
+                                }
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                widget.onProposeMetier(proposed);
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.check_rounded, size: 18),
+                              label: const Text('Proposer ce metier (Option A)'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFF59E0B),
+                                foregroundColor: const Color(0xFF0F172A),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

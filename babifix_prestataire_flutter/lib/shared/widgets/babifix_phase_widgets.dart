@@ -59,34 +59,53 @@ class DevisCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
+    final surface = BabifixDesign.surfaceOf(context);
+    final elevated = BabifixDesign.elevatedSurfaceOf(context);
+    final border = BabifixDesign.borderOf(context);
+    final ink = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: BabifixDesign.ciBlue.withValues(alpha: 0.15)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(
+          color: isDark
+              ? border
+              : BabifixDesign.ciBlue.withValues(alpha: 0.16),
+        ),
+        boxShadow: isDark
+            ? const <BoxShadow>[]
+            : [
+                BoxShadow(
+                  color: BabifixDesign.navy.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _header(),
-          if (devis.diagnostic.isNotEmpty) _diagnostic(),
-          ..._sections(),
+          _header(isDark: isDark, ink: ink, muted: muted),
+          if (devis.diagnostic.isNotEmpty)
+            _diagnostic(
+              elevated: elevated,
+              border: border,
+              ink: ink,
+              muted: muted,
+            ),
+          ..._sections(isDark: isDark, ink: ink, muted: muted, border: border),
           _totals(),
-          _footer(),
+          _footer(ink: ink, muted: muted),
         ],
       ),
     );
   }
 
-  Widget _footer() {
+  Widget _footer({required Color ink, required Color muted}) {
     final hasNote = devis.notePrestataire.trim().isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -96,27 +115,33 @@ class DevisCardWidget extends StatelessWidget {
           if (hasNote) ...[
             Row(
               children: [
-                Icon(Icons.sticky_note_2_outlined,
-                    size: 14, color: Colors.grey.shade600),
+                Icon(Icons.sticky_note_2_outlined, size: 14, color: muted),
                 const SizedBox(width: 5),
-                Text('Note du prestataire',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade700)),
+                Text(
+                  'Note du prestataire',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: muted,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 3),
-            Text(devis.notePrestataire,
-                style: const TextStyle(fontSize: 12.5, height: 1.35)),
+            Text(
+              devis.notePrestataire,
+              style: TextStyle(fontSize: 12.5, height: 1.35, color: ink),
+            ),
             const SizedBox(height: 8),
           ],
           Row(
             children: [
-              Icon(Icons.schedule, size: 13, color: Colors.grey.shade500),
+              Icon(Icons.schedule, size: 13, color: muted),
               const SizedBox(width: 5),
-              Text('Devis valable ${devis.validiteJours} jours',
-                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+              Text(
+                'Devis valable ${devis.validiteJours} jours',
+                style: TextStyle(fontSize: 11.5, color: muted),
+              ),
             ],
           ),
         ],
@@ -124,22 +149,34 @@ class DevisCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _header() {
+  Widget _header({
+    required bool isDark,
+    required Color ink,
+    required Color muted,
+  }) {
     final couleur = switch (devis.statut) {
-      DevisStatus.accepte => BabifixDesign.ciGreen,
-      DevisStatus.refuse => BabifixDesign.error,
-      DevisStatus.envoye => BabifixDesign.ciBlue,
-      _ => Colors.grey.shade500,
+      DevisStatus.accepte =>
+        isDark ? const Color(0xFF4ADE80) : BabifixDesign.emeraldForest,
+      DevisStatus.refuse =>
+        isDark ? const Color(0xFFFCA5A5) : BabifixDesign.error,
+      DevisStatus.envoye => isDark ? BabifixDesign.cyan : BabifixDesign.ciBlue,
+      _ => muted,
     };
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: BoxDecoration(
-        color: BabifixDesign.ciBlue.withValues(alpha: 0.06),
+        color: isDark
+            ? BabifixDesign.navyElevated
+            : BabifixDesign.ciBlue.withValues(alpha: 0.06),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
       ),
       child: Row(
         children: [
-          Icon(Icons.receipt_long, size: 20, color: BabifixDesign.iconOnLight),
+          Icon(
+            Icons.receipt_long,
+            size: 20,
+            color: isDark ? BabifixDesign.cyan : BabifixDesign.iconOnLight,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -147,31 +184,33 @@ class DevisCardWidget extends StatelessWidget {
               children: [
                 Text(
                   'Devis ${devis.reference}',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: ink,
+                  ),
                 ),
                 if (devis.dateProposee != null && devis.dateProposee!.isNotEmpty)
                   Text(
                     'Proposé pour le ${devis.dateProposee}',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 12, color: muted),
                   ),
               ],
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: couleur.withValues(alpha: 0.12),
+              color: couleur.withValues(alpha: isDark ? 0.18 : 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               devis.statut.label,
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: couleur),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: couleur,
+              ),
             ),
           ),
         ],
@@ -179,14 +218,20 @@ class DevisCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _diagnostic() {
+  Widget _diagnostic({
+    required Color elevated,
+    required Color border,
+    required Color ink,
+    required Color muted,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: elevated,
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,20 +239,28 @@ class DevisCardWidget extends StatelessWidget {
             Text(
               'Diagnostic',
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade700),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: muted,
+              ),
             ),
             const SizedBox(height: 4),
-            Text(devis.diagnostic,
-                style: const TextStyle(fontSize: 13, height: 1.35)),
+            Text(
+              devis.diagnostic,
+              style: TextStyle(fontSize: 13, height: 1.35, color: ink),
+            ),
           ],
         ),
       ),
     );
   }
 
-  List<Widget> _sections() {
+  List<Widget> _sections({
+    required bool isDark,
+    required Color ink,
+    required Color muted,
+    required Color border,
+  }) {
     final types = [
       DevisLineType.fourniture,
       DevisLineType.mainOeuvre,
@@ -218,13 +271,22 @@ class DevisCardWidget extends StatelessWidget {
     for (final t in types) {
       final ls = devis.lignesByType(t);
       if (ls.isEmpty) continue;
-      out.add(_section(t, ls));
+      out.add(
+        _section(t, ls, isDark: isDark, ink: ink, muted: muted, border: border),
+      );
     }
     return out;
   }
 
-  Widget _section(DevisLineType t, List<LigneDevis> lignes) {
-    final couleur = _typeColor(t);
+  Widget _section(
+    DevisLineType t,
+    List<LigneDevis> lignes, {
+    required bool isDark,
+    required Color ink,
+    required Color muted,
+    required Color border,
+  }) {
+    final couleur = _typeColor(t, isDark: isDark, muted: muted);
     final icon = _typeIcon(t);
     final st = devis.sousTotalByType(t);
     return Padding(
@@ -239,29 +301,38 @@ class DevisCardWidget extends StatelessWidget {
               Text(
                 t.label,
                 style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: couleur,
-                    letterSpacing: 0.3),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: couleur,
+                  letterSpacing: 0.3,
+                ),
               ),
               const Spacer(),
-              Text(fmtMoney(st),
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800)),
+              Text(
+                fmtMoney(st),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: ink,
+                  fontFeatures: BabifixDesign.tabularFigures,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          ...lignes.map(_ligneRow),
+          ...lignes.map((l) => _ligneRow(l, ink: ink, muted: muted)),
           const SizedBox(height: 4),
-          const Divider(height: 1),
+          Divider(height: 1, color: border),
         ],
       ),
     );
   }
 
-  Widget _ligneRow(LigneDevis l) {
+  Widget _ligneRow(
+    LigneDevis l, {
+    required Color ink,
+    required Color muted,
+  }) {
     final qStr = l.quantite == l.quantite.roundToDouble()
         ? l.quantite.toStringAsFixed(0)
         : l.quantite.toStringAsFixed(2);
@@ -275,24 +346,36 @@ class DevisCardWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(l.description,
-                    style: const TextStyle(fontSize: 13)),
+                Text(
+                  l.description,
+                  style: TextStyle(fontSize: 13, color: ink),
+                ),
                 if (l.marque.isNotEmpty)
-                  Text(l.marque,
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.grey.shade500)),
+                  Text(
+                    l.marque,
+                    style: TextStyle(fontSize: 11, color: muted),
+                  ),
                 Text(
                   '$qStr$uniteText × ${fmtMoney(l.prixUnitaire)}',
                   style: TextStyle(
-                      fontSize: 11, color: Colors.grey.shade600),
+                    fontSize: 11,
+                    color: muted,
+                    fontFeatures: BabifixDesign.tabularFigures,
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(fmtMoney(l.total),
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(
+            fmtMoney(l.total),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: ink,
+              fontFeatures: BabifixDesign.tabularFigures,
+            ),
+          ),
         ],
       ),
     );
@@ -313,11 +396,19 @@ class DevisCardWidget extends StatelessWidget {
     );
   }
 
-  static Color _typeColor(DevisLineType t) => switch (t) {
-        DevisLineType.fourniture => Colors.deepPurple,
-        DevisLineType.mainOeuvre => BabifixDesign.ciBlue,
-        DevisLineType.deplacement => Colors.orange.shade700,
-        DevisLineType.autre => Colors.grey.shade600,
+  static Color _typeColor(
+    DevisLineType t, {
+    required bool isDark,
+    required Color muted,
+  }) =>
+      switch (t) {
+        DevisLineType.fourniture =>
+          isDark ? const Color(0xFFC084FC) : Colors.deepPurple,
+        DevisLineType.mainOeuvre =>
+          isDark ? BabifixDesign.cyan : BabifixDesign.ciBlue,
+        DevisLineType.deplacement =>
+          isDark ? BabifixDesign.ciOrangeBright : BabifixDesign.ciOrange,
+        DevisLineType.autre => muted,
       };
 
   static IconData _typeIcon(DevisLineType t) => switch (t) {
@@ -355,42 +446,57 @@ class MoneyBreakdownWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
+    final ink = BabifixDesign.textPrimaryOf(context);
+    final muted = BabifixDesign.textMutedOf(context);
+    final accent = isDark ? BabifixDesign.cyan : BabifixDesign.emeraldForest;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: BabifixDesign.ciBlue.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: BabifixDesign.ciBlue.withValues(alpha: 0.15)),
+        color: isDark ? BabifixDesign.navyElevated : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? BabifixDesign.borderDark : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _row('Sous-total', fmtMoney(sousTotal), bold: false),
+          _row(context, 'Sous-total', fmtMoney(sousTotal), bold: false, ink: ink, muted: muted),
           if (remise > 0)
-            _row('Remise', '− ${fmtMoney(remise)}',
-                color: BabifixDesign.ciGreen),
+            _row(context, 'Remise', '- ${fmtMoney(remise)}',
+                color: isDark ? const Color(0xFF4ADE80) : BabifixDesign.emeraldTint, ink: ink, muted: muted),
           if (!compact || showProviderNet) ...[
             _row(
+              context,
               'Commission BABIFIX ($commissionRate%)',
-              '− ${fmtMoney(commissionMontant)}',
-              color: Colors.grey.shade600,
+              '- ${fmtMoney(commissionMontant)}',
+              color: muted,
+              ink: ink,
+              muted: muted,
             ),
           ],
-          const Divider(height: 14),
+          Divider(height: 14, color: BabifixDesign.borderOf(context)),
           _row(
+            context,
             'Total à payer',
             fmtMoney(totalTtc),
             bold: true,
             big: true,
-            color: BabifixDesign.ciBlue,
+            color: accent,
+            ink: ink,
+            muted: muted,
           ),
           if (showProviderNet) ...[
             const SizedBox(height: 6),
             _row(
+              context,
               'Vous toucherez',
               fmtMoney(netPrestataire),
               bold: true,
-              color: BabifixDesign.ciGreen,
+              color: isDark ? const Color(0xFF4ADE80) : BabifixDesign.emeraldForest,
+              ink: ink,
+              muted: muted,
             ),
           ],
         ],
@@ -398,8 +504,8 @@ class MoneyBreakdownWidget extends StatelessWidget {
     );
   }
 
-  Widget _row(String label, String value,
-      {bool bold = false, bool big = false, Color? color}) {
+  Widget _row(BuildContext context, String label, String value,
+      {bool bold = false, bool big = false, Color? color, required Color ink, required Color muted}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -408,14 +514,15 @@ class MoneyBreakdownWidget extends StatelessWidget {
               child: Text(label,
                   style: TextStyle(
                     fontSize: big ? 14 : 12,
-                    fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-                    color: color ?? Colors.grey.shade800,
+                    fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                    color: color ?? muted,
                   ))),
           Text(value,
               style: TextStyle(
                 fontSize: big ? 16 : 13,
-                fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-                color: color ?? Colors.grey.shade900,
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                color: color ?? ink,
+                fontFeatures: BabifixDesign.tabularFigures,
               )),
         ],
       ),
@@ -424,7 +531,7 @@ class MoneyBreakdownWidget extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// SystemEventWidget — événements système dans le chat
+// SystemEventWidget : événements système dans le chat
 // ---------------------------------------------------------------------------
 class SystemEventWidget extends StatelessWidget {
   final String body;
@@ -452,9 +559,9 @@ class SystemEventWidget extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -463,19 +570,19 @@ class SystemEventWidget extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              body,
+              body.replaceAll(' \u2014 ', ' · ').replaceAll(' \u2013 ', ' · '),
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 11.5,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey.shade700),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: BabifixDesign.textPrimaryOf(context)),
             ),
           ),
           if (createdAt != null) ...[
             const SizedBox(width: 6),
             Text('· ${f.format(createdAt!.toLocal())}',
                 style: TextStyle(
-                    fontSize: 10, color: Colors.grey.shade500)),
+                    fontSize: 10.5, color: BabifixDesign.textMutedOf(context))),
           ],
         ],
       ),
@@ -596,23 +703,25 @@ class TimelineReservationWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: BabifixDesign.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (int i = 0; i < steps.length; i++) _row(steps[i], i == steps.length - 1),
+          for (int i = 0; i < steps.length; i++)
+            _row(context, steps[i], i == steps.length - 1),
         ],
       ),
     );
   }
 
-  Widget _row(ReservationStep s, bool last) {
+  Widget _row(BuildContext context, ReservationStep s, bool last) {
+    final isDark = BabifixDesign.isDark(context);
     final color = s.active
-        ? BabifixDesign.ciBlue
-        : (s.reached ? BabifixDesign.ciGreen : Colors.grey.shade300);
+        ? (isDark ? BabifixDesign.cyan : BabifixDesign.cyanDeep)
+        : (s.reached ? BabifixDesign.success : BabifixDesign.borderOf(context));
     final f = s.at != null ? DateFormat('dd/MM HH:mm') : null;
     return IntrinsicHeight(
       child: Row(
@@ -630,12 +739,12 @@ class TimelineReservationWidget extends StatelessWidget {
                 child: Icon(
                   s.reached ? Icons.check : Icons.circle,
                   size: 12,
-                  color: Colors.white,
+                  color: (s.active && isDark) ? BabifixDesign.navy : Colors.white,
                 ),
               ),
               if (!last)
                 Expanded(
-                  child: Container(width: 2, color: Colors.grey.shade200),
+                  child: Container(width: 2, color: BabifixDesign.borderOf(context)),
                 ),
             ],
           ),
@@ -654,8 +763,8 @@ class TimelineReservationWidget extends StatelessWidget {
                           ? FontWeight.w800
                           : (s.reached ? FontWeight.w600 : FontWeight.w400),
                       color: s.reached
-                          ? Colors.grey.shade900
-                          : Colors.grey.shade500,
+                          ? BabifixDesign.textPrimaryOf(context)
+                          : BabifixDesign.textMutedOf(context),
                     ),
                   ),
                   if (s.at != null && f != null)
@@ -664,7 +773,7 @@ class TimelineReservationWidget extends StatelessWidget {
                       child: Text(
                         f.format(s.at!.toLocal()),
                         style: TextStyle(
-                            fontSize: 11, color: Colors.grey.shade500),
+                            fontSize: 11, color: BabifixDesign.textMutedOf(context)),
                       ),
                     ),
                 ],

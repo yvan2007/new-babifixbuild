@@ -232,22 +232,19 @@ class _PendingScreenState extends State<PendingScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_refreshing)
-                        const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: BabifixRingLoader.cyan(size: 28),
-                        )
+                        const BabifixRingLoader.cyan(size: 16)
                       else
                         const Icon(Icons.sync_rounded, color: _primaryBlue, size: 16),
                       const SizedBox(width: 8),
                       Text(
                         _refreshing
-                            ? 'Vérification en cours…'
-                            : 'Vérification auto dans ${_refreshSeconds}s',
+                            ? 'Verification en cours...'
+                            : 'Verification auto dans ${_refreshSeconds}s',
                         style: const TextStyle(
                           color: _primaryBlue,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
+                          fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),
                     ],
@@ -255,20 +252,21 @@ class _PendingScreenState extends State<PendingScreen>
                 ),
                 const SizedBox(height: 24),
 
-                // Bouton de vérification manuelle
+                // Bouton de verification manuelle
                 SizedBox(
                   width: double.infinity,
+                  height: 52,
                   child: FilledButton.icon(
                     onPressed: _refreshing ? null : _triggerRefresh,
                     icon: const Icon(Icons.refresh_rounded, size: 20),
                     label: const Text(
-                      'Vérifier maintenant',
+                      'Verifier maintenant',
                       style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                     ),
                     style: FilledButton.styleFrom(
-                      backgroundColor: _primaryBlue,
+                      backgroundColor: const Color(0xFFE87722),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -280,17 +278,17 @@ class _PendingScreenState extends State<PendingScreen>
                 // Contacter le support
                 SizedBox(
                   width: double.infinity,
+                  height: 50,
                   child: OutlinedButton.icon(
                     onPressed: () => _showSupportSheet(context),
                     icon: const Icon(Icons.headset_mic_rounded, size: 18),
                     label: const Text(
                       'Contacter le support',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _primaryBlue,
-                      side: BorderSide(color: _primaryBlue.withValues(alpha: 0.5)),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      foregroundColor: _navy,
+                      side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.4),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -356,7 +354,7 @@ class _PendingScreenState extends State<PendingScreen>
             _SupportTile(
               icon: Icons.chat_bubble_rounded,
               label: 'WhatsApp',
-              value: 'Disponible 8h–20h',
+              value: 'Disponible 8h - 20h',
               color: const Color(0xFF25D366),
             ),
             const SizedBox(height: 20),
