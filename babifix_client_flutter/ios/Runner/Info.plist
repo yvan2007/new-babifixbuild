@@ -51,8 +51,21 @@
 	</array>
 	<key>FirebaseMessagingAutoInitEnabled</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>tel</string>
+		<string>mailto</string>
+		<string>sms</string>
+		<string>whatsapp</string>
+		<string>comgooglemaps</string>
+		<string>maps</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>BABIFIX utilise votre position pour l&apos;adresse d&apos;intervention.</string>
+	<string>BABIFIX utilise votre position pour l&apos;adresse d&apos;intervention et la carte.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>BABIFIX utilise votre position pour localiser les artisans a proximite et suivre l&apos;intervention.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Prendre une photo pour le profil, le chat ou les appels vidéo.</string>
 	<key>NSMicrophoneUsageDescription</key>

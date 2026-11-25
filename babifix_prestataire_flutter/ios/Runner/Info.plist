@@ -66,7 +66,24 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- Permissions iOS (obligatoires sinon l'app crashe à l'accès) -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>FirebaseMessagingAutoInitEnabled</key>
+	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>tel</string>
+		<string>mailto</string>
+		<string>sms</string>
+		<string>whatsapp</string>
+		<string>comgooglemaps</string>
+		<string>maps</string>
+	</array>
+	<!-- Permissions iOS (obligatoires sinon l'app crashe a l'acces) -->
 	<key>NSCameraUsageDescription</key>
 	<string>BABIFIX utilise l'appareil photo pour vos photos de profil, de prestations et la vérification d'identité (CNI).</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -75,6 +92,8 @@
 	<string>BABIFIX enregistre vos reçus et documents dans votre galerie.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>BABIFIX utilise votre position pour afficher les missions proches et la carte d'intervention.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>BABIFIX utilise votre position pour recevoir les alertes SOS a proximite et guider votre deplacement.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>BABIFIX utilise le micro pour les appels et messages vocaux avec les clients.</string>
 	<key>NSFaceIDUsageDescription</key>

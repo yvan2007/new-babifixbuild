@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
-// sign_in_with_apple retiré côté prestataire : iOS-only et bloque le build
-// Android. À ré-activer si on déploie l'app pro sur l'App Store.
+// sign_in_with_apple retire cote prestataire : iOS-only et bloque le build
+// Android. A re-activer si on deploie l'app pro sur l'App Store.
 
 import '../babifix_api_config.dart';
+import '../firebase_options.dart';
 
 class SocialAuthResult {
   final bool isSuccess;
@@ -31,6 +34,15 @@ class SocialAuthService {
   );
 
   static Future<SocialAuthResult> signInWithGoogle() async {
+    if (!kIsWeb &&
+        Platform.isIOS &&
+        DefaultFirebaseOptions.ios.appId.contains('CONFIGUREZ_IOS')) {
+      return SocialAuthResult(
+        isSuccess: false,
+        error:
+            'Connexion Google en cours d\'activation sur iOS. Utilisez votre telephone ou email.',
+      );
+    }
     try {
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {

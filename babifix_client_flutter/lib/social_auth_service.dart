@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'babifix_api_config.dart';
+import 'firebase_options.dart';
 
 /// Result of a social sign-in attempt.
 class SocialAuthResult {
@@ -52,6 +53,13 @@ class SocialAuthService {
 
   /// Sign in with Google and exchange the ID token with the BABIFIX backend.
   static Future<SocialAuthResult> signInWithGoogle() async {
+    if (!kIsWeb &&
+        Platform.isIOS &&
+        DefaultFirebaseOptions.ios.appId.contains('CONFIGUREZ_IOS')) {
+      return SocialAuthResult.failure(
+        'Connexion Google en cours d\'activation sur iOS. Utilisez votre telephone ou email.',
+      );
+    }
     try {
       // Trigger the authentication flow
       final account = await _googleSignIn.signIn();
