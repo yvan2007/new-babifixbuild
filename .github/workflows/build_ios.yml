@@ -1,0 +1,93 @@
+name: Build iOS IPA (Sans Mac)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, main]
+    paths:
+      - 'babifix_client_flutter/**'
+      - 'babifix_prestataire_flutter/**'
+      - '.github/workflows/build_ios.yml'
+
+jobs:
+  build_ios_client:
+    name: Build iOS IPA · Client
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: babifix_client_flutter
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS App (Release, Sans signature)
+        run: |
+          flutter build ios --release --no-codesign \
+            --dart-define=BABIFIX_ENV=production \
+            --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com
+
+      - name: Packaging IPA (Payload structure)
+        run: |
+          mkdir -p build/ios/iphoneos/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
+          cd build/ios/iphoneos
+          zip -r -y BABIFIX-Client.ipa Payload
+          cd ../../..
+
+      - name: Upload Client IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BABIFIX-Client-iOS-IPA
+          path: babifix_client_flutter/build/ios/iphoneos/BABIFIX-Client.ipa
+          retention-days: 14
+
+  build_ios_prestataire:
+    name: Build iOS IPA · Prestataire
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: babifix_prestataire_flutter
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS App (Release, Sans signature)
+        run: |
+          flutter build ios --release --no-codesign \
+            --dart-define=BABIFIX_ENV=production \
+            --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com
+
+      - name: Packaging IPA (Payload structure)
+        run: |
+          mkdir -p build/ios/iphoneos/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
+          cd build/ios/iphoneos
+          zip -r -y BABIFIX-Prestataire.ipa Payload
+          cd ../../..
+
+      - name: Upload Prestataire IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BABIFIX-Prestataire-iOS-IPA
+          path: babifix_prestataire_flutter/build/ios/iphoneos/BABIFIX-Prestataire.ipa
+          retention-days: 14
