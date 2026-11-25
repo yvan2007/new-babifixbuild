@@ -30,25 +30,35 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS App (Release, Sans signature)
+      - name: Prepare Flutter iOS Config
         run: |
-          flutter build ios --release --no-codesign \
+          flutter build ios --config-only --release \
             --dart-define=BABIFIX_ENV=production \
             --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com
 
+      - name: Compile Unsigned iOS Binary with Xcode
+        run: |
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios_derived \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
       - name: Packaging IPA (Payload structure)
         run: |
-          mkdir -p build/ios/iphoneos/Payload
-          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
-          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r build/ios_derived/Build/Products/Release-iphoneos/Runner.app Payload/
           zip -r -y BABIFIX-Client.ipa Payload
-          cd ../../..
 
       - name: Upload Client IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: BABIFIX-Client-iOS-IPA
-          path: babifix_client_flutter/build/ios/iphoneos/BABIFIX-Client.ipa
+          path: babifix_client_flutter/BABIFIX-Client.ipa
           retention-days: 14
 
   build_ios_prestataire:
@@ -71,23 +81,33 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS App (Release, Sans signature)
+      - name: Prepare Flutter iOS Config
         run: |
-          flutter build ios --release --no-codesign \
+          flutter build ios --config-only --release \
             --dart-define=BABIFIX_ENV=production \
             --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com
 
+      - name: Compile Unsigned iOS Binary with Xcode
+        run: |
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios_derived \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
       - name: Packaging IPA (Payload structure)
         run: |
-          mkdir -p build/ios/iphoneos/Payload
-          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
-          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r build/ios_derived/Build/Products/Release-iphoneos/Runner.app Payload/
           zip -r -y BABIFIX-Prestataire.ipa Payload
-          cd ../../..
 
       - name: Upload Prestataire IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: BABIFIX-Prestataire-iOS-IPA
-          path: babifix_prestataire_flutter/build/ios/iphoneos/BABIFIX-Prestataire.ipa
+          path: babifix_prestataire_flutter/BABIFIX-Prestataire.ipa
           retention-days: 14
