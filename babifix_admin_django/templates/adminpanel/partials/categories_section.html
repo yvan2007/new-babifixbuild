@@ -1,126 +1,282 @@
-{% load static %}
-<div class="categories-admin-layout">
-  {% if user.is_staff %}
-  <article class="card card-elevate category-import-card">
-    <h3>Importer le catalogue officiel BABIFIX</h3>
-    <p class="section-help">Crée ou met à jour les catégories du catalogue à partir de <code>data/categories-services-domicile.json</code> (ordre, descriptions, slugs d’icônes). Les compteurs <strong>services</strong> et <strong>réservations</strong> ne sont pas remis à zéro.</p>
-    <form method="post" class="inline-import-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Lancer l’import du catalogue JSON ?');">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="category_import_catalog">
-      <button type="submit" class="btn-primary">Importer le catalogue JSON</button>
-    </form>
+{% load static babifix_tags %}
+
+<div class="categories-admin-layout" style="display:flex;flex-direction:column;gap:16px;">
+  <!-- Header Studio Categories + Maintenance repliable -------------------->
+  <article class="card card-elevate">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+          <span class="bx-section-eyebrow">STUDIO CATEGORIES</span>
+          <span class="bx-sync-tag">Sync Client · Prestataire · Vitrine</span>
+        </div>
+        <h3 style="margin:0 0 4px;">Studio Catalogue Metiers &amp; Picto SVG</h3>
+        <p class="section-help" style="margin:0;">Concevez vos categories metiers, previsualisez la carte mobile en direct et liez les commissions specifiques.</p>
+      </div>
+
+      {% if user.is_staff %}
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <form method="post" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Lancer l import du catalogue JSON officiel BABIFIX ?');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="category_import_catalog">
+          <button type="submit" class="btn-primary">Importer catalogue JSON</button>
+        </form>
+        <details style="position:relative;">
+          <summary class="bx-ribbon-link" style="cursor:pointer;padding:8px 12px;list-style:none;">Maintenance avancee ▾</summary>
+          <div style="position:absolute;right:0;top:calc(100% + 6px);min-width:250px;background:var(--bx-surface);border:1px solid var(--bx-border);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 16px 36px rgba(15,23,42,0.16);z-index:100;">
+            <form method="post" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Effacer le slug d icone pour toutes les categories actives ?');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="category_clear_icons_active">
+              <button type="submit" class="table-btn danger" style="width:100%;text-align:left;">Reinitialiser icones actives</button>
+            </form>
+            <form method="post" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('SUPPRIMER DEFINITIVEMENT toutes les categories ? Action irreversible.');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="category_delete_all">
+              <button type="submit" class="table-btn danger" style="width:100%;text-align:left;">Purger toutes les categories</button>
+            </form>
+          </div>
+        </details>
+      </div>
+      {% endif %}
+    </div>
+  </article>
+
+  <!-- KPI Studio Categories ------------------------------------------------->
+  <div class="pay-mini-stats">
+    <div class="pay-stat pay-stat--blue">
+      <span class="pay-stat-label">Total categories</span>
+      <strong class="pay-stat-value tabular-nums">{{ cat_studio_metrics.total|default:category_stats.count|default:0 }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--green">
+      <span class="pay-stat-label">Visibles en app</span>
+      <strong class="pay-stat-value tabular-nums">{{ cat_studio_metrics.actives|default:category_stats.actives|default:0 }}</strong>
+    </div>
+    <div class="pay-stat pay-stat--amber">
+      <span class="pay-stat-label">Fournitures liees</span>
+      <strong class="pay-stat-value tabular-nums">{{ cat_studio_metrics.catalogue_total|default:0 }}</strong>
+    </div>
+    <div class="pay-stat">
+      <span class="pay-stat-label">Regime sensible / Resa.</span>
+      <strong class="pay-stat-value tabular-nums">{{ cat_studio_metrics.sensibles_count|default:0 }} / {{ category_stats.reservations|default:0 }}</strong>
+    </div>
+  </div>
+
+  {% if pending_metiers_for_categories %}
+  <article class="card card-elevate" style="border-left:4px solid #d97706;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <div>
+        <span class="bx-section-eyebrow">OPTION A · METIERS PROPOSES</span>
+        <h3 style="margin:2px 0 0;">Nouveaux metiers demandes ({{ pending_metiers_for_categories|length }})</h3>
+      </div>
+      <span class="bx-pill bx-pill--warn">Creation + rattachement artisans en 1 clic</span>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Metier propose</th><th>Votes vitrine</th><th>Artisans en attente</th><th>Regime KYC</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          {% for mp in pending_metiers_for_categories %}
+          <tr>
+            <td><strong>{{ mp.nom }}</strong><br><small style="color:var(--bx-muted);">{{ mp.created_at|date:"d/m/Y" }}</small></td>
+            <td class="tabular-nums"><strong>{{ mp.votes }}</strong> / 5</td>
+            <td class="tabular-nums"><span class="bx-pill bx-pill--info">{{ mp.waiting_providers_count|default:0 }} dossier(s)</span></td>
+            <td>
+              <form method="post" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="metier_approve">
+                <input type="hidden" name="pk" value="{{ mp.id }}">
+                <input type="hidden" name="create_category" value="1">
+                <input type="hidden" name="return_section" value="categories">
+                <select name="regime_kyc" class="pay-filter-input" style="padding:5px 8px;font-size:12px;">
+                  <option value="STANDARD_TERRAIN">Standard terrain (CNI + Selfie)</option>
+                  <option value="SENSIBLE_CASIER">Sensible domicile (Casier + Reference)</option>
+                </select>
+                <button type="submit" class="table-btn table-btn--approve">Creer categorie &amp; rattacher</button>
+              </form>
+            </td>
+            <td>
+              <form method="post" action="?section=categories" onsubmit="return confirm('Supprimer cette suggestion ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="metier_delete">
+                <input type="hidden" name="pk" value="{{ mp.id }}">
+                <button type="submit" class="table-btn danger">Ignorer</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </article>
   {% endif %}
 
-  <div class="category-form-layout">
+  <!-- Studio Creation / Edition + Preview Carte Mobile Live ----------------->
+  <div class="bx-cat-studio-grid">
     <article class="card card-elevate crud-form-card category-form-panel">
-      <h3>{% if edit_category_id %}Modifier{% else %}Ajouter{% endif %} une catégorie</h3>
-      <p class="section-help">Choisissez un pictogramme dans la bibliothèque (recherche ci‑contre). Fichiers <code>static/category-icons/*.svg</code> : jeu <strong>multicolore</strong> (style marketplace). Pour des packs type <a href="https://iconscout.com/" rel="noopener noreferrer" target="_blank">IconScout</a>, exportez en SVG sous licence, gardez le <strong>même nom de fichier</strong> (slug, ex. <code>goutte.svg</code>) et <code>viewBox="0 0 24 24"</code>.</p>
+      <h3 style="margin:0 0 4px;">{% if edit_category_id %}Modifier la categorie{% else %}Creer une nouvelle categorie{% endif %}</h3>
+      <p class="section-help" style="margin:0 0 12px;">Le pictogramme et le libelle apparaissent instantanement dans l'apercu a droite et sur l'ecran d'accueil client.</p>
       <form method="post" class="crud-form" id="category-form-babifix" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
         {% csrf_token %}
         <input type="hidden" name="action" value="category_save">
         {% if edit_category_id %}<input type="hidden" name="pk" value="{{ edit_category_id }}">{% endif %}
         <div class="form-grid">{{ category_form.as_p }}</div>
         <div class="form-actions">
-          <button type="submit" class="btn-primary">Enregistrer</button>
-          {% if edit_category_id %}<a href="?section=categories" class="btn-link-cancel">Annuler</a>{% endif %}
+          <button type="submit" class="btn-primary">Enregistrer categorie</button>
+          {% if edit_category_id %}<a href="?section=categories" class="btn-link-cancel">Annuler edition</a>{% endif %}
         </div>
       </form>
     </article>
 
-    <article class="card card-elevate category-picker-panel" x-data="{ searchIcon: '' }">
-      <h3>Bibliothèque d’icônes</h3>
-      <label class="category-icon-search-label" for="category-icon-search">Filtrer les pictogrammes</label>
-      <input id="category-icon-search" type="search" class="category-icon-search-input" placeholder="Ex. plomberie, goutte, ménage…" x-model="searchIcon" autocomplete="off">
-      <p class="picker-label">Cliquer une vignette remplit le champ « slug » du formulaire.</p>
-      <div class="category-icon-grid" role="listbox" aria-label="Icônes catégories">
-        {% for slug, label in category_icon_slugs %}
-        {% with icon_path='category-icons/'|add:slug|add:'.svg' %}
-        <button type="button" class="category-icon-btn{% if category_form.icone_slug.value == slug %} is-selected{% endif %}"
-          data-slug="{{ slug }}"
-          data-label="{{ label|escape }}"
-          role="option"
-          x-show="(() => { const q = (searchIcon || '').trim().toLowerCase(); if (!q) return true; const s = ($el.dataset.slug || '').toLowerCase(); const l = ($el.dataset.label || '').toLowerCase(); return s.includes(q) || l.includes(q); })()"
-          onclick="(function(s,u){var el=document.getElementById('id_icone_slug');if(el)el.value=s;var im=document.getElementById('cat-icon-preview');if(im)im.src=u;document.querySelectorAll('.category-icon-btn').forEach(function(b){b.classList.toggle('is-selected',b.dataset.slug===s);});})('{{ slug|escapejs }}','{% static icon_path %}')"
-          title="{{ label }} : {{ slug }}">
-          <img src="{% static icon_path %}" alt="" width="40" height="40" loading="lazy">
-          <span class="category-icon-label">{{ label }}</span>
-        </button>
-        {% endwith %}
-        {% endfor %}
-      </div>
-      <p class="section-help category-preview-row">Aperçu sélection :
-        {% with sel=category_form.icone_slug.value|default:'goutte' %}
-        {% with pv='category-icons/'|add:sel|add:'.svg' %}
-        <img id="cat-icon-preview" src="{% static pv %}" alt="" width="48" height="48" class="cat-preview-img">
-        {% endwith %}
-        {% endwith %}
-      </p>
-    </article>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <!-- Apercu Carte Mobile en Temps Reel -->
+      <article class="bx-cat-preview-stage" aria-label="Apercu temps reel carte mobile">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span class="bx-section-eyebrow">APERCU APP MOBILE</span>
+          <span style="font-size:11px;color:var(--bx-muted);">Rendu temps reel</span>
+        </div>
+        <div class="bx-cat-preview-card">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="bx-cat-preview-ico">
+              {% with sel=category_form.icone_slug.value|default:'goutte' %}
+              {% with pv='category-icons/'|add:sel|add:'.svg' %}
+              <img id="cat-icon-preview" src="{% static pv %}" alt="" width="34" height="34">
+              {% endwith %}
+              {% endwith %}
+            </div>
+            <div>
+              <strong id="bx-cat-pv-name" style="font-size:15px;display:block;">{{ category_form.nom.value|default:"Nom de la categorie" }}</strong>
+              <span class="bx-pill bx-pill--info" style="font-size:10.5px;">Commission std {{ public_config.commission_base_pct|default:18 }}%</span>
+            </div>
+          </div>
+          <p id="bx-cat-pv-desc" style="margin:0;font-size:12.5px;color:var(--bx-muted);line-height:1.45;">
+            {{ category_form.description.value|default:"Description affichee sous le metier pour guider le client avant sa demande." }}
+          </p>
+        </div>
+      </article>
+
+      <!-- Bibliotheque d'icones SVG -->
+      <article class="card card-elevate category-picker-panel">
+        <h4 style="margin:0 0 8px;">Bibliotheque Pictogrammes SVG</h4>
+        <input id="category-icon-search" type="search" class="category-icon-search-input" placeholder="Filtrer : plomberie, clim, peinture..." oninput="filterCategoryIcons(this.value)" autocomplete="off">
+        <div class="category-icon-grid" role="listbox" aria-label="Icones categories" style="max-height:240px;">
+          {% for slug, label in category_icon_slugs %}
+          {% with icon_path='category-icons/'|add:slug|add:'.svg' %}
+          <button type="button" class="category-icon-btn{% if category_form.icone_slug.value == slug %} is-selected{% endif %}"
+            data-slug="{{ slug }}"
+            data-label="{{ label|escape }}"
+            role="option"
+            onclick="selectCategoryIcon('{{ slug|escapejs }}','{% static icon_path %}')"
+            title="{{ label }} ({{ slug }})">
+            <img src="{% static icon_path %}" alt="" width="34" height="34" loading="lazy">
+            <span class="category-icon-label">{{ label }}</span>
+          </button>
+          {% endwith %}
+          {% endfor %}
+        </div>
+      </article>
+    </div>
   </div>
 
-  {% if category_stats %}
-  <div class="pay-mini-stats">
-    <div class="pay-stat pay-stat--blue">
-      <span class="pay-stat-label">Catégories</span>
-      <strong class="pay-stat-value">{{ category_stats.count }}</strong>
-    </div>
-    <div class="pay-stat pay-stat--green">
-      <span class="pay-stat-label">Actives</span>
-      <strong class="pay-stat-value">{{ category_stats.actives }}</strong>
-    </div>
-    <div class="pay-stat pay-stat--amber">
-      <span class="pay-stat-label">Services</span>
-      <strong class="pay-stat-value">{{ category_stats.services }}</strong>
-    </div>
-    <div class="pay-stat">
-      <span class="pay-stat-label">Réservations</span>
-      <strong class="pay-stat-value">{{ category_stats.reservations }}</strong>
-    </div>
-  </div>
-  {% endif %}
-
-  <form method="get" class="pay-filter-bar">
-    <input type="hidden" name="section" value="categories">
-    {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
-    <select name="actif" class="pay-filter-input" title="Visibilité">
-      <option value="">Toutes</option>
-      <option value="1" {% if category_filters.actif == '1' %}selected{% endif %}>Actives</option>
-      <option value="0" {% if category_filters.actif == '0' %}selected{% endif %}>Inactives</option>
-    </select>
-    <button type="submit" class="pay-filter-btn">Filtrer</button>
-    <a href="?section=categories" class="pay-filter-reset">Réinitialiser</a>
-  </form>
   {% include 'adminpanel/partials/_admin_detail_modal.html' %}
 
+  <!-- Catalogue des categories : Switcher Grille / Tableau + Filtres --------->
   <article class="card card-elevate category-list-card">
-    <div class="category-list-header">
-      <h3>Liste des catégories</h3>
-      {% if user.is_staff %}
-      <div class="category-list-actions">
-        <form method="post" class="category-clear-icons-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Effacer le slug d’icône et l’URL d’icône pour toutes les catégories actives ? Les fichiers SVG ne sont pas supprimés du serveur.');">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="category_clear_icons_active">
-          <button type="submit" class="table-btn danger category-clear-icons-btn">Effacer toutes les icônes (actives)</button>
-        </form>
-        <form method="post" class="category-delete-all-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('SUPPRIMER DÉFINITIVEMENT toutes les catégories ?\n\nCette action est irréversible. Les comptes prestataires ne sont pas supprimés : leur catégorie sera simplement vide jusqu’à nouvelle attribution ou réimport du catalogue JSON.');">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="category_delete_all">
-          <button type="submit" class="table-btn danger category-delete-all-btn">Supprimer toutes les catégories</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Catalogue actif <span class="section-count tabular-nums">{{ categories|length }}</span></h3>
+        <form method="get" style="display:inline-flex;gap:8px;align-items:center;">
+          <input type="hidden" name="section" value="categories">
+          {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+          <select name="actif" onchange="this.form.submit()" class="pay-filter-input" style="padding:5px 10px;">
+            <option value="">Toutes</option>
+            <option value="1" {% if category_filters.actif == '1' %}selected{% endif %}>Actives seulement</option>
+            <option value="0" {% if category_filters.actif == '0' %}selected{% endif %}>Inactives</option>
+          </select>
         </form>
       </div>
-      {% endif %}
+      <div style="display:inline-flex;gap:4px;padding:3px;border-radius:10px;border:1px solid var(--bx-border);background:var(--bx-surface-2);" role="group" aria-label="Mode d affichage">
+        <button type="button" class="bx-cat-ico-chip is-selected" id="bx-cat-mode-grid" onclick="setCategoryViewMode('grid')">Grille Studio</button>
+        <button type="button" class="bx-cat-ico-chip" id="bx-cat-mode-table" onclick="setCategoryViewMode('table')">Tableau</button>
+      </div>
     </div>
-    <div class="table-wrap category-table-desktop">
+
+    <!-- VUE GRILLE STUDIO -->
+    <div id="bx-cat-grid-view" class="bx-cat-cards-grid">
+      {% for cat in categories %}
+      {% with custom_rate=category_custom_rates|dict_get:cat.id sup_count=catalogue_counts_by_cat|dict_get:cat.id|default:0 %}
+      <div class="bx-cat-card">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="bx-cat-preview-ico" style="width:42px;height:42px;border-radius:12px;">
+                {% if cat.icone_slug %}
+                <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="28" height="28" loading="lazy">
+                {% else %}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                {% endif %}
+              </div>
+              <div>
+                <strong style="display:block;font-size:14.5px;">{{ cat.nom }}</strong>
+                <span class="slug-hint" style="font-size:11px;">{{ cat.icone_slug|default:"aucun slug" }}</span>
+              </div>
+            </div>
+            {% if cat.actif %}
+            <span class="pill pill-ok">Active</span>
+            {% else %}
+            <span class="pill">Inactive</span>
+            {% endif %}
+          </div>
+
+          <p style="margin:0 0 10px;font-size:12.5px;color:var(--bx-muted);line-height:1.45;">{{ cat.description|truncatewords:16|default:"Aucune description." }}</p>
+
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+            <span class="bx-pill tabular-nums">{{ cat.groupe|default:"Maison & Services" }}</span>
+            {% if cat.regime_kyc == "SENSIBLE_CASIER" %}
+            <span class="bx-pill bx-pill--warn">Sensible · Casier requis</span>
+            {% endif %}
+            <span class="bx-pill bx-pill--info tabular-nums">{{ cat.services }} service(s)</span>
+            <span class="bx-pill tabular-nums">{{ cat.reservations }} resa.</span>
+            <a href="?section=catalogue&cat_id={{ cat.id }}" class="bx-pill bx-pill--ok tabular-nums" style="text-decoration:none;">{{ sup_count }} fourniture(s)</a>
+            {% if custom_rate is not None %}
+            <span class="bx-pill bx-pill--warn tabular-nums">Comm. {{ custom_rate }}%</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding-top:10px;border-top:1px solid var(--bx-border);flex-wrap:wrap;">
+          <a href="?section=categories&amp;edit_category={{ cat.id }}" class="link-edit" style="font-size:12px;">Modifier</a>
+          <form method="post" class="inline-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="category_toggle">
+            <input type="hidden" name="category_name" value="{{ cat.nom }}">
+            <button type="submit" class="table-btn" style="font-size:11.5px;padding:4px 9px;">{% if cat.actif %}Desactiver{% else %}Activer{% endif %}</button>
+          </form>
+          <form method="post" class="inline-delete" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Supprimer cette categorie ?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="category_delete">
+            <input type="hidden" name="pk" value="{{ cat.id }}">
+            <button type="submit" class="table-btn danger" style="font-size:11.5px;padding:4px 9px;">Supprimer</button>
+          </form>
+        </div>
+      </div>
+      {% endwith %}
+      {% empty %}
+      <p class="empty-categories">Aucune categorie : importez le catalogue JSON ou creez-en une a gauche.</p>
+      {% endfor %}
+    </div>
+
+    <!-- VUE TABLEAU COMPACT -->
+    <div id="bx-cat-table-view" class="table-wrap" style="display:none;">
       <table>
         <thead>
           <tr>
-            <th class="th-icon">Icône</th>
-            <th>Catégorie</th>
+            <th class="th-icon">Icone</th>
+            <th>Categorie</th>
             <th>Description</th>
+            <th>Fournitures</th>
             <th>Services</th>
-            <th>Réservations</th>
-            <th>État</th>
+            <th>Reservations</th>
+            <th>Etat</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -129,74 +285,98 @@
           <tr>
             <td class="td-icon">
               {% if cat.icone_slug %}
-              <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="36" height="36" class="category-row-thumb" loading="lazy">
+              <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="34" height="34" class="category-row-thumb" loading="lazy">
               {% else %}
               <span class="category-thumb-fallback">-</span>
               {% endif %}
             </td>
             <td><strong>{{ cat.nom }}</strong><br><span class="slug-hint">{{ cat.icone_slug }}</span></td>
-            <td class="td-desc">{{ cat.description|truncatewords:18 }}</td>
-            <td>{{ cat.services }}</td>
-            <td>{{ cat.reservations }}</td>
-            <td>{% if cat.actif %}Active{% else %}Inactive{% endif %}</td>
+            <td class="td-desc">{{ cat.description|truncatewords:16 }}</td>
+            <td class="tabular-nums"><a href="?section=catalogue&cat_id={{ cat.id }}" class="bx-ribbon-link">{{ catalogue_counts_by_cat|dict_get:cat.id|default:0 }}</a></td>
+            <td class="tabular-nums">{{ cat.services }}</td>
+            <td class="tabular-nums">{{ cat.reservations }}</td>
+            <td>{% if cat.actif %}<span class="pill pill-ok">Active</span>{% else %}<span class="pill">Inactive</span>{% endif %}</td>
             <td class="td-actions">
               <a href="?section=categories&amp;edit_category={{ cat.id }}" class="link-edit">Modifier</a>
+              <form method="post" class="inline-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="category_toggle">
+                <input type="hidden" name="category_name" value="{{ cat.nom }}">
+                <button type="submit" class="table-btn">Basculer</button>
+              </form>
               <form method="post" class="inline-delete" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Supprimer ?');">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="category_delete">
                 <input type="hidden" name="pk" value="{{ cat.id }}">
                 <button type="submit" class="table-btn danger">Supprimer</button>
               </form>
-              <form method="post" class="inline-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="category_toggle">
-                <input type="hidden" name="category_name" value="{{ cat.nom }}">
-                <button type="submit" class="table-btn">Basculer actif</button>
-              </form>
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="7">Aucune catégorie : importez le catalogue ou ajoutez une ligne.</td></tr>
+          <tr><td colspan="8">Aucune categorie.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    <div class="category-cards-mobile">
-      {% for cat in categories %}
-      <div class="category-mobile-card">
-        <div class="category-mobile-card-head">
-          {% if cat.icone_slug %}
-          <img src="{% static 'category-icons/'|add:cat.icone_slug|add:'.svg' %}" alt="" width="44" height="44" loading="lazy">
-          {% endif %}
-          <div>
-            <strong>{{ cat.nom }}</strong>
-            <p class="category-mobile-desc">{{ cat.description|truncatewords:22 }}</p>
-          </div>
-        </div>
-        <div class="category-mobile-meta">
-          <span>Services {{ cat.services }}</span>
-          <span>Résa. {{ cat.reservations }}</span>
-          <span>{% if cat.actif %}Active{% else %}Inactive{% endif %}</span>
-        </div>
-        <div class="category-mobile-actions">
-          <a href="?section=categories&amp;edit_category={{ cat.id }}" class="link-edit">Modifier</a>
-          <form method="post" class="inline-form" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="category_toggle">
-            <input type="hidden" name="category_name" value="{{ cat.nom }}">
-            <button type="submit" class="table-btn">Basculer actif</button>
-          </form>
-          <form method="post" class="inline-delete" action="?section=categories{% if search_q %}&q={{ search_q|urlencode }}{% endif %}" onsubmit="return confirm('Supprimer ?');">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="category_delete">
-            <input type="hidden" name="pk" value="{{ cat.id }}">
-            <button type="submit" class="table-btn danger">Supprimer</button>
-          </form>
-        </div>
-      </div>
-      {% empty %}
-      <p class="empty-categories">Aucune catégorie.</p>
-      {% endfor %}
-    </div>
   </article>
 </div>
+
+<script>
+window.filterCategoryIcons = function (rawQuery) {
+  var q = (rawQuery || "").trim().toLowerCase();
+  document.querySelectorAll(".category-icon-btn").forEach(function (btn) {
+    if (!q) {
+      btn.style.display = "";
+      return;
+    }
+    var slug = (btn.dataset.slug || "").toLowerCase();
+    var label = (btn.dataset.label || "").toLowerCase();
+    btn.style.display = (slug.indexOf(q) !== -1 || label.indexOf(q) !== -1) ? "" : "none";
+  });
+};
+
+window.selectCategoryIcon = function (slug, url) {
+  var slugInput = document.getElementById("id_icone_slug");
+  if (slugInput) slugInput.value = slug;
+  var prev = document.getElementById("cat-icon-preview");
+  if (prev) prev.src = url;
+  document.querySelectorAll(".category-icon-btn").forEach(function (b) {
+    b.classList.toggle("is-selected", b.dataset.slug === slug);
+  });
+};
+
+window.setCategoryViewMode = function (mode) {
+  var grid = document.getElementById("bx-cat-grid-view");
+  var table = document.getElementById("bx-cat-table-view");
+  var bGrid = document.getElementById("bx-cat-mode-grid");
+  var bTable = document.getElementById("bx-cat-mode-table");
+  if (grid) grid.style.display = mode === "grid" ? "grid" : "none";
+  if (table) table.style.display = mode === "table" ? "block" : "none";
+  if (bGrid) bGrid.classList.toggle("is-selected", mode === "grid");
+  if (bTable) bTable.classList.toggle("is-selected", mode === "table");
+};
+
+window.bindCategoryPreviewInputs = function () {
+  var nameInput = document.getElementById("id_nom");
+  var descInput = document.getElementById("id_description");
+  var pvName = document.getElementById("bx-cat-pv-name");
+  var pvDesc = document.getElementById("bx-cat-pv-desc");
+  if (nameInput && pvName && !nameInput.dataset.pvBound) {
+    nameInput.dataset.pvBound = "1";
+    nameInput.addEventListener("input", function () {
+      pvName.textContent = nameInput.value.trim() || "Nom de la categorie";
+    });
+  }
+  if (descInput && pvDesc && !descInput.dataset.pvBound) {
+    descInput.dataset.pvBound = "1";
+    descInput.addEventListener("input", function () {
+      pvDesc.textContent = descInput.value.trim() || "Description affichee sous le metier pour guider le client avant sa demande.";
+    });
+  }
+};
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", window.bindCategoryPreviewInputs);
+} else {
+  window.bindCategoryPreviewInputs();
+}
+</script>

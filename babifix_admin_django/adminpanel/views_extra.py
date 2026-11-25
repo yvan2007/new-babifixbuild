@@ -1,5 +1,5 @@
 """
-BABIFIX — vues API supplémentaires (ajout sans modifier views.py principal)
+BABIFIX  :  vues API supplémentaires (ajout sans modifier views.py principal)
   - Email transactionnels
   - Toggle disponibilité prestataire
   - CRUD disponibilités (créneaux + indisponibilités)
@@ -91,78 +91,76 @@ def email_welcome(user, role: str) -> None:
 def email_provider_accepted(provider: Provider) -> None:
     if not (provider.user and provider.user.email):
         return
-    send_babifix_email(
+    html_content = _render_email_template(
+        "provider_decision.html",
+        {"provider_name": provider.nom, "accepted": True, "motif": ""},
+    )
+    send_babifix_email_html(
         to_email=provider.user.email,
-        subject="Votre dossier BABIFIX a été accepté !",
-        body=(
-            f"Bonjour {provider.nom},\n\n"
-            "Bonne nouvelle ! Votre compte prestataire BABIFIX a été validé.\n"
-            "Vous pouvez désormais recevoir des missions via l'application.\n\n"
-            "Bienvenue dans la communauté BABIFIX — Côte d'Ivoire.\n\n"
-            "L'équipe BABIFIX | contact@babifix.ci"
-        ),
+        subject="Votre dossier BABIFIX a ete accepte !",
+        html_content=html_content,
     )
 
 
 def email_provider_refused(provider: Provider, motif: str = "") -> None:
     if not (provider.user and provider.user.email):
         return
-    send_babifix_email(
+    html_content = _render_email_template(
+        "provider_decision.html",
+        {
+            "provider_name": provider.nom,
+            "accepted": False,
+            "motif": motif or "Dossier incomplet ou non conforme.",
+        },
+    )
+    send_babifix_email_html(
         to_email=provider.user.email,
-        subject="Votre dossier BABIFIX nécessite des corrections",
-        body=(
-            f"Bonjour {provider.nom},\n\n"
-            "Après examen, notre équipe a identifié des corrections nécessaires.\n\n"
-            f"Motif : {motif or 'Dossier incomplet ou non conforme.'}\n\n"
-            "Vous pouvez soumettre à nouveau votre dossier depuis l'application "
-            "sans recréer de compte.\n\n"
-            "L'équipe BABIFIX | contact@babifix.ci"
-        ),
+        subject="Votre dossier BABIFIX necessite des ajustements",
+        html_content=html_content,
     )
 
 
 def email_new_reservation(provider: Provider, reservation: Reservation) -> None:
     if not (provider.user and provider.user.email):
         return
-    send_babifix_email(
+    # Privacy : masquer la rue exacte si address_is_approximate=True
+    if getattr(reservation, "address_is_approximate", True):
+        sector_label = (
+            ", ".join(
+                p for p in [
+                    (getattr(reservation, "address_quartier", "") or "").strip(),
+                    (getattr(reservation, "address_ville", "") or "").strip(),
+                ] if p
+            )
+            or getattr(reservation, "sos_sector", "")
+            or "Secteur client (adresse exacte masquee avant confirmation)"
+        )
+    else:
+        sector_label = reservation.address_label or reservation.address_ville or "Non precisee"
+    html_content = _render_email_template(
+        "booking_new_provider.html",
+        {
+            "provider_name": provider.nom,
+            "reservation_ref": reservation.reference,
+            "service_title": reservation.title or reservation.reference,
+            "client_name": reservation.client or "Client BABIFIX",
+            "sector_label": sector_label,
+            "sos_mode": bool(getattr(reservation, "sos_mode", False)),
+        },
+    )
+    send_babifix_email_html(
         to_email=provider.user.email,
         subject=f"Nouvelle demande de service : {reservation.title or reservation.reference}",
-        body=(
-            f"Bonjour {provider.nom},\n\n"
-            f"Vous avez reçu une nouvelle demande de service.\n\n"
-            f"Référence : {reservation.reference}\n"
-            f"Client    : {reservation.client}\n"
-            f"Adresse   : {reservation.address_label or 'Non précisée'}\n\n"
-            "Ouvrez l'application BABIFIX Prestataire pour accepter ou décliner.\n\n"
-            "L'équipe BABIFIX | contact@babifix.ci"
-        ),
+        html_content=html_content,
     )
 
 
 def email_mission_completed(reservation: Reservation) -> None:
-    from .models import UserProfile
-
-    client_user = reservation.client_user
-    if not (client_user and client_user.email):
-        return
-    send_babifix_email(
-        to_email=client_user.email,
-        subject="Votre mission BABIFIX est terminée : Évaluez votre prestataire",
-        body=(
-            f"Bonjour,\n\n"
-            f'Votre mission "{reservation.title or reservation.reference}" '
-            f"avec {reservation.prestataire} est marquée comme terminée.\n\n"
-            "Prenez un moment pour évaluer votre prestataire dans l'application BABIFIX.\n"
-            "Votre avis aide la communauté et améliore la qualité de service.\n\n"
-            "L'équipe BABIFIX | contact@babifix.ci"
-        ),
-    )
+    send_booking_done_email(reservation)
 
 
 # =============================================================================
-# TOGGLE DISPONIBILITE — PATCH /api/prestataire/availability/
-# =============================================================================
-# TOGGLE DISPONIBILITÉ — PATCH /api/prestataire/availability/
+# TOGGLE DISPONIBILITE : PATCH /api/prestataire/availability/
 # =============================================================================
 @csrf_exempt
 @require_api_auth(["prestataire", "admin"])
@@ -174,7 +172,7 @@ def api_prestataire_availability(request):
     except (json.JSONDecodeError, ValueError):
         return JsonResponse({"error": "invalid_json"}, status=400)
 
-    # Flutter envoie 'disponible', l'API documentée utilise 'is_available' — on accepte les deux
+    # Flutter envoie 'disponible', l'API documentée utilise 'is_available'  :  on accepte les deux
     is_available = payload.get("is_available")
     if is_available is None:
         is_available = payload.get("disponible")
@@ -214,7 +212,7 @@ def api_prestataire_availability(request):
 
 
 # =============================================================================
-# BULK ACTIONS ADMIN — POST /api/admin/prestataires/bulk-action/
+# BULK ACTIONS ADMIN  :  POST /api/admin/prestataires/bulk-action/
 # =============================================================================
 @require_api_auth(["admin"])
 def api_admin_bulk_provider_action(request):
@@ -273,7 +271,7 @@ def api_admin_bulk_provider_action(request):
 
 
 # =============================================================================
-# JOURNAL AUDIT — GET /api/admin/audit-log/
+# JOURNAL AUDIT  :  GET /api/admin/audit-log/
 # =============================================================================
 @require_api_auth(["admin"])
 @require_GET
@@ -298,121 +296,242 @@ def api_admin_audit_log(request):
 
 
 # =============================================================================
-# EXPORT CSV — GET /api/admin/export/<kind>/
+# EXPORT CSV  :  GET /api/admin/export/<kind>/
 # =============================================================================
 class _EchoWriter:
     def write(self, value):
         return value
 
 
-@require_api_auth(["admin"])
 @require_GET
 def api_admin_export_csv(request, kind):
+    # Accepte authentification soit par session Django staff, soit par token Bearer admin
+    is_staff = request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
+    if not is_staff:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            from .auth import verify_token
+            payload = verify_token(auth_header.split(" ", 1)[1].strip())
+            if not payload or payload.get("role") != "admin":
+                return JsonResponse({"error": "unauthorized", "detail": "Token admin invalide"}, status=401)
+        else:
+            return JsonResponse({"error": "unauthorized", "detail": "Session ou token admin requis"}, status=401)
+
     writer = _EchoWriter()
-    if kind == "reservations":
-        qs = Reservation.objects.all()
+    kind_norm = str(kind).lower().strip()
+
+    if kind_norm in ("providers", "prestataires"):
+        qs = Provider.objects.all()
+        q = request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(nom__icontains=q)
+                | Q(specialite__icontains=q)
+                | Q(ville__icontains=q)
+                | Q(bio__icontains=q)
+                | Q(user__username__icontains=q)
+                | Q(user__email__icontains=q)
+                | Q(user__profile__phone_e164__icontains=q)
+            )
+        statut = request.GET.get("statut", "").strip()
+        if statut:
+            qs = qs.filter(statut__iexact=statut)
+        ville = request.GET.get("ville", "").strip()
+        if ville:
+            qs = qs.filter(ville__icontains=ville)
+        specialite = request.GET.get("specialite", "").strip()
+        if specialite:
+            qs = qs.filter(specialite__icontains=specialite)
+        disponible = request.GET.get("disponible", "").strip()
+        if disponible in ("true", "1", "True"):
+            qs = qs.filter(disponible=True)
+        elif disponible in ("false", "0", "False"):
+            qs = qs.filter(disponible=False)
+
         headers = [
-            "id",
-            "reference",
-            "client",
-            "prestataire",
-            "montant",
-            "statut",
-            "cash_flow_status",
-            "payment_type",
-            "mobile_money_operator",
-            "address_label",
+            "ID",
+            "Nom",
+            "Téléphone",
+            "Spécialité",
+            "Ville",
+            "Statut",
+            "Score KYC",
+            "Disponible",
+            "Tarif d'intervention (FCFA)",
+            "Note moyenne",
+            "Nombre d'avis",
+            "Approuvé",
+            "Date d'inscription",
         ]
 
         def row_iter():
+            from .views import _csv_safe_cell
+            w = csv.writer(writer)
+            yield w.writerow(headers)
+            for p in qs.iterator():
+                tel = ""
+                if p.user:
+                    prof = getattr(p.user, "profile", None)
+                    tel = (prof.phone_e164 if prof and prof.phone_e164 else p.user.username) or ""
+                created = p.created_at.strftime("%d/%m/%Y %H:%M") if hasattr(p, 'created_at') and p.created_at else ""
+                yield w.writerow(
+                    [
+                        _csv_safe_cell(v)
+                        for v in [
+                            p.pk,
+                            p.nom,
+                            tel,
+                            p.specialite,
+                            p.ville,
+                            p.statut,
+                            f"{p.auto_check_score}/100" if p.auto_check_score is not None else "N/A",
+                            "Oui" if p.disponible else "Non",
+                            f"{p.tarif_horaire:.0f}" if p.tarif_horaire is not None else "Non défini",
+                            f"{p.average_rating:.1f}" if p.average_rating is not None else "0.0",
+                            p.rating_count,
+                            "Oui" if p.is_approved else "Non",
+                            created,
+                        ]
+                    ]
+                )
+
+    elif kind_norm in ("reservations", "bookings"):
+        qs = Reservation.objects.all()
+        q = request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(reference__icontains=q)
+                | Q(client__icontains=q)
+                | Q(prestataire__icontains=q)
+                | Q(address_label__icontains=q)
+            )
+        statut = request.GET.get("statut", "").strip()
+        if statut:
+            qs = qs.filter(statut__iexact=statut)
+        payment_type = request.GET.get("payment_type", "").strip()
+        if payment_type:
+            qs = qs.filter(payment_type__iexact=payment_type)
+
+        headers = [
+            "ID",
+            "Référence",
+            "Client",
+            "Prestataire",
+            "Montant (FCFA)",
+            "Statut",
+            "Statut paiement",
+            "Mode de paiement",
+            "Opérateur Mobile Money",
+            "Adresse intervention",
+            "Date création",
+        ]
+
+        def row_iter():
+            from .views import _csv_safe_cell
             w = csv.writer(writer)
             yield w.writerow(headers)
             for r in qs.iterator():
+                created = r.created_at.strftime("%d/%m/%Y %H:%M") if hasattr(r, 'created_at') and r.created_at else ""
                 yield w.writerow(
                     [
-                        r.pk,
-                        r.reference,
-                        r.client,
-                        r.prestataire,
-                        r.montant,
-                        r.statut,
-                        r.cash_flow_status,
-                        r.payment_type,
-                        r.mobile_money_operator,
-                        r.address_label,
+                        _csv_safe_cell(v)
+                        for v in [
+                            r.pk,
+                            r.reference,
+                            r.client,
+                            r.prestataire,
+                            r.montant,
+                            r.statut,
+                            r.cash_flow_status,
+                            r.payment_type,
+                            r.mobile_money_operator,
+                            r.address_label,
+                            created,
+                        ]
                     ]
                 )
-    elif kind == "prestataires":
-        qs = Provider.objects.all()
+
+    elif kind_norm in ("payments", "paiements"):
+        qs = Payment.objects.all().order_by("-created_at", "-id")
+        q = request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(reference__icontains=q)
+                | Q(client__icontains=q)
+                | Q(prestataire__icontains=q)
+                | Q(reference_externe__icontains=q)
+            )
+        etat = request.GET.get("etat", "").strip()
+        if etat:
+            qs = qs.filter(etat__iexact=etat)
+
         headers = [
-            "id",
-            "nom",
-            "specialite",
-            "ville",
-            "statut",
-            "disponible",
-            "tarif_horaire",
-            "average_rating",
-            "rating_count",
-            "is_approved",
+            "ID",
+            "Référence",
+            "Client",
+            "Prestataire",
+            "Montant (FCFA)",
+            "État",
+            "Type paiement",
+            "Validé par admin",
+            "Référence externe",
+            "Date",
         ]
 
         def row_iter():
+            from .views import _csv_safe_cell
             w = csv.writer(writer)
             yield w.writerow(headers)
             for p in qs.iterator():
+                created = p.created_at.strftime("%d/%m/%Y %H:%M") if hasattr(p, 'created_at') and p.created_at else ""
                 yield w.writerow(
                     [
-                        p.pk,
-                        p.nom,
-                        p.specialite,
-                        p.ville,
-                        p.statut,
-                        p.disponible,
-                        p.tarif_horaire,
-                        p.average_rating,
-                        p.rating_count,
-                        p.is_approved,
+                        _csv_safe_cell(v)
+                        for v in [
+                            p.pk,
+                            p.reference,
+                            p.client,
+                            p.prestataire,
+                            p.montant,
+                            p.etat,
+                            p.type_paiement,
+                            "Oui" if p.valide_par_admin else "Non",
+                            p.reference_externe,
+                            created,
+                        ]
                     ]
                 )
-    elif kind == "paiements":
-        qs = Payment.objects.all()
-        headers = [
-            "id",
-            "reference",
-            "client",
-            "prestataire",
-            "montant",
-            "etat",
-            "type_paiement",
-            "valide_par_admin",
-            "reference_externe",
-        ]
+
+    elif kind_norm in ("clients", "customers"):
+        from .models import Client
+        qs = Client.objects.all()
+        q = request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(nom__icontains=q)
+                | Q(prenom__icontains=q)
+                | Q(telephone__icontains=q)
+                | Q(email__icontains=q)
+                | Q(ville__icontains=q)
+            )
+        headers = ["ID", "Nom", "Prénom", "Téléphone", "Email", "Ville", "Date création"]
 
         def row_iter():
+            from .views import _csv_safe_cell
             w = csv.writer(writer)
             yield w.writerow(headers)
-            for p in qs.iterator():
-                yield w.writerow(
-                    [
-                        p.pk,
-                        p.reference,
-                        p.client,
-                        p.prestataire,
-                        p.montant,
-                        p.etat,
-                        p.type_paiement,
-                        p.valide_par_admin,
-                        p.reference_externe,
-                    ]
-                )
+            for c in qs.iterator():
+                created = c.created_at.strftime("%d/%m/%Y %H:%M") if hasattr(c, 'created_at') and c.created_at else ""
+                yield w.writerow([_csv_safe_cell(v) for v in [c.pk, c.nom, c.prenom, c.telephone, c.email, c.ville, created]])
+
     else:
-        return JsonResponse({"error": f"kind inconnu : {kind}"}, status=400)
+        return JsonResponse({"error": f"Type d'export inconnu : {kind}"}, status=400)
 
+    filename = f"babifix_{kind_norm}_{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
     response = StreamingHttpResponse(
         row_iter(), content_type="text/csv; charset=utf-8-sig"
     )
-    response["Content-Disposition"] = f'attachment; filename="babifix_{kind}.csv"'
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
 
@@ -436,7 +555,7 @@ def email_provider_kyc_approved(provider: Provider) -> None:
         logger.warning("Email KYC non envoyé (%s) : %s", provider.user.email, exc)
 
 # =============================================================================
-# CRUD DISPONIBILITÉS — GET/POST /api/prestataire/availability/
+# CRUD DISPONIBILITÉS  :  GET/POST /api/prestataire/availability/
 # =============================================================================
 @csrf_exempt
 @require_api_auth(["prestataire", "admin"])
@@ -474,7 +593,7 @@ def api_prestataire_availability_crud(request, id=None):
         debut = payload.get("heure_debut") or payload.get("start_time")
         fin = payload.get("heure_fin") or payload.get("end_time")
 
-        # NB : jour peut valoir 0 (lundi) — surtout pas de test « falsy »
+        # NB : jour peut valoir 0 (lundi)  :  surtout pas de test « falsy »
         # (0 est falsy en Python), sinon le lundi est rejeté à tort.
         if jour is None or not debut or not fin:
             return JsonResponse(
@@ -525,7 +644,7 @@ def api_prestataire_availability_crud(request, id=None):
 
 
 # =============================================================================
-# CRUD INDISPONIBILITÉS — GET/POST /api/prestataire/unavailability/
+# CRUD INDISPONIBILITÉS  :  GET/POST /api/prestataire/unavailability/
 # =============================================================================
 @csrf_exempt
 @require_api_auth(["prestataire", "admin"])
@@ -592,7 +711,7 @@ def api_prestataire_unavailability_crud(request, id=None):
 
 
 # =============================================================================
-# STATISTIQUES PRESTATAIRE — GET /api/prestataire/stats/
+# STATISTIQUES PRESTATAIRE  :  GET /api/prestataire/stats/
 # =============================================================================
 @require_api_auth(["prestataire", "admin"])
 @require_GET
@@ -646,7 +765,7 @@ def api_prestataire_stats(request):
 
 
 # =============================================================================
-# FAVORIS PRESTATAIRES — GET/POST/DELETE /api/client/favorites/
+# FAVORIS PRESTATAIRES  :  GET/POST/DELETE /api/client/favorites/
 # =============================================================================
 @csrf_exempt
 @require_api_auth(["client", "admin"])
@@ -720,7 +839,7 @@ def api_client_favorites(request):
 
 
 # =============================================================================
-# HISTORIQUE PAIEMENTS CLIENT — GET /api/client/payments/
+# HISTORIQUE PAIEMENTS CLIENT  :  GET /api/client/payments/
 # =============================================================================
 @require_GET
 @require_api_auth(["client", "admin"])
@@ -733,11 +852,11 @@ def api_client_payments(request):
     if not client_user:
         return JsonResponse({"error": "auth_required"}, status=401)
 
-    # Payment.client est un champ string (pas un FK) — on filtre par
+    # Payment.client est un champ string (pas un FK)  :  on filtre par
     # username/email du client connecté.
     payments = Payment.objects.filter(
         client__in=[client_user.username, client_user.email]
-    ).order_by("-id")
+    ).order_by("-created_at", "-id")
 
     data = [
         {
@@ -756,7 +875,7 @@ def api_client_payments(request):
 
 
 # =============================================================================
-# LITIGES PRESTATAIRE — GET /api/prestataire/disputes/
+# LITIGES PRESTATAIRE  :  GET /api/prestataire/disputes/
 # =============================================================================
 @require_GET
 @require_api_auth(["prestataire", "admin"])
@@ -810,7 +929,7 @@ def api_prestataire_disputes(request):
 
 
 # =============================================================================
-# LITIGE — RÉPONSE PRESTATAIRE — POST /api/prestataire/disputes/<ref>/respond/
+# LITIGE  :  RÉPONSE PRESTATAIRE  :  POST /api/prestataire/disputes/<ref>/respond/
 # Permet au prestataire d'apporter sa version + ses preuves photos.
 # =============================================================================
 @csrf_exempt
@@ -890,7 +1009,7 @@ def api_prestataire_respond_dispute(request, dispute_ref):
         if admin_ids:
             _schedule(
                 admin_ids,
-                "BABIFIX — Réponse prestataire au litige",
+                "BABIFIX  :  Réponse prestataire au litige",
                 f"{provider.nom} a répondu au litige {d.reference}.",
                 {
                     "type": "dispute.presta_responded",
@@ -909,7 +1028,7 @@ def api_prestataire_respond_dispute(request, dispute_ref):
 
 
 # =============================================================================
-# LITIGES CLIENT — GET /api/client/disputes/
+# LITIGES CLIENT  :  GET /api/client/disputes/
 # =============================================================================
 @require_GET
 @require_api_auth(["client", "admin"])
@@ -959,7 +1078,7 @@ def api_client_disputes(request):
 
 
 # =============================================================================
-# FONCTIONS EMAIL MANQUANTES (TODO 2 — PARTIE 1)
+# FONCTIONS EMAIL MANQUANTES (TODO 2  :  PARTIE 1)
 # =============================================================================
 
 
@@ -974,7 +1093,7 @@ def _render_email_template(template_name: str, context: dict) -> str:
 
 
 def send_booking_done_email(reservation: "Reservation") -> None:
-    """Email au client après mission terminée — invite à noter le prestataire."""
+    """Email au client après mission terminée  :  invite à noter le prestataire."""
     client_user = getattr(reservation, "client_user", None)
     if not (client_user and client_user.email):
         return
@@ -986,10 +1105,14 @@ def send_booking_done_email(reservation: "Reservation") -> None:
         except Exception:
             pass
 
-    subject = f"Mission terminée : {reservation.title or reservation.reference}"
+    from .services.email_service import format_fcfa, format_french_date
+
+    subject = f"Mission terminee : {reservation.title or reservation.reference}"
     date_str = ""
-    if hasattr(reservation, "date_mission") and reservation.date_mission:
-        date_str = reservation.date_mission.strftime("%d/%m/%Y")
+    if getattr(reservation, "prestation_terminee_at", None):
+        date_str = format_french_date(reservation.prestation_terminee_at, with_time=False)
+    elif hasattr(reservation, "date_mission") and reservation.date_mission:
+        date_str = format_french_date(reservation.date_mission, with_time=False)
 
     html_content = _render_email_template(
         "booking_done.html",
@@ -997,7 +1120,7 @@ def send_booking_done_email(reservation: "Reservation") -> None:
             "client_name": client_name,
             "reservation_title": reservation.title or reservation.reference,
             "prestataire_name": reservation.prestataire,
-            "montant": reservation.montant,
+            "montant": format_fcfa(reservation.montant),
             "date_mission": date_str,
         },
     )
@@ -1100,45 +1223,18 @@ def send_babifix_email_html(
     subject: str,
     html_content: str,
     attachments: list | None = None,
+    async_send: bool = True,
 ) -> None:
-    """Envoi email HTML transactionnel BABIFIX avec fallback plain text.
+    """Envoi email HTML transactionnel BABIFIX via le service centralise."""
+    from .services.email_service import send_babifix_html_email
 
-    attachments: liste de tuples (filename, content, mimetype) — ex: PDF reçu.
-    """
-    import threading
-
-    from django.conf import settings
-    from django.core.mail import EmailMultiAlternatives
-
-    if not html_content:
-        return
-
-    import re
-
-    plain_text = re.sub(r"<[^>]+>", "", html_content)
-    plain_text = re.sub(r"\n+", "\n", plain_text).strip()
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.ci>")
-    _attachments = list(attachments or [])
-
-    def _deliver() -> None:
-        # Envoi SMTP exécuté dans un thread : ne bloque JAMAIS la requête HTTP
-        # (sinon la latence Gmail dépasse le délai de l'app → CancelledError).
-        try:
-            msg = EmailMultiAlternatives(
-                subject=subject,
-                body=plain_text,
-                from_email=from_email,
-                to=[to_email],
-            )
-            msg.attach_alternative(html_content, "text/html")
-            for filename, content, mimetype in _attachments:
-                msg.attach(filename, content, mimetype)
-            msg.send(fail_silently=False)
-            logger.info("Email envoye a %s: %s", to_email, subject)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Email non envoyé (%s) : %s", to_email, exc)
-
-    threading.Thread(target=_deliver, daemon=True).start()
+    send_babifix_html_email(
+        to_email=to_email,
+        subject=subject,
+        html_content=html_content,
+        attachments=attachments,
+        async_send=async_send,
+    )
 
 
 def _get_admin_emails() -> list:
@@ -1153,17 +1249,17 @@ def _get_admin_emails() -> list:
 
 
 # =============================================================================
-# Health Check — Endpoint de monitoring pour Docker/K8s
+# Health Check  :  Endpoint de monitoring pour Docker/K8s
 # =============================================================================
 def api_health_check(request):
     """
-    Endpoint de vérification de santé du système.
-    Vérifie : DB, Redis, et retourne le status.
-    UTILISATION : GET /api/health/
+    Endpoint de verification de sante du systeme.
+    Verifie DB + cache actif, et expose la RAM RSS aux admins authentifies uniquement.
+    UTILISATION : GET /api/health/ ou /healthz/
     """
     from django.db import connection
     from django.core.cache import cache
-    import redis
+    from .services.observability_service import get_process_ram_mb
 
     status = {"status": "ok", "checks": {}}
 
@@ -1172,20 +1268,27 @@ def api_health_check(request):
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
         status["checks"]["database"] = "ok"
-    except Exception as e:
-        status["checks"] = {"database": str(e)}
+    except Exception:
+        logger.exception("Health check database failed")
+        status["checks"]["database"] = "unavailable"
         status["status"] = "error"
 
-    # Check Redis
+    # Check Cache (Redis ou LocMem)
     try:
         cache.set("health_check_key", "ok", 10)
         if cache.get("health_check_key") == "ok":
-            status["checks"]["redis"] = "ok"
+            status["checks"]["cache"] = "ok"
         else:
-            raise Exception("Redis value mismatch")
-    except Exception as e:
-        status["checks"]["redis"] = str(e)
+            status["checks"]["cache"] = "unavailable"
+            status["status"] = "error"
+    except Exception:
+        logger.exception("Health check cache failed")
+        status["checks"]["cache"] = "unavailable"
         status["status"] = "error"
+
+    user = getattr(request, "user", None)
+    if user is not None and user.is_authenticated and (user.is_staff or user.is_superuser):
+        status["metrics"] = {"ram_mb": get_process_ram_mb()}
 
     http_status = 200 if status["status"] == "ok" else 503
     return JsonResponse(status, status=http_status)
@@ -1198,7 +1301,7 @@ def api_health_check(request):
 @require_api_auth(["client", "admin"])
 @require_GET
 def api_client_invoice_pdf(request, reference):
-    """GET /api/client/invoices/<reference>/pdf/ — Télécharger le reçu PDF (disponible seulement après paiement complet)."""
+    """GET /api/client/invoices/<reference>/pdf/  :  Télécharger le reçu PDF (disponible seulement après paiement complet)."""
     user_id = request.api_user_id
 
     try:
@@ -1209,6 +1312,7 @@ def api_client_invoice_pdf(request, reference):
                 reservation__client_user_id=user_id,
                 etat=Payment.State.COMPLETE,
             )
+            .order_by("-id")
             .first()
         )
     except Exception:
@@ -1234,7 +1338,7 @@ def api_client_invoice_pdf(request, reference):
     try:
         from adminpanel.services.invoice_service import InvoiceService
 
-        pdf_bytes = InvoiceService.generate_pdf(payment)
+        pdf_bytes = InvoiceService.generate_pdf(payment, is_client_view=True)
         invoice_number = InvoiceService.generate_invoice_number(payment)
     except Exception as exc:
         logger.error("Erreur génération PDF reçu ref=%s: %s", reference, exc)
@@ -1248,33 +1352,36 @@ def api_client_invoice_pdf(request, reference):
 @require_api_auth(["prestataire", "admin"])
 @require_GET
 def api_prestataire_invoice_pdf(request, reference):
-    """GET /api/prestataire/invoices/<reference>/pdf/ — Télécharger le reçu PDF."""
+    """GET /api/prestataire/invoices/<reference>/pdf/ : Telecharger le recu PDF prestataire."""
+    from django.db.models import Q
+
     user_id = request.api_user_id
 
     try:
         payment = (
-            Payment.objects.select_related("reservation__prestataire_user")
+            Payment.objects.select_related("reservation__prestataire_user", "reservation__assigned_provider")
             .filter(
+                Q(reservation__prestataire_user_id=user_id) | Q(reservation__assigned_provider__user_id=user_id),
                 reservation__reference=reference,
-                reservation__prestataire_user_id=user_id,
                 etat=Payment.State.COMPLETE,
             )
+            .order_by("-id")
             .first()
         )
     except Exception:
         payment = None
 
     if not payment:
-        return JsonResponse({"error": "Reçu introuvable ou accès refusé"}, status=404)
+        return JsonResponse({"error": "Recu introuvable ou acces refuse"}, status=404)
 
     try:
         from adminpanel.services.invoice_service import InvoiceService
 
-        pdf_bytes = InvoiceService.generate_pdf(payment)
+        pdf_bytes = InvoiceService.generate_pdf(payment, is_client_view=False)
         invoice_number = InvoiceService.generate_invoice_number(payment)
     except Exception as exc:
-        logger.error("Erreur génération PDF reçu prestataire ref=%s: %s", reference, exc)
-        return JsonResponse({"error": "Erreur génération PDF"}, status=500)
+        logger.error("Erreur generation PDF recu prestataire ref=%s: %s", reference, exc)
+        return JsonResponse({"error": "Erreur generation PDF"}, status=500)
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="recu_{invoice_number}.pdf"'
@@ -1284,7 +1391,7 @@ def api_prestataire_invoice_pdf(request, reference):
 @require_api_auth(["client", "admin"])
 @require_GET
 def api_client_invoices_list(request):
-    """GET /api/client/invoices/ — Liste des reçus du client."""
+    """GET /api/client/invoices/  :  Liste des reçus du client."""
     from django.contrib.auth.models import User
     user_id = request.api_user_id
 
@@ -1310,7 +1417,7 @@ def api_client_invoices_list(request):
 @require_api_auth(["prestataire", "admin"])
 @require_GET
 def api_prestataire_wallet(request):
-    """GET /api/prestataire/wallet/ — Solde + historique transactions."""
+    """GET /api/prestataire/wallet/  :  Solde + historique transactions."""
     user_id = request.api_user_id
 
     provider = Provider.objects.filter(user_id=user_id).first()
@@ -1446,117 +1553,12 @@ def api_prestataire_wallet_update_info(request):
     }, status=200)
 
 
-# ─── Programme de fidélité client ───────────────────────────────────────────
-@require_api_auth(["client"])
-@require_GET
-def api_client_fidelite(request):
-    """
-    GET /api/client/fidelite/
-    Retourne le niveau fidélité, les garanties, le code parrainage et les crédits.
-    """
-    from django.contrib.auth.models import User
-    from .models import UserProfile
-    from .services.referral_service import ReferralService
-
-    user_id = request.api_user_id
-
-    # Compter les réservations terminées
-    nb_reservations = Reservation.objects.filter(
-        client_user_id=user_id,
-        statut="Terminee",
-    ).count()
-
-    # Niveau fidélité basé sur le nombre de missions
-    if nb_reservations >= 20:
-        niveau, couleur, reduction, prochainNiveau = "Platine", "#A855F7", 15, None
-        prochainSeuil = None
-    elif nb_reservations >= 10:
-        niveau, couleur, reduction = "Or", "#F59E0B", 10
-        prochainNiveau, prochainSeuil = "Platine", 20
-    elif nb_reservations >= 5:
-        niveau, couleur, reduction = "Argent", "#64748B", 5
-        prochainNiveau, prochainSeuil = "Or", 10
-    else:
-        niveau, couleur, reduction = "Bronze", "#CD7F32", 0
-        prochainNiveau, prochainSeuil = "Argent", 5
-
-    # Profil et code parrainage
-    try:
-        user = User.objects.get(pk=user_id)
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        if not profile.referral_code:
-            result = ReferralService.create_referral_code(user)
-            referral_code = result.referral_code or ""
-        else:
-            referral_code = profile.referral_code
-        referral_credits = float(profile.referral_credits_earned or 0)
-        filleuls_count = UserProfile.objects.filter(recommended_by=user).count()
-        bonus_applique = profile.referral_bonus_applied
-    except Exception:
-        referral_code, referral_credits, filleuls_count, bonus_applique = "", 0, 0, False
-
-    # Points fidélité + crédit (convertible / disponible), via FideliteService.
-    try:
-        from django.contrib.auth.models import User as _U
-        from .services.fidelite_service import FideliteService
-        _pts = FideliteService.summary(_U.objects.get(pk=user_id))
-    except Exception:
-        _pts = {}
-
-    return JsonResponse({
-        "niveau": niveau,
-        "couleur": couleur,
-        "reduction_pct": reduction,
-        "nb_reservations": nb_reservations,
-        "prochain_niveau": prochainNiveau,
-        "prochain_seuil": prochainSeuil,
-        "referral_code": referral_code,
-        "referral_credits": referral_credits,
-        "filleuls_count": filleuls_count,
-        "bonus_premiere_reservation_applique": bonus_applique,
-        # Points fidélité + crédit (100 pts = 1 000 F ; utilisable en réduction).
-        "points": _pts.get("points", 0),
-        "valeur_point_fcfa": _pts.get("valeur_point_fcfa", 10),
-        "seuil_conversion": _pts.get("seuil_conversion", 100),
-        "points_convertibles": _pts.get("convertible", False),
-        "credit_disponible_fcfa": _pts.get("credit_disponible_fcfa", 0.0),
-        "equivalent_fcfa": _pts.get("equivalent_fcfa", 0),
-        "garanties": [
-            {
-                "icon": "verified_rounded",
-                "titre": "Prestataires vérifiés",
-                "description": "Chaque prestataire est contrôlé : CNI, selfie, vidéo d'introduction et recommandations.",
-            },
-            {
-                "icon": "shield_rounded",
-                "titre": "Satisfaction garantie",
-                "description": "Si vous n'êtes pas satisfait, BABIFIX prend en charge le litige et peut rembourser.",
-            },
-            {
-                "icon": "lock_rounded",
-                "titre": "Paiement sécurisé",
-                "description": "Vos paiements sont protégés. L'argent n'est libéré qu'après confirmation de la prestation.",
-            },
-            {
-                "icon": "support_agent_rounded",
-                "titre": "Support 7j/7",
-                "description": "Notre équipe est disponible tous les jours pour répondre à vos questions.",
-            },
-            {
-                "icon": "star_rounded",
-                "titre": "Avis certifiés",
-                "description": "Seuls les clients ayant effectué une réservation peuvent laisser un avis.",
-            },
-        ],
-    })
-
-
 # ─── Contrat / Charte prestataire ────────────────────────────────────────────
 # Version du contrat. À INCRÉMENTER dès qu'une clause change matériellement :
 # `contrat_signe` compare cette valeur à celle signée par le prestataire, donc
 # un changement de version force une NOUVELLE signature.
 #
-# v2.0 — ajout des clauses qui manquaient alors que le code les appliquait déjà :
+# v2.0  :  ajout des clauses qui manquaient alors que le code les appliquait déjà :
 #        visite/transport, séquestre, interdiction de contourner la plateforme,
 #        score de fiabilité et SUSPENSION AUTOMATIQUE. On ne peut pas suspendre
 #        un compte sur une règle absente du contrat signé.
@@ -1737,7 +1739,7 @@ def api_prestataire_contrat(request):
             },
             {
                 "titre": "Paiements et retraits",
-                "contenu": "Les gains nets sont crédités sur le wallet BABIFIX après confirmation du paiement client. Les retraits vers Mobile Money sont traités sous 24–72 heures ouvrées.",
+                "contenu": "Les gains nets sont crédités sur le wallet BABIFIX après confirmation du paiement client. Les retraits vers Mobile Money sont traités sous 24 : 72 heures ouvrées.",
             },
             {
                 "titre": "Programme de fidélité client",
@@ -1791,19 +1793,49 @@ def api_prestataire_contrat_sign(request):
 
     version = CONTRAT_VERSION
     now = timezone.now()
+    import hashlib as _hashlib
+
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    ip_addr = (
+        xff.split(",")[0].strip()[:64]
+        if xff
+        else str(request.META.get("REMOTE_ADDR", "") or "")[:64]
+    )
+    proof_payload = f"{provider.id}|{user_id}|{version}|{now.isoformat()}|{ip_addr}"
+    signature_hash = _hashlib.sha256(proof_payload.encode("utf-8")).hexdigest()
+
     provider.contrat_accepte_at = now
     provider.contrat_version = version
     provider.save(update_fields=["contrat_accepte_at", "contrat_version"])
+
+    try:
+        AdminAuditLog.objects.create(
+            admin_user=User.objects.filter(id=user_id).first(),
+            action=AdminAuditLog.ActionType.OTHER,
+            target_type="ProviderContrat",
+            target_id=provider.id,
+            target_label=provider.nom,
+            details={
+                "contrat_version": version,
+                "contrat_accepte_at": now.isoformat(),
+                "signature_hash": signature_hash,
+                "ip_address": ip_addr,
+            },
+        )
+    except Exception:
+        pass
 
     return JsonResponse({
         "ok": True,
         "contrat_accepte_at": now.isoformat(),
         "contrat_version": version,
+        "contrat_hash": signature_hash,
+        "ip_address": ip_addr,
     })
 
 
 # =============================================================================
-# KYC — Vérification identité prestataire
+# KYC  :  Vérification identité prestataire
 # =============================================================================
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -1825,6 +1857,14 @@ def api_prestataire_kyc_status(request):
     return JsonResponse({
         "status": provider.kyc_status,
         "rejection_reason": provider.kyc_rejection_reason or None,
+        "artisan_tier": provider.artisan_tier,
+        "commune_rattachement": provider.commune_rattachement,
+        "whatsapp_interview_requested": provider.whatsapp_interview_requested,
+        "tools_check_passed": provider.tools_check_passed,
+        "supervisor_verified_at": provider.supervisor_verified_at.isoformat() if provider.supervisor_verified_at else None,
+        "cnmci_number": provider.cnmci_number,
+        "rccm_number": provider.rccm_number,
+        "plafond_intervention_fcfa": float(provider.plafond_intervention_fcfa or 100000),
     })
 
 
@@ -1859,11 +1899,33 @@ def api_prestataire_kyc_submit(request):
         return JsonResponse({"error": "invalid_json", "message": "Corps JSON invalide"}, status=400)
 
     # Extraction et validation
+    artisan_tier = (payload.get("artisan_tier") or "palier_1_proximite").strip()
+    commune_rattachement = (payload.get("commune_rattachement") or "").strip()
+    whatsapp_interview_requested = bool(payload.get("whatsapp_interview_requested", False))
+    cnmci_number = (payload.get("cnmci_number") or "").strip()
+    cnmci_card = (payload.get("cnmci_card_b64") or "").strip()
+    rccm_number = (payload.get("rccm_number") or "").strip()
+    rccm_document = (payload.get("rccm_document_b64") or "").strip()
+    compte_contribuable = (payload.get("compte_contribuable") or "").strip()
+    dfe_document = (payload.get("dfe_document_b64") or "").strip()
+
     cni_number = (payload.get("cni_number") or "").strip()
     cni_expiry = (payload.get("cni_expiry") or "").strip()
+    cni_mrz = (payload.get("cni_mrz") or "").strip()[:120]
     cni_recto = (payload.get("cni_recto_b64") or "").strip()
     cni_verso = (payload.get("cni_verso_b64") or "").strip()
     selfie = (payload.get("selfie_b64") or "").strip()
+    casier_doc = (payload.get("casier_judiciaire_b64") or "").strip()
+    cert_med_doc = (payload.get("certificat_medical_b64") or "").strip()
+    ref_nom = (payload.get("reference_contact_nom") or "").strip()[:120]
+    ref_tel = (payload.get("reference_contact_tel") or "").strip()[:32]
+
+    regime_kyc = (
+        getattr(provider.category, "regime_kyc", "STANDARD_TERRAIN")
+        if provider.category_id
+        else "STANDARD_TERRAIN"
+    ) or "STANDARD_TERRAIN"
+    is_sensitive = regime_kyc == "SENSIBLE_CASIER"
 
     errors = {}
     if not cni_number:
@@ -1876,6 +1938,21 @@ def api_prestataire_kyc_submit(request):
         errors["cni_verso_b64"] = ["Photo verso requise."]
     if not selfie:
         errors["selfie_b64"] = ["Selfie requis."]
+
+    if is_sensitive:
+        if not casier_doc and not getattr(provider, "casier_judiciaire_url", ""):
+            errors["casier_judiciaire_b64"] = [
+                "Extrait ou recepisse de casier judiciaire requis pour ce metier sensible."
+            ]
+        if not ref_nom and not getattr(provider, "reference_contact_nom", ""):
+            errors["reference_contact_nom"] = [
+                "Nom d'un contact de reference (ancien employeur / tuteur) requis."
+            ]
+        if not ref_tel and not getattr(provider, "reference_contact_tel", ""):
+            errors["reference_contact_tel"] = [
+                "Telephone du contact de reference requis."
+            ]
+        whatsapp_interview_requested = True
 
     # Date d'expiration : requise, valide, et NON expirée (KYC strict).
     expiry_date = None
@@ -1891,7 +1968,7 @@ def api_prestataire_kyc_submit(request):
         except ValueError:
             errors["cni_expiry"] = ["Date invalide (format attendu : AAAA-MM-JJ)."]
 
-    # Les photos doivent être de vraies images base64.
+    # Les photos doivent être de vraies images base64 (ou PDF pour casier/certificat).
     for key, val in (
         ("cni_recto_b64", cni_recto),
         ("cni_verso_b64", cni_verso),
@@ -1899,6 +1976,13 @@ def api_prestataire_kyc_submit(request):
     ):
         if val and not val.startswith("data:image/"):
             errors[key] = ["Image invalide."]
+
+    for key, val in (
+        ("casier_judiciaire_b64", casier_doc),
+        ("certificat_medical_b64", cert_med_doc),
+    ):
+        if val and not (val.startswith("data:image/") or val.startswith("data:application/pdf")):
+            errors[key] = ["Document image ou PDF invalide."]
 
     if errors:
         return JsonResponse({"error": "validation_failed", "fields": errors}, status=400)
@@ -1915,23 +1999,134 @@ def api_prestataire_kyc_submit(request):
         except Exception:
             return b64
 
-    # Mise à jour fournisseur
+    # Mise à jour fournisseur selon son palier
+    provider.artisan_tier = artisan_tier
+    if commune_rattachement:
+        provider.commune_rattachement = commune_rattachement
+    provider.whatsapp_interview_requested = whatsapp_interview_requested
+    if cnmci_number:
+        provider.cnmci_number = cnmci_number
+    if cnmci_card:
+        provider.cnmci_card_url = _store(cnmci_card, "cnmci_card")
+    if rccm_number:
+        provider.rccm_number = rccm_number
+    if rccm_document:
+        provider.rccm_document_url = _store(rccm_document, "rccm_doc")
+    if compte_contribuable:
+        provider.compte_contribuable = compte_contribuable
+    if dfe_document:
+        provider.dfe_document_url = _store(dfe_document, "dfe_doc")
+
+    # Ajustement automatique du plafond d intervention selon le palier
+    if artisan_tier == "palier_3_entreprise":
+        provider.plafond_intervention_fcfa = 10000000
+    elif artisan_tier == "palier_2_maitre":
+        provider.plafond_intervention_fcfa = 500000
+    else:
+        provider.plafond_intervention_fcfa = 100000
+
+    # Execution reelle et deterministe du moteur Smart KYC & ONECI-MRZ
+    from .kyc_engine import run_kyc_verification
+
+    verification = run_kyc_verification(
+        cni_number=cni_number,
+        cni_recto_b64=cni_recto,
+        cni_verso_b64=cni_verso,
+        selfie_b64=selfie,
+        hash_recto="",
+        hash_verso="",
+        hash_selfie="",
+        cni_expiry=expiry_date,
+        mrz_text=cni_mrz,
+        provider_id=provider.pk,
+        provider_name=provider.nom or "",
+    )
+    if verification.auto_decision == "rejected":
+        blocking_details = [
+            c.detail for c in verification.checks if c.is_blocking and not c.passed
+        ]
+        msg = (
+            blocking_details[0]
+            if blocking_details
+            else "Verification automatique echouee. Corrigez les photos ou la piece soumise."
+        )
+        provider.auto_check_score = verification.score
+        provider.auto_check_result = verification.to_dict()
+        provider.auto_check_at = timezone.now()
+        provider.kyc_status = "rejected"
+        provider.kyc_rejection_reason = " | ".join(blocking_details)[:500] or msg
+        provider.save(update_fields=[
+            "auto_check_score", "auto_check_result", "auto_check_at",
+            "kyc_status", "kyc_rejection_reason",
+        ])
+        return JsonResponse(
+            {
+                "error": "kyc_auto_rejected",
+                "status": "rejected",
+                "message": msg,
+                "score": verification.score,
+                "auto_check_score": verification.score,
+                "hints": verification.hints,
+                "verification": verification.to_dict(),
+                "auto_check_result": verification.to_dict(),
+            },
+            status=400,
+        )
+
     provider.kyc_cni_number = cni_number
-    provider.kyc_cni_recto_url = _store(cni_recto, "cni_recto")
-    provider.kyc_cni_verso_url = _store(cni_verso, "cni_verso")
-    provider.kyc_selfie_url = _store(selfie, "selfie")
-    provider.kyc_status = "pending"
+    provider.kyc_cni_mrz = cni_mrz
+    recto_url = _store(cni_recto, "cni_recto")
+    verso_url = _store(cni_verso, "cni_verso")
+    selfie_url = _store(selfie, "selfie")
+    provider.kyc_cni_recto_url = recto_url
+    provider.kyc_cni_verso_url = verso_url
+    provider.kyc_selfie_url = selfie_url
+    # Synchronise les champs d affichage Admin (utile pour les inscrits Express 60s)
+    provider.cni_recto_url = recto_url
+    provider.cni_url = recto_url
+    provider.cni_verso_url = verso_url
+    provider.selfie_url = selfie_url
+    if casier_doc:
+        provider.casier_judiciaire_url = _store(casier_doc, "casier")
+    if cert_med_doc:
+        provider.certificat_medical_url = _store(cert_med_doc, "cert_medical")
+    if ref_nom:
+        provider.reference_contact_nom = ref_nom
+    if ref_tel:
+        provider.reference_contact_tel = ref_tel
+    provider.kyc_status = "under_review" if verification.auto_decision == "under_review" else "pending"
+    provider.kyc_rejection_reason = ""
     provider.kyc_submitted_at = timezone.now()
     provider.kyc_cni_expiry = expiry_date
+    provider.auto_check_score = verification.score
+    provider.auto_check_result = verification.to_dict()
+    provider.auto_check_at = timezone.now()
+    provider.kyc_image_hashes = verification.image_hashes
 
     provider.save(update_fields=[
-        "kyc_cni_number", "kyc_cni_recto_url", "kyc_cni_verso_url",
-        "kyc_selfie_url", "kyc_status", "kyc_submitted_at", "kyc_cni_expiry"
+        "artisan_tier", "commune_rattachement", "whatsapp_interview_requested",
+        "cnmci_number", "cnmci_card_url", "rccm_number", "rccm_document_url",
+        "compte_contribuable", "dfe_document_url", "plafond_intervention_fcfa",
+        "kyc_cni_number", "kyc_cni_mrz", "kyc_cni_recto_url", "kyc_cni_verso_url",
+        "kyc_selfie_url", "cni_recto_url", "cni_url", "cni_verso_url", "selfie_url",
+        "kyc_status", "kyc_rejection_reason", "kyc_submitted_at", "kyc_cni_expiry",
+        "casier_judiciaire_url", "certificat_medical_url",
+        "reference_contact_nom", "reference_contact_tel",
+        "auto_check_score", "auto_check_result", "auto_check_at", "kyc_image_hashes",
     ])
 
     return JsonResponse({
-        "status": "pending",
-        "message": "Dossier KYC soumis avec succès. Vérification sous 24-48h.",
+        "status": provider.kyc_status,
+        "score": verification.score,
+        "auto_check_score": verification.score,
+        "confidence": verification.confidence,
+        "hints": verification.hints,
+        "verification": verification.to_dict(),
+        "auto_check_result": verification.to_dict(),
+        "message": (
+            f"Dossier KYC analyse (score {verification.score}/100) et transmis a l'equipe BABIFIX. "
+            "Validation finale sous 24h."
+        ),
     }, status=200)
 
 
@@ -1946,9 +2141,15 @@ from django.utils import timezone
 def api_reservation_paiement_acompte(request):
     """
     POST /api/reservation/paiement-acompte/
-    Le client paie l'acompte (ex: 30%). L'argent est bloqué.
-    Body: { "reservation_id": 123 }
+    Désactivé hors DEBUG (les paiements passent par GeniusPay / webhook HMAC).
     """
+    from django.conf import settings as _dj_settings
+
+    if not getattr(_dj_settings, "DEBUG", False):
+        return JsonResponse(
+            {"error": "payment_gateway_required", "detail": "Utilisez GeniusPay pour régler l'acompte."},
+            status=410,
+        )
     try:
         data = json.loads(request.body)
         reservation = Reservation.objects.get(
@@ -2003,9 +2204,15 @@ def api_reservation_paiement_acompte(request):
 def api_reservation_paiement_solde(request):
     """
     POST /api/reservation/paiement-solde/
-    Le client paie le solde après validation des travaux.
-    Body: { "reservation_id": 123 }
+    Désactivé hors DEBUG (les paiements passent par GeniusPay / webhook HMAC).
     """
+    from django.conf import settings as _dj_settings
+
+    if not getattr(_dj_settings, "DEBUG", False):
+        return JsonResponse(
+            {"error": "payment_gateway_required", "detail": "Utilisez GeniusPay pour régler le solde."},
+            status=410,
+        )
     try:
         data = json.loads(request.body)
         reservation = Reservation.objects.get(
@@ -2056,7 +2263,7 @@ def api_reservation_paiement_solde(request):
 
 
 # =============================================================================
-# RATINGS — Avis clients sur prestataire
+# RATINGS  :  Avis clients sur prestataire
 # =============================================================================
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -2089,44 +2296,9 @@ def api_prestataire_ratings(request):
 
 
 # =============================================================================
-# RATINGS — Avis clients sur prestataire
+# RATINGS  :  Avis clients sur prestataire
 # =============================================================================
-@csrf_exempt
-@require_http_methods(["GET"])
-@require_api_auth(["prestataire"])
-def api_prestataire_ratings(request):
-    """
-    GET /api/prestataire/ratings/
-    Retourne la liste des avis/notes laissés par les clients pour ce prestataire.
-    Réponse : { "ratings": [ { "reference", "rating", "comment", "date", "client_name" } ] }
-    """
-    try:
-        provider = Provider.objects.get(user_id=request.api_user_id)
-    except Provider.DoesNotExist:
-        return JsonResponse({"error": "provider_not_found"}, status=404)
-
-    # Réservations terminées avec notation client
-    from ..models import Reservation
-    reservations = Reservation.objects.filter(
-        assigned_provider=provider,
-        statut=Reservation.Status.DONE,
-    ).exclude(client_note__isnull=True).exclude(client_note="").order_by("-created_at")
-
-    ratings = []
-    for r in reservations:
-        ratings.append({
-            "reference": r.reference,
-            "rating": r.client_rating if hasattr(r, 'client_rating') else None,  # à adapter selon le modèle
-            "comment": r.client_note or "",
-            "date": r.created_at.isoformat() if r.created_at else None,
-            "client_name": r.client_user.nom if r.client_user else "Client",
-        })
-
-    return JsonResponse({"ratings": ratings})
-
-
-# =============================================================================
-# PRESTATAIRE — Historique des paiements
+# PRESTATAIRE  :  Historique des paiements
 # =============================================================================
 @csrf_exempt
 @require_api_auth(["prestataire", "admin"])
@@ -2141,7 +2313,7 @@ def api_prestataire_payments_history(request):
     if not provider:
         return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
 
-    payments = Payment.objects.filter(prestataire=provider.nom).order_by("-created_at")[:100]
+    payments = Payment.objects.filter(prestataire=provider.nom).order_by("-created_at", "-id")[:100]
     result = []
     for pay in payments:
         res = pay.reservation
@@ -2210,3 +2382,212 @@ def api_run_reminders(request):
         return JsonResponse({"error": "command_failed", "detail": str(exc)}, status=500)
     return JsonResponse({"ok": True, "result": out.getvalue().strip()})
 
+
+# ---------------------------------------------------------------------------
+# VIVACITE BIOMETRIQUE ACTIVE (Liveness Challenge Instagram / Banking)
+# ---------------------------------------------------------------------------
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["prestataire", "admin"])
+def api_prestataire_kyc_liveness_challenge(request):
+    """
+    GET /api/prestataire/kyc/liveness/challenge/
+    Delivre un defi aleatoire de vivacite (mouvements de tete) signe et horodate.
+    """
+    from .kyc_liveness import generate_liveness_challenge
+    challenge = generate_liveness_challenge(request.api_user_id)
+    return JsonResponse(challenge, status=200)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire", "admin"])
+def api_prestataire_kyc_liveness_verify(request):
+    """
+    POST /api/prestataire/kyc/liveness/verify/
+    Verifie les 3 captures de mouvement de tete soumises pour le defi de vivacite.
+    Body JSON : {
+        "token": "...",
+        "frames": [ "data:image/jpeg;base64,...", "...", "..." ]
+    }
+    """
+    from .kyc_liveness import verify_challenge_token, evaluate_liveness_frames
+    from django.contrib.auth.models import User
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    token = (data.get("token") or "").strip()
+    frames = data.get("frames") or []
+
+    is_valid, payload = verify_challenge_token(token, request.api_user_id)
+    if not is_valid:
+        return JsonResponse({
+            "error": "invalid_or_expired_challenge",
+            "message": "Defi de vivacite invalide ou expire. Veuillez regenerer un defi.",
+        }, status=400)
+
+    sequence = payload.get("sequence", ["face_front", "turn_left", "turn_right"])
+    result = evaluate_liveness_frames(frames, sequence)
+
+    if result.passed:
+        try:
+            user = User.objects.get(id=request.api_user_id)
+            provider = Provider.objects.get(user=user)
+            auto_res = provider.auto_check_result or {}
+            auto_res["liveness"] = {
+                "verified": True,
+                "score": result.score,
+                "details": result.details,
+                "verified_at": timezone.now().isoformat(),
+            }
+            provider.auto_check_result = auto_res
+            provider.auto_check_score = min(100, (provider.auto_check_score or 0) + 30)
+            if len(frames) > 0:
+                from .views import _decode_and_save_media
+                front_url = _decode_and_save_media(frames[0], "kyc", "liveness_verified")
+                if front_url:
+                    provider.photo_portrait_url = front_url
+            provider.save(update_fields=["auto_check_result", "auto_check_score", "photo_portrait_url"])
+        except Exception as e:
+            logger.warning("Erreur mise a jour liveness provider : %s", e)
+
+    return JsonResponse({
+        "passed": result.passed,
+        "score": result.score,
+        "details": result.details,
+        "rejection_reason": result.rejection_reason,
+        "message": "Vivacite biometrique certifiee avec succes !" if result.passed else "Epreuve de vivacite non concluante.",
+    }, status=200 if result.passed else 400)
+
+
+
+
+# ---------------------------------------------------------------------------
+# VIVACITE BIOMETRIQUE ACTIVE (Liveness Challenge Instagram / Banking)
+# ---------------------------------------------------------------------------
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_api_auth(["prestataire", "admin"])
+def api_prestataire_kyc_liveness_challenge(request):
+    """
+    GET /api/prestataire/kyc/liveness/challenge/
+    Delivre un defi aleatoire de vivacite (mouvements de tete) signe et horodate.
+    """
+    from .kyc_liveness import generate_liveness_challenge
+    challenge = generate_liveness_challenge(request.api_user_id)
+    return JsonResponse(challenge, status=200)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire", "admin"])
+def api_prestataire_kyc_liveness_verify(request):
+    """
+    POST /api/prestataire/kyc/liveness/verify/
+    Verifie les 3 captures de mouvement de tete soumises pour le defi de vivacite.
+    Body JSON : {
+        "token": "...",
+        "frames": [ "data:image/jpeg;base64,...", "...", "..." ]
+    }
+    """
+    from .kyc_liveness import verify_challenge_token, evaluate_liveness_frames
+    from django.contrib.auth.models import User
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    token = (data.get("token") or "").strip()
+    frames = data.get("frames") or []
+
+    is_valid, payload = verify_challenge_token(token, request.api_user_id)
+    if not is_valid:
+        return JsonResponse({
+            "error": "invalid_or_expired_challenge",
+            "message": "Defi de vivacite invalide ou expire. Veuillez regenerer un defi.",
+        }, status=400)
+
+    sequence = payload.get("sequence", ["face_front", "turn_left", "turn_right"])
+    result = evaluate_liveness_frames(frames, sequence)
+
+    if result.passed:
+        try:
+            user = User.objects.get(id=request.api_user_id)
+            provider = Provider.objects.get(user=user)
+            auto_res = provider.auto_check_result or {}
+            auto_res["liveness"] = {
+                "verified": True,
+                "score": result.score,
+                "details": result.details,
+                "verified_at": timezone.now().isoformat(),
+            }
+            provider.auto_check_result = auto_res
+            provider.auto_check_score = min(100, (provider.auto_check_score or 0) + 30)
+            if len(frames) > 0:
+                from .views import _decode_and_save_media
+                front_url = _decode_and_save_media(frames[0], "kyc", "liveness_verified")
+                if front_url:
+                    provider.photo_portrait_url = front_url
+            provider.save(update_fields=["auto_check_result", "auto_check_score", "photo_portrait_url"])
+        except Exception as e:
+            logger.warning("Erreur mise a jour liveness provider : %s", e)
+
+    return JsonResponse({
+        "passed": result.passed,
+        "score": result.score,
+        "details": result.details,
+        "rejection_reason": result.rejection_reason,
+        "message": "Vivacite biometrique certifiee avec succes !" if result.passed else "Epreuve de vivacite non concluante.",
+    }, status=200 if result.passed else 400)
+
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_supervisor_request_call(request):
+    """
+    POST /api/prestataire/supervisor/request-call/
+    Permet à l'artisan de planifier ou solliciter son micro-entretien WhatsApp de 5 minutes
+    avec le superviseur officiel Babifix de sa commune.
+    """
+    from django.contrib.auth.models import User
+    from django.utils import timezone
+
+    try:
+        user = User.objects.get(id=request.api_user_id)
+        provider = Provider.objects.get(user=user)
+    except (User.DoesNotExist, Provider.DoesNotExist):
+        return JsonResponse({"error": "provider_not_found"}, status=404)
+
+    try:
+        data = json.loads(request.body or "{}")
+    except Exception:
+        data = {}
+
+    commune = (data.get("commune") or provider.commune_rattachement or "Abidjan").strip()
+    provider.whatsapp_interview_requested = True
+    provider.commune_rattachement = commune
+    provider.save(update_fields=["whatsapp_interview_requested", "commune_rattachement"])
+
+    # Numéro du superviseur officiel Babifix (ex: Ligne directe Supervision Terrain)
+    phone_superviseur = "2250700000000"
+    message_preformatte = f"Bonjour Superviseur Babifix ({commune}), je suis {provider.nom} (Palier 1 - {provider.specialite}). Je souhaite passer mon micro-entretien visio de 5 minutes pour valider mes outils et mon profil."
+    import urllib.parse
+    whatsapp_url = f"https://wa.me/{phone_superviseur}?text={urllib.parse.quote(message_preformatte)}"
+
+    return JsonResponse({
+        "ok": True,
+        "message": "Demande d'entretien enregistree.",
+        "whatsapp_url": whatsapp_url,
+        "superviseur_commune": commune,
+        "consignes": [
+            "Avoir ses outils de travail a portee de main",
+            "Etre dans un endroit calme avec une bonne connexion",
+            "Avoir sa piece d'identite physique (CNI ou passeport)"
+        ]
+    }, status=200)

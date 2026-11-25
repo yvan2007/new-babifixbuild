@@ -1,4 +1,4 @@
-"""ConversationService — fil unique par réservation (Phase C).
+"""ConversationService : fil unique par réservation (Phase C).
 
 But : garantir qu'une réservation entre un client et un prestataire a UNE
 seule conversation, et exposer des helpers pour y injecter :
@@ -101,15 +101,6 @@ def post_devis_card(reservation, devis) -> Optional[object]:
         )
         return None
 
-    # Anti-doublon : déjà publiée pour ce devis ?
-    existing = Message.objects.filter(
-        conversation=conv,
-        kind=Message.Kind.DEVIS_CARD,
-        payload_json__devis_id=devis.id,
-    ).first()
-    if existing:
-        return existing
-
     lignes = [
         {
             "id": l.id,
@@ -126,6 +117,7 @@ def post_devis_card(reservation, devis) -> Optional[object]:
     payload = {
         "devis_id": devis.id,
         "devis_reference": devis.reference,
+        "reservation_reference": reservation.reference,
         "diagnostic": devis.diagnostic,
         "date_proposee": (
             devis.date_proposee.isoformat() if devis.date_proposee else None
@@ -152,11 +144,24 @@ def post_devis_card(reservation, devis) -> Optional[object]:
     sender = _system_sender(reservation)
     if devis.est_estimation:
         body = (
-            f"Estimation {devis.reference} — "
-            f"{int(devis.prix_min)}–{int(devis.prix_max)} F CFA (indicatif)."
+            f"Estimation {devis.reference} · "
+            f"{int(devis.prix_min)} - {int(devis.prix_max)} F CFA (indicatif)."
         )
     else:
-        body = f"Devis {devis.reference} — total {int(devis.total_ttc)} F CFA."
+        body = f"Devis {devis.reference} · total {int(devis.total_ttc)} F CFA."
+
+    # Anti-doublon : si déjà publiée pour ce devis, synchroniser son statut/payload.
+    existing = Message.objects.filter(
+        conversation=conv,
+        kind=Message.Kind.DEVIS_CARD,
+        payload_json__devis_id=devis.id,
+    ).first()
+    if existing:
+        existing.payload_json = payload
+        existing.body = body
+        existing.save(update_fields=["payload_json", "body"])
+        return existing
+
     return Message.objects.create(
         conversation=conv,
         sender=sender,

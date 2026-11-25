@@ -16,17 +16,14 @@ if [ "${RESET_DATABASE}" = "true" ]; then
   echo "✅  Base vidée. Pense à remettre RESET_DATABASE=false."
 fi
 
-# ── CATALOGUE MÉTIER & DONNÉES ESSENTIELLES (idempotent) ─────────────────────
+# ── CATALOGUE MÉTIER (idempotent) ───────────────────────────────────────────
 # Sème / met à jour les 77 catégories (depuis data/categories-services-domicile.json).
-# Indispensable : sans ça la table Category est vide sur une base fraîche.
+# Indispensable : sans ça la table Category est vide sur une base fraîche →
+# l'app prestataire n'affiche AUCUNE spécialité à l'inscription.
+# update_or_create => rejouable sans risque.
 python manage.py import_babifix_categories || true
-
-# Sème les utilisateurs de démonstration et prestataires si la base est vide
-python manage.py seed_app_users || true
-python manage.py seed_demo_data || true
-python manage.py seed_full_demo || true
-python manage.py relier_prestataires_demo || true
-python manage.py seed_actualites || true
+# NB : `seed_catalogue` retiré — il importait le modèle CatalogueItem supprimé
+# (migration 0057) → ImportError à chaque build (non bloquant mais pollue les logs).
 
 # Créer le superadmin automatiquement si inexistant (variables depuis env Render)
 python manage.py createsuperuser --noinput || true

@@ -7,6 +7,9 @@ from .geniuspay import (
     geniuspay_webhook,
 )
 from . import views_calls as _calls_views
+from . import views_admin_cockpit as _cockpit_views
+from . import views_observability as _obs_views
+from .views_health import api_admin_health_config
 from .views_media import api_media_upload
 from .views_b2b import (
     api_pro_formules,
@@ -31,17 +34,11 @@ from .views_finance import (
     api_urgence_preview,
 )
 from .views_extra import (
-    api_reservation_paiement_acompte,
-    api_reservation_paiement_solde,
-    api_run_reminders,
-)
-from .views_extra import (
     api_admin_audit_log,
     api_admin_bulk_provider_action,
     api_admin_export_csv,
     api_client_disputes,
     api_client_favorites,
-    api_client_fidelite,
     api_client_invoice_pdf,
     api_client_invoices_list,
     api_client_payments,
@@ -54,14 +51,19 @@ from .views_extra import (
     api_prestataire_invoice_pdf,
     api_prestataire_kyc_status,
     api_prestataire_kyc_submit,
+    api_prestataire_supervisor_request_call,
+    api_prestataire_kyc_liveness_challenge,
+    api_prestataire_kyc_liveness_verify,
     api_prestataire_payments_history,
-    api_prestataire_ratings,
     api_prestataire_respond_dispute,
     api_prestataire_stats,
     api_prestataire_unavailability_crud,
     api_prestataire_wallet,
     api_prestataire_wallet_withdraw,
     api_prestataire_wallet_update_info,
+    api_reservation_paiement_acompte,
+    api_reservation_paiement_solde,
+    api_run_reminders,
 )
 from .views_v2 import (
     api_admin_push_broadcast,
@@ -69,9 +71,16 @@ from .views_v2 import (
     api_app_version,
     api_auth_delete_account,
     api_auth_forgot_password,
+    api_auth_change_password,
     api_auth_refresh_token,
     api_auth_reset_password,
+    api_client_sos_preview,
+    api_prestataire_sos_claim,
     api_auth_verify_email,
+    api_auth_verify_email_otp,
+    api_auth_resend_email_otp,
+    api_category_catalogue,
+    api_reservation_bon_de_commande_pdf,
     api_client_cancel_reservation,
     api_client_journal,
     api_client_open_dispute,
@@ -82,13 +91,21 @@ from .views_v2 import (
     api_prestataire_portfolio_delete,
     api_prestataire_profile_update,
     api_prestataire_rate_client,
+    api_prestataire_upload_cni,
     api_provider_portfolio_public,
+    api_admin_notifications_feed,
+    api_admin_notifications_mark_all_read,
+    api_admin_notifications_mark_read,
     api_user_notifications,
     api_user_notifications_mark_read,
 )
 from .views import (
+    export_dashboard_pdf,
+    api_admin_bulk_action,
     export_dashboard_csv,
     api_admin_financial_summary,
+    api_admin_kyc_media,
+    api_admin_provider_detail,
     api_admin_validate_cash,
     api_auth_apple,
     api_auth_fcm_token,
@@ -101,6 +118,8 @@ from .views import (
     api_client_check_provider_availability,
     api_client_confirmer_travaux,
     api_client_conversations,
+    api_client_smart_price_estimate,
+    api_prestataire_smart_devis_assist,
     api_client_pay_caution,
     api_client_pay_deposit,
     api_client_pay_remainder,
@@ -148,26 +167,40 @@ from .views import (
     api_public_categories,
     api_provider_requirements,
     api_public_metiers,
+    api_public_search,
     api_public_payment_methods,
     api_public_providers,
     api_public_provider_availability,
+    api_public_search,
     api_public_vitrine,
     api_reservation_devis,
+    api_transcribe_audio,
     api_admin_reservation_move,
     api_admin_reservation_status,
     dashboard,
+    error_preview,
 )
 
 urlpatterns = [
     path("export/csv/<str:kind>/", export_dashboard_csv, name="admin-export-csv"),
+    path("export/pdf/<str:kind>/", export_dashboard_pdf, name="admin-export-pdf"),
+    path("api/admin/bulk-action/", api_admin_bulk_action, name="api-admin-bulk-action"),
     path("", dashboard, name="admin-dashboard"),
-    # Upload média (photos + notes vocales) — était importé mais jamais routé
+    path("dashboard/", dashboard, name="admin-dashboard-alias"),
+    path("dashboard", dashboard, name="admin-dashboard-alias-noslash"),
+    path("health", api_health_check, name="api-health-short"),
+    path("health/", api_health_check, name="api-health-short-slash"),
+    # Upload média (photos + notes vocales) : était importé mais jamais routé
     # → renvoyait 404, cassant l'envoi des notes vocales.
     path("api/media/upload", api_media_upload, name="api-media-upload"),
     path("api/public/vitrine/", api_public_vitrine, name="api-public-vitrine"),
+    path("api/public/config/", _cockpit_views.api_public_config, name="api-public-config"),
+    path("api/config/", _cockpit_views.api_public_config, name="api-config"),
     path("api/public/categories/", api_public_categories, name="api-public-categories"),
     path("api/public/metiers/", api_public_metiers, name="api-public-metiers"),
     path("api/public/providers/", api_public_providers, name="api-public-providers"),
+    path("api/public/search", api_public_search, name="api-public-search"),
+    path("api/public/search/", api_public_search, name="api-public-search-slash"),
     path(
         "api/providers/<int:provider_id>/requirements/",
         api_provider_requirements,
@@ -197,7 +230,7 @@ urlpatterns = [
     path("api/auth/apple/", api_auth_apple, name="api-auth-apple-slash"),
     path("api/client/home", api_client_home, name="api-client-home"),
     path("api/client/actualites", api_client_actualites, name="api-client-actualites"),
-    # Variante publique (sans auth) — voir les actus de cible 'tous' depuis
+    # Variante publique (sans auth) : voir les actus de cible 'tous' depuis
     # l'écran d'accueil "À la une" même en mode visiteur.
     path("api/public/actualites", api_public_actualites, name="api-public-actualites"),
     path(
@@ -229,6 +262,18 @@ urlpatterns = [
         "api/client/reservations",
         api_client_create_reservation,
         name="api-client-reservations-create",
+    ),
+    path("api/client/sos/preview/", api_client_sos_preview, name="api-client-sos-preview"),
+    path("api/client/sos/preview", api_client_sos_preview, name="api-client-sos-preview-noslash"),
+    path(
+        "api/prestataire/requests/<str:reference>/sos-claim/",
+        api_prestataire_sos_claim,
+        name="api-prestataire-sos-claim",
+    ),
+    path(
+        "api/prestataire/requests/<str:reference>/sos-claim",
+        api_prestataire_sos_claim,
+        name="api-prestataire-sos-claim-noslash",
     ),
     path(
         "api/client/reservations/check-duplicate",
@@ -421,15 +466,28 @@ urlpatterns = [
         name="geniuspay-status",
     ),
     path("api/paiements/geniuspay/webhook/", geniuspay_webhook, name="geniuspay-webhook"),
-    # ── Admin — Actions bulk, audit log, export CSV ──────────────────────────
+    # ── Admin : Actions bulk, audit log, export CSV ──────────────────────────
     path(
         "api/admin/prestataires/bulk-action/",
         api_admin_bulk_provider_action,
         name="admin-bulk-action",
     ),
+    path(
+        "api/admin/prestataires/<int:provider_id>/",
+        api_admin_provider_detail,
+        name="api-admin-provider-detail",
+    ),
+    path(
+        "api/admin/kyc-media/<str:subfolder>/<str:filename>",
+        api_admin_kyc_media,
+        name="api-admin-kyc-media",
+    ),
+    path("api/admin/dashboard/", api_admin_financial_summary, name="api-admin-dashboard"),
+    path("api/admin/health/config", api_admin_health_config, name="api-admin-health-config"),
+    path("api/admin/health/config/", api_admin_health_config, name="api-admin-health-config-slash"),
     path("api/admin/audit-log/", api_admin_audit_log, name="admin-audit-log"),
     path("api/admin/export/<str:kind>/", api_admin_export_csv, name="admin-export-csv"),
-    # ── v2 — Historique réservations client ──────────────────────────────────
+    # ── v2 : Historique réservations client ──────────────────────────────────
     path(
         "api/client/reservations/list",
         api_client_reservations_list,
@@ -461,7 +519,7 @@ urlpatterns = [
         api_payment_quote,
         name="api-payment-quote",
     ),
-    # ── v2 — Auth : reset mot de passe + refresh token + vérif email ─────────
+    # ── v2 : Auth : reset mot de passe + refresh token + vérif email ─────────
     path(
         "api/auth/forgot-password",
         api_auth_forgot_password,
@@ -471,6 +529,11 @@ urlpatterns = [
         "api/auth/reset-password",
         api_auth_reset_password,
         name="api-auth-reset-password",
+    ),
+    path(
+        "api/auth/reset-password/",
+        api_auth_reset_password,
+        name="api-auth-reset-password-slash",
     ),
     path("api/auth/refresh", api_auth_refresh_token, name="api-auth-refresh"),
     path("api/auth/refresh/", api_auth_refresh_token, name="api-auth-refresh-slash"),
@@ -500,7 +563,19 @@ urlpatterns = [
         api_auth_verify_email,
         name="api-auth-verify-email",
     ),
-    # ── v2 — Profil + Portfolio prestataire ──────────────────────────────────
+    path("api/auth/verify-email-otp", api_auth_verify_email_otp, name="api-auth-verify-email-otp"),
+    path("api/auth/verify-email-otp/", api_auth_verify_email_otp, name="api-auth-verify-email-otp-slash"),
+    path("api/auth/resend-email-otp", api_auth_resend_email_otp, name="api-auth-resend-email-otp"),
+    path("api/auth/resend-email-otp/", api_auth_resend_email_otp, name="api-auth-resend-email-otp-slash"),
+    path("api/categories/<int:category_id>/catalogue", api_category_catalogue, name="api-category-catalogue"),
+    path("api/categories/<int:category_id>/catalogue/", api_category_catalogue, name="api-category-catalogue-slash"),
+    path("api/client/smart/price-estimate", api_client_smart_price_estimate, name="api-client-smart-price-estimate"),
+    path("api/client/smart/price-estimate/", api_client_smart_price_estimate, name="api-client-smart-price-estimate-slash"),
+    path("api/prestataire/smart/devis-assist", api_prestataire_smart_devis_assist, name="api-prestataire-smart-devis-assist"),
+    path("api/prestataire/smart/devis-assist/", api_prestataire_smart_devis_assist, name="api-prestataire-smart-devis-assist-slash"),
+    path("api/reservations/<str:reference>/bon-de-commande/pdf/", api_reservation_bon_de_commande_pdf, name="api-reservation-bon-de-commande-pdf"),
+    path("api/client/reservations/<str:reference>/bon-de-commande/pdf/", api_reservation_bon_de_commande_pdf, name="api-client-bon-de-commande-pdf"),
+    # ── v2 : Profil + Portfolio prestataire ──────────────────────────────────
     path(
         "api/prestataire/profile",
         api_prestataire_profile_update,
@@ -521,24 +596,39 @@ urlpatterns = [
         api_prestataire_rate_client,
         name="api-prestataire-rate-client",
     ),
-    # ── v2 — Notifications persistantes ──────────────────────────────────────
+    # ── v2 : Notifications persistantes ──────────────────────────────────────
     path("api/notifications", api_user_notifications, name="api-user-notifications"),
     path(
         "api/notifications/mark-read",
         api_user_notifications_mark_read,
         name="api-user-notifications-mark-read",
     ),
-    # ── v2 — Portfolio public prestataire ────────────────────────────────────
+    # ── v2 : Portfolio public prestataire ────────────────────────────────────
     path(
         "api/client/prestataires/<int:provider_id>/portfolio",
         api_provider_portfolio_public,
         name="api-provider-portfolio-public",
     ),
-    # ── v2 — Admin push broadcast ────────────────────────────────────────────
+    # ── v2 : Admin push broadcast ────────────────────────────────────────────
     path(
         "api/admin/push-broadcast",
         api_admin_push_broadcast,
         name="api-admin-push-broadcast",
+    ),
+    path(
+        "api/admin/notifications/feed",
+        api_admin_notifications_feed,
+        name="api-admin-notifications-feed",
+    ),
+    path(
+        "api/admin/notifications/mark-read",
+        api_admin_notifications_mark_read,
+        name="api-admin-notifications-mark-read",
+    ),
+    path(
+        "api/admin/notifications/mark-all-read",
+        api_admin_notifications_mark_all_read,
+        name="api-admin-notifications-mark-all-read",
     ),
     # ── Favoris, Paiements, Litiges ───────────────────────────────────────────
     path("api/client/favorites/", api_client_favorites, name="api-client-favorites"),
@@ -683,20 +773,23 @@ urlpatterns = [
     path("api/prestataire/premium/subscribe/", api_premium_subscribe, name="api-premium-subscribe"),
     path("api/prestataire/premium/calculator/", api_premium_calculator, name="api-premium-calculator"),
     path("api/prestataire/premium/pay/", geniuspay_premium_initiate, name="api-premium-pay"),
-    path("api/client/fidelite/", api_client_fidelite, name="api-client-fidelite"),
-    path("api/client/fidelite/convert", api_client_fidelite_convert, name="api-client-fidelite-convert"),
     path("api/admin/business-kpis/", api_admin_business_kpis, name="api-admin-business-kpis"),
     path("dashboard/kpis/", kpi_dashboard_page, name="kpi-dashboard"),
-    # B2B — BABIFIX Pro
+    path("dashboard/kpis", kpi_dashboard_page, name="kpi-dashboard-noslash"),
+    path("kpi-dashboard/", kpi_dashboard_page, name="kpi-dashboard-direct"),
+    path("kpi-dashboard", kpi_dashboard_page, name="kpi-dashboard-direct-noslash"),
+    # B2B : BABIFIX Pro
     path("api/pro/formules/", api_pro_formules, name="api-pro-formules"),
     path("api/pro/account/", api_pro_account, name="api-pro-account"),
     path("api/pro/sites/", api_pro_sites, name="api-pro-sites"),
     path("api/pro/interventions/", api_pro_declare_intervention, name="api-pro-interventions"),
     path("api/pro/invoice/", api_pro_invoice, name="api-pro-invoice"),
 
-    # ── KYC prestataire ───────────────────────────────────────────────────────
+    # -- KYC prestataire et Vivacite Biometrique Active ------------------------
     path("api/prestataire/kyc/status/", api_prestataire_kyc_status, name="api-prestataire-kyc-status"),
     path("api/prestataire/kyc/submit/", api_prestataire_kyc_submit, name="api-prestataire-kyc-submit"),
+    path("api/prestataire/kyc/liveness/challenge/", api_prestataire_kyc_liveness_challenge, name="api-prestataire-kyc-liveness-challenge"),
+    path("api/prestataire/kyc/liveness/verify/", api_prestataire_kyc_liveness_verify, name="api-prestataire-kyc-liveness-verify"),
 
     # ── Voice note avis ───────────────────────────────────────────────────────
     path(
@@ -725,7 +818,7 @@ urlpatterns = [
 
     # ── Appels audio/vidéo LiveKit ────────────────────────────────────────────
     # Les routes /api/calls/* existaient en code (views_calls.py) mais
-    # n'étaient PAS câblées dans urls.py — fix critique pour activer les
+    # n'étaient PAS câblées dans urls.py : fix critique pour activer les
     # appels client ↔ prestataire dans l'app.
     path("api/livekit/token", _calls_views.api_livekit_token, name="api-livekit-token"),
     path("api/calls/initiate", _calls_views.api_call_initiate, name="api-call-initiate"),
@@ -734,4 +827,41 @@ urlpatterns = [
     path("api/calls/<int:call_id>/end", _calls_views.api_call_end, name="api-call-end"),
     path("api/calls/<int:call_id>", _calls_views.api_call_detail, name="api-call-detail"),
     path("api/calls/history", _calls_views.api_call_history, name="api-call-history"),
+    path("api/audio/transcribe", api_transcribe_audio, name="api-audio-transcribe"),
+    path("api/audio/transcribe/", api_transcribe_audio, name="api-audio-transcribe-slash"),
+
+    # ── Cockpit Admin Unifie : Transcription, Smart Matching, Push stats ──────
+    path(
+        "api/admin/reservations/<str:reference>/transcription/",
+        _cockpit_views.api_admin_reservation_transcription,
+        name="api-admin-reservation-transcription",
+    ),
+    path(
+        "api/admin/reservations/<str:reference>/assign/",
+        _cockpit_views.api_admin_reservation_assign,
+        name="api-admin-reservation-assign",
+    ),
+    path(
+        "api/admin/matching/simulate/",
+        _cockpit_views.api_admin_matching_simulate,
+        name="api-admin-matching-simulate",
+    ),
+    path(
+        "api/admin/push-stats/",
+        _cockpit_views.api_admin_push_stats,
+        name="api-admin-push-stats",
+    ),
+
+    # ── Observabilite & Sante Live ────────────────────────────────────────────
+    path("healthz/", api_health_check, name="api-healthz"),
+    path("api/admin/observability/", _obs_views.api_admin_observability_list, name="api-admin-observability-list"),
+    path("api/admin/observability/<int:pk>/resolve/", _obs_views.api_admin_observability_resolve, name="api-admin-observability-resolve"),
+    path("api/admin/observability/purge/", _obs_views.api_admin_observability_purge, name="api-admin-observability-purge"),
+    path("api/telemetry/vitrine/", _obs_views.api_vitrine_telemetry_ingest, name="api-telemetry-vitrine"),
+
+    path("erreur/<int:code>/", error_preview, name="admin-error-preview"),
+    path("erreur/<int:code>", error_preview, name="admin-error-preview-noslash"),
+    # Alias de compatibilite mobile
+    path("api/prestataire/upload/<str:side>/", api_prestataire_upload_cni, name="api-prestataire-upload-cni-slash"),
+    path("api/prestataire/upload/<str:side>", api_prestataire_upload_cni, name="api-prestataire-upload-cni"),
 ]

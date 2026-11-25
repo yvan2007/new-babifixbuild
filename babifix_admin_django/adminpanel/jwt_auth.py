@@ -1,4 +1,4 @@
-# JWT Authentication — BABIFIX
+# JWT Authentication : BABIFIX
 """
 Systeme d'authentification base sur PyJWT avec RS256.
 Securise, scalable, avec refresh token rotation.
@@ -53,6 +53,29 @@ TOKEN_AUDIENCE = "babifix-client"
 
 # Blacklist for revoke tokens (use Redis in production)
 _token_blacklist = set()
+
+
+def _blacklist_jti(jti: Optional[str], ttl_seconds: int = 365 * 24 * 3600) -> None:
+    if not jti:
+        return
+    _token_blacklist.add(jti)
+    try:
+        from django.core.cache import cache
+        cache.set(f"jwt_bl:{jti}", 1, timeout=ttl_seconds)
+    except Exception:
+        pass
+
+
+def _is_blacklisted(jti: Optional[str]) -> bool:
+    if not jti:
+        return False
+    if jti in _token_blacklist:
+        return True
+    try:
+        from django.core.cache import cache
+        return bool(cache.get(f"jwt_bl:{jti}"))
+    except Exception:
+        return False
 
 
 def _load_private_key():
@@ -156,7 +179,7 @@ def verify_access_token(token: str) -> Optional[dict]:
         Payload decode ou None si invalide
     """
     try:
-        # Check blacklist first — décodage SANS vérification uniquement pour
+        # Check blacklist first : décodage SANS vérification uniquement pour
         # extraire le jti et faire le lookup blacklist. La vérif crypto
         # complète est faite ENSUITE (sécurité défense-en-profondeur).
         decoded = jwt.decode(token, options={"verify_signature": False})
@@ -166,7 +189,7 @@ def verify_access_token(token: str) -> Optional[dict]:
             return None
 
         # SÉCURITÉ : on ne mélange JAMAIS RS256 et HS256 dans la même liste
-        # d'algorithmes acceptés — sinon attaquant peut prendre la clé publique
+        # d'algorithmes acceptés : sinon attaquant peut prendre la clé publique
         # RSA (publique par définition) et l'utiliser comme secret HMAC HS256.
         # On choisit l'algo en fonction de la présence d'une clé publique.
         public_key = _load_public_key()
@@ -223,6 +246,12 @@ def verify_refresh_token(token: str) -> Optional[dict]:
         Payload decode ou None
     """
     try:
+        decoded_unverified = jwt.decode(token, options={"verify_signature": False})
+        jti = decoded_unverified.get("jti")
+        if _is_blacklisted(jti):
+            logger.warning("Refresh token revoked: %s", jti)
+            return None
+
         public_key = _load_public_key()
         if public_key:
             payload = jwt.decode(
@@ -283,7 +312,7 @@ def refresh_access_token(refresh_token: str) -> Optional[tuple[str, str]]:
     # Revoke old refresh token
     jti = payload.get("jti")
     if jti:
-        _token_blacklist.add(jti)
+        _blacklist_jti(jti)
     
     # Create new tokens
     new_access = create_access_token(int(user_id), role)
@@ -306,7 +335,7 @@ def revoke_token(token: str) -> bool:
         decoded = jwt.decode(token, options={"verify_signature": False})
         jti = decoded.get("jti")
         if jti:
-            _token_blacklist.add(jti)
+            _blacklist_jti(jti)
             logger.info(f"Token revoked: {jti}")
             return True
     except jwt.InvalidTokenError:
@@ -319,7 +348,7 @@ def is_token_revoked(token: str) -> bool:
     try:
         decoded = jwt.decode(token, options={"verify_signature": False})
         jti = decoded.get("jti")
-        return jti in _token_blacklist
+        return _is_blacklisted(jti)
     except jwt.InvalidTokenError:
         return True
 

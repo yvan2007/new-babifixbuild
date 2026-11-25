@@ -1,4 +1,4 @@
-"""GeoMatchingService — tri et filtrage géographique adaptatif (proximité).
+"""GeoMatchingService : tri et filtrage géographique adaptatif (proximité).
 
 Logique métier validée par le porteur de projet :
 
@@ -181,10 +181,20 @@ def rank_providers(
                 chosen_radius = r
                 break
 
-    # Calcul du score avec le rayon retenu + boost premium par tier.
-    # Bronze x1.10, Silver x1.30, Gold x1.60 — ne dépasse jamais 1.0
-    # (clamp pour garder la métrique 0..1).
-    _PREMIUM_BOOST = {"bronze": 1.10, "silver": 1.30, "gold": 1.60}
+    # Calcul du score avec le rayon retenu + boost premium dynamique par tier
+    # depuis PlatformConfig (clamp <= 1.0 pour garder la metrique 0..1).
+    from django.utils import timezone as _tz
+    try:
+        from .platform_config_service import get_dynamic_tier_configs
+        _, _prem_cfgs = get_dynamic_tier_configs()
+        _PREMIUM_BOOST = {
+            "silver": float(_prem_cfgs["silver"].get("visibility_boost", 1.30)),
+            "gold": float(_prem_cfgs["gold"].get("visibility_boost", 1.60)),
+        }
+    except Exception:
+        _PREMIUM_BOOST = {"silver": 1.30, "gold": 1.60}
+
+    _now = _tz.now()
     for c in candidates:
         base_score = _score(
             c.distance_km,
@@ -192,8 +202,11 @@ def rank_providers(
             float(getattr(c.provider, "average_rating", 0) or 0),
             chosen_radius if has_gps else max(ADAPTIVE_RADII_KM),
         )
-        tier = (getattr(c.provider, "premium_tier", "") or "").lower()
-        is_premium = bool(getattr(c.provider, "is_premium", False))
+        tier = (getattr(c.provider, "premium_tier", "") or "").lower().strip()
+        until = getattr(c.provider, "premium_until", None)
+        is_premium = bool(getattr(c.provider, "is_premium", False)) and (
+            not until or until >= _now
+        )
         boost = _PREMIUM_BOOST.get(tier, 1.0) if is_premium else 1.0
         c.score = min(1.0, base_score * boost)
 

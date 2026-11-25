@@ -42,6 +42,8 @@ urlpatterns = [
 ]
 
 # Pages d'erreur personnalisées BABIFIX
+handler400 = "adminpanel.views.error_400"
+handler403 = "adminpanel.views.error_403"
 handler404 = "adminpanel.views.error_404"
 handler500 = "adminpanel.views.error_500"
 

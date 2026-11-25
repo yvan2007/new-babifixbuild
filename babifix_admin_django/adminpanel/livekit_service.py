@@ -1,4 +1,4 @@
-"""LiveKit signaling — backend authoritative (Phase D).
+"""LiveKit signaling : backend authoritative (Phase D).
 
 Le backend :
 - crée la room et génère les tokens (HS256, claim `video.room`).
@@ -34,7 +34,73 @@ def _cfg(name: str, default: str = "") -> str:
 
 
 def livekit_url() -> str:
-    return _cfg("LIVEKIT_URL", "wss://babifix-h1giwqew.livekit.cloud")
+    return _cfg("LIVEKIT_URL", "").strip()
+
+
+def livekit_is_configured() -> bool:
+    """True uniquement si URL + API key + API secret LiveKit sont definis."""
+    return bool(
+        livekit_url()
+        and _cfg("LIVEKIT_API_KEY", "").strip()
+        and _cfg("LIVEKIT_API_SECRET", "").strip()
+    )
+
+
+def _generate_server_admin_token(ttl_seconds: int = 120) -> Optional[str]:
+    """Token HS256 avec droit roomAdmin pour fermer une room cote serveur."""
+    api_key = _cfg("LIVEKIT_API_KEY", "").strip()
+    api_secret = _cfg("LIVEKIT_API_SECRET", "").strip()
+    if not api_key or not api_secret:
+        return None
+    now = int(time.time())
+    header = {"alg": "HS256", "typ": "JWT"}
+    payload = {
+        "iss": api_key,
+        "nbf": now - 10,
+        "exp": now + ttl_seconds,
+        "video": {"roomAdmin": True, "roomCreate": True},
+    }
+    h = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+    p = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    sig = hmac.new(
+        api_secret.encode("utf-8"),
+        f"{h}.{p}".encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return f"{h}.{p}.{_b64url(sig)}"
+
+
+def delete_room_best_effort(room_name: str) -> bool:
+    """Ferme la room LiveKit cote serveur (deconnecte immediatement tous les pairs)."""
+    if not room_name or not livekit_is_configured():
+        return False
+    token = _generate_server_admin_token()
+    if not token:
+        return False
+    base = livekit_url()
+    if base.startswith("wss://"):
+        http_base = "https://" + base[6:]
+    elif base.startswith("ws://"):
+        http_base = "http://" + base[5:]
+    else:
+        http_base = base
+    endpoint = f"{http_base.rstrip('/')}/twirp/livekit.RoomService/DeleteRoom"
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps({"room": room_name}).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            return 200 <= resp.status < 300
+    except Exception:
+        return False
 
 
 def _b64url(data: bytes) -> str:
@@ -50,11 +116,9 @@ def generate_access_token(
     ttl_seconds: int = 3600,
 ) -> Optional[str]:
     """Génère un JWT HS256 LiveKit. Retourne None si clés non configurées."""
-    api_key = _cfg("LIVEKIT_API_KEY", "APIHmepmCSoou3K")
-    api_secret = _cfg(
-        "LIVEKIT_API_SECRET", "Cets7RORRaNS61Ie4dyCY0rE33lyzxTBrG7NYQifs6IA"
-    )
-    if not api_key or not api_secret:
+    api_key = _cfg("LIVEKIT_API_KEY", "")
+    api_secret = _cfg("LIVEKIT_API_SECRET", "")
+    if not api_key or not api_secret or not livekit_url():
         return None
 
     now = int(time.time())

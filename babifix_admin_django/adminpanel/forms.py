@@ -100,13 +100,21 @@ class CategoryForm(forms.ModelForm):
     # Devis intelligent (Phase 2). Le template est saisi en JSON brut dans un
     # textarea ; vide = formulaire actuel (rétrocompatible).
     template_exigences = forms.CharField(
-        label="Template d’exigences (JSON)",
+        label="Template d'exigences client (JSON)",
         required=False,
-        widget=forms.Textarea(attrs={"rows": 6, "class": "code-json"}),
+        widget=forms.Textarea(attrs={"rows": 5, "class": "code-json"}),
         help_text=(
-            "Liste JSON de questions dynamiques. Ex. : "
+            "Liste JSON de questions dynamiques cote client. Ex. : "
             '[{"key":"surface_m2","label":"Surface (m²)","type":"number"}]. '
-            "Laisser vide = formulaire actuel."
+            "Laisser vide = formulaire standard."
+        ),
+    )
+    registration_questions = forms.CharField(
+        label="Questions d'inscription prestataire (JSON)",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 4, "class": "code-json"}),
+        help_text=(
+            "Liste JSON de questions specifiques posees a l'artisan lors de son inscription."
         ),
     )
 
@@ -114,7 +122,10 @@ class CategoryForm(forms.ModelForm):
         model = Category
         fields = [
             "nom",
+            "groupe",
+            "regime_kyc",
             "description",
+            "search_keywords",
             "icone_slug",
             "icone_url",
             "ordre_affichage",
@@ -123,11 +134,15 @@ class CategoryForm(forms.ModelForm):
             "actif",
             "profil_devis",
         ]
-        widgets = {"description": forms.Textarea(attrs={"rows": 2})}
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 2}),
+            "search_keywords": forms.Textarea(attrs={"rows": 2, "placeholder": "Ex. fuite, robinet, evier, debouchage"}),
+        }
         help_texts = {
-            "icone_url": "Optionnel : URL d’image externe. Sinon, choisissez un pictogramme dans la grille ci‑dessous (slug).",
+            "icone_url": "Optionnel : URL d’image externe. Sinon, choisissez un pictogramme dans la grille ci-dessous (slug).",
             "icone_slug": "Cliquez une vignette dans la bibliothèque pour remplir ce champ automatiquement.",
             "profil_devis": "Oriente les questions posées au client. STANDARD = formulaire actuel inchangé.",
+            "regime_kyc": "STANDARD_TERRAIN (CNI+Selfie) ou SENSIBLE_CASIER (Casier judiciaire + Reference + Entretien).",
         }
 
     def __init__(self, *args, **kwargs):
@@ -138,19 +153,19 @@ class CategoryForm(forms.ModelForm):
                 self.fields["icone_slug"].choices = list(
                     self.fields["icone_slug"].choices
                 ) + [(cur, cur)]
-        # Pré-remplir le textarea JSON depuis la valeur stockée (liste/dict).
         if self.instance and self.instance.pk:
             import json as _json
-            existing = self.instance.template_exigences
-            if existing:
-                self.fields["template_exigences"].initial = _json.dumps(
-                    existing, ensure_ascii=False, indent=2
-                )
+            for fname in ("template_exigences", "registration_questions"):
+                existing = getattr(self.instance, fname, None)
+                if existing:
+                    self.fields[fname].initial = _json.dumps(
+                        existing, ensure_ascii=False, indent=2
+                    )
 
-    def clean_template_exigences(self):
-        """Valide le JSON saisi. Vide → liste vide (comportement actuel)."""
+    @staticmethod
+    def _parse_json_list_field(raw_val: str | None) -> list:
         import json as _json
-        raw = (self.cleaned_data.get("template_exigences") or "").strip()
+        raw = (raw_val or "").strip()
         if not raw:
             return []
         try:
@@ -161,14 +176,22 @@ class CategoryForm(forms.ModelForm):
             )
         if not isinstance(parsed, list):
             raise forms.ValidationError(
-                "Le template doit être une LISTE de questions (entre crochets [ ])."
+                "Ce champ doit être une LISTE JSON de questions (entre crochets [ ])."
             )
         return parsed
 
+    def clean_template_exigences(self):
+        """Valide le JSON saisi. Vide -> liste vide."""
+        return self._parse_json_list_field(self.cleaned_data.get("template_exigences"))
+
+    def clean_registration_questions(self):
+        """Valide le JSON des questions d'inscription. Vide -> liste vide."""
+        return self._parse_json_list_field(self.cleaned_data.get("registration_questions"))
+
     def save(self, commit=True):
         obj = super().save(commit=False)
-        # clean_template_exigences renvoie déjà une liste Python → l'affecter.
         obj.template_exigences = self.cleaned_data.get("template_exigences") or []
+        obj.registration_questions = self.cleaned_data.get("registration_questions") or []
         if commit:
             obj.save()
         return obj
@@ -180,7 +203,25 @@ class NotificationForm(forms.ModelForm):
         fields = ["title", "time"]
 
 
+ACTUALITE_ICON_CHOICES = [
+    ("", "Automatique (selon categorie)"),
+    ("megaphone", "Annonce / Megaphone"),
+    ("spark", "Nouveaute / Etoile"),
+    ("shield", "Securite & Sequestre"),
+    ("wrench", "Maintenance & Service"),
+    ("wallet", "Mobile Money & Paiements"),
+    ("tag", "Offre & Promotion"),
+]
+
+
 class ActualiteForm(forms.ModelForm):
+    icone_key = forms.ChoiceField(
+        label="Icone d'affichage",
+        choices=ACTUALITE_ICON_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
     class Meta:
         model = Actualite
         fields = [
@@ -194,6 +235,12 @@ class ActualiteForm(forms.ModelForm):
         ]
         widgets = {
             "description": forms.Textarea(attrs={"rows": 6}),
-            "titre": forms.TextInput(attrs={"placeholder": "Titre visible dans l’app"}),
+            "titre": forms.TextInput(attrs={"placeholder": "Titre visible dans l'app"}),
             "cible": forms.Select(attrs={"class": "form-select"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        cur = (getattr(self.instance, "icone_key", "") or "").strip() if self.instance and self.instance.pk else ""
+        if cur and cur not in {k for k, _ in ACTUALITE_ICON_CHOICES}:
+            self.fields["icone_key"].choices = list(self.fields["icone_key"].choices) + [(cur, cur)]

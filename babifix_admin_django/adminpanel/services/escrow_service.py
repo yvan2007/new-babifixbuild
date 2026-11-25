@@ -1,4 +1,4 @@
-"""EscrowService — orchestration paiement BABIFIX (Phase F).
+"""EscrowService : orchestration paiement BABIFIX (Phase F).
 
 Règle métier confirmée par le porteur du projet :
 
@@ -22,7 +22,7 @@ Règle métier confirmée par le porteur du projet :
 
 3. **AUCUN fonds ne quitte la plateforme avant `client_confirme_prestation_at`.**
    En particulier le wallet prestataire n'est jamais crédité au moment du
-   paiement initial — uniquement à `release_funds()`.
+   paiement initial : uniquement à `release_funds()`.
 
 4. Idempotence : `release_funds` est sûr d'être appelé plusieurs fois (il
    regarde `funds_released_at`).
@@ -40,7 +40,7 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-# B12 — Montant minimum acceptable en Mobile Money (limite GeniusPay 200 XOF).
+# B12 : Montant minimum acceptable en Mobile Money (limite GeniusPay 200 XOF).
 # Si la commission cash devait être < ce seuil, on prélève ce minimum à la
 # place ; le surplus (différence entre minimum et commission réelle) est
 # tracé via `EscrowQuote.cash_minimum_surplus` puis reversé au prestataire
@@ -80,22 +80,23 @@ def _notify_provider_funds_received(reservation, net_amount: float) -> None:
     # 2) E-mail de confirmation de versement (expéditeur « BABIFIX »)
     try:
         from django.contrib.auth.models import User
-        from .views_extra import send_babifix_email_html
+        from ..views_extra import send_babifix_email_html
 
         presta = User.objects.filter(pk=reservation.prestataire_user_id).first()
         if not (presta and presta.email):
             return
         nom = presta.get_full_name() or presta.username
         html = f"""
-        <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
-          <h2 style="color:#0B1B34">BABIFIX — Versement reçu</h2>
-          <p>Bonjour {nom},</p>
-          <p>Bonne nouvelle : <strong>{montant_txt} FCFA</strong> (net après commission)
-          viennent d'être crédités sur votre wallet BABIFIX pour la prestation
-          <strong>{reservation.reference}</strong>.</p>
-          <p>Vous pouvez demander un retrait depuis l'application
-          <strong>BABIFIX PRO</strong> → Mon Wallet.</p>
-          <p style="color:#64748b;font-size:13px">Merci de votre confiance.<br>L'équipe BABIFIX</p>
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;background:#FFFFFF">
+          <div style="background:#0B1B34;padding:20px 24px;border-bottom:3px solid #0E3B2E">
+            <h2 style="color:#FFFFFF;margin:0;font-size:18px">BABIFIX PRO : Versement recu</h2>
+          </div>
+          <div style="padding:24px;color:#0F172A">
+            <p>Bonjour <strong>{nom}</strong>,</p>
+            <p>Bonne nouvelle : <strong>{montant_txt} FCFA</strong> (net apres commission) viennent d etre credites sur votre wallet BABIFIX pour la prestation <strong>{reservation.reference}</strong>.</p>
+            <p>Vous pouvez demander un retrait depuis l application <strong>BABIFIX PRO</strong> (Mon Wallet).</p>
+            <p style="color:#64748B;font-size:13px;margin-top:18px">Merci de votre confiance.<br>L equipe BABIFIX Cote d Ivoire</p>
+          </div>
         </div>
         """
         send_babifix_email_html(
@@ -137,14 +138,14 @@ def _reste_apres_caution(reservation, devis) -> Decimal:
 
 def _reconciled_commission_net(reservation, devis):
     """Commission BABIFIX (brute) et net prestataire, sur le reste APRÈS
-    caution UNIQUEMENT — jamais après remise fidélité (celle-ci ne doit
+    caution UNIQUEMENT : jamais après remise fidélité (celle-ci ne doit
     jamais réduire le net du prestataire, elle est absorbée par BABIFIX ;
     voir `_platform_commission_nette` pour ce qui est réellement comptabilisé
     en revenu plateforme).
 
     Remplace toute lecture directe de `devis.commission_montant` /
     `devis.net_prestataire` : ces deux champs sont figés au moment de l'envoi
-    du devis et ne sont JAMAIS recalculés après une déduction de caution —
+    du devis et ne sont JAMAIS recalculés après une déduction de caution :
     les utiliser tels quels aurait versé au prestataire un montant faux (et
     prélevé une commission BABIFIX sur de l'argent déjà réglé séparément via
     la caution).
@@ -177,7 +178,7 @@ def _total_client_du(reservation, devis) -> Decimal:
     devis de 5 000 F se voyait redemander une commission ET un reste calculés
     sur les 5 000 F complets (comme si rien n'avait encore été payé), au lieu
     des 2 000 F réellement dus. Le reçu (déjà corrigé) affichait le bon
-    montant, mais l'écran de PAIEMENT (ce service) affichait l'ancien, faux —
+    montant, mais l'écran de PAIEMENT (ce service) affichait l'ancien, faux :
     d'où les deux montants contradictoires vus par le client.
     """
     reste = Decimal(str(getattr(reservation, "montant", 0) or 0))
@@ -209,7 +210,7 @@ class EscrowQuote:
     cash_remainder: Decimal  # solde à payer cash au presta (0 si mobile)
     devis_id: Optional[int]
     devis_reference: str
-    # B12 — Surplus prélevé en plus de la commission cash pour respecter
+    # B12 : Surplus prélevé en plus de la commission cash pour respecter
     # MIN_ONLINE_PAYMENT_XOF. Sera reversé au prestataire à la confirmation.
     cash_minimum_surplus: Decimal = Decimal("0")
     # Taux RÉEL (ex. 18) utilisé par _reconciled_commission_net. Sans ce
@@ -254,7 +255,7 @@ class EscrowService:
         if reservation.payment_type == Reservation.PaymentType.ESPECES:
             strategy = "CASH_COMMISSION_ONLY"
             amount_due = commission
-            # B12 — Force le minimum acceptable Mobile Money. Si la
+            # B12 : Force le minimum acceptable Mobile Money. Si la
             # commission seule est trop faible (devis < ~2 800 FCFA),
             # on prélève le minimum et on note le surplus pour le
             # reverser au presta à la confirmation.
@@ -270,7 +271,7 @@ class EscrowService:
             # escrow jusqu'à la confirmation client (release_funds).
             montant_verse = Decimal(str(reservation.montant_verse or 0))
             # ATTENTION : `reste` (calculé plus haut) exclut délibérément la
-            # remise fidélité — c'est la base de la commission/du net presta,
+            # remise fidélité : c'est la base de la commission/du net presta,
             # que la remise ne doit jamais réduire. Ce que le CLIENT règle,
             # lui, doit bien inclure la remise : `_total_client_du` est la
             # seule source correcte ici (reste ET remise).
@@ -283,7 +284,7 @@ class EscrowService:
                 amount_due = total_client - montant_verse
             if amount_due < 0:
                 amount_due = Decimal("0")
-            # B12 — garde-fou montant minimum GeniusPay (sans dépasser le total).
+            # B12 : garde-fou montant minimum GeniusPay (sans dépasser le total).
             if amount_due > 0 and amount_due < MIN_ONLINE_PAYMENT_XOF:
                 amount_due = MIN_ONLINE_PAYMENT_XOF
                 if amount_due > total:
@@ -355,7 +356,7 @@ class EscrowService:
         if reservation.payment_type == Reservation.PaymentType.ESPECES:
             # La commission reste bloquée en escrow jusqu'à la confirmation
             # client + cash handover complet. On ne crée PAS PlatformRevenue
-            # ici — ce sera fait dans release_funds.
+            # ici : ce sera fait dans release_funds.
             devis = _latest_devis(reservation)
             commission_due = (
                 _reconciled_commission_net(reservation, devis)[1] if devis else gross
@@ -450,7 +451,7 @@ class EscrowService:
         # bougent qu'après résolution admin (resolve_dispute) qui lève le flag.
         if getattr(reservation, "dispute_ouverte", False):
             logger.info(
-                "release_funds: litige ouvert pour %s — versement gelé",
+                "release_funds: litige ouvert pour %s : versement gelé",
                 reservation.reference,
             )
             return {"error": "dispute_open", "held": True}
@@ -461,7 +462,7 @@ class EscrowService:
         devis = _latest_devis(reservation)
         if devis is None:
             logger.warning(
-                "release_funds: aucune devis pour %s — abort",
+                "release_funds: aucune devis pour %s : abort",
                 reservation.reference,
             )
             return {"error": "no_devis"}
@@ -492,11 +493,11 @@ class EscrowService:
                 source=PlatformRevenue.Source.COMMISSION,
                 reference=reservation.reference,
                 description=(
-                    f"Commission libérée à la confirmation — {reservation.reference}"
+                    f"Commission libérée à la confirmation : {reservation.reference}"
                 ),
             )
             result["platform_revenue"] = float(commission_due)
-            # B12 — Surplus éventuel (devis très petit) reversé au presta
+            # B12 : Surplus éventuel (devis très petit) reversé au presta
             surplus = montant_verse - commission_due
             if surplus > 0:
                 provider = reservation.assigned_provider
@@ -516,13 +517,13 @@ class EscrowService:
                         amount_fcfa=surplus.quantize(Decimal("1")),
                         reference=reservation.reference,
                         description=(
-                            f"Surplus minimum MM reversé — {reservation.reference}"
+                            f"Surplus minimum MM reversé : {reservation.reference}"
                         ),
                         status="success",
                     )
                     result["released_to_provider"] = float(surplus)
                     logger.info(
-                        "EscrowService.release_funds: cash %s — surplus %s "
+                        "EscrowService.release_funds: cash %s : surplus %s "
                         "reversé au presta",
                         reservation.reference,
                         surplus,
@@ -534,7 +535,7 @@ class EscrowService:
                     )
             else:
                 logger.info(
-                    "EscrowService.release_funds: cash %s — commission %s "
+                    "EscrowService.release_funds: cash %s : commission %s "
                     "reconnue, net déjà en main à main.",
                     reservation.reference,
                     commission_due,
@@ -549,7 +550,7 @@ class EscrowService:
             montant_verse = Decimal(str(reservation.montant_verse or 0))
             if montant_verse + Decimal("1") < total_due:  # tolérance arrondi 1 XOF
                 logger.info(
-                    "release_funds: solde non payé pour %s (versé %s / %s) — gelé",
+                    "release_funds: solde non payé pour %s (versé %s / %s) : gelé",
                     reservation.reference, montant_verse, total_due,
                 )
                 return {"error": "remainder_not_paid", "held": True}
@@ -578,7 +579,7 @@ class EscrowService:
                 amount_fcfa=net,
                 reference=reservation.reference,
                 description=(
-                    f"Libération escrow — {reservation.reference} "
+                    f"Libération escrow : {reservation.reference} "
                     f"(net après commission {_pct} %)"
                 ),
                 status="success",
@@ -589,7 +590,7 @@ class EscrowService:
                 amount_fcfa=commission,
                 reference=reservation.reference,
                 description=(
-                    f"Commission BABIFIX {_pct} % prélevée — {reservation.reference}"
+                    f"Commission BABIFIX {_pct} % prélevée : {reservation.reference}"
                 ),
                 status="success",
             )
@@ -598,7 +599,7 @@ class EscrowService:
                 source=PlatformRevenue.Source.COMMISSION,
                 reference=reservation.reference,
                 description=(
-                    f"Commission 18 % libérée à la confirmation — {reservation.reference}"
+                    f"Commission {_pct} % libérée à la confirmation : {reservation.reference}"
                 ),
             )
 
@@ -612,7 +613,7 @@ class EscrowService:
                     source=PlatformRevenue.Source.COMMISSION,
                     reference=reservation.reference,
                     description=(
-                        f"Remise fidélité offerte au client — {reservation.reference}"
+                        f"Remise fidélité offerte au client : {reservation.reference}"
                     ),
                 )
 
@@ -670,7 +671,7 @@ class EscrowService:
             )
 
         logger.info(
-            "EscrowService.release_funds: %s — strategy=%s released=%s commission=%s",
+            "EscrowService.release_funds: %s : strategy=%s released=%s commission=%s",
             reservation.reference,
             result["strategy"],
             result.get("released_to_provider"),
@@ -728,7 +729,8 @@ class EscrowService:
 
         # ── Rembourser le client (rien au presta) ───────────────────────────
         if is_refund:
-            refund_amount = paid if paid > 0 else Decimal(str(reservation.montant or 0))
+            # On ne rembourse que ce qui a reellement ete encaisse par la plateforme.
+            refund_amount = paid if paid > 0 else Decimal("0")
             reservation.dispute_ouverte = False
             reservation.funds_released_at = timezone.now()  # bloque tout versement futur
             reservation.refund_owed_fcfa = refund_amount
@@ -744,7 +746,7 @@ class EscrowService:
                 ]
             )
             logger.info(
-                "resolve_dispute REFUND: %s — %s FCFA dûs au client",
+                "resolve_dispute REFUND: %s : %s FCFA dûs au client",
                 reservation.reference, refund_amount,
             )
             return {"action": "refund", "ok": True, "refund_owed": float(refund_amount)}
@@ -767,7 +769,7 @@ class EscrowService:
                 tx_type="credit",
                 amount_fcfa=half_net,
                 reference=reservation.reference,
-                description=f"Partage litige (50%) — {reservation.reference}",
+                description=f"Partage litige (50%) : {reservation.reference}",
                 status="success",
             )
             credited = half_net
@@ -778,7 +780,7 @@ class EscrowService:
             update_fields=["dispute_ouverte", "funds_released_at", "refund_owed_fcfa"]
         )
         logger.info(
-            "resolve_dispute SPLIT: %s — presta +%s, client remboursé %s",
+            "resolve_dispute SPLIT: %s : presta +%s, client remboursé %s",
             reservation.reference, credited, half_refund,
         )
         return {
@@ -817,7 +819,7 @@ class EscrowService:
         from adminpanel.models import Reservation
         from adminpanel.geniuspay import geniuspay_send_payout
 
-        # Phase 1 — claim atomique
+        # Phase 1 : claim atomique
         with transaction.atomic():
             res = Reservation.objects.select_for_update().get(pk=reservation.pk)
             owed = Decimal(str(res.refund_owed_fcfa or 0))
@@ -830,7 +832,7 @@ class EscrowService:
                 res.refund_status = "manual"  # infos MoMo manquantes → admin manuel
                 res.save(update_fields=["refund_status"])
                 logger.warning(
-                    "process_client_refund: %s — tel/opérateur client manquant "
+                    "process_client_refund: %s : tel/opérateur client manquant "
                     "→ remboursement manuel",
                     res.reference,
                 )
@@ -847,7 +849,7 @@ class EscrowService:
             operator=operator,
             recipient_name=client_name,
             reference=ext_ref,
-            description=f"Remboursement litige BABIFIX — {ref}",
+            description=f"Remboursement litige BABIFIX : {ref}",
         )
 
         if not result.get("ok"):
@@ -856,7 +858,7 @@ class EscrowService:
                 res.refund_status = "failed"
                 res.save(update_fields=["refund_status"])
             logger.error(
-                "process_client_refund: échec payout %s — %s",
+                "process_client_refund: échec payout %s : %s",
                 ref, result.get("error"),
             )
             EscrowService._notify_client_refund(reservation.pk, ok=False)
@@ -913,14 +915,14 @@ class EscrowService:
             from adminpanel.push_dispatch import _schedule
 
             if ok:
-                title = "BABIFIX — Remboursement effectué"
+                title = "BABIFIX : Remboursement effectué"
                 body = (
                     f"Votre remboursement de {res.refund_owed_fcfa:,.0f} FCFA "
                     f"(litige {res.reference}) a été versé sur votre compte Mobile Money."
                 )
                 ev = "refund.completed"
             else:
-                title = "BABIFIX — Remboursement en traitement"
+                title = "BABIFIX : Remboursement en traitement"
                 body = (
                     f"Votre remboursement (litige {res.reference}) sera traité "
                     f"manuellement par notre équipe sous peu."

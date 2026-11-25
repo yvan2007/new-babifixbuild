@@ -6,6 +6,9 @@ class AdminpanelConfig(AppConfig):
     name = "adminpanel"
 
     def ready(self):
-        # Signaux → WebSocket admin (évite import circulaire : hook après chargement des modèles)
+        # Signaux -> WebSocket admin (evite import circulaire : hook apres chargement des modeles)
         import adminpanel.signals  # noqa: F401
         import adminpanel.push_dispatch  # noqa: F401
+        from adminpanel.perf_signals import register_cache_invalidation
+
+        register_cache_invalidation()

@@ -1,69 +1,401 @@
 {% load babifix_tags %}
 
-<section class="data-section">
-  <h2 class="section-title">Parametres systeme</h2>
-
-  <div class="settings-grid">
-    <div class="settings-card">
-      <h3 class="settings-card__title">💰 Commission</h3>
-      <form method="post" class="settings-form" hx-post="/?section=parametres&hx=1" hx-swap="outerHTML">
-        {% csrf_token %}
-        <input type="hidden" name="setting_key" value="commission_pct">
-        <div class="form-group">
-          <label for="commission_pct">Pourcentage de commission (%)</label>
-          <input type="number" id="commission_pct" name="value" value="{{ settings.commission_pct|default:18 }}" min="0" max="50" step="0.5" class="form-input">
-        </div>
-        <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
-      </form>
+<div class="bx-param-cockpit">
+  <div class="bx-param-header">
+    <div>
+      <h3 style="margin:0 0 4px;">Cockpit Parametres &amp; Synchronisation Multi-Applications</h3>
+      <p class="section-help" style="margin:0;">Chaque modification enregistree met automatiquement a jour le moteur financier serveur, les applications Flutter Client &amp; Prestataire et le site Vitrine sans toucher au code.</p>
     </div>
-
-    <div class="settings-card">
-      <h3 class="settings-card__title">⚙️ Validation automatique</h3>
-      <form method="post" class="settings-form" hx-post="/?section=parametres&hx=1" hx-swap="outerHTML">
-        {% csrf_token %}
-        <input type="hidden" name="setting_key" value="auto_validation">
-        <div class="form-group">
-          <label for="auto_validation">Validation auto des prestataires</label>
-          <select id="auto_validation" name="value" class="form-select">
-            <option value="False" {% if settings.auto_validation != "True" %}selected{% endif %}>Desactivee</option>
-            <option value="True" {% if settings.auto_validation == "True" %}selected{% endif %}>Activee</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
-      </form>
-    </div>
-
-    <div class="settings-card">
-      <h3 class="settings-card__title">🔧 Mode maintenance</h3>
-      <form method="post" class="settings-form" hx-post="/?section=parametres&hx=1" hx-swap="outerHTML">
-        {% csrf_token %}
-        <input type="hidden" name="setting_key" value="maintenance_mode">
-        <div class="form-group">
-          <label for="maintenance_mode">Etat de la plateforme</label>
-          <select id="maintenance_mode" name="value" class="form-select">
-            <option value="False" {% if settings.maintenance_mode != "True" %}selected{% endif %}>🟢 En ligne</option>
-            <option value="True" {% if settings.maintenance_mode == "True" %}selected{% endif %}>🔴 Maintenance</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
-      </form>
-    </div>
-
-    <div class="settings-card">
-      <h3 class="settings-card__title">💳 Modes de paiement</h3>
-      <form method="post" class="settings-form" hx-post="/?section=parametres&hx=1" hx-swap="outerHTML">
-        {% csrf_token %}
-        <input type="hidden" name="setting_key" value="mode_paiement">
-        <div class="form-group">
-          <label for="mode_paiement">Mode de paiement actif</label>
-          <select id="mode_paiement" name="value" class="form-select">
-            <option value="ESPECES" {% if settings.mode_paiement == "ESPECES" %}selected{% endif %}>Espece</option>
-            <option value="MOBILE_MONEY" {% if settings.mode_paiement == "MOBILE_MONEY" %}selected{% endif %}>Mobile Money</option>
-            <option value="TOUS" {% if settings.mode_paiement == "TOUS" %}selected{% endif %}>Tous</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
-      </form>
+    <div class="bx-sync-targets" aria-label="Cibles synchronisees">
+      <span class="bx-sync-tag">Backend Django</span>
+      <span class="bx-sync-tag">App Client Flutter</span>
+      <span class="bx-sync-tag">App Prestataire Flutter</span>
+      <span class="bx-sync-tag">Site Vitrine</span>
+      <a href="/api/public/config/" target="_blank" rel="noopener" class="bx-ribbon-link">Voir JSON /api/public/config/</a>
     </div>
   </div>
-</section>
+
+  <form method="post" id="bx-params-form" class="bx-param-grid">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="params_update">
+    <input type="hidden" name="platform_config_present" value="1">
+    <input type="hidden" name="platform_apps_sync_present" value="1">
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="bx-param-tabs" role="tablist" aria-label="Modules de parametres">
+        <button type="button" class="bx-param-tab-btn is-active" role="tab" aria-selected="true" data-param-tab="economy" onclick="switchParamTab('economy')">1. Economie &amp; Paliers</button>
+        <button type="button" class="bx-param-tab-btn" role="tab" aria-selected="false" data-param-tab="escrow" onclick="switchParamTab('escrow')">2. Sequestre &amp; Paiements</button>
+        <button type="button" class="bx-param-tab-btn" role="tab" aria-selected="false" data-param-tab="radar" onclick="switchParamTab('radar')">3. Matching &amp; Radar Anti-Fuite</button>
+        <button type="button" class="bx-param-tab-btn" role="tab" aria-selected="false" data-param-tab="apps" onclick="switchParamTab('apps')">4. Pilotage &amp; Statut Apps</button>
+      </div>
+
+      <!-- TAB 1: ECONOMIE & PALIERS -->
+      <article class="card card-elevate bx-param-panel is-active" data-param-panel="economy">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <h4 style="margin:0;">Commission plateforme &amp; Abonnements artisans</h4>
+          <span class="bx-pill bx-pill--info">Impact : Devis, Wallet &amp; Vitrine</span>
+        </div>
+        <div class="bx-param-fields">
+          <div class="bx-field-card">
+            <label for="id_commission">Commission de base Standard (%)</label>
+            <input type="number" id="id_commission" name="commission" min="1" max="35" value="{{ platform_config.base_commission_pct|default:params.commission|default:18 }}" oninput="updateParamSimulator()">
+            <span class="bx-field-hint">Taux Standard applique par defaut (1 a 35%).</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_commission_floor_pct">Plancher commission minimal (%)</label>
+            <input type="number" id="id_commission_floor_pct" name="commission_floor_pct" min="1" max="20" value="{{ platform_config.commission_floor_pct|default:5 }}" oninput="updateParamSimulator()">
+            <span class="bx-field-hint">Taux minimum protege meme avec reduction Pro.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_silver_reduction">Reduction Pro Silver (%)</label>
+            <input type="number" id="id_silver_reduction" name="silver_commission_reduction" min="0" max="20" value="{{ platform_config.silver_commission_reduction|default:5 }}" oninput="updateParamSimulator()">
+            <span class="bx-field-hint">Points de commission deduits pour Silver.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_gold_reduction">Reduction Pro Gold (%)</label>
+            <input type="number" id="id_gold_reduction" name="gold_commission_reduction" min="0" max="25" value="{{ platform_config.gold_commission_reduction|default:10 }}" oninput="updateParamSimulator()">
+            <span class="bx-field-hint">Points de commission deduits pour Gold.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_silver_price">Tarif Pro Silver (FCFA / mois)</label>
+            <input type="number" id="id_silver_price" name="silver_price_fcfa" min="0" max="500000" step="500" value="{{ platform_config.silver_price_fcfa|default:7500 }}" oninput="updateParamSimulator()">
+            <span class="bx-field-hint">Facture via GeniusPay / Wallet sur app Prestataire.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_gold_price">Tarif Pro Gold (FCFA / mois)</label>
+            <input type="number" id="id_gold_price" name="gold_price_fcfa" min="0" max="1000000" step="500" value="{{ platform_config.gold_price_fcfa|default:15000 }}" oninput="updateParamSimulator()">
+            <span class="bx-field-hint">Affiche en direct sur PremiumScreen &amp; Vitrine.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_standard_max_devis">Quota devis actifs Standard</label>
+            <input type="number" id="id_standard_max_devis" name="standard_max_devis" min="1" max="50" value="{{ platform_config.standard_max_devis|default:3 }}">
+            <span class="bx-field-hint">Nombre maximal de devis ouverts en palier gratuit.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_silver_max_devis">Quota devis actifs Pro Silver</label>
+            <input type="number" id="id_silver_max_devis" name="silver_max_devis" min="1" max="200" value="{{ platform_config.silver_max_devis|default:15 }}">
+            <span class="bx-field-hint">Plafond Silver (Pro Gold reste illimite).</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_silver_boost">Boost visibilite Silver (%)</label>
+            <input type="number" id="id_silver_boost" name="silver_visibility_boost_pct" min="0" max="300" value="{{ platform_config.silver_visibility_boost_pct|default:30 }}">
+            <span class="bx-field-hint">Ponderation Smart Matching (+30% = x1.3).</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_gold_boost">Boost visibilite Gold (%)</label>
+            <input type="number" id="id_gold_boost" name="gold_visibility_boost_pct" min="0" max="500" value="{{ platform_config.gold_visibility_boost_pct|default:60 }}">
+            <span class="bx-field-hint">Ponderation Smart Matching (+60% = x1.6).</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- TAB 2: SEQUESTRE & PAIEMENTS -->
+      <article class="card card-elevate bx-param-panel" data-param-panel="escrow">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <h4 style="margin:0;">Regles Sequestre Client, Retraits &amp; Operateurs Mobile Money</h4>
+          <span class="bx-pill bx-pill--ok">Impact : DevisKanban &amp; WalletService</span>
+        </div>
+        <div class="bx-param-fields">
+          <div class="bx-field-card">
+            <label for="id_frais_mer">Frais mise en relation / visite (FCFA)</label>
+            <input type="number" id="id_frais_mer" name="frais_mise_en_relation_fcfa" min="0" max="50000" step="100" value="{{ platform_config.frais_mise_en_relation_fcfa|default:500 }}" oninput="updateParamSimulator()">
+            <span class="bx-field-hint">Frais techniques fixes client en cas de deplacement.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_urgency_pct">Majoration intervention urgente (%)</label>
+            <input type="number" id="id_urgency_pct" name="urgency_surcharge_pct" min="0" max="100" value="{{ platform_config.urgency_surcharge_pct|default:15 }}">
+            <span class="bx-field-hint">Supplement indique lors des demandes urgentes.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_escrow_hours">Auto-confirmation sequestre (heures)</label>
+            <input type="number" id="id_escrow_hours" name="escrow_auto_confirm_hours" min="6" max="336" value="{{ platform_config.escrow_auto_confirm_hours|default:72 }}">
+            <span class="bx-field-hint">Delai avant deblocage automatique si aucun litige.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_min_withdraw">Retrait minimum artisan (FCFA)</label>
+            <input type="number" id="id_min_withdraw" name="min_withdrawal_fcfa" min="100" max="100000" step="100" value="{{ platform_config.min_withdrawal_fcfa|default:1000 }}">
+            <span class="bx-field-hint">Controle applique cote serveur et app Prestataire.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_daily_cap">Plafond retrait journalier (FCFA)</label>
+            <input type="number" id="id_daily_cap" name="daily_withdrawal_cap_fcfa" min="5000" max="10000000" step="5000" value="{{ platform_config.daily_withdrawal_cap_fcfa|default:250000 }}">
+            <span class="bx-field-hint">Plafond anti-fraude quotidien par prestataire.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_mode_paiement">Libelle canaux de paiement affiches</label>
+            <input type="text" id="id_mode_paiement" name="mode_paiement" value="{{ params.mode_paiement|default:'Wave, Orange Money, MTN MoMo, Moov Money, Especes' }}">
+            <span class="bx-field-hint">Resume informatif sur factures et recus.</span>
+          </div>
+        </div>
+        <div class="bx-param-fields">
+          <div class="bx-field-card">
+            <label>Operateurs Mobile Money actifs</label>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;padding-top:4px;">
+              <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;"><input type="checkbox" name="enabled_operators" value="wave" {% if 'wave' in public_config.payment_modes.operators %}checked{% endif %}> Wave</label>
+              <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;"><input type="checkbox" name="enabled_operators" value="orange" {% if 'orange' in public_config.payment_modes.operators %}checked{% endif %}> Orange Money</label>
+              <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;"><input type="checkbox" name="enabled_operators" value="mtn" {% if 'mtn' in public_config.payment_modes.operators %}checked{% endif %}> MTN MoMo</label>
+              <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;"><input type="checkbox" name="enabled_operators" value="moov" {% if 'moov' in public_config.payment_modes.operators %}checked{% endif %}> Moov Money</label>
+            </div>
+          </div>
+          <div class="bx-field-card">
+            <label>Modes d'encaissement autorises</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;padding-top:4px;"><input type="checkbox" name="allow_mobile_money_payments" {% if platform_config.allow_mobile_money_payments %}checked{% endif %}> Paiements Mobile Money actifs</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;"><input type="checkbox" name="allow_cash_payments" {% if platform_config.allow_cash_payments %}checked{% endif %}> Paiement en especes apres intervention</label>
+          </div>
+        </div>
+      </article>
+
+      <!-- TAB 3: MATCHING & RADAR ANTI-FUITE -->
+      <article class="card card-elevate bx-param-panel" data-param-panel="radar">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <h4 style="margin:0;">Algorithme Smart Matching &amp; Garde-fous Fiabilite</h4>
+          <span class="bx-pill bx-pill--warn">Impact : MatchingService &amp; Discipline</span>
+        </div>
+        <div class="bx-param-fields">
+          <div class="bx-field-card">
+            <label for="id_matching_radius">Rayon Smart Matching par defaut (km)</label>
+            <input type="number" id="id_matching_radius" name="matching_radius_km" min="1" max="250" value="{{ platform_config.matching_radius_km|default:15 }}">
+            <span class="bx-field-hint">Distance cible de recherche d'artisans disponibles.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_fiab_seuil">Seuil score fiabilite visible (/100)</label>
+            <input type="number" id="id_fiab_seuil" name="fiabilite_seuil" min="10" max="95" value="{{ platform_config.fiabilite_seuil|default:60 }}">
+            <span class="bx-field-hint">En dessous de ce score, le profil est masque au matching.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_radar_jours">Delai alerte visite sans devis (jours)</label>
+            <input type="number" id="id_radar_jours" name="radar_visite_sans_devis_jours" min="1" max="30" value="{{ platform_config.radar_visite_sans_devis_jours|default:7 }}">
+            <span class="bx-field-hint">Signale un contournement potentiel apres visite terrain.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_susp_score">Seuil score suspension automatique</label>
+            <input type="number" id="id_susp_score" name="suspension_score_seuil" min="5" max="60" value="{{ platform_config.suspension_score_seuil|default:35 }}">
+            <span class="bx-field-hint">Si le gating est actif, suspend automatiquement le compte.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_susp_visites">Visites suspectes avant blocage</label>
+            <input type="number" id="id_susp_visites" name="suspension_visites_suspectes" min="1" max="20" value="{{ platform_config.suspension_visites_suspectes|default:3 }}">
+            <span class="bx-field-hint">Nombre de visites sans suite declenchant alerte ou blocage.</span>
+          </div>
+          <div class="bx-field-card">
+            <label>Regles automatiques actives</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;padding-top:4px;"><input type="checkbox" name="fiabilite_gating_actif" {% if platform_config.fiabilite_gating_actif %}checked{% endif %}> Masquer sous seuil de fiabilite</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;"><input type="checkbox" name="auto_suspension_actif" {% if platform_config.auto_suspension_actif %}checked{% endif %}> Auto-suspension si fraude detectee</label>
+          </div>
+        </div>
+      </article>
+
+      <!-- TAB 4: PILOTAGE & STATUT APPS -->
+      <article class="card card-elevate bx-param-panel" data-param-panel="apps">
+        <input type="hidden" name="maintenance_schedule_present" value="1">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <h4 style="margin:0;">Statut Global Applications, Maintenance Programmable (style eFootball) &amp; KYC</h4>
+          <span class="bx-pill bx-pill--danger">Diffusion WebSocket temps reel</span>
+        </div>
+
+        <div style="margin-top:12px;padding:12px 14px;border-radius:12px;background:{% if public_config.apps.active_missions_count > 0 %}rgba(217,119,6,0.10){% else %}rgba(16,185,129,0.08){% endif %};border:1px solid {% if public_config.apps.active_missions_count > 0 %}rgba(217,119,6,0.35){% else %}rgba(16,185,129,0.28){% endif %};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <div>
+            <strong style="font-size:13px;color:var(--bx-ink);">
+              {% if public_config.apps.active_missions_count > 0 %}
+              {{ public_config.apps.active_missions_count }} réservation(s) actuellement en cours sur le terrain
+              {% else %}
+              Aucune réservation en cours actuellement : fenêtre idéale pour une maintenance complète
+              {% endif %}
+            </strong>
+            <p style="margin:2px 0 0;font-size:11.5px;color:var(--bx-muted);">
+              Grâce à l'option « Protéger les réservations en cours », les clients et artisans déjà en mission peuvent finaliser leur intervention et leur paiement même si la maintenance est activée.
+            </p>
+          </div>
+          <span class="bx-pill {% if public_config.apps.active_missions_count > 0 %}bx-pill--warn{% else %}bx-pill--ok{% endif %} tabular-nums">
+            {{ public_config.apps.active_missions_count|default:0 }} mission(s) active(s)
+          </span>
+        </div>
+
+        <div class="bx-param-fields" style="margin-top:12px;">
+          <div class="bx-field-card">
+            <label>Gouvernance &amp; Disponibilité</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;padding-top:4px;"><input type="checkbox" name="require_kyc_for_visibility" {% if platform_config.require_kyc_for_visibility %}checked{% endif %}> Exiger validation KYC pour visibilité client</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;"><input type="checkbox" name="require_supervisor_interview" {% if platform_config.require_supervisor_interview %}checked{% endif %}> Exiger entretien superviseur LiveKit/WhatsApp</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;"><input type="checkbox" name="auto_validation" {% if params.auto_validation %}checked{% endif %}> Auto-validation score KYC &gt;= 85/100</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:#dc2626;"><input type="checkbox" name="maintenance" {% if params.maintenance %}checked{% endif %}> Activer immédiatement le Mode Maintenance Apps</label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:#059669;"><input type="checkbox" name="maintenance_allow_active" {% if public_config.apps.maintenance_allow_active != False %}checked{% endif %}> Protéger les réservations en cours (laisser terminer les missions actives)</label>
+          </div>
+
+          <div class="bx-field-card">
+            <label for="id_maint_scheduled">Préavis style eFootball : Date et heure de début</label>
+            <input type="datetime-local" step="60" id="id_maint_scheduled" name="maintenance_scheduled_at" value="{{ public_config.apps.maintenance_scheduled_at|default:'' }}" onchange="validateMaintenanceWindow()">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+              <button type="button" class="bx-btn-ghost" style="padding:2px 8px;font-size:11px;" onclick="(function(){var f=function(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};var s=new Date(Date.now()+1800000);var e=new Date(s.getTime()+2700000);document.getElementById('id_maint_scheduled').value=f(s);document.getElementById('id_maint_end').value=f(e);validateMaintenanceWindow();})()">Dans 30 min</button>
+              <button type="button" class="bx-btn-ghost" style="padding:2px 8px;font-size:11px;" onclick="(function(){var n=new Date();var ymd=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');document.getElementById('id_maint_scheduled').value=ymd+'T23:00';document.getElementById('id_maint_end').value=ymd+'T23:45';validateMaintenanceWindow();})()">Ce soir 23:00</button>
+              <button type="button" class="bx-btn-ghost" style="padding:2px 8px;font-size:11px;" onclick="document.getElementById('id_maint_scheduled').value='';document.getElementById('id_maint_end').value='';validateMaintenanceWindow();">Effacer</button>
+            </div>
+            <span class="bx-field-hint">Sélectionnez la date et l'heure exactes du début de coupure.</span>
+          </div>
+
+          <div class="bx-field-card">
+            <label for="id_maint_end">Date et heure de fin / retour en ligne estimé</label>
+            <input type="datetime-local" step="60" id="id_maint_end" name="maintenance_end_at" value="{{ public_config.apps.maintenance_end_at|default:'' }}" onchange="validateMaintenanceWindow()">
+            <span id="bx-maint-dt-err" style="display:none;color:#dc2626;font-size:11.5px;font-weight:700;margin-top:4px;"></span>
+            <span class="bx-field-hint">Doit être strictement postérieure à la date/heure de début.</span>
+          </div>
+
+          <div class="bx-field-card">
+            <label for="id_maint_msg">Message d'information affiché aux utilisateurs</label>
+            <input type="text" id="id_maint_msg" name="maintenance_message" value="{{ public_config.apps.maintenance_message|default:'' }}" placeholder="Ex : Mise à jour des serveurs et sécurité Mobile Money.">
+            <span class="bx-field-hint">Personnalise l'avis sur l'application Client et l'application Prestataire.</span>
+          </div>
+
+          <div class="bx-field-card">
+            <label for="id_support_phone">Téléphone Support Officiel</label>
+            <input type="text" id="id_support_phone" name="support_phone" value="{{ platform_config.support_phone|default:'+225 07 00 00 00 00' }}">
+            <span class="bx-field-hint">Bouton Appel direct sur Client, Prestataire &amp; Vitrine.</span>
+          </div>
+          <div class="bx-field-card">
+            <label for="id_support_whatsapp">Numéro WhatsApp Superviseur</label>
+            <input type="text" id="id_support_whatsapp" name="support_whatsapp" value="{{ platform_config.support_whatsapp|default:'+225 07 00 00 00 00' }}">
+            <span class="bx-field-hint">Utilisé pour les demandes d'entretien et escalades litige.</span>
+          </div>
+        </div>
+      </article>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;border-radius:14px;background:var(--bx-surface);border:1px solid var(--bx-border);">
+        <span style="font-size:12.5px;color:var(--bx-muted);">La sauvegarde diffuse un evenement <code>config.updated</code> vers toutes les apps connectees.</span>
+        <button type="submit" class="btn-primary" style="padding:11px 22px;font-size:14px;">Enregistrer et synchroniser les apps</button>
+      </div>
+    </div>
+
+    <!-- COLONNE DROITE : SIMULATEUR D'IMPACT EN DIRECT -->
+    <aside class="bx-sim-panel" aria-label="Simulateur d'impact financier en direct">
+      <div>
+        <span class="bx-section-eyebrow">SIMULATEUR LIVE</span>
+        <h4 style="margin:6px 0 4px;">Impact sur un chantier test</h4>
+        <p class="bx-field-hint" style="margin:0;">Ajustez les champs a gauche pour previsualiser le net verse aux artisans avant de publier.</p>
+      </div>
+      <div class="bx-field-card" style="padding:10px 12px;">
+        <label for="bx-sim-amount">Montant du devis client (FCFA)</label>
+        <input type="number" id="bx-sim-amount" value="50000" min="1000" step="1000" oninput="updateParamSimulator()">
+      </div>
+      <div class="bx-sim-row">
+        <span>Frais mise en relation</span>
+        <strong id="bx-sim-mer" class="tabular-nums">{{ platform_config.frais_mise_en_relation_fcfa|default:500 }} FCFA</strong>
+      </div>
+      <div class="bx-sim-row">
+        <span>Standard (<b id="bx-sim-rate-std">18%</b>) · Net artisan</span>
+        <strong id="bx-sim-net-std" class="tabular-nums">41 000 FCFA</strong>
+      </div>
+      <div class="bx-sim-row">
+        <span>Pro Silver (<b id="bx-sim-rate-sil">13%</b>) · Net artisan</span>
+        <strong id="bx-sim-net-sil" class="tabular-nums">43 500 FCFA</strong>
+      </div>
+      <div class="bx-sim-row">
+        <span>Pro Gold (<b id="bx-sim-rate-gld">8%</b>) · Net artisan</span>
+        <strong id="bx-sim-net-gld" class="tabular-nums" style="color:#16a34a;">46 000 FCFA</strong>
+      </div>
+      <div class="bx-sim-row">
+        <span>Seuil rentabilite Pro Gold / mois</span>
+        <strong id="bx-sim-breakeven" class="tabular-nums">150 000 FCFA CA</strong>
+      </div>
+    </aside>
+  </form>
+</div>
+
+<script>
+window.switchParamTab = function (tabId) {
+  try { sessionStorage.setItem("babifix_param_tab", tabId); } catch (e) {}
+  document.querySelectorAll("[data-param-tab]").forEach(function (btn) {
+    var active = btn.getAttribute("data-param-tab") === tabId;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  document.querySelectorAll("[data-param-panel]").forEach(function (panel) {
+    panel.classList.toggle("is-active", panel.getAttribute("data-param-panel") === tabId);
+  });
+};
+
+(function () {
+  try {
+    var savedTab = sessionStorage.getItem("babifix_param_tab");
+    if (savedTab && document.querySelector('[data-param-tab="' + savedTab + '"]')) {
+      window.switchParamTab(savedTab);
+    }
+  } catch (e) {}
+})();
+
+window.updateParamSimulator = function () {
+  var base = Math.max(1, parseInt(document.getElementById("id_commission")?.value || "18", 10));
+  var floor = Math.max(1, parseInt(document.getElementById("id_commission_floor_pct")?.value || "5", 10));
+  var silRed = Math.max(0, parseInt(document.getElementById("id_silver_reduction")?.value || "5", 10));
+  var gldRed = Math.max(0, parseInt(document.getElementById("id_gold_reduction")?.value || "10", 10));
+  var gldPrice = Math.max(0, parseInt(document.getElementById("id_gold_price")?.value || "15000", 10));
+  var mer = Math.max(0, parseInt(document.getElementById("id_frais_mer")?.value || "500", 10));
+  var amount = Math.max(0, parseInt(document.getElementById("bx-sim-amount")?.value || "50000", 10));
+
+  var rStd = Math.max(floor, base);
+  var rSil = Math.max(floor, base - silRed);
+  var rGld = Math.max(floor, base - gldRed);
+
+  var setTxt = function (id, txt) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  };
+  setTxt("bx-sim-mer", mer.toLocaleString("fr-FR") + " FCFA");
+  setTxt("bx-sim-rate-std", rStd + "%");
+  setTxt("bx-sim-rate-sil", rSil + "%");
+  setTxt("bx-sim-rate-gld", rGld + "%");
+  setTxt("bx-sim-net-std", Math.round(amount * (1 - rStd / 100)).toLocaleString("fr-FR") + " FCFA");
+  setTxt("bx-sim-net-sil", Math.round(amount * (1 - rSil / 100)).toLocaleString("fr-FR") + " FCFA");
+  setTxt("bx-sim-net-gld", Math.round(amount * (1 - rGld / 100)).toLocaleString("fr-FR") + " FCFA");
+
+  var diffPct = Math.max(1, rStd - rGld);
+  var breakeven = Math.round((gldPrice * 100) / diffPct);
+  setTxt("bx-sim-breakeven", breakeven.toLocaleString("fr-FR") + " FCFA CA");
+};
+window.validateMaintenanceWindow = function () {
+  var sEl = document.getElementById("id_maint_scheduled");
+  var eEl = document.getElementById("id_maint_end");
+  var errEl = document.getElementById("bx-maint-dt-err");
+  if (!sEl || !eEl) return true;
+  var now = new Date();
+  var pad = function (n) { return String(n).padStart(2, "0"); };
+  var nowIso = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate()) + "T" + pad(now.getHours()) + ":" + pad(now.getMinutes());
+  sEl.min = nowIso;
+  eEl.min = sEl.value || nowIso;
+
+  var msg = "";
+  var sVal = (sEl.value || "").trim();
+  var eVal = (eEl.value || "").trim();
+  var isoRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+  if (sVal && !isoRe.test(sVal)) {
+    msg = "Format invalide pour la date/heure de debut.";
+  } else if (eVal && !isoRe.test(eVal)) {
+    msg = "Format invalide pour la date/heure de fin.";
+  } else if (sVal && eVal && eVal <= sVal) {
+    msg = "Exception horaire : l'heure de fin doit etre strictement posterieure au debut.";
+  }
+  if (errEl) {
+    errEl.textContent = msg;
+    errEl.style.display = msg ? "block" : "none";
+  }
+  eEl.setCustomValidity(msg);
+  return !msg;
+};
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", function () {
+    window.updateParamSimulator();
+    window.validateMaintenanceWindow();
+  });
+} else {
+  window.updateParamSimulator();
+  window.validateMaintenanceWindow();
+}
+var paramForm = document.querySelector(".bx-params-form");
+if (paramForm) {
+  paramForm.addEventListener("submit", function (ev) {
+    if (!window.validateMaintenanceWindow()) {
+      ev.preventDefault();
+      var eEl = document.getElementById("id_maint_end");
+      if (eEl && eEl.reportValidity) eEl.reportValidity();
+    }
+  });
+}
+</script>

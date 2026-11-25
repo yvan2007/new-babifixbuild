@@ -1,5 +1,5 @@
 """
-Planifie les notifications push (FCM) après commit DB — client / prestataire.
+Planifie les notifications push (FCM) après commit DB : client / prestataire.
 """
 
 from __future__ import annotations
@@ -9,18 +9,63 @@ from typing import Any
 
 from django.db import transaction
 
-from .models import Message, Provider, UserProfile
+from .models import Message, Notification, Provider, UserProfile
+
+
+def _create_db_notif(
+    user_id: int | None,
+    title: str,
+    body: str,
+    notif_type: str,
+    reference: str = "",
+    *,
+    skip_fcm: bool = True,
+    dedup_unread: bool = False,
+) -> Notification | None:
+    """Cree une Notification DB persistante (optionnellement dedoublonnee si non lue)."""
+    clean_title = (_strip_brand(title) or title or "Notification").strip()[:200]
+    clean_ref = (reference or "").strip()[:60]
+    clean_body = (body or "").strip()
+    try:
+        if dedup_unread and clean_ref:
+            existing = Notification.objects.filter(
+                user_id=user_id,
+                notif_type=notif_type,
+                reference=clean_ref,
+                lu=False,
+            ).first()
+            if existing is not None:
+                existing.title = clean_title
+                existing.body = clean_body
+                existing.time = "A l instant"
+                existing._skip_fcm = True
+                existing.save(update_fields=["title", "body", "time"])
+                return existing
+        n = Notification(
+            user_id=user_id,
+            title=clean_title,
+            body=clean_body,
+            time="A l instant",
+            notif_type=notif_type,
+            reference=clean_ref,
+            lu=False,
+        )
+        n._skip_fcm = skip_fcm
+        n.save()
+        return n
+    except Exception:
+        return None
 
 
 def _strip_brand(title: str) -> str:
     """Retire un préfixe de marque déjà présent pour éviter le doublon."""
     t = (title or "").lstrip()
     for prefix in (
-        "BABIFIX PRO ·", "BABIFIX PRO —", "BABIFIX PRO -",
-        "BABIFIX ·", "BABIFIX —", "BABIFIX -", "BABIFIX",
+        "BABIFIX PRO ·", "BABIFIX PRO :", "BABIFIX PRO -",
+        "BABIFIX ·", "BABIFIX :", "BABIFIX -", "BABIFIX",
     ):
         if t.startswith(prefix):
-            return t[len(prefix):].lstrip(" ·—-").strip()
+            return t[len(prefix):].lstrip(" ·:-").strip()
     return t.strip()
 
 
@@ -133,10 +178,37 @@ def on_reservation_change(
     if created:
         uids = _reservation_prestataire_user_ids(instance)
         is_urgent = getattr(instance, "is_urgent", False)
+        notif_title = "Demande urgente !" if is_urgent else "Nouvelle demande client"
+        zone_txt = (
+            getattr(instance, "address_ville", "")
+            or getattr(instance, "address_quartier", "")
+            or getattr(instance, "address_label", "")
+            or "Abidjan"
+        )
+        sujet_txt = getattr(instance, "title", "") or getattr(instance, "prestataire", "") or "Service"
+        notif_body = f"Reservation {instance.reference} ({sujet_txt}) a {zone_txt}."
+        _create_db_notif(
+            None,
+            f"Nouvelle demande client : {instance.reference}",
+            notif_body,
+            Notification.NotifType.RESERVATION,
+            reference=instance.reference,
+            skip_fcm=True,
+            dedup_unread=True,
+        )
+        for uid in uids:
+            _create_db_notif(
+                uid,
+                notif_title,
+                notif_body,
+                Notification.NotifType.RESERVATION,
+                reference=instance.reference,
+                skip_fcm=True,
+            )
         _schedule(
             uids,
-            "🚨 BABIFIX · Demande urgente !" if is_urgent else "BABIFIX · Nouvelle réservation",
-            f"Nouvelle demande {instance.reference} (statut : {instance.statut}).",
+            "BABIFIX · Demande urgente !" if is_urgent else "BABIFIX · Nouvelle reservation",
+            notif_body,
             {
                 "type": "reservation.created",
                 "reference": instance.reference,
@@ -154,21 +226,18 @@ def on_reservation_change(
         if u
     ]
 
-    # (titre, corps, destinataire). On prévient SEULEMENT la partie concernée —
-    # en général celle qui N'A PAS déclenché le changement — pour ne pas envoyer
-    # deux notifications redondantes. Les étapes mineures (demande envoyée, devis
-    # en préparation) ne déclenchent AUCUNE notification.
     spec = {
-        "DEVIS_ENVOYE": ("BABIFIX · Devis reçu", f"Vous avez reçu un devis pour {ref}.", "client"),
-        "DEVIS_ACCEPTE": ("BABIFIX · Devis accepté", f"Le client a accepté votre devis ({ref}). Vous pouvez démarrer.", "presta"),
-        "INTERVENTION_EN_COURS": ("BABIFIX · Intervention démarrée", f"L'intervention pour {ref} a commencé.", "client"),
-        "En attente client": ("BABIFIX · Prestation terminée", f"Confirmez la prestation {ref} pour finaliser.", "client"),
-        "Terminee": ("BABIFIX · Prestation confirmée", f"Le client a confirmé {ref}. Place au paiement.", "presta"),
-        "Annulee": ("BABIFIX · Réservation annulée", f"La réservation {ref} a été annulée.", "both"),
+        "DEVIS_ENVOYE": ("BABIFIX · Devis recu", f"Vous avez recu un devis pour {ref}.", "client"),
+        "DEVIS_ACCEPTE": ("BABIFIX · Devis accepte", f"Le client a accepte votre devis ({ref}). Vous pouvez demarrer.", "presta"),
+        "Confirmee": ("BABIFIX · Demande confirmee", f"La reservation {ref} est confirmee.", "client"),
+        "INTERVENTION_EN_COURS": ("BABIFIX · Intervention demarree", f"L'intervention pour {ref} a commence.", "client"),
+        "En attente client": ("BABIFIX · Prestation terminee", f"Confirmez la prestation {ref} pour finaliser.", "client"),
+        "Terminee": ("BABIFIX · Prestation confirmee", f"Le client a confirme {ref}. Place au paiement.", "presta"),
+        "Annulee": ("BABIFIX · Reservation annulee", f"La reservation {ref} a ete annulee.", "both"),
     }
     entry = spec.get(instance.statut)
     if not entry:
-        return  # statut non notifiable → silence (réduit le bruit)
+        return
     title, body, who = entry
     if who == "client":
         targets = [client_uid] if client_uid else []
@@ -176,8 +245,18 @@ def on_reservation_change(
         targets = presta_uids
     else:
         targets = ([client_uid] if client_uid else []) + presta_uids
+    targets = sorted({int(u) for u in targets if u})
     if not targets:
         return
+    for uid in targets:
+        _create_db_notif(
+            uid,
+            title,
+            body,
+            Notification.NotifType.RESERVATION,
+            reference=ref,
+            skip_fcm=True,
+        )
     _schedule(
         targets,
         title,
@@ -222,24 +301,46 @@ def on_provider_change(
             {"type": "provider.approved", "provider_id": str(instance.pk)},
         )
 
+    if created:
+        ville_txt = getattr(instance, "ville", "") or "Abidjan"
+        _create_db_notif(
+            None,
+            f"Nouvelle demande prestataire : {instance.nom}",
+            f"Metier : {instance.specialite or 'General'} · Ville : {ville_txt}",
+            Notification.NotifType.VALIDATION,
+            reference=f"PROV-{instance.pk}",
+            skip_fcm=True,
+            dedup_unread=True,
+        )
+
     if not instance.user_id:
         return
     if not created and update_fields is not None and "statut" not in update_fields:
         return
     reason = (instance.refusal_reason or "").strip()
     if instance.statut == "Valide":
-        title = "BABIFIX · Demande acceptée"
-        body = "Votre dossier prestataire est validé. Accédez à votre tableau de bord."
+        title = "BABIFIX · Demande acceptee"
+        body = "Votre dossier prestataire est valide. Accedez a votre tableau de bord."
     elif instance.statut == "Refuse":
-        title = "BABIFIX · Demande refusée"
+        title = "BABIFIX · Demande refusee"
         body = (
             reason
             if reason
-            else "Votre dossier a été refusé. Consultez le motif dans l’app."
+            else "Votre dossier a ete refuse. Consultez le motif dans l app."
         )
     else:
         title = "BABIFIX · Votre compte prestataire"
         body = f"Statut : {instance.statut}"
+
+    if instance.statut in ("Valide", "Refuse"):
+        _create_db_notif(
+            instance.user_id,
+            title,
+            body,
+            Notification.NotifType.VALIDATION,
+            reference=f"PROV-{instance.pk}",
+            skip_fcm=True,
+        )
 
     data = {
         "type": "provider.updated",
@@ -263,6 +364,114 @@ def on_provider_change(
         )
     except Exception:
         pass
+
+
+def on_dispute_change(
+    instance, created: bool, update_fields: frozenset[str] | None
+) -> None:
+    """Notifie Admin + Client + Prestataire (DB + WS + FCM) sur litige."""
+    from . import realtime
+
+    if not created and update_fields is not None and "decision" not in update_fields:
+        return
+
+    res_ref = ""
+    client_uid = None
+    presta_uid = None
+    try:
+        if instance.reservation_id and instance.reservation:
+            res_ref = instance.reservation.reference or ""
+            client_uid = instance.reservation.client_user_id
+            presta_uid = instance.reservation.prestataire_user_id
+    except Exception:
+        pass
+    try:
+        if not presta_uid and instance.prestataire:
+            presta_uid = (
+                Provider.objects.filter(nom=instance.prestataire)
+                .values_list("user_id", flat=True)
+                .first()
+            )
+    except Exception:
+        pass
+
+    dispute_ref = instance.reference or f"LIT-{instance.pk}"
+    if created:
+        title = f"Nouveau litige {dispute_ref}"
+        body = f"{instance.motif[:140]}" + (f" ({res_ref})" if res_ref else "")
+        _create_db_notif(
+            None,
+            f"Nouveau litige {dispute_ref}" + (f" : {res_ref}" if res_ref else ""),
+            body,
+            Notification.NotifType.DISPUTE,
+            reference=dispute_ref,
+            skip_fcm=True,
+            dedup_unread=True,
+        )
+        ws_event = "dispute.created"
+    else:
+        title = f"Litige mis a jour ({dispute_ref})"
+        body = f"Decision : {instance.decision}"
+        _create_db_notif(
+            None,
+            title,
+            body,
+            Notification.NotifType.DISPUTE,
+            reference=dispute_ref,
+            skip_fcm=True,
+        )
+        ws_event = "dispute.updated"
+
+    ws_payload = {
+        "reference": dispute_ref,
+        "reservation_reference": res_ref,
+        "decision": instance.decision,
+        "motif": (instance.motif or "")[:140],
+    }
+    targets = sorted({int(u) for u in (client_uid, presta_uid) if u})
+    for uid in targets:
+        _create_db_notif(
+            uid,
+            title,
+            body,
+            Notification.NotifType.DISPUTE,
+            reference=dispute_ref,
+            skip_fcm=True,
+        )
+    try:
+        if client_uid:
+            realtime.broadcast_client_user(client_uid, ws_event, ws_payload)
+        if presta_uid:
+            realtime.broadcast_prestataire_user(presta_uid, ws_event, ws_payload)
+    except Exception:
+        pass
+
+    if targets:
+        _schedule(
+            targets,
+            f"BABIFIX · {title}",
+            body,
+            {
+                "type": ws_event,
+                "reference": dispute_ref,
+                "reservation_reference": res_ref,
+                "is_urgent": "true" if created else "false",
+                "route": f"/reservation/{res_ref}" if res_ref else "/litiges",
+            },
+        )
+
+
+def on_metier_propose_created(instance) -> None:
+    """Cree une alerte Admin lorsqu un nouveau metier est suggere."""
+    _create_db_notif(
+        None,
+        f"Suggestion de metier : {instance.nom}",
+        f"Proposition en attente ({instance.votes} vote(s)).",
+        Notification.NotifType.GENERAL,
+        reference=f"METIER-{instance.pk}",
+        skip_fcm=True,
+        dedup_unread=True,
+    )
 
 
 def on_actualite_published(
@@ -326,16 +535,27 @@ def on_chat_message_created(instance: Message) -> None:
         "reservation_reference": ref,
         "route": f"/messages/{ref}" if ref else "/messages",
     }
+    if recipient_id:
+        _create_db_notif(
+            recipient_id,
+            title,
+            body,
+            Notification.NotifType.MESSAGE,
+            reference=ref or f"CONV-{conv.pk}",
+            skip_fcm=True,
+        )
     _schedule([recipient_id], title, body, data)
     try:
-        realtime.broadcast_client_event(
-            "chat.message",
-            {
-                "conversation_id": int(conv.pk),
-                "sender_id": int(instance.sender_id),
-                "reservation_reference": ref,
-            },
-        )
+        ws_payload = {
+            "conversation_id": int(conv.pk),
+            "sender_id": int(instance.sender_id),
+            "reservation_reference": ref,
+        }
+        if recipient_id:
+            if conv.client_id == instance.sender_id:
+                realtime.broadcast_prestataire_user(recipient_id, "chat.message", ws_payload)
+            else:
+                realtime.broadcast_client_user(recipient_id, "chat.message", ws_payload)
     except Exception:
         pass
 
@@ -413,10 +633,32 @@ def on_payment_change(
             uids.append(res.client_user_id)
             uids.append(res.prestataire_user_id)
     ref = instance.reservation.reference if instance.reservation_id else ""
+    clean_uids = sorted({int(u) for u in uids if u})
+    pay_title = f"Paiement {instance.reference}"
+    pay_body = f"{instance.reference} · {instance.etat}"
+    if created or (instance.etat in ("Confirme", "Valide", "Paye", "Libere")):
+        _create_db_notif(
+            None,
+            pay_title,
+            pay_body + (f" ({ref})" if ref else ""),
+            Notification.NotifType.PAYMENT,
+            reference=instance.reference,
+            skip_fcm=True,
+            dedup_unread=True,
+        )
+    for uid in clean_uids:
+        _create_db_notif(
+            uid,
+            pay_title,
+            pay_body,
+            Notification.NotifType.PAYMENT,
+            reference=instance.reference,
+            skip_fcm=True,
+        )
     _schedule(
-        uids,
+        clean_uids,
         "BABIFIX · Paiement",
-        f"{instance.reference} · {instance.etat}",
+        pay_body,
         {
             "type": "payment.updated",
             "reference": instance.reference,

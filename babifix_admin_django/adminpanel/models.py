@@ -68,16 +68,16 @@ class Provider(models.Model):
     )
     # Score de fiabilité (Phase 4). Démarre à 100 (permissif). Baisse en cas
     # de no-show / annulation tardive, remonte à chaque prestation terminée.
-    # Pour l'instant purement INDICATIF (aucun blocage) — le gating (visibilité,
+    # Pour l'instant purement INDICATIF (aucun blocage) : le gating (visibilité,
     # quota, prépaiement) viendra dans un second temps.
     fiabilite_score = models.PositiveSmallIntegerField(
         default=100,
-        help_text="Score de fiabilité 0–100 (indicatif). 100 = neutre/parfait.",
+        help_text="Score de fiabilité 0-100 (indicatif). 100 = neutre/parfait.",
     )
-    # Moteur KYC automatique — score 0-100 calculé à la soumission du dossier
+    # Moteur KYC automatique : score 0-100 calculé à la soumission du dossier
     auto_check_score = models.IntegerField(
         default=0,
-        help_text="Score de vérification automatique 0–100 (moteur KYC engine)",
+        help_text="Score de vérification automatique 0-100 (moteur KYC engine)",
     )
     auto_check_result = models.JSONField(
         default=dict,
@@ -143,13 +143,13 @@ class Provider(models.Model):
         default=False,
         help_text="L'essai gratuit premium (7 jours) a déjà été utilisé",
     )
-    # v2 — Galerie réalisations (max 12 photos, data URL base64)
+    # v2 : Galerie réalisations (max 12 photos, data URL base64)
     portfolio_photos = models.JSONField(
         default=list,
         blank=True,
         help_text="Liste de {photo, caption, added_at} : max 12 entrées",
     )
-    # v2 — Photos avant/après intervention
+    # v2 : Photos avant/après intervention
     before_photos = models.JSONField(
         default=list,
         blank=True,
@@ -229,7 +229,7 @@ class Provider(models.Model):
         help_text="Version du contrat signé (ex: '1.0', '1.1')",
     )
 
-    # KYC — Vérification identité prestataire
+    # KYC : Vérification identité prestataire
     kyc_status = models.CharField(
         max_length=20,
         choices=[
@@ -256,6 +256,17 @@ class Provider(models.Model):
         null=True,
         blank=True,
         help_text="Date d'expiration de la CNI",
+    )
+    kyc_cni_mrz = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Zone MRZ TD1 (3 lignes ICAO 9303) au verso de la CNI ONECI si fournie",
+    )
+    kyc_image_hashes = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Empreintes SHA-256 et dHash perceptuelles des pieces KYC (anti-fraude inter-comptes)",
     )
     kyc_cni_recto_url = models.TextField(
         blank=True,
@@ -292,11 +303,131 @@ class Provider(models.Model):
     )
     # Privacy-by-design : horodatage de purge des images d'identité (selfie +
     # CNI recto/verso). Une fois le dossier traité, on ne garde plus les images
-    # brutes — seulement le résultat, le numéro masqué et la date d'expiration.
+    # brutes : seulement le résultat, le numéro masqué et la date d'expiration.
     kyc_documents_purged_at = models.DateTimeField(
         null=True,
         blank=True,
         help_text="Date de suppression des images d'identité (minimisation des données).",
+    )
+
+    # Classification ivoirienne en 3 Paliers & Supervision terrain
+    class ArtisanTier(models.TextChoices):
+        PALIER_1 = "palier_1_proximite", "Palier 1 · Artisan de Proximite (Terrain / Autodidacte)"
+        PALIER_2 = "palier_2_maitre", "Palier 2 · Maitre Artisan (Chambre des Metiers CNMCI)"
+        PALIER_3 = "palier_3_entreprise", "Palier 3 · Entreprise / Societe BTP (RCCM)"
+
+    artisan_tier = models.CharField(
+        max_length=30,
+        choices=ArtisanTier.choices,
+        default=ArtisanTier.PALIER_1,
+        help_text="Niveau d'accreditation de l'artisan selon la nomenclature ivoirienne",
+    )
+    commune_rattachement = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Commune d'intervention principale (ex : Cocody, Yopougon, Abobo...)",
+    )
+    whatsapp_interview_requested = models.BooleanField(
+        default=False,
+        help_text="Entretien visio WhatsApp 5 min demande par l'artisan",
+    )
+    supervisor_notes = models.TextField(
+        blank=True,
+        default="",
+        help_text="Notes d'evaluation du superviseur de zone",
+    )
+    supervisor_verified_by = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Identite ou matricule du superviseur de zone validateur",
+    )
+    supervisor_verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date/heure de validation par le superviseur de zone",
+    )
+    tools_check_passed = models.BooleanField(
+        default=False,
+        help_text="Controle de l'outillage professionnel valide",
+    )
+    # Palier 2 : Chambre Nationale des Metiers de Cote d'Ivoire (CNMCI)
+    cnmci_number = models.CharField(
+        max_length=60,
+        blank=True,
+        default="",
+        help_text="Numero d'immatriculation CNMCI",
+    )
+    cnmci_card_url = models.TextField(
+        blank=True,
+        default="",
+        help_text="Photo de la carte professionnelle CNMCI",
+    )
+    # Palier 3 : Entreprise BTP / PME (RCCM / DFE)
+    rccm_number = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Numero RCCM (Registre du Commerce et du Credit Mobilier)",
+    )
+    rccm_document_url = models.TextField(
+        blank=True,
+        default="",
+        help_text="Document RCCM scanne",
+    )
+    compte_contribuable = models.CharField(
+        max_length=60,
+        blank=True,
+        default="",
+        help_text="Numero Compte Contribuable (DGI)",
+    )
+    dfe_document_url = models.TextField(
+        blank=True,
+        default="",
+        help_text="Declaration Fiscale d'Existence (DFE)",
+    )
+    plafond_intervention_fcfa = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=100000,
+        help_text="Plafond max par intervention (100 000 FCFA pour Palier 1, illimite pour Palier 3)",
+    )
+    # Regime SENSIBLE_CASIER (ex. Nounous, Garde d'enfants, Aide domicile, Chauffeurs)
+    casier_judiciaire_url = models.TextField(
+        blank=True,
+        default="",
+        help_text="Bulletin n°3 ou recepisse de casier judiciaire pour les metiers sensibles",
+    )
+    reference_contact_nom = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Nom de la personne de reference (ancien employeur ou tuteur)",
+    )
+    reference_contact_tel = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text="Telephone de la personne de reference",
+    )
+    certificat_medical_url = models.TextField(
+        blank=True,
+        default="",
+        help_text="Certificat medical d'aptitude (optionnel)",
+    )
+    spec_answers = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Reponses specifiques liees au metier collectees a l'inscription",
+    )
+    metier_propose = models.ForeignKey(
+        "MetierPropose",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="providers_en_attente",
+        help_text="Metier propose par l'artisan lors de son inscription (Option A) avant creation de la categorie",
     )
 
     def save(self, *args, **kwargs):
@@ -489,12 +620,12 @@ class Reservation(models.Model):
     address_ville = models.CharField(max_length=120, blank=True, default="")
     address_pays = models.CharField(max_length=80, blank=True, default="Côte d'Ivoire")
     # Repère textuel saisi librement par le client (« à côté de la pharmacie
-    # XYZ », « en face de l'école Sainte-Marie », etc.) — pas géocodable.
+    # XYZ », « en face de l'école Sainte-Marie », etc.) : pas géocodable.
     address_repere = models.CharField(max_length=300, blank=True, default="")
     # L'adresse affichee au prestataire est-elle encore approximative ?
     # True tant que le prestataire n'a pas accepte la demande : on masque
     # les details fins (rue, repere) pour proteger la vie privee du client.
-    address_is_approximate = models.BooleanField(default=False)
+    address_is_approximate = models.BooleanField(default=True)
     location_captured_at = models.DateTimeField(null=True, blank=True)
     payment_type = models.CharField(
         max_length=24,
@@ -537,6 +668,11 @@ class Reservation(models.Model):
         blank=True,
         default="",
         help_text="URL d'une note vocale décrivant le besoin (facultatif)",
+    )
+    audio_probleme_transcript = models.TextField(
+        blank=True,
+        default="",
+        help_text="Transcription texte automatique de la note vocale du besoin",
     )
     # Vidéo du client montrant le problème (URL du fichier vidéo). Optionnel,
     # capée à ~30 s côté client pour rester raisonnable sur un réseau mobile.
@@ -627,6 +763,38 @@ class Reservation(models.Model):
     urgence_surcharge_pct = models.PositiveSmallIntegerField(
         default=0,
         help_text="Surcharge urgence appliquée en % (ex: 20 = +20%)",
+    )
+    # Module BABIFIX SOS 24/7 (forfait deplacement express deductible + radar secteur)
+    sos_mode = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Demande en mode depannage express BABIFIX SOS 24/7",
+    )
+    sos_is_night = models.BooleanField(
+        default=False,
+        help_text="True si declenchee en astreinte nuit (20h-06h) ou dimanche",
+    )
+    sos_fee_fcfa = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Forfait deplacement express garanti (1500 jour / 2500 nuit), deductible du devis final",
+    )
+    sos_sector = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Commune ou secteur cible du radar SOS",
+    )
+    sos_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Expiration du radar SOS multi-artisans",
+    )
+    sos_claimed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Horodatage exact de prise en charge SOS par le premier artisan",
     )
     motif_refus_demande = models.TextField(
         blank=True,
@@ -766,7 +934,7 @@ class Reservation(models.Model):
         blank=True,
         related_name="reservations",
     )
-    # B2B — rattachement éventuel à un site géré par un compte professionnel
+    # B2B : rattachement éventuel à un site géré par un compte professionnel
     pro_site = models.ForeignKey(
         "ProSite",
         on_delete=models.SET_NULL,
@@ -822,7 +990,7 @@ class Reservation(models.Model):
         DEMANDE_ENVOYEE), et la réservation n'est ni en attente ni annulée.
 
         Tant que c'est False : ni le client ni le prestataire ne peuvent
-        s'appeler ou s'envoyer un message — protège le prestataire du démarchage
+        s'appeler ou s'envoyer un message : protège le prestataire du démarchage
         avant qu'il se soit engagé.
         """
         blocked = {
@@ -943,7 +1111,7 @@ class Dispute(models.Model):
     decision = models.CharField(
         max_length=30, choices=Decision.choices, default=Decision.OPEN
     )
-    # v2 — lien vers la réservation concernée
+    # v2 : lien vers la réservation concernée
     reservation = models.ForeignKey(
         "Reservation",
         on_delete=models.SET_NULL,
@@ -1011,6 +1179,7 @@ class Payment(models.Model):
     commission = models.DecimalField(
         max_digits=12,
         decimal_places=2,
+        default=0,
         help_text="Commission en francs CFA",
     )
     etat = models.CharField(max_length=20, choices=State.choices, default=State.PENDING)
@@ -1100,6 +1269,40 @@ class Category(models.Model):
         default=list,
         blank=True,
         help_text="Questions dynamiques (liste JSON) propres à la catégorie. Vide = formulaire actuel.",
+    )
+
+    class RegimeKyc(models.TextChoices):
+        STANDARD_TERRAIN = "STANDARD_TERRAIN", "Standard terrain (CNI + Selfie)"
+        SENSIBLE_CASIER = "SENSIBLE_CASIER", "Sensible domicile (Casier + Reference + Entretien)"
+
+    regime_kyc = models.CharField(
+        max_length=24,
+        choices=RegimeKyc.choices,
+        default=RegimeKyc.STANDARD_TERRAIN,
+        db_index=True,
+        help_text="Niveau de verification KYC requis pour cette categorie.",
+    )
+    groupe = models.CharField(
+        max_length=40,
+        blank=True,
+        default="Maison & BTP",
+        db_index=True,
+        help_text="Univers principal (ex: Depannage & Fluides, BTP & Renovation, Aide & Domicile, Beaute & Evenements, Auto & Mobilite, Tech & Bureautique).",
+    )
+    search_keywords = models.TextField(
+        blank=True,
+        default="",
+        help_text="Mots-cles et symptomes associes pour la recherche intelligente (separes par des virgules).",
+    )
+    registration_questions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Questions dynamiques posees au prestataire lors de son inscription dans ce metier.",
+    )
+    supports_sos = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Eligible au depannage express BABIFIX SOS 24/7 (plomberie, electricite, serrurerie, climatisation).",
     )
 
     class Meta:
@@ -1210,7 +1413,7 @@ class ClientSavedAddress(models.Model):
 
 
 class DeviceToken(models.Model):
-    """Jeton FCM (Firebase Cloud Messaging) par appareil — Phase 2 push mobile."""
+    """Jeton FCM (Firebase Cloud Messaging) par appareil : Phase 2 push mobile."""
 
     class Platform(models.TextChoices):
         ANDROID = "android", "Android"
@@ -1268,10 +1471,10 @@ class UserProfile(models.Model):
     active = models.BooleanField(default=True)
     phone_e164 = models.CharField(max_length=24, blank=True, default="")
     country_code = models.CharField(max_length=5, blank=True, default="CI")
-    # v2 — Reinitialisation mot de passe
+    # v2 : Reinitialisation mot de passe
     reset_token = models.CharField(max_length=80, blank=True, default="", db_index=True)
     reset_token_created_at = models.DateTimeField(null=True, blank=True)
-    # v2 — Verification email
+    # v2 : Verification email
     email_verified = models.BooleanField(default=False)
     email_verify_token = models.CharField(
         max_length=80, blank=True, default="", db_index=True
@@ -1287,7 +1490,7 @@ class UserProfile(models.Model):
         blank=True,
         help_text="Date de suppression soft",
     )
-    # v2 — Parrainage (ReferralService)
+    # v2 : Parrainage (ReferralService)
     referral_code = models.CharField(
         max_length=20, blank=True, default="", db_index=True,
         help_text="Code de parrainage unique"
@@ -1322,14 +1525,14 @@ class UserProfile(models.Model):
         max_digits=10, decimal_places=2, default=0,
         help_text="Crédit de réduction obtenu en convertissant des points de fidélité",
     )
-    # Score de fiabilité CLIENT (Phase 4) — surtout anti-contournement : baisse
+    # Score de fiabilité CLIENT (Phase 4) : surtout anti-contournement : baisse
     # si le client annule juste après le déblocage de l'adresse (soupçon de
     # désintermédiation). Indicatif pour l'instant (aucun blocage).
     fiabilite_score = models.PositiveSmallIntegerField(
         default=100,
-        help_text="Score de fiabilité client 0–100 (indicatif). 100 = neutre.",
+        help_text="Score de fiabilité client 0-100 (indicatif). 100 = neutre.",
     )
-    # Photo de profil (avatar) — URL servie (disque local ou Cloudinary).
+    # Photo de profil (avatar) : URL servie (disque local ou Cloudinary).
     avatar_url = models.TextField(
         blank=True, default="",
         help_text="URL de la photo de profil de l'utilisateur",
@@ -1383,7 +1586,7 @@ class Call(models.Model):
     """Appel audio/vidéo entre client et prestataire (via LiveKit).
 
     Le modèle a été perdu lors d'une migration mais la table
-    `adminpanel_call` existe encore en DB — on la remappe.
+    `adminpanel_call` existe encore en DB : on la remappe.
     """
     class Kind(models.TextChoices):
         VOICE = "VOICE", "Audio"
@@ -1473,6 +1676,11 @@ class Message(models.Model):
     audio_duration = models.PositiveIntegerField(
         default=0, help_text="Durée de la note vocale en secondes (affichage UI)."
     )
+    audio_transcript = models.TextField(
+        blank=True,
+        default="",
+        help_text="Transcription texte de la note vocale (fr).",
+    )
     reply_to = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -1513,9 +1721,9 @@ class Rating(models.Model):
         on_delete=models.CASCADE,
         related_name="ratings",
     )
-    note = models.PositiveSmallIntegerField()  # 1–5
+    note = models.PositiveSmallIntegerField()  # 1-5
     commentaire = models.TextField(blank=True, default="")
-    # Photos jointes à l’avis (data URLs base64 image/*, liste courte — MVP)
+    # Photos jointes à l’avis (data URLs base64 image/*, liste courte : MVP)
     photo_attachments = models.JSONField(default=list, blank=True)
     voice_note_url = models.CharField(
         max_length=500,
@@ -1527,6 +1735,15 @@ class Rating(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+    def __init__(self, *args, **kwargs):
+        if "client_user" in kwargs and "client" not in kwargs:
+            kwargs["client"] = kwargs.pop("client_user")
+        super().__init__(*args, **kwargs)
+
+    @property
+    def client_user(self):
+        return self.client
 
     def __str__(self):
         return f"Rating {self.note} · {self.reservation_id}"
@@ -1620,6 +1837,33 @@ class AdminAuditLog(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Journal admin"
 
+    def __init__(self, *args, **kwargs):
+        ip_val = kwargs.pop("ip_address", None)
+        before_val = kwargs.pop("before", None)
+        after_val = kwargs.pop("after", None)
+        super().__init__(*args, **kwargs)
+        if any(v is not None for v in (ip_val, before_val, after_val)):
+            det = dict(self.details or {})
+            if ip_val is not None:
+                det["ip_address"] = ip_val
+            if before_val is not None:
+                det["before"] = before_val
+            if after_val is not None:
+                det["after"] = after_val
+            self.details = det
+
+    @property
+    def ip_address(self) -> str:
+        return str((self.details or {}).get("ip_address") or "")
+
+    @property
+    def before(self):
+        return (self.details or {}).get("before")
+
+    @property
+    def after(self):
+        return (self.details or {}).get("after")
+
     def __str__(self):
         user = self.admin_user.username if self.admin_user else "système"
         return f"[{self.action}] {user} · {self.target_label}"
@@ -1679,7 +1923,7 @@ class PrestataireUnavailability(models.Model):
         return f"{self.provider.nom} · {self.date_debut} à {self.date_fin}"
 
 
-# Import des modèles v2 (ClientRating) — doit rester en bas pour éviter les imports circulaires
+# Import des modèles v2 (ClientRating) : doit rester en bas pour éviter les imports circulaires
 from .models_v2 import ClientRating  # noqa: E402, F401
 
 
@@ -1751,7 +1995,7 @@ class Devis(models.Model):
     refus_motif = models.TextField(blank=True, default="")
     validite_jours = models.IntegerField(default=7)
 
-    # Devis en 2 temps. Une ESTIMATION est indicative (fourchette prix_min–max),
+    # Devis en 2 temps. Une ESTIMATION est indicative (fourchette prix_min-max),
     # NON payable : le client la voit puis attend le devis FERME. Défaut False =
     # devis ferme (comportement actuel, payable comme aujourd'hui).
     est_estimation = models.BooleanField(
@@ -1808,24 +2052,26 @@ class Devis(models.Model):
                 pass
 
         if self.pk:
-            self.sous_total = sum(ligne.total for ligne in self.lignes.all())
-            self.commission_montant = self.sous_total * self.commission_rate / 100
+            self.sous_total = sum((ligne.total for ligne in self.lignes.all()), Decimal("0"))
+            _remise = max(Decimal("0"), min(Decimal(str(self.remise or 0)), Decimal(str(self.sous_total or 0))))
+            self.total_ttc = max(Decimal("0"), Decimal(str(self.sous_total or 0)) - _remise)
+            self.commission_montant = (self.total_ttc * Decimal(str(self.commission_rate or 18)) / Decimal("100")).quantize(Decimal("0.01"))
             # Façon B : le client paie le prix annoncé ; la commission est déduite
             # de la part du prestataire (jamais ajoutée au client).
-            self.total_ttc = self.sous_total
-            self.net_prestataire = self.total_ttc - self.commission_montant
+            self.net_prestataire = max(Decimal("0"), self.total_ttc - self.commission_montant)
 
         super().save(*args, **kwargs)
 
         if not self.pk:
             self.pk = self.id
         if self.lignes.exists():
-            self.sous_total = sum(ligne.total for ligne in self.lignes.all())
-            self.commission_montant = self.sous_total * self.commission_rate / 100
+            self.sous_total = sum((ligne.total for ligne in self.lignes.all()), Decimal("0"))
+            _remise = max(Decimal("0"), min(Decimal(str(self.remise or 0)), Decimal(str(self.sous_total or 0))))
+            self.total_ttc = max(Decimal("0"), Decimal(str(self.sous_total or 0)) - _remise)
+            self.commission_montant = (self.total_ttc * Decimal(str(self.commission_rate or 18)) / Decimal("100")).quantize(Decimal("0.01"))
             # Façon B : le client paie le prix annoncé ; la commission est déduite
             # de la part du prestataire (jamais ajoutée au client).
-            self.total_ttc = self.sous_total
-            self.net_prestataire = self.total_ttc - self.commission_montant
+            self.net_prestataire = max(Decimal("0"), self.total_ttc - self.commission_montant)
             super().save(
                 update_fields=["sous_total", "commission_montant", "total_ttc", "net_prestataire"]
             )
@@ -1925,7 +2171,7 @@ class PlatformRevenue(models.Model):
         related_name="platform_revenues",
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    # Horodatage de remboursement de ce revenu (annulation) — rétabli : utilisé
+    # Horodatage de remboursement de ce revenu (annulation) : rétabli : utilisé
     # par CancellationService. Null = revenu toujours acquis.
     refunded_at = models.DateTimeField(null=True, blank=True)
 
@@ -1937,7 +2183,7 @@ class PlatformRevenue(models.Model):
 
 
 # =============================================================================
-# B2B — BABIFIX Pro (syndics, entreprises, agences immobilières)
+# B2B : BABIFIX Pro (syndics, entreprises, agences immobilières)
 # Offre multi-sites + facturation mensuelle groupée + commission réduite + SLA
 # =============================================================================
 
@@ -1975,6 +2221,31 @@ class ProAccount(models.Model):
     actif = models.BooleanField(default=True, db_index=True)
     jour_facturation = models.PositiveSmallIntegerField(
         default=1, help_text="Jour du mois où la facture groupée est émise (1-28)"
+    )
+    # Fiscalité DGI Côte d'Ivoire
+    compte_contribuable = models.CharField(
+        max_length=60,
+        blank=True,
+        default="",
+        help_text="Numero de Compte Contribuable DGI (NCC)",
+    )
+    rccm = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        help_text="Numero RCCM de l'entreprise",
+    )
+    regime_fiscal = models.CharField(
+        max_length=60,
+        blank=True,
+        default="Reel Normal",
+        help_text="Regime fiscal DGI (ex: Reel Normal, Reel Simplifie)",
+    )
+    centre_impots = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Centre des Impots de rattachement",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -2024,6 +2295,12 @@ class ProInvoice(models.Model):
     nombre_interventions = models.PositiveIntegerField(default=0)
     montant_interventions_fcfa = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     abonnement_fcfa = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    montant_ht_fcfa = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tva_taux = models.DecimalField(max_digits=5, decimal_places=2, default=18.00, help_text="Taux TVA legal CIV 18%")
+    montant_tva_fcfa = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    airsi_taux = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Retenue AIRSI si applicable")
+    montant_airsi_fcfa = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    mention_dgi = models.CharField(max_length=255, blank=True, default="Facture normalisee assujettie au Code General des Impots de Cote d'Ivoire")
     total_fcfa = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     statut = models.CharField(max_length=20, choices=Statut.choices, default=Statut.BROUILLON)
     detail = models.JSONField(default=list, blank=True, help_text="Lignes : par site / intervention")
@@ -2090,7 +2367,7 @@ class PlatformConfig(models.Model):
     historiques → aucun changement de comportement tant qu'on ne touche à rien).
     """
 
-    # Commission de visite (Phase 3) — % prélevé sur la caution.
+    # Commission de visite (Phase 3) : % prélevé sur la caution.
     # DEPRECATED (Phase 5) : on ne prélève plus de % sur la caution ; le transport
     # revient à 100 % au prestataire et BABIFIX prend un frais fixe (ci-dessous).
     # Champ conservé pour compat / anciennes réservations.
@@ -2099,7 +2376,7 @@ class PlatformConfig(models.Model):
         help_text="[Déprécié] Commission BABIFIX sur la caution de visite (%).",
     )
 
-    # Frais fixe de mise en relation (Phase 5) — payé par le CLIENT à la visite,
+    # Frais fixe de mise en relation (Phase 5) : payé par le CLIENT à la visite,
     # 100 % BABIFIX. Remplace la commission prise sur la caution : le transport
     # revient désormais intégralement au prestataire.
     frais_mise_en_relation_fcfa = models.PositiveIntegerField(
@@ -2107,7 +2384,7 @@ class PlatformConfig(models.Model):
         help_text="Frais fixe de mise en relation payé par le client à la visite (FCFA). Défaut 500.",
     )
 
-    # Gating du score de fiabilité (Phase 4) — désactivé par défaut (permissif).
+    # Gating du score de fiabilité (Phase 4) : désactivé par défaut (permissif).
     fiabilite_gating_actif = models.BooleanField(
         default=False,
         help_text="Si activé, un score de fiabilité bas a des conséquences "
@@ -2146,6 +2423,58 @@ class PlatformConfig(models.Model):
         help_text="Nombre de visites suspectes qui déclenche la suspension automatique.",
     )
 
+    # ── Synchronisation économique & applicative dynamique (Paramètres -> Apps & Vitrine) ──
+    base_commission_pct = models.PositiveSmallIntegerField(
+        default=18,
+        help_text="Taux de commission Standard (%) appliqué hors réduction palier/volume.",
+    )
+    commission_floor_pct = models.PositiveSmallIntegerField(
+        default=5,
+        help_text="Plancher minimal de commission (%) après cumul des remises.",
+    )
+    silver_commission_reduction = models.PositiveSmallIntegerField(default=5)
+    gold_commission_reduction = models.PositiveSmallIntegerField(default=10)
+    silver_price_fcfa = models.PositiveIntegerField(default=7500)
+    gold_price_fcfa = models.PositiveIntegerField(default=15000)
+    standard_max_devis = models.PositiveSmallIntegerField(default=5)
+    silver_max_devis = models.PositiveSmallIntegerField(default=15)
+    silver_visibility_boost_pct = models.PositiveSmallIntegerField(default=30)
+    gold_visibility_boost_pct = models.PositiveSmallIntegerField(default=60)
+    min_withdrawal_fcfa = models.PositiveIntegerField(default=1000)
+    daily_withdrawal_cap_fcfa = models.PositiveIntegerField(default=500000)
+    urgency_surcharge_pct = models.PositiveSmallIntegerField(default=20)
+    sos_day_fee_fcfa = models.PositiveIntegerField(
+        default=1500,
+        help_text="Forfait deplacement express SOS de jour (06h-20h), deductible du devis (FCFA).",
+    )
+    sos_night_fee_fcfa = models.PositiveIntegerField(
+        default=2500,
+        help_text="Forfait astreinte SOS nuit (20h-06h) et dimanche, deductible du devis (FCFA).",
+    )
+    sos_radius_km = models.PositiveSmallIntegerField(
+        default=7,
+        help_text="Rayon geographique du Radar SOS par secteur (km).",
+    )
+    sos_ttl_seconds = models.PositiveIntegerField(
+        default=300,
+        help_text="Duree d attente active du radar SOS client (secondes).",
+    )
+    sos_night_start_hour = models.PositiveSmallIntegerField(default=20)
+    sos_night_end_hour = models.PositiveSmallIntegerField(default=6)
+    escrow_auto_confirm_hours = models.PositiveSmallIntegerField(default=72)
+    allow_cash_payments = models.BooleanField(default=True)
+    allow_mobile_money_payments = models.BooleanField(default=True)
+    enabled_operators_csv = models.CharField(
+        max_length=120,
+        default="wave,orange,mtn,moov",
+        help_text="Codes opérateurs actifs séparés par des virgules.",
+    )
+    require_kyc_for_visibility = models.BooleanField(default=True)
+    require_supervisor_interview = models.BooleanField(default=False)
+    matching_radius_km = models.PositiveSmallIntegerField(default=25)
+    support_phone = models.CharField(max_length=32, blank=True, default="+225 07 00 00 00 00")
+    support_whatsapp = models.CharField(max_length=32, blank=True, default="+225 07 00 00 00 00")
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -2163,3 +2492,63 @@ class PlatformConfig(models.Model):
     def get_solo(cls) -> "PlatformConfig":
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class SystemEventLog(models.Model):
+    """Journal technique centralise : erreurs exactes, latences, crashs mobile et vitrine."""
+
+    SOURCE_CHOICES = [
+        ("backend", "Backend API / Admin"),
+        ("vitrine", "Site Vitrine"),
+        ("mobile_client", "App Client Flutter"),
+        ("mobile_pro", "App Prestataire Flutter"),
+        ("websocket", "WebSocket Realtime"),
+    ]
+    LEVEL_CHOICES = [
+        ("critical", "Critique"),
+        ("error", "Erreur"),
+        ("slow", "Latence elevee"),
+        ("warning", "Avertissement"),
+    ]
+
+    source = models.CharField(max_length=24, choices=SOURCE_CHOICES, default="backend", db_index=True)
+    level = models.CharField(max_length=16, choices=LEVEL_CHOICES, default="error", db_index=True)
+    request_id = models.CharField(max_length=48, blank=True, default="", db_index=True)
+    endpoint = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    method = models.CharField(max_length=12, blank=True, default="")
+    status_code = models.PositiveSmallIntegerField(null=True, blank=True, db_index=True)
+    duration_ms = models.FloatField(null=True, blank=True, db_index=True)
+    ram_mb = models.FloatField(null=True, blank=True)
+
+    user_id = models.IntegerField(null=True, blank=True, db_index=True)
+    user_label = models.CharField(max_length=120, blank=True, default="")
+    client_ip = models.CharField(max_length=64, blank=True, default="")
+    user_agent = models.CharField(max_length=240, blank=True, default="")
+
+    exception_type = models.CharField(max_length=120, blank=True, default="")
+    source_file = models.CharField(max_length=255, blank=True, default="")
+    source_line = models.PositiveIntegerField(null=True, blank=True)
+    message = models.TextField(blank=True, default="")
+    traceback_text = models.TextField(blank=True, default="")
+    payload_redacted = models.TextField(blank=True, default="")
+    app_version = models.CharField(max_length=48, blank=True, default="")
+
+    fingerprint = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    occurrence_count = models.PositiveIntegerField(default=1)
+    resolved = models.BooleanField(default=False, db_index=True)
+    resolved_by = models.CharField(max_length=120, blank=True, default="")
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    last_seen_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-last_seen_at", "-id"]
+        verbose_name = "Journal technique systeme"
+        verbose_name_plural = "Journaux techniques systeme"
+        indexes = [
+            models.Index(fields=["resolved", "-last_seen_at"]),
+            models.Index(fields=["source", "level", "-last_seen_at"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.source}/{self.level}] {self.endpoint or self.exception_type} (x{self.occurrence_count})"

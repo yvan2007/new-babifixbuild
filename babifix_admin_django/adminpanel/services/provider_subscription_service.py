@@ -1,5 +1,5 @@
 """
-Provider Subscription Service — Abonnements premium prestataire
+Provider Subscription Service : Abonnements premium prestataire
 Badge "Top", visibilite boostée, commission reduite
 """
 import logging
@@ -16,7 +16,7 @@ from ..models import Provider, UserProfile
 logger = logging.getLogger(__name__)
 
 
-# ✅ Paliers premium — alignés sur le modèle économique BABIFIX (mémoire)
+# ✅ Paliers premium : alignés sur le modèle économique BABIFIX (mémoire)
 #   Standard : gratuit, commission de base, 3 devis actifs max
 #   Silver   : 7 500 F/mois, −5 pts de commission, visibilité ×1.3, 15 devis, badge "Pro vérifié"
 #   Gold     : 15 000 F/mois, −10 pts de commission, visibilité ×1.6, devis illimités, badge "Top"
@@ -29,7 +29,7 @@ STANDARD_TIER = {
     "badge": "",
     "commission_reduction": 0,
     "visibility_boost": 1.0,
-    "devis_quota": 3,
+    "devis_quota": 5,
     "free": True,
 }
 
@@ -74,12 +74,22 @@ def annual_savings_pct(monthly_price: int) -> int:
     return int(round(saved / full * 100))
 
 
+def _get_live_tiers() -> tuple[dict, dict]:
+    """Retourne les configurations paliers lues dynamiquement depuis PlatformConfig."""
+    try:
+        from .platform_config_service import get_dynamic_tier_configs
+        return get_dynamic_tier_configs()
+    except Exception:
+        return STANDARD_TIER, PREMIUM_TIERS
+
+
 def get_tier_config(tier: str) -> dict:
-    """Configuration d'un palier quelconque (standard inclus)."""
+    """Configuration d'un palier quelconque (standard inclus), lue depuis la config active."""
+    std, prem = _get_live_tiers()
     t = (tier or "").lower()
-    if t in PREMIUM_TIERS:
-        return PREMIUM_TIERS[t]
-    return STANDARD_TIER
+    if t in prem:
+        return prem[t]
+    return std
 
 
 @dataclass
@@ -126,7 +136,8 @@ class ProviderSubscriptionService:
         Returns:
             SubscriptionResult
         """
-        tier_config = PREMIUM_TIERS.get(tier.lower())
+        std_cfg, prem_tiers = _get_live_tiers()
+        tier_config = prem_tiers.get(tier.lower())
         if not tier_config:
             return SubscriptionResult(
                 success=False,
@@ -184,15 +195,17 @@ class ProviderSubscriptionService:
         
         # Verifier expiration
         if provider.premium_until and provider.premium_until < timezone.now():
-            # Expire - desactiver
+            # Expire - desactiver et reinitialiser le palier sur Standard
             provider.is_premium = False
-            provider.save(update_fields=["is_premium"])
+            provider.premium_tier = "standard"
+            provider.save(update_fields=["is_premium", "premium_tier"])
             return None
         
         tier = provider.premium_tier or ""
-        if tier not in PREMIUM_TIERS:
+        _, prem_tiers = _get_live_tiers()
+        if tier not in prem_tiers:
             return None
-        config = PREMIUM_TIERS[tier]
+        config = prem_tiers[tier]
 
         return ProviderSubscription(
             provider=provider,
@@ -217,7 +230,7 @@ class ProviderSubscriptionService:
             premium_until__lt=now,
         )
         count = expired.count()
-        expired.update(is_premium=False)
+        expired.update(is_premium=False, premium_tier="standard")
         
         if count:
             logger.info(f"Deactivated {count} expired premium subscriptions")
@@ -249,8 +262,16 @@ class ProviderSubscriptionService:
 
     @classmethod
     def base_commission_rate(cls, provider: Provider) -> float:
-        """Taux de commission de base (%) : catégorie (ou 18) moins remise dégressive par volume."""
+        """Taux de commission de base (%) : categorie ou PlatformConfig moins remise degressive."""
         top = 18.0
+        floor = 5.0
+        try:
+            from .platform_config_service import get_runtime_configs
+            _, cfg = get_runtime_configs()
+            top = float(getattr(cfg, "base_commission_pct", 18) or 18)
+            floor = float(getattr(cfg, "commission_floor_pct", 5) or 5)
+        except Exception:
+            pass
         if getattr(provider, "category_id", None):
             try:
                 from ..models import CategoryCommission
@@ -263,7 +284,7 @@ class ProviderSubscriptionService:
                 pass
         n = cls.monthly_completed_missions(provider)
         discount = next(d for threshold, d in cls.DEGRESSIVE_SCALE if n >= threshold)
-        return max(5.0, top - discount)
+        return max(floor, top - discount)
 
     @classmethod
     def calculate_effective_commission(
@@ -272,36 +293,37 @@ class ProviderSubscriptionService:
         base_commission: Optional[float] = None,
     ) -> float:
         """
-        Commission effective (%) = base dégressive (volume) − réduction premium.
+        Commission effective (%) = base degressive (volume) - reduction premium.
         """
+        _, prem_tiers = _get_live_tiers()
+        floor = 5.0
+        try:
+            from .platform_config_service import get_runtime_configs
+            _, cfg = get_runtime_configs()
+            floor = float(getattr(cfg, "commission_floor_pct", 5) or 5)
+        except Exception:
+            pass
         base = base_commission if base_commission is not None else cls.base_commission_rate(provider)
         sub = cls.get_subscription(provider)
         reduction = 0
         if sub:
-            reduction = PREMIUM_TIERS.get(sub.tier, {}).get("commission_reduction", 0)
-        else:
-            # Repli : le palier premium porté par le PROFIL (`premium_tier`,
-            # source de vérité utilisée aussi par le matching et le classement)
-            # fait foi si aucun enregistrement d'abonnement n'existe. Sans cela,
-            # l'abonnement ne réduisait PAS la commission du devis.
-            tier = getattr(provider, "premium_tier", None)
-            if tier:
-                reduction = PREMIUM_TIERS.get(tier, {}).get("commission_reduction", 0)
-        return max(5.0, base - reduction)
+            reduction = prem_tiers.get(sub.tier, {}).get("commission_reduction", 0)
+        return max(floor, base - reduction)
 
     @classmethod
     def visibility_multiplier(cls, provider: Provider) -> float:
-        """Multiplicateur de visibilité pour le matching (1.0 si standard)."""
+        """Multiplicateur de visibilite pour le matching (1.0 si standard)."""
         sub = cls.get_subscription(provider)
         return sub.visibility_multiplier if sub else 1.0
 
     @classmethod
     def devis_quota(cls, provider: Provider) -> Optional[int]:
-        """Quota de devis actifs autorisés (None = illimité)."""
+        """Quota de devis actifs autorises (None = illimite)."""
+        std_cfg, prem_tiers = _get_live_tiers()
         sub = cls.get_subscription(provider)
         if sub:
-            return PREMIUM_TIERS.get(sub.tier, {}).get("devis_quota")
-        return STANDARD_TIER["devis_quota"]
+            return prem_tiers.get(sub.tier, {}).get("devis_quota")
+        return std_cfg["devis_quota"]
 
     @classmethod
     def badge(cls, provider: Provider) -> str:
@@ -312,14 +334,16 @@ class ProviderSubscriptionService:
     @classmethod
     def get_available_tiers(cls) -> list[dict]:
         """Lister tous les paliers (Standard inclus) pour l'écran d'abonnement."""
+        std_cfg, prem_tiers = _get_live_tiers()
+
         def features(config):
             quota = config.get("devis_quota")
-            quota_label = "Devis illimités" if quota is None else f"{quota} devis actifs"
+            quota_label = "Devis illimites" if quota is None else f"{quota} devis actifs"
             boost = int((config["visibility_boost"] - 1) * 100)
             feats = [
                 f"-{config['commission_reduction']} pts de commission"
                 if config["commission_reduction"] else "Commission de base",
-                f"+{boost}% de visibilité" if boost else "Visibilité normale",
+                f"+{boost}% de visibilite" if boost else "Visibilite normale",
                 quota_label,
             ]
             if config.get("badge"):
@@ -327,27 +351,25 @@ class ProviderSubscriptionService:
             return feats
 
         def numeric_fields(config):
-            # Champs numériques lus par le TABLEAU COMPARATIF de l'app (sinon il
-            # retombe sur des défauts : 18 % / Standard / 3 partout).
             quota = config.get("devis_quota")
             return {
                 "commission_reduction": config["commission_reduction"],
+                "commission_effective_pct": config.get("commission_effective_pct"),
                 "visibility_boost_pct": int((config["visibility_boost"] - 1) * 100),
-                # None (illimité) → -1 ; le comparatif de l'app affiche « Illimités ».
                 "max_active_devis": -1 if quota is None else quota,
             }
 
         tiers = [{
-            "id": STANDARD_TIER["id"],
-            "name": STANDARD_TIER["name"],
-            "price": STANDARD_TIER["price"],
+            "id": std_cfg["id"],
+            "name": std_cfg["name"],
+            "price": std_cfg["price"],
             "price_annual": 0,
             "annual_savings_pct": 0,
-            "badge": STANDARD_TIER["badge"],
+            "badge": std_cfg["badge"],
             "free": True,
             "trial_available": False,
-            "features": features(STANDARD_TIER),
-            **numeric_fields(STANDARD_TIER),
+            "features": features(std_cfg),
+            **numeric_fields(std_cfg),
         }]
         tiers += [{
             "id": tier_id,
@@ -360,7 +382,7 @@ class ProviderSubscriptionService:
             "trial_available": True,
             "features": features(config),
             **numeric_fields(config),
-        } for tier_id, config in PREMIUM_TIERS.items()]
+        } for tier_id, config in prem_tiers.items()]
         return tiers
 
     # ------------------------------------------------------------------
@@ -405,11 +427,13 @@ class ProviderSubscriptionService:
         basket = (gmv / missions) if missions else cls.DEFAULT_BASKET
         base = cls.base_commission_rate(provider)
         current = cls.calculate_effective_commission(provider)
-        current_tier = provider.premium_tier if provider.is_premium else "standard"
+        sub = cls.get_subscription(provider)
+        current_tier = sub.tier if sub else "standard"
 
         options = []
         best = None
-        for tier_id, cfg in PREMIUM_TIERS.items():
+        _, prem_tiers = _get_live_tiers()
+        for tier_id, cfg in prem_tiers.items():
             red = cfg["commission_reduction"]
             price = cfg["price"]
             economie = gmv * red / 100.0

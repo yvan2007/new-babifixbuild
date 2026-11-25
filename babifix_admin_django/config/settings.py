@@ -58,7 +58,7 @@ def _autodetect_firebase_credentials():
 _autodetect_firebase_credentials()
 
 # =============================================================================
-# PRODUCTION CHECKS — Empêcher config insécurisée en production
+# PRODUCTION CHECKS : Empêcher config insécurisée en production
 # =============================================================================
 _env = os.getenv("DJANGO_ENV", "development").lower()
 
@@ -94,7 +94,7 @@ elif _env == "production":
 else:
     ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1", "10.0.2.2", ".ngrok-free.dev", ".ngrok.io", ".ngrok-free.app"]
 
-# Render injecte automatiquement RENDER_EXTERNAL_HOSTNAME — l'ajouter toujours
+# Render injecte automatiquement RENDER_EXTERNAL_HOSTNAME : l'ajouter toujours
 _render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
 if _render_host and _render_host not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(_render_host)
@@ -130,7 +130,7 @@ INSTALLED_APPS = [
 # Sur Render, le disque est éphémère : les fichiers uploadés disparaissent à
 # chaque redéploiement. Si CLOUDINARY_URL est défini (compte Cloudinary gratuit),
 # les médias sont stockés sur Cloudinary et persistent. Sans la variable (local),
-# on garde le disque local — comportement inchangé.
+# on garde le disque local : comportement inchangé.
 #
 # IMPORTANT : depuis Django 5.1, les réglages DEFAULT_FILE_STORAGE et
 # STATICFILES_STORAGE sont SUPPRIMÉS et ignorés. Il faut impérativement passer
@@ -182,7 +182,7 @@ print(
     + (
         "Cloudinary ✅ (médias persistants)"
         if CLOUDINARY_URL
-        else "DISQUE LOCAL ⚠️ — CLOUDINARY_URL absent : les images seront perdues "
+        else "DISQUE LOCAL ⚠️ : CLOUDINARY_URL absent : les images seront perdues "
         "au prochain redéploiement. Définissez CLOUDINARY_URL sur Render."
     ),
     file=_sys.stderr,
@@ -192,6 +192,8 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
+    "adminpanel.observability_middleware.BabifixObservabilityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -203,7 +205,15 @@ MIDDLEWARE = [
 ]
 _BABIFIX_ENV = _env
 
-# CORS - Lire depuis env var
+# Seuil de latence (ms) journalise automatiquement dans SystemEventLog
+BABIFIX_SLOW_REQUEST_MS = int(os.getenv("BABIFIX_SLOW_REQUEST_MS", "800"))
+# Cle HMAC de telemetrie Vitrine -> Admin (obligatoirement surchargee en production)
+VITRINE_TELEMETRY_SECRET = os.getenv(
+    "VITRINE_TELEMETRY_SECRET",
+    "" if _env == "production" else "babifix-dev-vitrine-telemetry-hmac-key",
+)
+
+# CORS - Lire depuis env var (ou permissif en dev pour Flutter Web sur port dynamique)
 CORS_ALLOWED_ORIGINS = [
     host.strip()
     for host in os.getenv(
@@ -211,6 +221,8 @@ CORS_ALLOWED_ORIGINS = [
     ).split(",")
     if host.strip()
 ]
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = "config.urls"
@@ -233,7 +245,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-# Django Channels — Redis en prod multi-workers ; mémoire locale OK pour un seul processus dev
+# Django Channels : Redis en prod multi-workers ; mémoire locale OK pour un seul processus dev
 _redis_url = os.getenv("REDIS_URL", "").strip()
 if _redis_url:
     CHANNEL_LAYERS = {
@@ -259,16 +271,16 @@ else:
 _database_url = os.getenv("DATABASE_URL", "").strip()
 _pg_db = os.getenv("POSTGRES_DB", "").strip()
 _mysql_db = (os.getenv("MYSQL_DATABASE") or os.getenv("MYSQL_NAME") or "").strip()
+_db_conn_max_age = int(os.getenv("DJANGO_CONN_MAX_AGE", "600"))
+
 if _database_url:
     import dj_database_url
-    # conn_max_age=0 : connexion fraîche à chaque requête → évite de réutiliser
-    #   une connexion externe Render coupée (« SSL connection closed unexpectedly »).
-    # conn_health_checks : vérifie la connexion avant réutilisation.
-    # ssl_require : impose TLS (requis par Postgres Render).
+    # conn_max_age configurable (défaut 600s) + conn_health_checks : réutilisation
+    # sécurisée des connexions avec vérification active avant chaque requête.
     DATABASES = {
         "default": dj_database_url.config(
             default=_database_url,
-            conn_max_age=0,
+            conn_max_age=_db_conn_max_age,
             conn_health_checks=True,
             ssl_require=True,
         )
@@ -282,10 +294,12 @@ elif _pg_db:
             "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
             "HOST": os.getenv("POSTGRES_HOST", "localhost"),
             "PORT": os.getenv("POSTGRES_PORT", "5432"),
+            "CONN_MAX_AGE": _db_conn_max_age,
+            "conn_health_checks": True,
         }
     }
 elif _mysql_db:
-    # WAMP : souvent root sans mot de passe — MYSQL_PASSWORD vide ou absent
+    # WAMP : souvent root sans mot de passe : MYSQL_PASSWORD vide ou absent
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.mysql",
@@ -294,6 +308,8 @@ elif _mysql_db:
             "PASSWORD": os.getenv("MYSQL_PASSWORD", ""),
             "HOST": os.getenv("MYSQL_HOST", "127.0.0.1"),
             "PORT": os.getenv("MYSQL_PORT", "3306"),
+            "CONN_MAX_AGE": _db_conn_max_age,
+            "conn_health_checks": True,
             "OPTIONS": {
                 "charset": "utf8mb4",
                 "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
@@ -305,6 +321,7 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            "CONN_MAX_AGE": _db_conn_max_age,
         }
     }
 
@@ -386,6 +403,15 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "BABIFIX <contact@babifix.c
 EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "10"))
 
 # =============================================================================
+# AUTHENTICATION BACKENDS
+# Permet la connexion indifféremment par nom d'utilisateur ou par e-mail
+# =============================================================================
+AUTHENTICATION_BACKENDS = [
+    "adminpanel.auth_backends.EmailOrUsernameModelBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# =============================================================================
 # SOCIAL AUTH (Google & Apple Sign-In)
 # Configurer via .env : GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APPLE_BUNDLE_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY
 # =============================================================================
@@ -419,7 +445,7 @@ BABIFIX_THROTTLE_LOGIN_RATE = int(os.getenv("BABIFIX_THROTTLE_LOGIN_RATE", "5"))
 BABIFIX_THROTTLE_LOGIN_WINDOW = int(os.getenv("BABIFIX_THROTTLE_LOGIN_WINDOW", "60"))
 
 # =============================================================================
-# GENIUSPAY (Mobile Money CI — Wave, Orange, MTN, PawaPay)
+# GENIUSPAY (Mobile Money CI : Wave, Orange, MTN, PawaPay)
 # Base URL : https://pay.genius.ci/api/v1/merchant
 # =============================================================================
 GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  "")
@@ -432,11 +458,11 @@ GENIUSPAY_ERROR_URL   = os.getenv("GENIUSPAY_ERROR_URL",   "")   # ex: https://a
 if _env == "production" and (not GENIUSPAY_PUBLIC_KEY or not GENIUSPAY_SECRET_KEY):
     raise RuntimeError(
         "GENIUSPAY_PUBLIC_KEY et GENIUSPAY_SECRET_KEY doivent être définies en production. "
-        "Ne JAMAIS hardcoder ces valeurs — utiliser des variables d'environnement."
+        "Ne JAMAIS hardcoder ces valeurs : utiliser des variables d'environnement."
     )
 
 # =============================================================================
-# SMILE IDENTITY (KYC — vérification CNI ivoirienne, niveau 3)
+# SMILE IDENTITY (KYC : vérification CNI ivoirienne, niveau 3)
 # Sans ces clés : seuls les niveaux 1 (qualité image + format) et 2 (visage)
 # tournent, puis validation humaine. Avec ces clés : authentification de la
 # carte + lecture du numéro + correspondance biométrique via l'autorité.
@@ -462,9 +488,9 @@ if _sentry_dsn:
             send_default_pii=False,
         )
     except ImportError:
-        pass  # sentry-sdk non installé — ignorer silencieusement
+        pass  # sentry-sdk non installé : ignorer silencieusement
 
-# Connexion dashboard (CRUD) — même session que django-admin
+# Connexion dashboard (CRUD) : même session que django-admin
 LOGIN_URL = "/admin/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/admin/login/"
@@ -496,6 +522,8 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API REST de la plateforme BABIFIX - Services à domicile en Côte d'Ivoire",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Restreindre Swagger/OpenAPI aux administrateurs pour éviter l'énumération des routes internes
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SWAGGER_UI_SETTINGS": {
         "persistAuthorization": True,
         "displayOperationId": True,
@@ -545,7 +573,7 @@ LOGGING = {
     },
 }
 
-# En production (Render/cloud) : console uniquement — la plateforme capture stdout/stderr.
+# En production (Render/cloud) : console uniquement : la plateforme capture stdout/stderr.
 # Les fichiers de log locaux sont inutiles sur un filesystem éphémère.
 if _env != "development":
     LOG_DIR = BASE_DIR / "logs"
@@ -562,7 +590,7 @@ if _env != "development":
         LOGGING["loggers"]["adminpanel"]["handlers"] = ["console", "file"]
 
 # =============================================================================
-# Security headers — appliqués SYSTÉMATIQUEMENT (dev + prod) pour protéger les
+# Security headers : appliqués SYSTÉMATIQUEMENT (dev + prod) pour protéger les
 # cookies, prévenir XSS, clickjacking, MIME-sniffing, et exfiltration via referer.
 # =============================================================================
 
@@ -609,7 +637,7 @@ FILE_UPLOAD_PERMISSIONS = 0o644
 
 # --- Production-only -------------------------------------------------------
 if _env == "production":
-    # Render termine le SSL lui-même (load balancer) — ne pas rediriger vers HTTPS
+    # Render termine le SSL lui-même (load balancer) : ne pas rediriger vers HTTPS
     # sinon boucle infinie. On fait confiance au header X-Forwarded-Proto de Render.
     SECURE_SSL_REDIRECT = False
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

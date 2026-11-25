@@ -88,10 +88,10 @@
                 data-priorite="{{ litige.get_priorite_display }}" data-decision="{{ litige.get_decision_display }}"
                 data-resa="{% if litige.reservation %}{{ litige.reservation.reference }}{% endif %}"
                 data-date="{{ litige.created_at|date:'d/m/Y H:i' }}"
-                data-reponse="{{ litige.prestataire_response|truncatechars:200 }}">👁️</button>
+                data-reponse="{{ litige.prestataire_response|truncatechars:200 }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
               {% if litige.decision == "En cours" %}
-              <button class="action-btn action-btn--success" onclick="resolveLitige({{ litige.id }}, 'Liberer')" title="Liberer">✓</button>
-              <button class="action-btn action-btn--danger" onclick="resolveLitige({{ litige.id }}, 'Rembourser')" title="Rembourser">↩</button>
+              <button class="action-btn action-btn--success" onclick="resolveLitige({{ litige.id }}, 'Liberer')" title="Liberer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg></button>
+              <button class="action-btn action-btn--danger" onclick="resolveLitige({{ litige.id }}, 'Rembourser')" title="Rembourser"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>
               {% endif %}
             </div>
           </td>

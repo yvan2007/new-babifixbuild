@@ -1,4 +1,4 @@
-"""Endpoints d'appel LiveKit — Phase D.
+"""Endpoints d'appel LiveKit : Phase D.
 
 Le backend est l'autorité de signalisation :
 - POST /api/calls/initiate         (caller) → crée la room, FCM ring l'appelé, renvoie token
@@ -22,11 +22,39 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from .auth import require_api_auth
-from .livekit_service import generate_access_token, livekit_url, new_room_name
-from .models import Call, Conversation, Reservation
+from .livekit_service import (
+    delete_room_best_effort,
+    generate_access_token,
+    livekit_url,
+    new_room_name,
+)
+from .models import Call, Conversation, Reservation, UserProfile
 from .push_dispatch import _schedule
 
 logger = logging.getLogger(__name__)
+
+
+def _broadcast_call_signal(user_id: int, event_type: str, payload: dict, reservation=None) -> None:
+    """Diffuse un evenement d'appel en temps reel WebSocket vers le bon canal (client ou presta)."""
+    try:
+        from . import realtime
+
+        is_client = None
+        if reservation is not None and getattr(reservation, "client_user_id", None):
+            is_client = int(reservation.client_user_id) == int(user_id)
+        if is_client is None:
+            role = (
+                UserProfile.objects.filter(user_id=user_id)
+                .values_list("role", flat=True)
+                .first()
+            )
+            is_client = role == UserProfile.Role.CLIENT
+        if is_client:
+            realtime.broadcast_client_user(int(user_id), event_type, payload)
+        else:
+            realtime.broadcast_prestataire_user(int(user_id), event_type, payload)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +185,14 @@ def api_livekit_token(request):
         room_name=room_name,
         ttl_seconds=3600,
     )
+    if not token:
+        return JsonResponse(
+            {
+                "error": "livekit_not_configured",
+                "detail": "Service d'appel vocal/vidéo non configuré sur le serveur.",
+            },
+            status=503,
+        )
     return JsonResponse({
         "token": token,
         "url": livekit_url(),
@@ -235,7 +271,7 @@ def api_call_initiate(request):
                 status=403,
             )
 
-    # Après la prestation terminée, plus d'appel (voix comme vidéo) — sauf litige
+    # Après la prestation terminée, plus d'appel (voix comme vidéo) : sauf litige
     # ouvert. En cas de souci, on passe par « Signaler un problème ».
     if (
         res.statut in ("Terminee", "DONE")
@@ -283,6 +319,21 @@ def api_call_initiate(request):
         })
 
     room = new_room_name()
+    caller_role = "client" if is_client else "prestataire"
+    token = generate_access_token(
+        identity=_identity_for(caller.pk, caller_role),
+        name=_user_display(caller),
+        room_name=room,
+    )
+    if not token:
+        return JsonResponse(
+            {
+                "error": "livekit_not_configured",
+                "detail": "Service d'appel vocal/video non configure sur le serveur.",
+            },
+            status=503,
+        )
+
     call = Call.objects.create(
         reservation=res,
         caller=caller,
@@ -290,14 +341,6 @@ def api_call_initiate(request):
         room_name=room,
         kind=kind,
         status=Call.Status.RINGING,
-    )
-
-    # Token pour l'appelant
-    caller_role = "client" if is_client else "prestataire"
-    token = generate_access_token(
-        identity=_identity_for(caller.pk, caller_role),
-        name=_user_display(caller),
-        room_name=room,
     )
 
     # FCM ring au destinataire
@@ -310,24 +353,28 @@ def api_call_initiate(request):
     else:
         ring_title = f"Appel {'vidéo' if kind == Call.Kind.VIDEO else 'audio'} entrant"
         ring_body = f"{_user_display(caller)} vous appelle (réservation {res.reference})"
-    _schedule(
-        [callee_id],
-        ring_title,
-        ring_body,
-        {
-            "type": "call.incoming",
-            "call_id": str(call.pk),
-            "room_name": room,
-            "kind": kind,
-            "caller_id": str(caller.pk),
-            "caller_name": _user_display(caller),
-            "reservation_reference": res.reference,
-            "diagnostic": "1" if is_diagnostic else "0",
-            # High priority pour Android — sonnerie même app fermée
-            "android_channel_id": "babifix_calls",
-            "priority": "high",
-        },
-    )
+    ring_payload = {
+        "type": "call.incoming",
+        "call_id": str(call.pk),
+        "room_name": room,
+        "kind": kind,
+        "caller_id": str(caller.pk),
+        "caller_name": _user_display(caller),
+        "reservation_reference": res.reference,
+        "diagnostic": "1" if is_diagnostic else "0",
+        # High priority pour Android : sonnerie meme app fermee
+        "android_channel_id": "babifix_calls",
+        "priority": "high",
+    }
+    _schedule([callee_id], ring_title, ring_body, ring_payload)
+    try:
+        from . import realtime
+        if is_client:
+            realtime.broadcast_prestataire_user(int(callee_id), "call.incoming", ring_payload)
+        else:
+            realtime.broadcast_client_user(int(callee_id), "call.incoming", ring_payload)
+    except Exception:
+        pass
 
     logger.info(
         "Call %s initiated by %s → %s (room=%s, kind=%s)",
@@ -360,12 +407,7 @@ def api_call_answer(request, call_id):
             {"error": "invalid_state", "status": call.status}, status=409
         )
 
-    call.status = Call.Status.ANSWERED
-    call.answered_at = timezone.now()
-    call.save(update_fields=["status", "answered_at"])
-
-    role = "client" if call.callee.babifix_reservations_as_client.exists() else "prestataire"
-    # On affecte une identity stable basée sur le rôle vis-à-vis de la réservation
+    # On affecte une identity stable basee sur le role vis-a-vis de la reservation
     callee_role = (
         "client"
         if (call.reservation and call.reservation.client_user_id == uid)
@@ -376,17 +418,38 @@ def api_call_answer(request, call_id):
         name=_user_display(call.callee),
         room_name=call.room_name,
     )
+    if not token:
+        return JsonResponse(
+            {
+                "error": "livekit_not_configured",
+                "detail": "Service d'appel temps reel non configure.",
+            },
+            status=503,
+        )
 
+    call.status = Call.Status.ANSWERED
+    call.answered_at = timezone.now()
+    call.save(update_fields=["status", "answered_at"])
+
+    answer_payload = {
+        "type": "call.answered",
+        "call_id": str(call.pk),
+        "room_name": call.room_name,
+    }
     _schedule(
         [call.caller_id],
         "Appel accepté",
         f"{_user_display(call.callee)} a décroché",
-        {
-            "type": "call.answered",
-            "call_id": str(call.pk),
-            "room_name": call.room_name,
-        },
+        answer_payload,
     )
+    try:
+        from . import realtime
+        if callee_role == "client":
+            realtime.broadcast_prestataire_user(int(call.caller_id), "call.answered", answer_payload)
+        else:
+            realtime.broadcast_client_user(int(call.caller_id), "call.answered", answer_payload)
+    except Exception:
+        pass
 
     return JsonResponse({"call": _serialize(call), "token": token})
 
@@ -415,12 +478,22 @@ def api_call_reject(request, call_id):
     call.ended_at = timezone.now()
     call.save(update_fields=["status", "ended_at"])
 
+    reject_payload = {"type": "call.rejected", "call_id": str(call.pk)}
     _schedule(
         [call.caller_id],
         "Appel refusé",
         f"{_user_display(call.callee)} n'a pas pris l'appel.",
-        {"type": "call.rejected", "call_id": str(call.pk)},
+        reject_payload,
     )
+    try:
+        from . import realtime
+        callee_is_client = bool(call.reservation and call.reservation.client_user_id == uid)
+        if callee_is_client:
+            realtime.broadcast_prestataire_user(int(call.caller_id), "call.rejected", reject_payload)
+        else:
+            realtime.broadcast_client_user(int(call.caller_id), "call.rejected", reject_payload)
+    except Exception:
+        pass
 
     return JsonResponse({"call": _serialize(call)})
 
@@ -445,11 +518,11 @@ def api_call_end(request, call_id):
 
     now = timezone.now()
     call.ended_at = now
-    # Si l'appel n'avait jamais été décroché et c'est le caller qui raccroche → CANCELLED.
-    # Si c'est le callee et statut RINGING → REJECTED.
+    # Si l'appel n'avait jamais ete decroche et c'est le caller qui raccroche : MISSED.
+    # Si c'est le callee et statut RINGING : REJECTED.
     if call.status == Call.Status.RINGING:
         if uid == call.caller_id:
-            call.status = Call.Status.CANCELLED
+            call.status = Call.Status.MISSED
         else:
             call.status = Call.Status.REJECTED
     else:
@@ -460,16 +533,32 @@ def api_call_end(request, call_id):
     call.save(update_fields=["status", "ended_at", "duration_seconds"])
 
     other_id = call.callee_id if uid == call.caller_id else call.caller_id
+    end_payload = {
+        "type": "call.ended",
+        "call_id": str(call.pk),
+        "room_name": call.room_name,
+        "status": call.status,
+        "ended_by": str(uid),
+        "duration_seconds": str(call.duration_seconds),
+    }
     _schedule(
         [other_id],
-        "Appel terminé",
-        f"L'appel s'est terminé ({call.duration_seconds}s).",
-        {
-            "type": "call.ended",
-            "call_id": str(call.pk),
-            "duration_seconds": str(call.duration_seconds),
-        },
+        "Appel termine",
+        f"L'appel s'est termine ({call.duration_seconds}s).",
+        end_payload,
     )
+    # Signalisation bidirectionnelle immediate via WebSocket vers l'autre partie
+    # (et l'emetteur multi-appareil) + fermeture serveur de la room LiveKit.
+    _broadcast_call_signal(int(other_id), "call.ended", end_payload, reservation=call.reservation)
+    _broadcast_call_signal(int(uid), "call.ended", end_payload, reservation=call.reservation)
+    if call.room_name:
+        import threading
+
+        threading.Thread(
+            target=delete_room_best_effort,
+            args=(call.room_name,),
+            daemon=True,
+        ).start()
     return JsonResponse({"call": _serialize(call)})
 
 

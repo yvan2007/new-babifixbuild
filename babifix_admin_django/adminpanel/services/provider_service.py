@@ -25,7 +25,7 @@ class ProviderResult:
     provider: Optional[Provider] = None
     error: Optional[str] = None
     data: dict = None
-    
+
     def __post_init__(self):
         if self.data is None:
             self.data = {}
@@ -46,34 +46,26 @@ class ProviderSearchInput:
 
 class ProviderService:
     """Service pour la gestion des prestataires."""
-    
+
     @staticmethod
-    def search_providers(input_data: ProviderSearchInput) -> list:
-        """Rechercher des prestataires avec filtres.
-        
-        Args:
-            input_data: Critères de recherche
-            
-        Returns:
-            Liste de prestataires
-        """
+    def search_providers(input_data: ProviderSearchInput) -> dict:
+        """Rechercher des prestataires avec filtres."""
         qs = Provider.objects.filter(
             statut=Provider.Status.VALID,
             disponible=True,
         )
-        
-        # Filtrer par categorie
+
         if input_data.category_id:
-            qs = qs.filter(categories__id=input_data.category_id)
-        
-        # Recherche textuelle
+            qs = qs.filter(category_id=input_data.category_id)
+
         if input_data.query:
             qs = qs.filter(
                 Q(nom__icontains=input_data.query) |
-                Q(description__icontains=input_data.query)
+                Q(bio__icontains=input_data.query) |
+                Q(specialite__icontains=input_data.query)
             )
-        
-        # Rang premium : Gold (2) > Silver (1) > Standard (0) — mise en avant des abonnés
+
+        # Rang premium : Gold (2) > Silver (1) > Standard (0) : mise en avant des abonnes
         qs = qs.annotate(
             premium_rank=Case(
                 When(is_premium=True, premium_tier="gold", then=Value(2)),
@@ -83,45 +75,43 @@ class ProviderService:
             )
         )
 
-        # Trier (le premium est toujours mis en avant en tête de tri)
         if input_data.sort_by == "price":
             qs = qs.order_by("-premium_rank", "tarif_horaire")
-        else:  # rating (défaut)
-            qs = qs.order_by("-premium_rank", "-note_moyenne", "-nombre_notes")
-        
-        # Pagination
+        else:
+            qs = qs.order_by("-premium_rank", "-average_rating", "-rating_count")
+
+        total = qs.count()
         start = (input_data.page - 1) * input_data.page_size
         end = start + input_data.page_size
-        
-        return list(qs[start:end])
-    
+        providers = list(qs[start:end])
+
+        return {
+            "providers": providers,
+            "total": total,
+            "page": input_data.page,
+            "page_size": input_data.page_size,
+            "has_next": end < total,
+        }
+
     @staticmethod
     def get_provider_detail(provider_id: int) -> ProviderResult:
-        """Recuperer le detail d'un prestataire.
-        
-        Args:
-            provider_id: ID du prestataire
-            
-        Returns:
-            ProviderResult avec le prestataire
-        """
+        """Recuperer le detail d'un prestataire."""
         provider = Provider.objects.filter(
             id=provider_id,
             statut=Provider.Status.VALID,
         ).first()
-        
+
         if not provider:
             return ProviderResult(
                 success=False,
                 error="provider_not_found",
             )
-        
-        # Compter les reservations terminees
+
         completed = Reservation.objects.filter(
-            provider=provider,
-            statut=Reservation.Statut.TERMINEE,
+            assigned_provider=provider,
+            statut=Reservation.Status.DONE,
         ).count()
-        
+
         return ProviderResult(
             success=True,
             provider=provider,
@@ -129,73 +119,61 @@ class ProviderService:
                 "completed_missions": completed,
             },
         )
-    
+
     @staticmethod
     def check_availability(
         provider: Provider,
         date_str: Optional[str] = None,
     ) -> tuple[bool, str]:
-        """Verifier la disponibilite d'un prestataire.
-        
-        Args:
-            provider: Prestataire a verifier
-            date_str: Date optionnelle (YYYY-MM-DD)
-            
-        Returns:
-            (disponible, raison)
-        """
+        """Verifier la disponibilite d'un prestataire."""
         if not provider.disponible:
             return False, "provider_disabled"
-        
+
         if provider.statut != Provider.Status.VALID:
             return False, "provider_not_approved"
-        
+
         return True, ""
-    
+
     @staticmethod
     def get_provider_stats(provider: Provider) -> dict:
-        """Recuperer les statistiques d'un prestataire.
-        
-        Args:
-            provider: Prestataire
-            
-        Returns:
-            Dict avec stats
-        """
-        # Missions terminees
+        """Recuperer les statistiques d'un prestataire."""
         completed = Reservation.objects.filter(
-            provider=provider,
-            statut=Reservation.Statut.TERMINEE,
+            assigned_provider=provider,
+            statut=Reservation.Status.DONE,
         ).count()
-        
-        # En cours
+
         in_progress = Reservation.objects.filter(
-            provider=provider,
+            assigned_provider=provider,
             statut__in=[
-                Reservation.Statut.INTERVENTION_EN_COURS,
-                Reservation.Statut.EN_COURS,
+                Reservation.Status.INTERVENTION_EN_COURS,
+                Reservation.Status.IN_PROGRESS,
             ],
         ).count()
-        
-        # Note moyenne
+
+        pending_requests = Reservation.objects.filter(
+            assigned_provider=provider,
+            statut__in=[
+                Reservation.Status.DEMANDE_ENVOYEE,
+                Reservation.Status.PENDING,
+            ],
+        ).count()
+
         avg = Provider.objects.filter(id=provider.id).aggregate(
-            avg=Avg("note_moyenne")
+            avg=Avg("average_rating")
         )["avg"] or 0
-        
+
         return {
             "completed_missions": completed,
             "in_progress": in_progress,
+            "pending_requests": pending_requests,
             "rating": float(avg),
-            "total_reviews": provider.nombre_notes,
+            "total_reviews": provider.rating_count,
         }
-    
+
     @staticmethod
     def list_categories() -> list:
-        """Lister toutes les categories actives.
-        
-        Returns:
-            Liste de categories
-        """
+        """Lister toutes les categories actives."""
         return list(Category.objects.filter(
-            active=True
-        ).order_by("name"))
+            actif=True,
+            is_deleted=False,
+        ).order_by("ordre_affichage", "nom"))

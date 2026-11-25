@@ -1,5 +1,5 @@
 """
-BABIFIX — Vues API Finance & Business
+BABIFIX : Vues API Finance & Business
   - Parrainage : GET code + stats, POST appliquer code
   - Premium prestataire : GET tiers, POST souscrire
   - Urgence : surcharge +20% au moment de la réservation
@@ -16,6 +16,7 @@ import uuid
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -37,7 +38,7 @@ URGENCE_SURCHARGE_PCT = 20   # +20% sur le montant si demande urgente
 
 
 # =============================================================================
-# PARRAINAGE — GET /api/auth/referral/  |  POST /api/auth/referral/apply/
+# PARRAINAGE : GET /api/auth/referral/  |  POST /api/auth/referral/apply/
 # =============================================================================
 
 @csrf_exempt
@@ -83,7 +84,7 @@ def api_referral(request):
 
 
 # =============================================================================
-# PREMIUM PRESTATAIRE — GET /api/prestataire/premium/tiers/
+# PREMIUM PRESTATAIRE : GET /api/prestataire/premium/tiers/
 #                       POST /api/prestataire/premium/subscribe/
 # =============================================================================
 
@@ -218,7 +219,8 @@ def api_premium_subscribe(request):
             }, status=200)
 
         # ── Formule mensuelle ou annuelle ───────────────────────────────────
-        monthly = int(PREMIUM_TIERS[tier]["price"])
+        from .services.provider_subscription_service import get_tier_config
+        monthly = int(get_tier_config(tier)["price"])
         is_annual = billing_period == "annual"
         if is_annual:
             price = Decimal(str(annual_price(monthly)))
@@ -281,7 +283,7 @@ def api_premium_subscribe(request):
 
 
 # =============================================================================
-# CALCULATEUR DE RENTABILITÉ PREMIUM — GET /api/prestataire/premium/calculator/
+# CALCULATEUR DE RENTABILITÉ PREMIUM : GET /api/prestataire/premium/calculator/
 # =============================================================================
 
 @require_api_auth(["prestataire", "admin"])
@@ -301,7 +303,7 @@ def api_premium_calculator(request):
 
 
 # =============================================================================
-# FIDÉLITÉ CLIENT — GET/POST /api/client/fidelite/
+# FIDÉLITÉ CLIENT : GET/POST /api/client/fidelite/
 # =============================================================================
 
 # Niveaux de fidélité : (seuil_min, nom, couleur, réduction %)
@@ -376,7 +378,10 @@ def api_client_fidelite(request):
         "referral_code": stats.get("code") or "",
         "referral_credits": stats.get("credits_earned", 0),
         "filleuls_count": stats.get("filleuls", 0),
-        # Points fidélité : cumul, valeur, seuil de conversion, crédit disponible.
+        "bonus_premiere_reservation_applique": bool(
+            getattr(profile, "referral_bonus_applied", False)
+        ) if profile else False,
+        # Points fidelite : cumul, valeur, seuil de conversion, credit disponible.
         "points": points.get("points", 0),
         "valeur_point_fcfa": points.get("valeur_point_fcfa", 10),
         "seuil_conversion": points.get("seuil_conversion", 100),
@@ -402,13 +407,18 @@ def api_client_fidelite_convert(request):
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
         payload = {}
-    points = int(payload.get("points", 0) or 0)
+    try:
+        points = int(payload.get("points", 0) or 0)
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "invalid_points"}, status=400)
+    if points <= 0:
+        return JsonResponse({"error": "invalid_points"}, status=400)
     out = FideliteService.convert_points(user, points)
     return JsonResponse(out, status=200 if out.get("ok") else 400)
 
 
 # =============================================================================
-# VOICE NOTE SUR AVIS — POST /api/client/reservations/<ref>/rating-voice/
+# VOICE NOTE SUR AVIS : POST /api/client/reservations/<ref>/rating-voice/
 # =============================================================================
 
 @csrf_exempt
@@ -489,18 +499,25 @@ def api_rating_voice_upload(request, reference):
 
 
 # =============================================================================
-# ANALYTICS PLATEFORME — GET /api/admin/platform-revenue/
+# ANALYTICS PLATEFORME : GET /api/admin/platform-revenue/
 # =============================================================================
 
-@login_required
 @require_GET
 def api_admin_platform_revenue(request):
     """Revenus BABIFIX, retraits en attente, KPIs (admin uniquement)."""
+    from .views import _authorize_admin_session_or_jwt
     from .services.wallet_service import WalletService
     from django.db.models import Sum, Count, Avg
     from django.contrib.auth.models import User
 
-    days = int(request.GET.get("days", 30))
+    ok_auth, err_resp = _authorize_admin_session_or_jwt(request)
+    if not ok_auth:
+        return err_resp
+
+    try:
+        days = max(1, min(365, int(request.GET.get("days", 30))))
+    except (TypeError, ValueError):
+        days = 30
     summary = WalletService.get_platform_summary(days)
 
     # KPIs globaux
@@ -627,9 +644,13 @@ def _compute_business_kpis(days: int = 30) -> dict:
     else:
         nps = 0
 
-    # Premium
-    premium_silver = Provider.objects.filter(is_premium=True, premium_tier="silver").count()
-    premium_gold = Provider.objects.filter(is_premium=True, premium_tier="gold").count()
+    # Premium actifs uniquement (exclut les abonnements expires)
+    premium_silver = Provider.objects.filter(
+        is_premium=True, premium_tier="silver"
+    ).filter(Q(premium_until__isnull=True) | Q(premium_until__gte=now)).count()
+    premium_gold = Provider.objects.filter(
+        is_premium=True, premium_tier="gold"
+    ).filter(Q(premium_until__isnull=True) | Q(premium_until__gte=now)).count()
 
     def _fmt(n):
         return f"{int(round(n)):,}".replace(",", " ")
@@ -657,10 +678,14 @@ def _compute_business_kpis(days: int = 30) -> dict:
     }
 
 
-@login_required
 @require_GET
 def api_admin_business_kpis(request):
-    """GET /api/admin/business-kpis/ — KPIs business (JSON)."""
+    """GET /api/admin/business-kpis/ · KPIs business (admin uniquement)."""
+    from .views import _authorize_admin_session_or_jwt
+
+    ok_auth, err_resp = _authorize_admin_session_or_jwt(request)
+    if not ok_auth:
+        return err_resp
     try:
         days = max(1, min(365, int(request.GET.get("days", 30))))
     except (TypeError, ValueError):
@@ -684,12 +709,17 @@ def kpi_dashboard_page(request):
 
 
 @csrf_exempt
-@login_required
 def api_admin_validate_withdrawal(request, tx_id):
     """
     POST /api/admin/wallet/withdrawals/<tx_id>/validate/
-    Marque un retrait comme traité (après virement Manuel ou API Mobile Money).
+    Marque un retrait comme traité (session admin + CSRF ou JWT admin requis).
     """
+    from .views import _authorize_admin_session_or_jwt
+
+    ok_auth, err_resp = _authorize_admin_session_or_jwt(request)
+    if not ok_auth:
+        return err_resp
+
     if request.method != "POST":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
 
@@ -708,7 +738,7 @@ def api_admin_validate_withdrawal(request, tx_id):
         from .push_dispatch import _schedule
         _schedule(
             [tx.provider.user_id],
-            "BABIFIX — Retrait effectué",
+            "BABIFIX : Retrait effectué",
             f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA via {tx.operator.upper()} a été traité.",
             {
                 "type": "wallet.withdrawal_done",
@@ -739,7 +769,7 @@ def api_admin_validate_withdrawal(request, tx_id):
 
 
 # =============================================================================
-# MULTI-DEVIS — GET /api/client/reservations/<ref>/devis/compare/
+# MULTI-DEVIS : GET /api/client/reservations/<ref>/devis/compare/
 # =============================================================================
 
 @require_api_auth(["client", "admin"])
@@ -814,7 +844,7 @@ def api_client_devis_compare(request, reference):
 
 
 # =============================================================================
-# URGENCE — appliqué dans api_client_create_reservation (views.py patch)
+# URGENCE : appliqué dans api_client_create_reservation (views.py patch)
 # Endpoint séparé pour vérifier le surcoût avant de valider la demande
 # GET /api/client/reservations/urgence-preview/?montant=X
 # =============================================================================

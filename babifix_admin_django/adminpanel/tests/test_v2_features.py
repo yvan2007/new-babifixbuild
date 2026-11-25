@@ -1,5 +1,5 @@
 """
-Tests comprehensifs pour les fonctionnalités v2 — BABIFIX Backend
+Tests comprehensifs pour les fonctionnalités v2 : BABIFIX Backend
 Couvre : Google/Apple Sign-In, acompte/solde, portfolio, KYC, rate limiting, pagination
 Run : python manage.py test adminpanel.tests.test_v2_features
 """
@@ -78,6 +78,7 @@ class GoogleSignInTests(TestCase):
             "aud": "test-google-client-id.apps.googleusercontent.com",
             "sub": "123456789",
             "email": "test@example.com",
+            "email_verified": "true",
             "name": "Test User",
         }).encode('utf-8')
         mock_urlopen.return_value.__enter__ = MagicMock(return_value=mock_response)
@@ -133,13 +134,16 @@ class AppleSignInTests(TestCase):
         APPLE_KEY_ID="KEY123",
         APPLE_PRIVATE_KEY="-----BEGIN EC PRIVATE KEY-----\ntest\n-----END EC PRIVATE KEY-----",
     )
+    @patch('jwt.PyJWKClient.get_signing_key_from_jwt')
     @patch('jwt.decode')
-    def test_apple_signin_with_identity_token(self, mock_decode):
+    def test_apple_signin_with_identity_token(self, mock_decode, mock_get_signing_key):
         """Apple Sign-In avec identity token."""
+        mock_get_signing_key.return_value = MagicMock(key="mock-apple-rsa-key")
         mock_decode.return_value = {
             "aud": "ci.babifix.client",
             "sub": "apple-user-123",
             "email": "test@privaterelay.appleid.com",
+            "email_verified": "true",
         }
 
         response = self.client.post('/api/auth/apple', json.dumps({

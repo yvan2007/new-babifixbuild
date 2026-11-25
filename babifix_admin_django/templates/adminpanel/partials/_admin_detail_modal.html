@@ -8,13 +8,30 @@ passe un tableau [ [label, valeur], … ] à admFillDetail(title, rows).
   <div class="pay-modal" onclick="event.stopPropagation()">
     <div class="pay-modal-head">
       <h3 id="adm-detail-title">Détail</h3>
-      <button type="button" class="pay-modal-close" onclick="closeAdmDetail()">&times;</button>
+      <button type="button" class="pay-modal-close" onclick="closeAdmDetail()" aria-label="Fermer">&times;</button>
     </div>
     <div class="pay-modal-body" id="adm-detail-body"></div>
+    <div class="pay-modal-foot" id="adm-detail-foot" style="display:none;padding:10px 18px 16px;gap:8px;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid var(--border, rgba(148,163,184,0.16));"></div>
   </div>
 </div>
 <script>
-  function admFillDetail(title, rows){
+  function _bxHoistOverlay(ov) {
+    if (!ov) return null;
+    if (ov.id) {
+      document.querySelectorAll('#' + ov.id).forEach(function (dup) {
+        if (dup !== ov && dup.parentNode === document.body) {
+          dup.parentNode.removeChild(dup);
+        }
+      });
+    }
+    if (ov.parentNode !== document.body) {
+      document.body.appendChild(ov);
+    }
+    return ov;
+  }
+  function admFillDetail(title, rows, actions){
+    var ov = _bxHoistOverlay(document.getElementById('adm-detail-overlay'));
+    if (!ov) return;
     document.getElementById('adm-detail-title').textContent = title || 'Détail';
     var body = document.getElementById('adm-detail-body');
     body.innerHTML = '';
@@ -25,9 +42,36 @@ passe un tableau [ [label, valeur], … ] à admFillDetail(title, rows).
       b.textContent = (r[1] !== undefined && r[1] !== null && (''+r[1]).length) ? r[1] : 'N/A';
       div.appendChild(s); div.appendChild(b); body.appendChild(div);
     });
-    document.getElementById('adm-detail-overlay').classList.add('open');
+    var foot = document.getElementById('adm-detail-foot');
+    if (foot) {
+      foot.innerHTML = '';
+      if (actions && actions.length) {
+        actions.forEach(function(act){
+          var el = act.href ? document.createElement('a') : document.createElement('button');
+          if (act.href) {
+            el.href = act.href;
+          } else {
+            el.type = 'button';
+            if (typeof act.onClick === 'function') {
+              el.addEventListener('click', function () { closeAdmDetail(); act.onClick(); });
+            }
+          }
+          el.className = act.primary ? 'bx-btn-accent' : 'bx-btn-ghost';
+          el.style.cssText = 'padding:7px 12px;font-size:12.5px;text-decoration:none;';
+          el.textContent = act.label || 'Action';
+          foot.appendChild(el);
+        });
+        foot.style.display = 'flex';
+      } else {
+        foot.style.display = 'none';
+      }
+    }
+    ov.classList.add('open');
   }
-  function closeAdmDetail(){ document.getElementById('adm-detail-overlay').classList.remove('open'); }
+  function closeAdmDetail(){
+    var ov = document.getElementById('adm-detail-overlay');
+    if (ov) ov.classList.remove('open');
+  }
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeAdmDetail(); });
 </script>
 <style>
@@ -52,23 +96,25 @@ passe un tableau [ [label, valeur], … ] à admFillDetail(title, rows).
   .pay-filter-num { width:110px; }
   .pay-filter-check { font-size:13px; display:inline-flex; align-items:center; gap:5px; opacity:0.85; }
   .pay-filter-btn { padding:7px 16px; border-radius:8px; border:none; cursor:pointer;
-    background:linear-gradient(135deg,#4CC9F0,#2563EB); color:#fff; font-weight:700; font-size:13px; }
-  .pay-filter-reset { padding:7px 12px; font-size:13px; opacity:0.7; text-decoration:underline; }
-  .pay-modal-overlay { display:none; position:fixed; inset:0; z-index:9999;
-    background:rgba(0,0,0,0.55); align-items:center; justify-content:center; padding:20px; }
+    background:var(--action, #E87722); color:#fff; font-weight:700; font-size:13px; transition:background 0.15s; }
+  .pay-filter-btn:hover { background:#C2410C; }
+  .pay-filter-reset { padding:7px 12px; font-size:13px; opacity:0.75; text-decoration:underline; color:var(--muted, #64748B); }
+  .pay-stat-value { font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .pay-modal-overlay { display:none; position:fixed; inset:0; width:100vw; height:100dvh; z-index:9999;
+    background:rgba(11,27,52,0.58); backdrop-filter:blur(3px); align-items:center; justify-content:center; padding:20px; }
   .pay-modal-overlay.open { display:flex; }
-  .pay-modal { width:100%; max-width:460px; background:#0f1e33; border-radius:16px;
-    border:1px solid rgba(148,163,184,0.25); box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  .pay-modal { width:100%; max-width:460px; background:var(--card, #FFFFFF); color:var(--text, #0B1B34); border-radius:16px;
+    border:1px solid var(--border, #E2E8F0); box-shadow:0 16px 40px rgba(11,27,52,0.24);
     max-height:88vh; overflow:auto; }
   .pay-modal-head { display:flex; align-items:center; justify-content:space-between;
-    padding:16px 18px; border-bottom:1px solid rgba(148,163,184,0.15); }
-  .pay-modal-head h3 { margin:0; font-size:16px; color:#fff; }
-  .pay-modal-close { background:none; border:none; color:#94a3b8; font-size:26px; cursor:pointer; line-height:1; }
+    padding:16px 18px; border-bottom:1px solid var(--border, #E2E8F0); }
+  .pay-modal-head h3 { margin:0; font-size:16px; color:var(--text, #0B1B34); font-weight:800; }
+  .pay-modal-close { background:none; border:none; color:var(--muted, #64748B); font-size:26px; cursor:pointer; line-height:1; }
   .pay-modal-body { padding:8px 18px 18px; }
   .pay-modal-row { display:flex; justify-content:space-between; gap:14px;
-    padding:10px 0; border-bottom:1px solid rgba(148,163,184,0.10); }
-  .pay-modal-row span { color:#94a3b8; font-size:13px; }
-  .pay-modal-row b { color:#fff; font-size:13px; text-align:right; }
+    padding:10px 0; border-bottom:1px solid var(--border, rgba(148,163,184,0.16)); }
+  .pay-modal-row span { color:var(--muted, #64748B); font-size:13px; }
+  .pay-modal-row b { color:var(--text, #0B1B34); font-size:13px; text-align:right; font-variant-numeric:tabular-nums; }
 
   /* Boutons d'action alignés proprement (prestataires + autres colonnes
      d'actions) : grille qui s'enroule, tailles homogènes, boutons pleine

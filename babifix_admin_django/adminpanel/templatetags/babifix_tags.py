@@ -1,4 +1,4 @@
-"""Filtres templates BABIFIX — monnaie FCFA (XOF) + temps relatif."""
+"""Filtres templates BABIFIX : monnaie FCFA (XOF) + temps relatif."""
 from __future__ import annotations
 
 import re
@@ -13,28 +13,22 @@ register = template.Library()
 
 @register.filter(name='relative_time')
 def relative_time(value) -> str:
-    """Temps relatif RÉEL et dynamique à partir d'un datetime (created_at).
-
-    Remplace les anciennes chaînes statiques (« Il y a 5 min » figées). Se
-    recalcule à chaque chargement de page → plus de notifications « figées ».
-    """
+    """Temps relatif REEL et dynamique a partir d'un datetime (created_at)."""
     if not value:
-        return "—"
+        return "-"
     try:
         now = timezone.now()
         delta = now - value
         secs = delta.total_seconds()
         if secs < 0:
-            return "À l'instant"
+            return "A l'instant"
         if secs < 60:
-            return "À l'instant"
-        # timesince donne « 5 minutes », « 2 heures, 3 minutes »… on garde le
-        # 1er terme pour rester concis, préfixé par « Il y a ».
+            return "A l'instant"
         ts = timesince(value, now)
         ts = ts.split(",")[0].strip()
         return f"Il y a {ts}"
     except (TypeError, ValueError):
-        return "—"
+        return "-"
 
 
 def _to_int(value) -> int | None:
@@ -59,13 +53,12 @@ def _to_int(value) -> int | None:
 @register.filter(name='format_fcfa')
 def format_fcfa(value) -> str:
     """
-    Affiche un montant en francs CFA : « 12 500 FCFA » (espaces insécables possibles).
-    Accepte int, Decimal, ou chaîne contenant des chiffres.
+    Affiche un montant en francs CFA : « 12 500 FCFA ».
+    Accepte int, Decimal, ou chaine contenant des chiffres.
     """
     n = _to_int(value)
     if n is None:
-        return '—'
-    # Espace fine / espace normal entre milliers (usage CI / FR)
+        return '-'
     formatted = f'{n:,}'.replace(',', '\u202f')
     return f'{formatted} FCFA'
 
@@ -81,3 +74,11 @@ def strip_fcfa_label(value) -> str:
             s = s[: -len(suf)].strip()
             break
     return s
+
+
+@register.filter(name='dict_get')
+def dict_get(mapping, key):
+    """Retourne mapping.get(key) sans lever d'erreur dans les templates."""
+    if isinstance(mapping, dict):
+        return mapping.get(key)
+    return None

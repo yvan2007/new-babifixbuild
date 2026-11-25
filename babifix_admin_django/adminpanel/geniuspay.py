@@ -1,5 +1,5 @@
 """
-GeniusPay — Passerelle de paiement Mobile Money (Côte d'Ivoire)
+GeniusPay : Passerelle de paiement Mobile Money (Côte d'Ivoire)
 https://pay.genius.ci/docs/api
 
 Opérateurs supportés (CI) : Orange Money, MTN MoMo, Wave, PawaPay
@@ -27,7 +27,7 @@ from .models import Payment, Reservation
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Config (env vars — à renseigner dans .env ou settings.py)
+# Config (env vars : à renseigner dans .env ou settings.py)
 # ---------------------------------------------------------------------------
 GENIUSPAY_PUBLIC_KEY  = os.getenv("GENIUSPAY_PUBLIC_KEY",  getattr(settings, "GENIUSPAY_PUBLIC_KEY", ""))
 GENIUSPAY_SECRET_KEY  = os.getenv("GENIUSPAY_SECRET_KEY",  getattr(settings, "GENIUSPAY_SECRET_KEY", ""))
@@ -67,6 +67,63 @@ _OPERATOR_MAP = {
 _PRE_CONFIRM_STATUSES = {
     "En attente", "PENDING", "DEMANDE_ENVOYEE", "DEVIS_ENVOYE", "DEVIS_ACCEPTE",
 }
+
+
+def _apply_caution_payment(reservation, payment) -> str:
+    """Applique de facon idempotente le paiement d'une caution de visite de diagnostic.
+
+    Debloque l'adresse exacte, fait passer la reservation a DEVIS_EN_COURS,
+    enregistre les frais fixes de mise en relation en PlatformRevenue, et
+    notifie le prestataire. Retourne 'caution'.
+    """
+    from decimal import Decimal
+    from .models import PlatformConfig, PlatformRevenue
+    from .views import transition_reservation
+
+    cfg = PlatformConfig.get_solo()
+    frais = Decimal(str(cfg.frais_mise_en_relation_fcfa or 0))
+    montant_caution = reservation.caution_montant or Decimal("0")
+
+    with transaction.atomic():
+        res = Reservation.objects.select_for_update().get(pk=reservation.pk)
+        if not res.caution_payee:
+            if res.statut == Reservation.Status.VISITE_DIAGNOSTIC:
+                transition_reservation(
+                    res,
+                    Reservation.Status.DEVIS_EN_COURS,
+                    extra_fields={
+                        "caution_payee": True,
+                        "address_is_approximate": False,
+                    },
+                )
+            else:
+                res.caution_payee = True
+                res.address_is_approximate = False
+                res.save(update_fields=["caution_payee", "address_is_approximate"])
+        if frais > 0 and not PlatformRevenue.objects.filter(payment=payment).exists():
+            PlatformRevenue.objects.create(
+                amount_fcfa=frais,
+                source=PlatformRevenue.Source.COMMISSION,
+                reference=res.reference,
+                description=f"Frais de mise en relation (visite) {res.reference}",
+                payment=payment,
+            )
+
+    try:
+        from .push_dispatch import _schedule
+
+        _schedule(
+            [reservation.prestataire_user_id] if reservation.prestataire_user_id else [],
+            "Caution reglee",
+            (
+                f"Le transport de {int(montant_caution)} FCFA est regle pour {reservation.reference}. "
+                "Vous pouvez organiser la visite puis envoyer le devis."
+            ),
+            {"type": "caution.paid", "reference": reservation.reference},
+        )
+    except Exception:
+        pass
+    return "caution"
 
 
 def _apply_payment_phase(reservation, payment) -> str:
@@ -122,46 +179,46 @@ def _apply_payment_phase(reservation, payment) -> str:
 
 
 def _send_receipt_email(payment) -> None:
-    """Génère le reçu PDF et l'envoie par e-mail au client (silencieux si échec)."""
+    """Genere le recu PDF client et l'envoie par e-mail (silencieux si echec)."""
     try:
+        from .services.email_service import format_fcfa, format_french_date, send_babifix_html_email
         from .services.invoice_service import InvoiceService
-        from .views_extra import send_babifix_email_html
-        from django.template.loader import render_to_string
 
         res = getattr(payment, "reservation", None)
         client_user = getattr(res, "client_user", None) if res else None
         if not (client_user and client_user.email):
             return
-        pdf_bytes = InvoiceService.generate_pdf(payment)
+        pdf_bytes = InvoiceService.generate_pdf(payment, is_client_view=True)
         if not pdf_bytes:
             return
         invoice_number = InvoiceService.generate_invoice_number(payment)
-        html_content = render_to_string(
-            "emails/receipt_email.html",
-            {
-                "invoice_number": invoice_number,
-                "reference":      res.reference,
-                "service_title":  getattr(res, "title", None) or res.reference,
-                "montant":        payment.montant,
-                "operateur":      "GeniusPay / Mobile Money",
-                "client_name":    client_user.get_full_name() or client_user.username,
-            },
-        )
-        send_babifix_email_html(
+        send_babifix_html_email(
             to_email=client_user.email,
-            subject=f"BABIFIX : Reçu de paiement {invoice_number}",
-            html_content=html_content,
+            subject=f"BABIFIX : Recu de paiement {invoice_number}",
+            template_name="emails/receipt_email.html",
+            context={
+                "invoice_number": invoice_number,
+                "reference": res.reference,
+                "service_title": getattr(res, "title", None) or res.reference,
+                "montant": format_fcfa(payment.montant),
+                "operateur": (
+                    getattr(res, "mobile_money_operator", "") or getattr(payment, "type_paiement", "") or "Mobile Money CI"
+                ).replace("_", " "),
+                "date_emission": format_french_date(getattr(payment, "created_at", None), with_time=True),
+                "client_name": (client_user.get_full_name() or client_user.username),
+            },
             attachments=[(f"recu_{invoice_number}.pdf", pdf_bytes, "application/pdf")],
+            async_send=True,
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "Erreur envoi reçu PDF pour paiement %s: %s",
+            "Erreur envoi recu PDF pour paiement %s: %s",
             getattr(payment, "reference", "?"), exc,
         )
 
 
 # ---------------------------------------------------------------------------
-# HTTP helper — stdlib urllib (aucune dépendance externe)
+# HTTP helper : stdlib urllib (aucune dépendance externe)
 # ---------------------------------------------------------------------------
 def _genius_request(method: str, path: str, payload: dict | None = None) -> dict:
     """Appel REST vers l'API GeniusPay via cloudscraper (bypass Cloudflare)."""
@@ -177,7 +234,7 @@ def _genius_request(method: str, path: str, payload: dict | None = None) -> dict
     try:
         resp = scraper.request(method.upper(), url, json=payload, headers=headers, timeout=20)
         if resp.status_code >= 400:
-            logger.error("GeniusPay HTTP %d %s %s — %s", resp.status_code, method, path, resp.text[:500])
+            logger.error("GeniusPay HTTP %d %s %s : %s", resp.status_code, method, path, resp.text[:500])
             return {"success": False, "error": resp.text, "status_code": resp.status_code}
         return resp.json()
     except Exception as exc:
@@ -192,20 +249,40 @@ def _genius_request(method: str, path: str, payload: dict | None = None) -> dict
 def _verify_webhook_signature(raw_body: bytes, timestamp: str, received_sig: str) -> bool:
     # Lu à CHAQUE appel (pas GENIUSPAY_SECRET_KEY, figée une fois pour toutes à
     # l'import du module) : @override_settings dans les tests ne modifie que
-    # django.conf.settings, jamais une constante déjà liée ailleurs — sans ça
+    # django.conf.settings, jamais une constante déjà liée ailleurs : sans ça
     # la vérif utilisait toujours la valeur au démarrage du process, rendant
     # tout test de signature impossible à isoler (et masquant tout bug réel
     # dans cette fonction elle-même).
     # settings.GENIUSPAY_SECRET_KEY (pas os.getenv) : Django lit déjà la
     # variable d'environnement UNE fois dans config/settings.py, et c'est
     # SEULEMENT l'attribut sur l'objet settings qu'@override_settings peut
-    # patcher — os.getenv relit l'environnement brut du process et ignore
+    # patcher : os.getenv relit l'environnement brut du process et ignore
     # toujours ce patch (c'est ce qui masquait ce chemin aux tests).
     secret = getattr(settings, "GENIUSPAY_SECRET_KEY", "")
     if not secret:
-        logger.warning("GENIUSPAY_SECRET_KEY non configurée — signature ignorée en dev.")
-        return True
-    message = (timestamp + "." + raw_body.decode("utf-8")).encode("utf-8")
+        if getattr(settings, "DEBUG", False):
+            logger.warning("GENIUSPAY_SECRET_KEY non configuree : signature toleree en DEV uniquement.")
+            return True
+        logger.error("SECURITE : GENIUSPAY_SECRET_KEY absente en production, webhook rejete.")
+        return False
+
+    # Protection anti-rejeu (replay attack) : le timestamp ne doit pas dater de plus de 5 minutes
+    if timestamp:
+        try:
+            import time
+            ts_float = float(timestamp)
+            if abs(time.time() - ts_float) > 300:
+                logger.warning("GeniusPay webhook replay attack suspectee : timestamp hors fenetre de 5 min (%s)", timestamp)
+                return False
+        except (ValueError, TypeError):
+            logger.warning("GeniusPay webhook timestamp invalide : %s", timestamp)
+            return False
+
+    try:
+        body_str = raw_body.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    message = (timestamp + "." + body_str).encode("utf-8")
     expected = hmac.new(
         secret.encode("utf-8"),
         message,
@@ -215,7 +292,7 @@ def _verify_webhook_signature(raw_body: bytes, timestamp: str, received_sig: str
 
 
 # ---------------------------------------------------------------------------
-# PAYOUT — versement SORTANT (retrait prestataire / remboursement client)
+# PAYOUT : versement SORTANT (retrait prestataire / remboursement client)
 # ---------------------------------------------------------------------------
 # Cette fonction manquait purement et simplement : WalletService.process_withdrawal
 # et EscrowService.process_client_refund l'importaient toutes les deux, d'où un
@@ -293,7 +370,7 @@ def geniuspay_send_payout(
     # bout (retrait → solde à jour) sans virement réel.
     if settings.DEBUG or GENIUSPAY_SANDBOX:
         logger.info(
-            "GeniusPay payout: SIMULATION — %s | %s XOF → %s (%s)",
+            "GeniusPay payout: SIMULATION : %s | %s XOF → %s (%s)",
             ext_ref, montant, tel, op,
         )
         return {
@@ -322,7 +399,7 @@ def geniuspay_send_payout(
 
     if not resp.get("success"):
         err = resp.get("message") or resp.get("error") or "erreur_geniuspay"
-        logger.error("GeniusPay payout ECHEC %s — %s", ext_ref, err)
+        logger.error("GeniusPay payout ECHEC %s : %s", ext_ref, err)
         return {"ok": False, "error": str(err)[:300]}
 
     data = resp.get("data") or {}
@@ -351,20 +428,20 @@ def geniuspay_initiate(request):
     Initie un paiement GeniusPay pour une réservation.
 
     Body JSON :
-      reservation    (int)    — ID de la réservation
-      montant        (int)    — Montant en XOF (min 200)
-      payment_method (str)    — ORANGE_MONEY | MTN_MOMO | WAVE | PAWAPAY | MOOV
+      reservation    (int)    : ID de la réservation
+      montant        (int)    : Montant en XOF (min 200)
+      payment_method (str)    : ORANGE_MONEY | MTN_MOMO | WAVE | PAWAPAY | MOOV
                                 Omettre → page de paiement hébergée (checkout_url)
-      phone          (str)    — Téléphone du client (format international +225…)
-      customer_name  (str)    — Nom affiché sur la passerelle
-      customer_email (str)    — Email du client (optionnel)
+      phone          (str)    : Téléphone du client (format international +225…)
+      customer_name  (str)    : Nom affiché sur la passerelle
+      customer_email (str)    : Email du client (optionnel)
 
     Réponse :
-      transaction_id  — Référence GeniusPay (MTX-…)
-      payment_url     — URL de paiement direct (si opérateur spécifié)
-      checkout_url    — URL page hébergée (si pas d'opérateur)
-      payment_id      — ID local du paiement
-      status          — "pending"
+      transaction_id  : Référence GeniusPay (MTX-…)
+      payment_url     : URL de paiement direct (si opérateur spécifié)
+      checkout_url    : URL page hébergée (si pas d'opérateur)
+      payment_id      : ID local du paiement
+      status          : "pending"
     """
     if check_rate_limit(request, "geniuspay", max_requests=10, window=60):
         return rate_limited_response()
@@ -378,21 +455,75 @@ def geniuspay_initiate(request):
 
     reservation_id  = payload.get("reservation")
     montant         = payload.get("montant")
+    payment_kind    = str(payload.get("kind") or "").strip().lower()
     operator_raw    = str(payload.get("payment_method", "")).upper().strip()
     phone           = str(payload.get("phone", "")).strip()
     customer_name   = str(payload.get("customer_name", "Client BABIFIX")).strip()
     customer_email  = str(payload.get("customer_email", "")).strip()
 
-    if not reservation_id or not montant:
+    if not reservation_id or (payment_kind != "caution" and not montant):
         return JsonResponse({"error": "missing_fields", "detail": "reservation et montant sont requis"}, status=400)
 
+    # Accepte un ID numerique OU une reference (RES-... / E2E-...) sans jamais planter.
     try:
-        montant_int = int(float(montant))
-    except (TypeError, ValueError):
-        return JsonResponse({"error": "invalid_amount"}, status=400)
+        if str(reservation_id).isdigit():
+            reservation = Reservation.objects.get(pk=int(reservation_id))
+        else:
+            reservation = Reservation.objects.get(reference=str(reservation_id))
+    except (Reservation.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({"error": "reservation_not_found"}, status=404)
 
-    if montant_int < 200:
-        return JsonResponse({"error": "amount_too_low", "detail": "Montant minimum : 200 XOF"}, status=400)
+    # C3 - Verification d'ownership : la reservation doit appartenir a
+    # l'utilisateur authentifie (ou etre assignee au prestataire).
+    role = getattr(request, 'api_role', '')
+    uid = int(request.api_user_id)
+    is_owner = False
+    if role == 'admin':
+        is_owner = True
+    elif role == 'client':
+        is_owner = (getattr(reservation, 'client_user_id', None) == uid)
+    elif role == 'prestataire':
+        is_owner = (getattr(reservation, 'assigned_provider', None) is not None
+                    and getattr(reservation.assigned_provider, 'user_id', None) == uid)
+    if not is_owner:
+        logger.warning('GeniusPay initiate - IDOR attempt: user %s tried reservation %s', uid, reservation.pk)
+        return JsonResponse({'error': 'forbidden'}, status=403)
+
+    from decimal import Decimal
+    is_caution = payment_kind == "caution"
+    if is_caution:
+        if reservation.statut != Reservation.Status.VISITE_DIAGNOSTIC:
+            return JsonResponse({"error": "invalide", "detail": "Aucune visite en attente de caution."}, status=400)
+        if reservation.caution_payee:
+            return JsonResponse({"error": "deja_paye", "detail": "La caution a deja ete reglee."}, status=409)
+        from .models import PlatformConfig
+
+        cfg = PlatformConfig.get_solo()
+        caution_base = reservation.caution_montant or Decimal("0")
+        if caution_base <= 0:
+            return JsonResponse({"error": "caution_absente", "detail": "Aucun montant de caution defini."}, status=400)
+        frais = Decimal(str(cfg.frais_mise_en_relation_fcfa or 0))
+        montant_int = int((caution_base + frais).quantize(Decimal("1")))
+        total = caution_base + frais
+    else:
+        try:
+            montant_int = int(float(montant))
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "invalid_amount"}, status=400)
+        if montant_int < 200:
+            return JsonResponse({"error": "amount_too_low", "detail": "Montant minimum : 200 XOF"}, status=400)
+        # C2 - Validation du montant cote serveur.
+        # Le montant ne doit pas depasser le reste a payer (montant - montant_verse).
+        total = reservation.montant or Decimal('0')
+        verse = reservation.montant_verse or Decimal('0')
+        restant = max(Decimal('0'), total - verse)
+        if restant <= 0:
+            return JsonResponse({'error': 'already_paid', 'detail': 'Cette reservation est deja soldee.'}, status=400)
+        if montant_int > int(restant) + 1:  # tolerance 1 FCFA pour arrondis
+            logger.warning('GeniusPay initiate - amount tampering: requested %s, max %s', montant_int, restant)
+            return JsonResponse({'error': 'amount_exceeds_balance', 'detail': 'Le montant depasse le solde restant (%s FCFA).' % int(restant)}, status=400)
+        if montant_int < 200:
+            return JsonResponse({'error': 'amount_too_low', 'detail': 'Montant minimum : 200 XOF'}, status=400)
 
     # Accepte un ID numérique OU une référence (RES-… / E2E-…) sans jamais planter.
     try:
@@ -404,7 +535,7 @@ def geniuspay_initiate(request):
         return JsonResponse({"error": "reservation_not_found"}, status=404)
 
     # Persiste l'opérateur choisi AU PAIEMENT sur la réservation (l'opérateur
-    # n'est plus demandé à la réservation — seulement le mode). Sert aussi de
+    # n'est plus demandé à la réservation : seulement le mode). Sert aussi de
     # cible pour un éventuel remboursement Mobile Money.
     if operator_raw in {"ORANGE_MONEY", "MTN_MOMO", "WAVE", "MOOV"}:
         if reservation.mobile_money_operator != operator_raw:
@@ -432,40 +563,72 @@ def geniuspay_initiate(request):
                 "message":        "Paiement déjà en cours.",
             })
 
-    # Référence locale unique
-    payment_ref = "GPAY-" + uuid.uuid4().hex[:10].upper()
+    if is_caution:
+        payment_commission = Decimal("0")
+        payment_ref = f"CAUTION-{reservation.reference}-{uuid.uuid4().hex[:6].upper()}"
+        payment_montant_saved = str(reservation.caution_montant or montant_int)
+    else:
+        # Commission proportionnelle au paiement (alignee sur Devis / WalletService)
+        from .services.wallet_service import _get_effective_commission_rate
+        devis = (
+            reservation.devis_set.filter(statut="ACCEPTE").order_by("-created_at").first()
+            or reservation.devis_set.filter(statut="ENVOYE").order_by("-created_at").first()
+        )
+        if devis and devis.commission_rate is not None:
+            comm_rate = Decimal(str(devis.commission_rate)) / Decimal("100")
+        elif reservation.assigned_provider:
+            comm_rate = _get_effective_commission_rate(reservation.assigned_provider)
+        elif total > 0 and reservation.commission:
+            comm_rate = Decimal(str(reservation.commission)) / total
+        else:
+            comm_rate = Decimal("0.18")
+        payment_commission = (Decimal(str(montant_int)) * comm_rate).quantize(Decimal("1"))
+        payment_ref = "GPAY-" + uuid.uuid4().hex[:10].upper()
+        payment_montant_saved = str(montant_int)
 
-    # Créer le paiement local en PENDING
+    # Creer le paiement local en PENDING
     payment = Payment.objects.create(
         reference=payment_ref,
         client=str(reservation.client) if reservation.client else "",
         prestataire=str(reservation.prestataire) if reservation.prestataire else "",
-        montant=str(montant_int),
-        commission="0",
+        montant=payment_montant_saved,
+        commission=str(payment_commission),
         etat=Payment.State.PENDING,
         reservation=reservation,
         type_paiement=Payment.TypePaiement.MOBILE_MONEY,
         valide_par_admin=False,
-        reference_externe="",   # sera renseigné après appel API
+        reference_externe="",
     )
 
-    # Tentative réelle vers l'API GeniusPay
+    # Tentative reelle vers l'API GeniusPay
     def _do_fake_validation(ref: str) -> JsonResponse:
-        """Simulation de validation — fallback quand l'API est indisponible."""
+        """Simulation de validation : fallback quand l'API est indisponible."""
         payment.reference_externe = ref
         payment.etat = Payment.State.COMPLETE
         payment.save(update_fields=["reference_externe", "etat"])
-        phase = _apply_payment_phase(reservation, payment)
-        # Reçu PDF par e-mail (acompte ET solde) — fonctionne aussi en local.
+        if is_caution:
+            phase = _apply_caution_payment(reservation, payment)
+        else:
+            phase = _apply_payment_phase(reservation, payment)
         _send_receipt_email(payment)
         return JsonResponse({
+            "ok":             True,
             "transaction_id": ref,
             "payment_id":     payment.pk,
+            "amount":         montant_int,
             "payment_url":    "",
             "checkout_url":   "",
             "status":         "valide",
-            "message": "Solde payé !" if phase == "solde"
-            else "Acompte validé (simulation, API indisponible).",
+            "phase":          phase,
+            "message": (
+                "Caution de visite reglee !"
+                if phase == "caution"
+                else (
+                    "Solde paye !"
+                    if phase == "solde"
+                    else "Acompte valide (simulation, API indisponible)."
+                )
+            ),
         })
 
     # Construire le payload GeniusPay
@@ -495,7 +658,7 @@ def geniuspay_initiate(request):
     # dépendre de la réponse temps réel de l'agrégateur (qui renvoie "pending"
     # et ferait afficher « Erreur de paiement »). En clés LIVE → API réelle.
     if settings.DEBUG or GENIUSPAY_SANDBOX:
-        logger.info("GeniusPay: mode simulation — auto-validation %s", payment_ref)
+        logger.info("GeniusPay: mode simulation : auto-validation %s", payment_ref)
         return _do_fake_validation("MTX-SANDBOX-" + uuid.uuid4().hex[:8].upper())
 
     genius_resp = _genius_request("POST", "/payments", genius_payload)
@@ -526,48 +689,53 @@ def geniuspay_initiate(request):
 
     status = data.get("status", "pending")
 
-    # Auto-validation sandbox — pas de checkout_url ouvert par le mobile
+    # Auto-validation sandbox : pas de checkout_url ouvert par le mobile
     is_sandbox = str(genius_reference).startswith("SANDBOX_")
     if is_sandbox or status.lower() in ("success", "valide"):
         # Marquer le paiement complet
         payment.etat = Payment.State.COMPLETE
         payment.save(update_fields=["etat"])
 
-        # Appliquer le paiement à la réservation selon la phase (acompte/solde)
+        # Appliquer le paiement a la reservation selon la phase (caution/acompte/solde)
         phase = "acompte"
         if payment.reservation:
-            phase = _apply_payment_phase(payment.reservation, payment)
-            # Reçu PDF par e-mail (acompte ET solde)
+            if is_caution:
+                phase = _apply_caution_payment(payment.reservation, payment)
+            else:
+                phase = _apply_payment_phase(payment.reservation, payment)
             _send_receipt_email(payment)
 
-        # Notifier le prestataire selon la phase
-        try:
-            from .push_dispatch import _schedule
-            if phase == "solde":
-                _schedule(
-                    [payment.reservation.prestataire_user_id],
-                    "BABIFIX · Solde reçu",
-                    f"Le client a payé le solde pour {payment.reservation.reference}.",
-                    {"type": "solde.valide", "reference": payment.reservation.reference},
-                )
-            else:
-                _schedule(
-                    [payment.reservation.prestataire_user_id],
-                    "BABIFIX · Acompte reçu",
-                    f"Le client a payé l'acompte pour {payment.reservation.reference}. Réservation confirmée.",
-                    {"type": "acompte.valide", "reference": payment.reservation.reference},
-                )
-        except Exception as exc:
-            logger.warning("Push notification failed: %s", exc)
+        # Notifier le prestataire selon la phase (caution deja notifiee dans _apply_caution_payment)
+        if not is_caution and payment.reservation:
+            try:
+                from .push_dispatch import _schedule
+                if phase == "solde":
+                    _schedule(
+                        [payment.reservation.prestataire_user_id],
+                        "BABIFIX · Solde recu",
+                        f"Le client a paye le solde pour {payment.reservation.reference}.",
+                        {"type": "solde.valide", "reference": payment.reservation.reference},
+                    )
+                else:
+                    _schedule(
+                        [payment.reservation.prestataire_user_id],
+                        "BABIFIX · Acompte recu",
+                        f"Le client a paye l'acompte pour {payment.reservation.reference}. Reservation confirmee.",
+                        {"type": "acompte.valide", "reference": payment.reservation.reference},
+                    )
+            except Exception as exc:
+                logger.warning("Push notification failed: %s", exc)
 
         logger.info("GeniusPay sandbox auto-validee (%s): %s", phase, genius_reference)
         return JsonResponse({
+            "ok":             True,
             "transaction_id": genius_reference,
             "payment_id":     payment.pk,
             "payment_url":    data.get("payment_url", ""),
             "checkout_url":   data.get("checkout_url", ""),
             "status":         "COMPLETE",
-            "message":        "Solde payé !" if phase == "solde" else "Acompte validé !",
+            "phase":          phase,
+            "message":        "Caution de visite reglee !" if phase == "caution" else ("Solde paye !" if phase == "solde" else "Acompte valide !"),
         })
 
     return JsonResponse({
@@ -644,7 +812,7 @@ def geniuspay_premium_initiate(request):
                 mobile_money_operator (ORANGE_MONEY|MTN_MOMO|WAVE|MOOV).
 
     Au succès (simulation, sandbox, ou webhook réel), l'abonnement est activé
-    directement — sans transiter par le wallet.
+    directement : sans transiter par le wallet.
     """
     if request.method != "POST":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
@@ -656,7 +824,7 @@ def geniuspay_premium_initiate(request):
         return JsonResponse({"error": "invalid_json"}, status=400)
 
     from .models import Provider
-    from .services.provider_subscription_service import PREMIUM_TIERS, annual_price
+    from .services.provider_subscription_service import PREMIUM_TIERS, annual_price, get_tier_config
 
     provider = Provider.objects.filter(user_id=request.api_user_id).first()
     if not provider:
@@ -669,7 +837,7 @@ def geniuspay_premium_initiate(request):
         )
     billing_period = str(payload.get("billing_period") or "monthly").lower()
     is_annual = billing_period == "annual"
-    monthly = int(PREMIUM_TIERS[tier]["price"])
+    monthly = int(get_tier_config(tier)["price"])
     montant_int = annual_price(monthly) if is_annual else monthly
 
     operator_raw = str(
@@ -785,6 +953,70 @@ def geniuspay_premium_initiate(request):
     })
 
 
+def _finalize_completed_payment(payment_pk: int, verify_amount=None) -> tuple[bool, str, str]:
+    """Finalise de facon atomique et idempotente un paiement GeniusPay complete.
+
+    Utilise a la fois par `geniuspay_status` (polling) et `geniuspay_webhook` pour
+    eliminer toute condition de course entre les deux canaux.
+    Retourne (newly_processed, phase, error_code).
+    """
+    with transaction.atomic():
+        payment = Payment.objects.select_for_update().get(pk=payment_pk)
+        if payment.etat == Payment.State.COMPLETE:
+            return False, "", "already_processed"
+
+        if verify_amount is not None:
+            try:
+                if int(float(payment.montant)) != int(float(verify_amount)):
+                    logger.warning(
+                        "GeniusPay finalize: montant mismatch ref=%s attendu=%s recu=%s",
+                        payment.reference_externe, payment.montant, verify_amount,
+                    )
+                    return False, "", "amount_mismatch"
+            except (TypeError, ValueError):
+                pass
+
+        payment.etat = Payment.State.COMPLETE
+        payment.valide_par_admin = False
+        payment.save(update_fields=["etat", "valide_par_admin"])
+
+    phase = "acompte"
+    if payment.reservation:
+        res = payment.reservation
+        if (payment.reference or "").startswith("CAUTION-"):
+            phase = _apply_caution_payment(res, payment)
+        else:
+            phase = _apply_payment_phase(res, payment)
+            try:
+                from .push_dispatch import _schedule
+                if phase == "solde":
+                    _schedule(
+                        [res.prestataire_user_id],
+                        "BABIFIX · Solde recu",
+                        f"Le client a paye le solde pour {res.reference}.",
+                        {"type": "solde.valide", "reference": res.reference},
+                    )
+                else:
+                    _schedule(
+                        [res.prestataire_user_id],
+                        "BABIFIX · Acompte recu",
+                        f"Le client a paye l'acompte pour {res.reference}. Reservation confirmee.",
+                        {"type": "acompte.valide", "reference": res.reference},
+                    )
+            except Exception as exc:
+                logger.warning("Push notification failed: %s", exc)
+
+        _send_receipt_email(payment)
+
+    if not payment.reservation and (payment.reference or "").startswith("PREMIUM-"):
+        try:
+            _activate_premium_from_payment(payment)
+        except Exception as exc:
+            logger.warning("Premium activation failed: %s", exc)
+
+    return True, phase, ""
+
+
 # ---------------------------------------------------------------------------
 # GET /api/paiements/geniuspay/status/<reference>/
 # ---------------------------------------------------------------------------
@@ -809,10 +1041,10 @@ def geniuspay_status(request, reference: str):
         remote_resp = _genius_request("GET", f"/payments/{reference}")
         if remote_resp.get("success"):
             remote_status = remote_resp.get("data", {}).get("status")
-            # Synchroniser si le statut a changé côté GeniusPay
+            # Synchroniser si le statut a changé côté GeniusPay via la finalisation atomique
             if remote_status == "completed" and payment.etat != Payment.State.COMPLETE:
-                payment.etat = Payment.State.COMPLETE
-                payment.save(update_fields=["etat"])
+                _finalize_completed_payment(payment.pk)
+                payment.refresh_from_db()
             elif remote_status in ("failed", "cancelled", "expired"):
                 payment.etat = Payment.State.DISPUTE
                 payment.save(update_fields=["etat"])
@@ -845,12 +1077,12 @@ def geniuspay_webhook(request):
     event_type   = request.headers.get("X-Webhook-Event", "")
     environment  = request.headers.get("X-Webhook-Environment", "")
 
-    logger.info("GeniusPay webhook — event=%s env=%s", event_type, environment)
+    logger.info("GeniusPay webhook : event=%s env=%s", event_type, environment)
 
     # webhook.test = vérification de connectivité envoyée par le dashboard GeniusPay.
-    # Pas de signature valide en sandbox — répondre 200 immédiatement.
+    # Pas de signature valide en sandbox : répondre 200 immédiatement.
     if event_type == "webhook.test":
-        logger.info("GeniusPay webhook — test reçu OK")
+        logger.info("GeniusPay webhook : test reçu OK")
         return JsonResponse({"message": "OK"})
 
     # Vérifier que le timestamp n'a pas plus de 5 minutes (replay protection)
@@ -859,18 +1091,18 @@ def geniuspay_webhook(request):
             import time
             age = abs(time.time() - int(timestamp))
             if age > 300:
-                logger.warning("GeniusPay webhook — timestamp trop ancien (%ds)", age)
+                logger.warning("GeniusPay webhook : timestamp trop ancien (%ds)", age)
                 return JsonResponse({"error": "timestamp_expired"}, status=400)
         except (TypeError, ValueError):
             pass
 
-    # Vérification signature HMAC — ignorée en debug (sandbox local)
+    # Vérification signature HMAC : ignorée en debug (sandbox local)
     if settings.DEBUG:
-        logger.info("GeniusPay webhook — DEBUG, signature non vérifiée")
+        logger.info("GeniusPay webhook : DEBUG, signature non vérifiée")
     elif environment.lower() == "sandbox":
-        logger.info("GeniusPay webhook — sandbox, signature non vérifiée")
+        logger.info("GeniusPay webhook : sandbox, signature non vérifiée")
     elif not _verify_webhook_signature(raw_body, timestamp, received_sig):
-        logger.warning("GeniusPay webhook — signature invalide pour event=%s", event_type)
+        logger.warning("GeniusPay webhook : signature invalide pour event=%s", event_type)
         return JsonResponse({"error": "invalid_signature"}, status=403)
 
     try:
@@ -882,99 +1114,41 @@ def geniuspay_webhook(request):
     reference = transaction_data.get("reference", "")
 
     if not reference:
-        logger.warning("GeniusPay webhook — référence manquante dans payload")
+        logger.warning("GeniusPay webhook : référence manquante dans payload")
         return JsonResponse({"message": "OK"})  # Toujours 200 pour éviter les retries
 
     # Retrouver le paiement local
     try:
         payment = Payment.objects.get(reference_externe=reference)
     except Payment.DoesNotExist:
-        logger.warning("GeniusPay webhook — paiement introuvable ref=%s", reference)
+        logger.warning("GeniusPay webhook : paiement introuvable ref=%s", reference)
         return JsonResponse({"message": "OK"})
 
     if event_type == "payment.success":
-        # IDEMPOTENCE : les passerelles de paiement RÉ-ENVOIENT le même webhook
-        # tant qu'elles ne reçoivent pas un 200 (timeout, hoquet réseau...) —
-        # c'est un comportement NORMAL et attendu, pas une anomalie. Sans cette
-        # garde, un simple retry rejouait _apply_payment_phase/_activate_premium
-        # une 2e fois sur le MÊME paiement : le solde Mobile Money comptait le
-        # montant deux fois (pouvant déclencher une libération de fonds
-        # prématurée) et l'abonnement premium doublait sa ligne PlatformRevenue.
-        # select_for_update() verrouille la ligne le temps de la vérification +
-        # du traitement, pour couper aussi la course entre deux webhooks reçus
-        # en quasi-simultané.
-        with transaction.atomic():
-            payment = Payment.objects.select_for_update().get(pk=payment.pk)
-            if payment.etat == Payment.State.COMPLETE:
-                logger.info(
-                    "GeniusPay webhook — paiement %s déjà traité (retry ignoré)",
-                    reference,
-                )
-                return JsonResponse({"message": "OK", "already_processed": True})
+        webhook_amount = transaction_data.get("amount")
+        newly_processed, phase, err_code = _finalize_completed_payment(
+            payment.pk, verify_amount=webhook_amount
+        )
+        if err_code == "already_processed":
+            logger.info(
+                "GeniusPay webhook  :  paiement %s déjà traité (retry ignoré)",
+                reference,
+            )
+            return JsonResponse({"message": "OK", "already_processed": True})
+        if err_code == "amount_mismatch":
+            return JsonResponse({"error": "amount_mismatch"}, status=400)
 
-            # Vérification montant
-            webhook_amount = transaction_data.get("amount")
-            if webhook_amount is not None:
-                try:
-                    if int(float(payment.montant)) != int(float(webhook_amount)):
-                        logger.warning(
-                            "GeniusPay webhook — montant mismatch ref=%s : attendu=%s reçu=%s",
-                            reference, payment.montant, webhook_amount,
-                        )
-                        return JsonResponse({"error": "amount_mismatch"}, status=400)
-                except (TypeError, ValueError):
-                    pass
-
-            payment.etat = Payment.State.COMPLETE
-            payment.valide_par_admin = False
-            payment.save(update_fields=["etat", "valide_par_admin"])
-
-        phase = "acompte"
-        if payment.reservation:
-            res = payment.reservation
-            # Phase-aware (acompte / solde) — plus de réécrasement de l'acompte.
-            phase = _apply_payment_phase(res, payment)
-
-            # Notifier le prestataire selon la phase
-            try:
-                from .push_dispatch import _schedule
-                if phase == "solde":
-                    _schedule(
-                        [res.prestataire_user_id],
-                        "BABIFIX · Solde reçu",
-                        f"Le client a payé le solde pour {res.reference}.",
-                        {"type": "solde.valide", "reference": res.reference},
-                    )
-                else:
-                    _schedule(
-                        [res.prestataire_user_id],
-                        "BABIFIX · Acompte reçu",
-                        f"Le client a payé l'acompte pour {res.reference}. Réservation confirmée.",
-                        {"type": "acompte.valide", "reference": res.reference},
-                    )
-            except Exception as exc:
-                logger.warning("Push notification failed: %s", exc)
-
-            # Reçu PDF par e-mail (acompte ET solde)
-            _send_receipt_email(payment)
-
-        # Paiement d'abonnement premium (sans réservation) → activer le premium.
-        if not payment.reservation and (payment.reference or "").startswith("PREMIUM-"):
-            try:
-                _activate_premium_from_payment(payment)
-            except Exception as exc:
-                logger.warning("Premium activation (webhook) failed: %s", exc)
-
-        logger.info("GeniusPay webhook — paiement %s SUCCÈS (%s) pour %s",
+        payment.refresh_from_db()
+        logger.info("GeniusPay webhook  :  paiement %s SUCCÈS (%s) pour %s",
                     payment.reference, phase,
                     payment.reservation.reference if payment.reservation else "?")
 
     elif event_type in ("payment.failed", "payment.cancelled", "payment.expired"):
         payment.etat = Payment.State.DISPUTE
         payment.save(update_fields=["etat"])
-        logger.info("GeniusPay webhook — paiement %s %s", payment.reference, event_type.upper())
+        logger.info("GeniusPay webhook : paiement %s %s", payment.reference, event_type.upper())
 
     elif event_type == "webhook.test":
-        logger.info("GeniusPay webhook — test reçu OK")
+        logger.info("GeniusPay webhook : test reçu OK")
 
     return JsonResponse({"message": "OK"})

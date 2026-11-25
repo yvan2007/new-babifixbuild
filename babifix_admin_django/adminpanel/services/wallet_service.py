@@ -1,5 +1,5 @@
 """
-WalletService — gestion du wallet prestataire BABIFIX.
+WalletService : gestion du wallet prestataire BABIFIX.
 
 Flux :
   1. Paiement client confirmé → credit_provider(payment)
@@ -30,15 +30,31 @@ URGENCE_SURCHARGE_PCT = 20  # +20 % sur le montant si is_urgent
 
 
 def _get_system_commission_rate() -> Decimal:
-    """Recupere le taux de commission global depuis SystemSetting."""
+    """Recupere le taux de commission global depuis PlatformConfig (fallback BABIFIX_COMMISSION_RATE)."""
     try:
-        from adminpanel.models import SystemSetting
-        setting = SystemSetting.objects.first()
-        if setting and setting.commission:
-            return Decimal(str(setting.commission)) / Decimal("100")
+        from adminpanel.models import PlatformConfig
+        cfg = PlatformConfig.get_solo()
+        if cfg and cfg.base_commission_pct:
+            return Decimal(str(cfg.base_commission_pct)) / Decimal("100")
     except Exception:
         pass
     return BABIFIX_COMMISSION_RATE
+
+
+def _get_withdrawal_limits() -> tuple[Decimal, Decimal, set[str]]:
+    """Retourne (min_fcfa, daily_cap_fcfa, allowed_operators) depuis PlatformConfig."""
+    try:
+        from adminpanel.services.platform_config_service import (
+            get_runtime_configs,
+            parse_enabled_operators,
+        )
+        _, cfg = get_runtime_configs()
+        min_w = Decimal(str(getattr(cfg, "min_withdrawal_fcfa", WITHDRAWAL_MIN_FCFA) or WITHDRAWAL_MIN_FCFA))
+        cap_w = Decimal(str(getattr(cfg, "daily_withdrawal_cap_fcfa", WITHDRAWAL_DAILY_CAP_FCFA) or WITHDRAWAL_DAILY_CAP_FCFA))
+        ops = set(parse_enabled_operators(getattr(cfg, "enabled_operators_csv", "")))
+        return min_w, cap_w, ops
+    except Exception:
+        return WITHDRAWAL_MIN_FCFA, WITHDRAWAL_DAILY_CAP_FCFA, {"mtn", "orange", "wave", "moov"}
 
 
 class WalletService:
@@ -94,7 +110,7 @@ class WalletService:
             tx_type="credit",
             amount_fcfa=net,
             reference=reservation.reference,
-            description=f"Paiement reçu — {reservation.reference} (net après commission {int(commission_rate * 100)}%)",
+            description=f"Paiement reçu : {reservation.reference} (net après commission {int(commission_rate * 100)}%)",
             status="success",
         )
         WalletTransaction.objects.create(
@@ -111,7 +127,7 @@ class WalletService:
             amount_fcfa=commission,
             source="commission",
             reference=reservation.reference,
-            description=f"Commission {int(commission_rate * 100)}% — {prov.nom} — {reservation.reference}",
+            description=f"Commission {int(commission_rate * 100)}% : {prov.nom} : {reservation.reference}",
             payment=payment,
         )
 
@@ -146,7 +162,7 @@ class WalletService:
             logger.warning("WS wallet.credited failed: %s", exc)
 
         logger.info(
-            "WalletService: crédité %s FCFA au prestataire %s — commission BABIFIX %s FCFA",
+            "WalletService: crédité %s FCFA au prestataire %s : commission BABIFIX %s FCFA",
             net, prov.pk, commission,
         )
         return {
@@ -165,7 +181,7 @@ class WalletService:
             amount_fcfa=amount_fcfa,
             source="premium",
             reference=f"PREMIUM-{provider.pk}-{tier}",
-            description=f"Abonnement premium {tier} — {provider.nom}",
+            description=f"Abonnement premium {tier} : {provider.nom}",
         )
         return {"ok": True, "amount": float(amount_fcfa), "tier": tier}
 
@@ -178,13 +194,13 @@ class WalletService:
         """
         from adminpanel.models import Provider, WalletTransaction
 
-        if amount_fcfa < WITHDRAWAL_MIN_FCFA:
+        min_w, daily_cap, valid_operators = _get_withdrawal_limits()
+        if amount_fcfa < min_w:
             return {
                 "error": "min_amount",
-                "detail": f"Montant minimum de retrait : {WITHDRAWAL_MIN_FCFA} FCFA",
+                "detail": f"Montant minimum de retrait : {min_w} FCFA",
             }
 
-        valid_operators = {"mtn", "orange", "wave", "moov"}
         if operator not in valid_operators:
             return {"error": "invalid_operator", "detail": f"Opérateur invalide : {operator}"}
 
@@ -259,12 +275,12 @@ class WalletService:
             status__in=["pending", "processing", "success"],
             created_at__gte=start_day,
         ).aggregate(t=Sum("amount_fcfa"))["t"] or Decimal("0")
-        if today_sum + amount_fcfa > WITHDRAWAL_DAILY_CAP_FCFA:
+        if today_sum + amount_fcfa > daily_cap:
             return {
                 "error": "daily_cap",
                 "detail": (
                     f"Plafond journalier de retrait atteint "
-                    f"({WITHDRAWAL_DAILY_CAP_FCFA:,.0f} FCFA). Déjà demandé "
+                    f"({daily_cap:,.0f} FCFA). Déjà demandé "
                     f"aujourd'hui : {today_sum:,.0f} FCFA."
                 ),
             }
@@ -329,7 +345,7 @@ class WalletService:
             if admin_ids:
                 _schedule(
                     admin_ids,
-                    "BABIFIX — Demande de retrait",
+                    "BABIFIX : Demande de retrait",
                     f"{prov.nom} demande un retrait de {amount_fcfa:,.0f} FCFA via {operator.upper()}",
                     {
                         "type": "wallet.withdrawal_pending",
@@ -365,7 +381,7 @@ class WalletService:
         from adminpanel.models import WalletTransaction
         from adminpanel.geniuspay import geniuspay_send_payout
 
-        # Phase 1 — claim atomique
+        # Phase 1 : claim atomique
         with transaction.atomic():
             tx = (
                 WalletTransaction.objects.select_for_update()
@@ -396,7 +412,7 @@ class WalletService:
             WalletService._refund_withdrawal(tx_id, reason=str(result.get("error")))
             return {"error": "payout_failed", "detail": result.get("error")}
 
-        # Phase 2 — mise à jour selon la réponse (completed immédiat ou pending)
+        # Phase 2 : mise à jour selon la réponse (completed immédiat ou pending)
         with transaction.atomic():
             tx = WalletTransaction.objects.select_for_update().get(pk=tx_id)
             tx.reference = result.get("external_reference") or ext_ref
@@ -474,21 +490,21 @@ class WalletService:
             from adminpanel.push_dispatch import _schedule
 
             if tx.status == "success":
-                title = "BABIFIX — Retrait effectué"
+                title = "BABIFIX : Retrait effectué"
                 body = (
                     f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA via "
                     f"{tx.operator.upper()} a été versé."
                 )
                 ev = "wallet.withdrawal_done"
             elif refunded or tx.status == "failed":
-                title = "BABIFIX — Retrait échoué"
+                title = "BABIFIX : Retrait échoué"
                 body = (
                     f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA a échoué. "
                     f"Le montant a été recrédité sur votre solde."
                 )
                 ev = "wallet.withdrawal_failed"
             else:
-                title = "BABIFIX — Retrait en cours"
+                title = "BABIFIX : Retrait en cours"
                 body = (
                     f"Votre retrait de {tx.amount_fcfa:,.0f} FCFA est en cours "
                     f"de traitement."
@@ -631,8 +647,12 @@ def _get_effective_commission_rate(provider) -> Decimal:
                 base = Decimal(str(cc.commission_rate)) / Decimal("100")
             except Exception:
                 pass
-        reduction = {"bronze": 0, "silver": 5, "gold": 10}.get(
-            provider.premium_tier or "", 0
+        now = timezone.now()
+        is_active_prem = bool(
+            getattr(provider, "is_premium", False)
+            and (not getattr(provider, "premium_until", None) or provider.premium_until >= now)
         )
+        tier_now = (getattr(provider, "premium_tier", "") or "").lower() if is_active_prem else "standard"
+        reduction = {"silver": 5, "gold": 10}.get(tier_now, 0)
         effective = base - Decimal(str(reduction)) / Decimal("100")
         return max(Decimal("0.05"), effective)

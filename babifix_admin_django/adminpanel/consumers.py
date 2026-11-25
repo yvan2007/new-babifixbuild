@@ -7,6 +7,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 from .auth import verify_token
 from .models import Conversation, Message, UserProfile
+from .realtime import client_user_group
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ def _extract_token(scope: dict) -> str | None:
 
     Channels stocke les headers sous forme de liste de tuples bytes, pas un dict.
     On teste 3 méthodes dans l'ordre de sécurité décroissante :
-      1. Authorization: Bearer <token>      (header HTTP custom — le plus sûr)
+      1. Authorization: Bearer <token>      (header HTTP custom : le plus sûr)
       2. Sec-WebSocket-Protocol: BABIFIX <token>  (subprotocol standard WS)
       3. ?token=<token> dans la query string      (déprécié, visible dans les logs)
     """
@@ -37,7 +38,7 @@ def _extract_token(scope: dict) -> str | None:
         if token:
             return token
 
-    # Method 3 : ?token= query string (backward compat — deprecated)
+    # Method 3 : ?token= query string (backward compat : deprecated)
     qs = parse_qs(scope.get('query_string', b'').decode('utf-8', errors='ignore'))
     token = (qs.get('token') or [''])[0].strip()
     return token or None
@@ -65,7 +66,16 @@ class ClientEventsConsumer(AsyncWebsocketConsumer):
         ):
             await self.close(code=4403)
             return
+        self.user_group_name = None
+        try:
+            uid = int(pl.get('uid'))
+            if uid > 0:
+                self.user_group_name = client_user_group(uid)
+        except (TypeError, ValueError):
+            self.user_group_name = None
         await self.channel_layer.group_add(self.group_name, self.channel_name)
+        if self.user_group_name:
+            await self.channel_layer.group_add(self.user_group_name, self.channel_name)
         await self.accept()
         await self.send(text_data=json.dumps({
             'type': 'system.connected',
@@ -74,6 +84,8 @@ class ClientEventsConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if getattr(self, 'user_group_name', None):
+            await self.channel_layer.group_discard(self.user_group_name, self.channel_name)
 
     async def client_notify(self, event):
         await self.send(text_data=json.dumps({
@@ -193,12 +205,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if not body or len(body) > 5000:
                 return
             reply_to_id = data.get('reply_to')
-            msg = await self._save_message(self._conv_id, self._uid, body, reply_to_id)
+            msg, err_code = await self._save_message(self._conv_id, self._uid, body, reply_to_id)
             if msg:
                 await self.channel_layer.group_send(self.group_name, {
                     'type': 'chat_message',
                     'message': msg,
                 })
+            elif err_code:
+                await self.send(text_data=json.dumps({
+                    'type': 'chat.error',
+                    'error': err_code,
+                }))
 
         elif msg_type == 'typing':
             await self.channel_layer.group_send(self.group_name, {
@@ -270,15 +287,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def _has_access(self, conv_id: int, uid: int) -> bool:
         try:
-            conv = Conversation.objects.get(pk=conv_id)
+            conv = Conversation.objects.select_related('reservation').get(pk=conv_id)
             return conv.client_id == uid or conv.prestataire_id == uid
         except Conversation.DoesNotExist:
             return False
 
     @database_sync_to_async
-    def _save_message(self, conv_id: int, uid: int, body: str, reply_to_id) -> dict | None:
+    def _save_message(self, conv_id: int, uid: int, body: str, reply_to_id) -> tuple[dict | None, str | None]:
         try:
-            conv = Conversation.objects.get(pk=conv_id)
+            conv = Conversation.objects.select_related('reservation').get(pk=conv_id)
+            res = conv.reservation
+            if not res:
+                return None, 'reservation_required'
+            if not res.contact_allowed():
+                return None, 'contact_not_allowed'
+            from .views import normalize_reservation_status
+            if (
+                normalize_reservation_status(res.statut) == 'Terminee'
+                and not getattr(res, 'dispute_ouverte', False)
+            ):
+                return None, 'prestation_terminee'
             reply_to = None
             if reply_to_id:
                 try:
@@ -302,10 +330,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'sender_id': uid,
                 'reply_to_id': reply_to_id,
                 'created_at': msg.created_at.isoformat() if hasattr(msg, 'created_at') else None,
-            }
+            }, None
         except Exception as exc:
             logger.error('ChatConsumer._save_message error: %s', exc)
-            return None
+            return None, 'internal_error'
 
 
 class AdminEventsConsumer(AsyncWebsocketConsumer):

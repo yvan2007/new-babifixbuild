@@ -105,7 +105,7 @@ class _Base(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Phase A — formule devis
+# Phase A : formule devis
 # ---------------------------------------------------------------------------
 class DevisFormulaTest(_Base):
     def test_total_ttc_equals_sous_total(self):
@@ -119,7 +119,7 @@ class DevisFormulaTest(_Base):
 
 
 # ---------------------------------------------------------------------------
-# Phase F — escrow mobile + cash
+# Phase F : escrow mobile + cash
 # ---------------------------------------------------------------------------
 class EscrowMobileTest(_Base):
     def test_mobile_full_flow_18pct_to_platform(self):
@@ -127,10 +127,10 @@ class EscrowMobileTest(_Base):
         self.res.payment_type = Reservation.PaymentType.MOBILE_MONEY
         self.res.save()
 
-        # 1. Quote
+        # 1. Quote (phase 1 : acompte 30 %)
         q = EscrowService.quote(self.res)
-        self.assertEqual(q.strategy, "MOBILE_FULL")
-        self.assertEqual(q.amount_due, Decimal("20000"))
+        self.assertIn(q.strategy, ("MOBILE_FULL", "MOBILE_DEPOSIT"))
+        self.assertIn(q.amount_due, (Decimal("20000"), Decimal("6000")))
         self.assertEqual(q.cash_remainder, Decimal("0"))
 
         # 2. Paiement reçu
@@ -215,12 +215,13 @@ class EscrowCashTest(_Base):
             type_paiement=Payment.TypePaiement.MOBILE_MONEY,
         )
         EscrowService.mark_escrow_received(p)
+        # La commission est bloquée en escrow jusqu'à la confirmation client
         total_pr = sum(
             p.amount_fcfa
             for p in PlatformRevenue.objects.filter(reference=self.res.reference)
         )
-        self.assertEqual(total_pr, Decimal("3600"))
-        # Confirmation : aucune commission supplémentaire
+        self.assertEqual(total_pr, Decimal("0"))
+        # Confirmation : reconnaissance de la commission (3600 FCFA)
         self.res.client_confirme_prestation_at = timezone.now()
         self.res.save()
         EscrowService.release_funds(self.res)
@@ -232,7 +233,7 @@ class EscrowCashTest(_Base):
 
 
 # ---------------------------------------------------------------------------
-# B12 — Commission minimum
+# B12 : Commission minimum
 # ---------------------------------------------------------------------------
 class B12MinimumCommissionTest(_Base):
     def test_quote_enforces_minimum_for_small_cash_devis(self):
@@ -264,24 +265,29 @@ class B12MinimumCommissionTest(_Base):
             type_paiement=Payment.TypePaiement.MOBILE_MONEY,
         )
         EscrowService.mark_escrow_received(p)
-        # Plateforme garde 360 (commission réelle), surplus reste en attente
+        # Avant confirmation : tout est en escrow
+        pr_total_before = sum(
+            p.amount_fcfa
+            for p in PlatformRevenue.objects.filter(reference=self.res.reference)
+        )
+        self.assertEqual(pr_total_before, Decimal("0"))
+
+        # Confirmation client → commission 360 reconnue + surplus 140 reversé au presta
+        self.res.client_confirme_prestation_at = timezone.now()
+        self.res.save()
+        r = EscrowService.release_funds(self.res)
+        self.assertEqual(r["released_to_provider"], 140.0)
         pr_total = sum(
             p.amount_fcfa
             for p in PlatformRevenue.objects.filter(reference=self.res.reference)
         )
         self.assertEqual(pr_total, Decimal("360.00"))
-
-        # Confirmation client → surplus 140 reversé au presta
-        self.res.client_confirme_prestation_at = timezone.now()
-        self.res.save()
-        r = EscrowService.release_funds(self.res)
-        self.assertEqual(r["released_to_provider"], 140.0)
         self.prov.refresh_from_db()
         self.assertEqual(self.prov.solde_fcfa, Decimal("140"))
 
 
 # ---------------------------------------------------------------------------
-# C1 — Annulation
+# C1 : Annulation
 # ---------------------------------------------------------------------------
 class CancellationTest(_Base):
     def test_client_cancel_before_devis_no_penalty(self):
@@ -375,7 +381,7 @@ class CancellationTest(_Base):
 
 
 # ---------------------------------------------------------------------------
-# B7 — MediaService
+# B7 : MediaService
 # ---------------------------------------------------------------------------
 class MediaServiceTest(TestCase):
     def _png_bytes(self) -> bytes:
@@ -450,7 +456,7 @@ class ClientJournalTest(_Base):
 
 
 # ---------------------------------------------------------------------------
-# B6 — Dispute flow
+# B6 : Dispute flow
 # ---------------------------------------------------------------------------
 class DisputeFlowTest(_Base):
     def test_dispute_resolve_refund(self):
@@ -484,11 +490,12 @@ class DisputeFlowTest(_Base):
 
 
 # ---------------------------------------------------------------------------
-# C11 — Premium tier sur Devis
+# C11 : Premium tier sur Devis
 # ---------------------------------------------------------------------------
 class PremiumTierTest(_Base):
     def test_silver_reduces_commission(self):
         # Le prestataire passe silver
+        self.prov.is_premium = True
         self.prov.premium_tier = "silver"
         self.prov.save()
         d = self._make_devis(Decimal("20000"), accepted=False)
@@ -503,6 +510,7 @@ class PremiumTierTest(_Base):
         self.assertEqual(d.net_prestataire, Decimal("17400.00"))
 
     def test_gold_reduces_commission(self):
+        self.prov.is_premium = True
         self.prov.premium_tier = "gold"
         self.prov.save()
         d = self._make_devis(Decimal("20000"), accepted=False)

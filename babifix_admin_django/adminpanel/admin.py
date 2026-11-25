@@ -133,6 +133,7 @@ class ReservationAdmin(admin.ModelAdmin):
         "cancellation_reason",
     )
     raw_id_fields = ("client_user", "prestataire_user", "assigned_provider")
+    ordering = ("-created_at", "-id")
 
 
 @admin.register(Dispute)
@@ -164,6 +165,7 @@ class PaymentAdmin(admin.ModelAdmin):
     list_filter = ("etat", "type_paiement", "valide_par_admin")
     search_fields = ("reference", "client", "prestataire", "reference_externe")
     raw_id_fields = ("reservation",)
+    ordering = ("-created_at", "-id")
 
 
 @admin.register(Category)
@@ -255,7 +257,7 @@ class RatingAdmin(admin.ModelAdmin):
     search_fields = ("commentaire",)
 
 
-# Utilisateurs Django — même table que les comptes des apps (JWT / login API)
+# Utilisateurs Django : même table que les comptes des apps (JWT / login API)
 try:
     admin.site.unregister(User)
 except NotRegistered:
@@ -288,6 +290,7 @@ class AbonnementAdmin(admin.ModelAdmin):
     )
     list_filter = ("statut", "date_debut", "date_fin")
     search_fields = ("client__username", "pack_nom")
+    ordering = ("-created_at", "-id")
 
 
 class ProSiteInline(admin.TabularInline):
@@ -322,6 +325,7 @@ class ProInvoiceAdmin(admin.ModelAdmin):
     )
     list_filter = ("statut", "periode")
     search_fields = ("reference", "pro_account__raison_sociale")
+    ordering = ("-created_at", "-id")
 
 
 @admin.register(PlatformRevenue)
@@ -331,6 +335,7 @@ class PlatformRevenueAdmin(admin.ModelAdmin):
     )
     list_filter = ("source", "created_at")
     search_fields = ("reference", "description")
+    ordering = ("-created_at", "-id")
 
 
 @admin.register(WalletTransaction)
@@ -341,6 +346,7 @@ class WalletTransactionAdmin(admin.ModelAdmin):
     list_filter = ("tx_type", "status", "created_at")
     search_fields = ("reference", "provider__nom", "description")
     raw_id_fields = ("provider",)
+    ordering = ("-created_at", "-id")
 
 
 from .models import MetierPropose as _MetierPropose

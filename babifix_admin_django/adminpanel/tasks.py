@@ -1,5 +1,5 @@
 """
-Tâches Celery BABIFIX — expiration automatique et SLA réservations.
+Tâches Celery BABIFIX : expiration automatique et SLA réservations.
 
 Beat schedule à configurer dans settings.py :
     CELERY_BEAT_SCHEDULE = {
@@ -65,22 +65,33 @@ def auto_confirm_interventions():
     Auto-confirme les réservations EN_ATTENTE_CLIENT (prestation terminée mais
     client silencieux) après SLA_CONFIRM_HEURES (48h).
     """
+    from django.db.models import Q
     from adminpanel.models import Reservation
 
     cutoff = timezone.now() - timezone.timedelta(hours=SLA_CONFIRM_HEURES)
     qs = Reservation.objects.filter(
+        Q(prestation_terminee_at__lt=cutoff)
+        | Q(prestation_terminee_at__isnull=True, created_at__lt=cutoff),
         statut="En attente client",
-        updated_at__lt=cutoff,
     )
     count = 0
     for resa in qs:
         try:
+            now_dt = timezone.now()
             resa.statut = "Terminee"
-            resa.note_client = (
-                f"[AUTO] Confirmée automatiquement après {SLA_CONFIRM_HEURES}h "
-                "sans retour du client."
-            )
-            resa.save(update_fields=["statut", "note_client"])
+            resa.client_confirme_prestation_at = resa.client_confirme_prestation_at or now_dt
+            resa.prestation_terminee_at = resa.prestation_terminee_at or now_dt
+            resa.save(update_fields=[
+                "statut",
+                "client_confirme_prestation_at",
+                "prestation_terminee_at",
+            ])
+            # Libération des fonds escrow vers le wallet prestataire (idempotent)
+            try:
+                from adminpanel.services.escrow_service import EscrowService
+                EscrowService.release_funds(resa)
+            except Exception as exc_rel:
+                logger.warning("auto_confirm release_funds %s: %s", resa.reference, exc_rel)
             # Programme de fidélité : créditer les points au client
             try:
                 from adminpanel.services.fidelite_service import FideliteService
@@ -138,14 +149,14 @@ def _notify_sla_expiry(resa):
         if resa.client_user_id:
             _schedule(
                 [resa.client_user_id],
-                "BABIFIX — Réservation expirée",
+                "BABIFIX : Réservation expirée",
                 f"Votre demande {resa.reference} a été annulée : le prestataire n'a pas répondu dans les délais.",
                 {"type": "reservation.expired", "reference": resa.reference},
             )
         if resa.prestataire_user_id:
             _schedule(
                 [resa.prestataire_user_id],
-                "BABIFIX — Demande expirée",
+                "BABIFIX : Demande expirée",
                 f"La demande {resa.reference} a expiré (72h sans réponse de votre part).",
                 {"type": "reservation.expired", "reference": resa.reference},
             )
@@ -161,14 +172,14 @@ def _notify_auto_confirm(resa):
         if resa.client_user_id:
             _schedule(
                 [resa.client_user_id],
-                "BABIFIX — Prestation confirmée",
+                "BABIFIX : Prestation confirmée",
                 f"La prestation {resa.reference} a été confirmée automatiquement. Vous pouvez maintenant noter le prestataire.",
                 {"type": "reservation.auto_confirmed", "reference": resa.reference},
             )
         if resa.prestataire_user_id:
             _schedule(
                 [resa.prestataire_user_id],
-                "BABIFIX — Prestation terminée",
+                "BABIFIX : Prestation terminée",
                 f"La prestation {resa.reference} est maintenant terminée (confirmée automatiquement).",
                 {"type": "reservation.auto_confirmed", "reference": resa.reference},
             )

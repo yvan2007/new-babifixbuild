@@ -1,6 +1,6 @@
 """
-Tests d'integration — GeniusPay BABIFIX
-Cible : geniuspay.py — initiate, status, webhook
+Tests d'integration : GeniusPay BABIFIX
+Cible : geniuspay.py : initiate, status, webhook
 Run : python manage.py test adminpanel.tests.test_api_geniuspay
 """
 import hashlib
@@ -137,6 +137,42 @@ class GeniusPayInitiateTest(TestCase):
             HTTP_AUTHORIZATION=f'Bearer {self.client_token}',
         )
         self.assertGreater(Payment.objects.count(), initial_count)
+        from decimal import Decimal
+        p = Payment.objects.order_by('-pk').first()
+        self.assertEqual(p.commission, Decimal('4500.00'))
+
+    @patch('adminpanel.geniuspay._genius_request')
+    def test_initiate_uses_devis_commission_rate_for_partial_payment(self, mock_request):
+        from decimal import Decimal
+        from adminpanel.models import Devis
+        Devis.objects.create(
+            reservation=self.reservation,
+            prestataire=self.provider,
+            statut='ACCEPTE',
+            sous_total=25000,
+            total_ttc=25000,
+            commission_rate=13,
+            commission_montant=3250,
+            net_prestataire=21750,
+        )
+        mock_request.return_value = {
+            'success': True,
+            'data': {'reference': 'GPX-RATE13', 'status': 'pending'},
+        }
+        resp = self.http.post(
+            '/api/paiements/geniuspay/initiate/',
+            data=json.dumps({
+                'reservation': self.reservation.pk,
+                'montant': 10000,
+                'payment_method': 'WAVE',
+                'phone': '+2250700000002',
+            }),
+            content_type='application/json',
+            HTTP_AUTHORIZATION=f'Bearer {self.client_token}',
+        )
+        self.assertEqual(resp.status_code, 200)
+        p = Payment.objects.get(pk=resp.json()['payment_id'])
+        self.assertEqual(p.commission, Decimal('1300.00'))
 
     def test_initiate_without_auth_returns_401(self):
         resp = self.http.post(

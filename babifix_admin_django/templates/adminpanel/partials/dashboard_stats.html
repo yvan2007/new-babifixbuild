@@ -1,8 +1,770 @@
 {% load static %}
 {% load babifix_tags %}
 
-{# ── KPI Cards ────────────────────────────────────────────────────────────── #}
-<section class="kpi-grid" aria-label="Indicateurs clés">
+{# 1. Volet Argent, Tresorerie & Sequestre Executif (Escrow & GMV) #}
+<section class="finance-kpi-section" aria-label="Pilotage Trésorerie et Séquestre">
+  <div class="finance-kpi-header">
+    <div class="finance-kpi-title-box">
+      <h2 class="finance-kpi-title">Trésorerie, Séquestre &amp; Flux Financiers</h2>
+      <p class="finance-kpi-subtitle">Surveillance en temps réel des fonds sous mandat bancaire et volumes d'affaires (FCFA)</p>
+    </div>
+    <div class="finance-kpi-badge-live">
+      <span class="live-dot"></span>
+      Flux temps réel · Côte d'Ivoire
+    </div>
+  </div>
+
+  <div class="finance-kpi-grid">
+    <article class="finance-kpi-card finance-kpi-card--escrow">
+      <div class="finance-kpi-card__top">
+        <span class="finance-kpi-card__label">Fonds sous Séquestre (Escrow)</span>
+        <span class="finance-kpi-card__badge finance-kpi-card__badge--green">Garanti</span>
+      </div>
+      <div class="finance-kpi-card__amount tabular-nums" data-count-to="{{ finance_kpis.escrow_total|floatformat:0 }}" data-count-suffix=" FCFA">
+        {{ finance_kpis.escrow_total|floatformat:0 }} <span class="currency">FCFA</span>
+      </div>
+      <div class="finance-kpi-card__footer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>{{ finance_kpis.escrow_count }} missions protégées sous mandat</span>
+      </div>
+    </article>
+
+    <article class="finance-kpi-card finance-kpi-card--gmv">
+      <div class="finance-kpi-card__top">
+        <span class="finance-kpi-card__label">Volume d'Affaires Brut (GMV)</span>
+        <span class="finance-kpi-card__badge finance-kpi-card__badge--blue">Transigé</span>
+      </div>
+      <div class="finance-kpi-card__amount tabular-nums" data-count-to="{{ finance_kpis.gmv_total|floatformat:0 }}" data-count-suffix=" FCFA">
+        {{ finance_kpis.gmv_total|floatformat:0 }} <span class="currency">FCFA</span>
+      </div>
+      <div class="finance-kpi-card__footer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8l-8 8M8 8l8 8"/></svg>
+        <span>Missions complétées et validées</span>
+      </div>
+    </article>
+
+    <article class="finance-kpi-card finance-kpi-card--commission">
+      <div class="finance-kpi-card__top">
+        <span class="finance-kpi-card__label">Commissions BABIFIX ({{ finance_kpis.take_rate_pct }}%)</span>
+        <span class="finance-kpi-card__badge finance-kpi-card__badge--amber">Revenus</span>
+      </div>
+      <div class="finance-kpi-card__amount tabular-nums" data-count-to="{{ finance_kpis.commission_total|floatformat:0 }}" data-count-suffix=" FCFA">
+        {{ finance_kpis.commission_total|floatformat:0 }} <span class="currency">FCFA</span>
+      </div>
+      <div class="finance-kpi-card__footer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        <span>Take-rate effectif {{ finance_kpis.take_rate_pct }}% (paliers 18% / 13% / 8%)</span>
+      </div>
+    </article>
+
+    <article class="finance-kpi-card finance-kpi-card--payouts">
+      <div class="finance-kpi-card__top">
+        <span class="finance-kpi-card__label">Versements Artisans (Nets)</span>
+        <span class="finance-kpi-card__badge finance-kpi-card__badge--slate">Reversé</span>
+      </div>
+      <div class="finance-kpi-card__amount tabular-nums" data-count-to="{{ finance_kpis.payouts_total|floatformat:0 }}" data-count-suffix=" FCFA">
+        {{ finance_kpis.payouts_total|floatformat:0 }} <span class="currency">FCFA</span>
+      </div>
+      <div class="finance-kpi-card__footer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <span>Revenus nets versés aux prestataires</span>
+      </div>
+    </article>
+  </div>
+</section>
+
+{# 2. Hub d'Intelligence & Analytics Liquide Interconnecte #}
+{% if kpi_chart %}
+{{ kpi_chart|json_script:"kpi-data" }}
+
+<section class="charts-executive-section bx-liquid-analytics-hub" aria-label="Centre d'Intelligence Analytique Interconnecté">
+  <!-- Bandeau d'Intelligence : Ville la plus active, Categorie n°1, Panier moyen & Filtre croise -->
+  <div class="bx-intel-banner card" style="padding:16px 20px;margin-bottom:16px;border-radius:16px;border:1px solid var(--bx-border);background:var(--bx-surface);">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="width:40px;height:40px;border-radius:12px;background:rgba(14,59,46,0.12);color:var(--bx-accent);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        </span>
+        <div>
+          <h3 style="margin:0;font-size:1.05rem;font-weight:800;color:var(--bx-ink);">Intelligence Territoriale, Dépenses &amp; Métiers Interconnectés</h3>
+          <p style="margin:2px 0 0;font-size:12px;color:var(--bx-muted);">Cliquez sur une <strong>ville</strong> ou une <strong>catégorie</strong> sur n'importe quel graphique pour filtrer dynamiquement tout le cockpit</p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <div class="bx-view-switch" role="group" aria-label="Période temporelle">
+          <button type="button" class="bx-period-btn active" data-period="7d" onclick="window.bxSwitchPeriod('7d', this)">7 jours</button>
+          <button type="button" class="bx-period-btn" data-period="30d" onclick="window.bxSwitchPeriod('30d', this)">30 jours</button>
+        </div>
+        <div class="bx-view-switch" role="group" aria-label="Métrique principale">
+          <button type="button" class="bx-metric-btn active" data-metric="depenses" onclick="window.bxSwitchMetric('depenses', this)">Dépenses (FCFA)</button>
+          <button type="button" class="bx-metric-btn" data-metric="missions" onclick="window.bxSwitchMetric('missions', this)">Missions</button>
+          <button type="button" class="bx-metric-btn" data-metric="artisans" onclick="window.bxSwitchMetric('artisans', this)">Artisans</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 Capsules d'Intelligence Directe -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--bx-border);">
+      <div class="bx-intel-spot" data-spot-filter-type="city" data-spot-filter-value="{{ kpi_chart.summary.top_city|default:'' }}" style="cursor:pointer;padding:10px 14px;border-radius:12px;background:var(--bx-surface-2);border:1px solid var(--bx-border);transition:transform 0.18s ease, border-color 0.18s ease;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;">Ville / Commune n°1</span>
+          <span class="bx-pill bx-pill--ok" style="font-size:10px;">Zone leader</span>
+        </div>
+        <div style="font-size:16px;font-weight:900;color:var(--bx-ink);margin-top:4px;" id="bx-spot-city-name">{{ kpi_chart.summary.top_city }}</div>
+        <div class="tabular-nums" style="font-size:11.5px;color:var(--bx-muted);margin-top:2px;" id="bx-spot-city-sub">
+          {{ kpi_chart.summary.top_city_depenses|floatformat:0 }} FCFA · {{ kpi_chart.summary.top_city_missions }} mission(s)
+        </div>
+      </div>
+
+      <div class="bx-intel-spot" data-spot-filter-type="category" data-spot-filter-value="{{ kpi_chart.summary.top_category|default:'' }}" style="cursor:pointer;padding:10px 14px;border-radius:12px;background:var(--bx-surface-2);border:1px solid var(--bx-border);transition:transform 0.18s ease, border-color 0.18s ease;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;">Catégorie la plus demandée</span>
+          <span class="bx-pill bx-pill--info" style="font-size:10px;">Top Métier</span>
+        </div>
+        <div style="font-size:16px;font-weight:900;color:var(--bx-ink);margin-top:4px;" id="bx-spot-cat-name">{{ kpi_chart.summary.top_category }}</div>
+        <div class="tabular-nums" style="font-size:11.5px;color:var(--bx-muted);margin-top:2px;" id="bx-spot-cat-sub">
+          {{ kpi_chart.summary.top_category_missions }} demande(s) · {{ kpi_chart.summary.top_category_depenses|floatformat:0 }} FCFA
+        </div>
+      </div>
+
+      <div class="bx-intel-spot" style="padding:10px 14px;border-radius:12px;background:var(--bx-surface-2);border:1px solid var(--bx-border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;">Panier Moyen &amp; Dépense</span>
+          <span class="bx-pill bx-pill--warn" style="font-size:10px;">Ticket moyen</span>
+        </div>
+        <div class="tabular-nums" style="font-size:16px;font-weight:900;color:var(--bx-ink);margin-top:4px;" id="bx-spot-basket-val">{{ kpi_chart.summary.panier_moyen_global|floatformat:0 }} FCFA</div>
+        <div style="font-size:11.5px;color:var(--bx-muted);margin-top:2px;" id="bx-spot-basket-sub">Calculé sur les missions enregistrées</div>
+      </div>
+    </div>
+
+    <!-- Barre de filtre interconnecte actif -->
+    <div id="bx-crossfilter-bar" hidden style="margin-top:12px;padding:10px 14px;border-radius:11px;background:rgba(194,65,12,0.1);border:1px solid rgba(194,65,12,0.3);display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:#C2410C;display:inline-block;"></span>
+        <strong style="font-size:12.5px;color:var(--bx-ink);" id="bx-crossfilter-label">Filtre interconnecté actif</strong>
+        <span class="tabular-nums" style="font-size:12px;color:var(--bx-muted);" id="bx-crossfilter-stats"></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a id="bx-crossfilter-JumpLink" href="/?section=reservations" class="bx-btn-accent" style="padding:4px 10px;font-size:11.5px;">Ouvrir ces dossiers</a>
+        <button type="button" class="bx-btn-ghost" onclick="window.bxResetCrossFilter()" style="padding:4px 10px;font-size:11.5px;">Tout réafficher</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ligne 1 : Courbe Liquide Temporelle (7j/30j) + Anneau Operateurs Mobile Money -->
+  <div class="charts-row-dual">
+    <div class="chart-card card chart-card--activity">
+      <div class="chart-card__header">
+        <div>
+          <h3 class="chart-card__title" id="bx-activity-chart-title">Flux Financier Liquide : Dépenses, Commissions &amp; Missions (7j)</h3>
+          <p class="chart-card__sub">Courbes lissées temps réel · Chiffre d'affaires (FCFA), commissions nettes et demandes</p>
+        </div>
+        <span class="chart-badge chart-badge--blue" id="bx-activity-chart-badge">Dynamique 7j</span>
+      </div>
+      <div class="chart-wrap" style="height: 265px;"><canvas id="activityFinanceChart" aria-label="Graphique flux d'affaires"></canvas></div>
+    </div>
+
+    <div class="chart-card card chart-card--split">
+      <div class="chart-card__header">
+        <div>
+          <h3 class="chart-card__title">Dépenses par Moyen de Paiement</h3>
+          <p class="chart-card__sub">Wave, Orange Money, MTN MoMo, Moov &amp; Espèces</p>
+        </div>
+        <button type="button" class="bx-btn-ghost" style="padding:3px 9px;font-size:11px;" onclick="window.bxToggleOpMode(this)" data-mode="volumes">Mode : FCFA</button>
+      </div>
+      <div class="chart-wrap chart-wrap--pie" style="height: 265px;"><canvas id="paymentSplitChart" aria-label="Graphique modes de paiement"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Ligne 2 : Villes & Communes les plus actives + Categories les plus demandees (Interconnectes) -->
+  <div class="charts-row-dual" style="margin-top: 1rem;">
+    <div class="chart-card card">
+      <div class="chart-card__header">
+        <div>
+          <h3 class="chart-card__title">Villes &amp; Communes les plus Actives</h3>
+          <p class="chart-card__sub">Cliquez sur une commune pour isoler ses métiers et dépenses</p>
+        </div>
+        <span class="chart-badge chart-badge--green">Géographie CI</span>
+      </div>
+      <div class="chart-wrap" style="height: 220px;"><canvas id="citiesChart" aria-label="Graphique des villes les plus actives"></canvas></div>
+      <div id="bx-cities-liquid-list" class="bx-liquid-bars" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;max-height:190px;overflow-y:auto;padding-right:4px;"></div>
+    </div>
+
+    <div class="chart-card card">
+      <div class="chart-card__header">
+        <div>
+          <h3 class="chart-card__title">Catégories &amp; Métiers les plus Demandés</h3>
+          <p class="chart-card__sub">Cliquez sur un métier pour filtrer les communes et les revenus</p>
+        </div>
+        <span class="chart-badge chart-badge--amber">Demande Métier</span>
+      </div>
+      <div class="chart-wrap" style="height: 220px;"><canvas id="categoriesChart" aria-label="Graphique répartition métiers"></canvas></div>
+      <div id="bx-cats-liquid-list" class="bx-liquid-bars" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;max-height:190px;overflow-y:auto;padding-right:4px;"></div>
+    </div>
+  </div>
+
+  <!-- Ligne 3 : Entonnoir de Conversion + Radar 360 Sante Plateforme -->
+  <div class="charts-row-dual" style="margin-top: 1rem;">
+    <div class="chart-card card">
+      <div class="chart-card__header">
+        <div>
+          <h3 class="chart-card__title">Entonnoir de Conversion des Missions</h3>
+          <p class="chart-card__sub">Du dépôt de la demande client jusqu'au règlement final et avis vérifié</p>
+        </div>
+        <span class="chart-badge chart-badge--slate">Pipeline</span>
+      </div>
+      <div class="chart-wrap" style="height: 230px;"><canvas id="funnelChart" aria-label="Entonnoir de conversion"></canvas></div>
+    </div>
+
+    <div class="chart-card card">
+      <div class="chart-card__header">
+        <div>
+          <h3 class="chart-card__title">Radar Exécutif d'Équilibre Opérationnel</h3>
+          <p class="chart-card__sub">Score normalisé sur 100 : couverture, séquestre, complétion, satisfaction, devis, litiges</p>
+        </div>
+        <span class="chart-badge chart-badge--green">Score 360°</span>
+      </div>
+      <div class="chart-wrap" style="height: 230px;"><canvas id="radarHealthChart" aria-label="Radar de performance"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  'use strict';
+  var _tries = 0;
+  var _state = {
+    period: '7d',
+    metric: 'depenses',
+    opMode: 'volumes',
+    filterType: null,
+    filterValue: null
+  };
+  var _charts = {};
+
+  function fmtFcfa(n) {
+    return Math.round(Number(n) || 0).toLocaleString('fr-FR') + ' FCFA';
+  }
+
+  function getKpiData() {
+    var kpiRaw = document.getElementById('kpi-data');
+    if (!kpiRaw) return null;
+    try { return JSON.parse(kpiRaw.textContent); } catch(e) { return null; }
+  }
+
+  function makeLiquidGradient(ctx, colorHex, alphaTop, alphaBottom) {
+    var canvas = ctx.canvas || ctx;
+    var h = (canvas && canvas.clientHeight) ? canvas.clientHeight : 250;
+    var g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, colorHex.replace(')', ',' + alphaTop + ')').replace('rgb(', 'rgba('));
+    g.addColorStop(1, colorHex.replace(')', ',' + alphaBottom + ')').replace('rgb(', 'rgba('));
+    return g;
+  }
+
+  function escKpiHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderLiquidLists(kpi) {
+    var citiesEl = document.getElementById('bx-cities-liquid-list');
+    var catsEl = document.getElementById('bx-cats-liquid-list');
+    var cities = (kpi && kpi.cities_intelligence) || [];
+    var cats = (kpi && kpi.categories_intelligence) || [];
+
+    if (citiesEl) {
+      var maxCityVal = 1;
+      cities.forEach(function(c) {
+        var v = _state.metric === 'missions' ? c.missions : (_state.metric === 'artisans' ? c.artisans : c.depenses_fcfa);
+        if (v > maxCityVal) maxCityVal = v;
+      });
+      citiesEl.innerHTML = cities.map(function(c, idx) {
+        var v = _state.metric === 'missions' ? c.missions : (_state.metric === 'artisans' ? c.artisans : c.depenses_fcfa);
+        if (_state.filterType === 'category' && _state.filterValue) {
+          v = (c.cat_counts && c.cat_counts[_state.filterValue]) || 0;
+        }
+        var pct = Math.max(6, Math.min(100, Math.round((v / maxCityVal) * 100)));
+        var isSel = _state.filterType === 'city' && _state.filterValue === c.city;
+        var valLabel = _state.metric === 'depenses' && !(_state.filterType === 'category' && _state.filterValue)
+          ? fmtFcfa(c.depenses_fcfa)
+          : (v + ' mission(s) · ' + c.artisans + ' artisan(s)');
+        return '<div class="bx-liq-row' + (isSel ? ' is-selected' : '') + '" data-filter-type="city" data-filter-value="' + escKpiHtml(c.city) + '" style="cursor:pointer;padding:7px 10px;border-radius:10px;background:' + (isSel ? 'rgba(194,65,12,0.12)' : 'var(--bx-surface-2)') + ';border:1px solid ' + (isSel ? '#C2410C' : 'var(--bx-border)') + ';transition:all 0.22s ease;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;">'
+          + '<span style="font-weight:800;color:var(--bx-ink);">#' + (idx + 1) + ' ' + escKpiHtml(c.city) + ' <small style="font-weight:600;color:var(--bx-muted);">· Top : ' + escKpiHtml(c.top_category) + '</small></span>'
+          + '<span class="tabular-nums" style="font-weight:700;color:var(--bx-ink);">' + escKpiHtml(valLabel) + '</span>'
+          + '</div>'
+          + '<div style="height:6px;border-radius:999px;background:rgba(148,163,184,0.18);overflow:hidden;">'
+          + '<div style="height:100%;width:' + pct + '%;border-radius:999px;background:linear-gradient(90deg,#0E3B2E,#10B981);transition:width 0.55s cubic-bezier(0.22,1,0.36,1);"></div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+      citiesEl.querySelectorAll('.bx-liq-row[data-filter-value]').forEach(function(row) {
+        row.addEventListener('click', function() {
+          window.bxCrossFilter('city', row.getAttribute('data-filter-value') || '');
+        });
+      });
+    }
+
+    if (catsEl) {
+      var maxCatVal = 1;
+      cats.forEach(function(c) {
+        var v = _state.metric === 'missions' ? c.missions : (_state.metric === 'artisans' ? c.artisans : c.depenses_fcfa);
+        if (v > maxCatVal) maxCatVal = v;
+      });
+      catsEl.innerHTML = cats.map(function(c, idx) {
+        var missionsVal = c.missions;
+        var depVal = c.depenses_fcfa;
+        if (_state.filterType === 'city' && _state.filterValue && c.by_city && c.by_city[_state.filterValue]) {
+          missionsVal = c.by_city[_state.filterValue].missions;
+          depVal = c.by_city[_state.filterValue].depenses;
+        } else if (_state.filterType === 'city' && _state.filterValue) {
+          missionsVal = 0;
+          depVal = 0;
+        }
+        var rawV = _state.metric === 'missions' ? missionsVal : (_state.metric === 'artisans' ? c.artisans : depVal);
+        var pct = Math.max(5, Math.min(100, Math.round((rawV / maxCatVal) * 100)));
+        var isSel = _state.filterType === 'category' && _state.filterValue === c.nom;
+        return '<div class="bx-liq-row' + (isSel ? ' is-selected' : '') + '" data-filter-type="category" data-filter-value="' + escKpiHtml(c.nom) + '" style="cursor:pointer;padding:7px 10px;border-radius:10px;background:' + (isSel ? 'rgba(194,65,12,0.12)' : 'var(--bx-surface-2)') + ';border:1px solid ' + (isSel ? '#C2410C' : 'var(--bx-border)') + ';transition:all 0.22s ease;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;">'
+          + '<span style="font-weight:800;color:var(--bx-ink);">' + escKpiHtml(c.nom) + ' <small style="font-weight:600;color:var(--bx-muted);">· ' + c.artisans + ' pro(s) · Panier ' + escKpiHtml(fmtFcfa(c.panier_moyen)) + '</small></span>'
+          + '<span class="tabular-nums" style="font-weight:700;color:var(--bx-ink);">' + escKpiHtml(fmtFcfa(depVal)) + ' (' + missionsVal + ')</span>'
+          + '</div>'
+          + '<div style="height:6px;border-radius:999px;background:rgba(148,163,184,0.18);overflow:hidden;">'
+          + '<div style="height:100%;width:' + pct + '%;border-radius:999px;background:linear-gradient(90deg,#C2410C,#F59E0B);transition:width 0.55s cubic-bezier(0.22,1,0.36,1);"></div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+      catsEl.querySelectorAll('.bx-liq-row[data-filter-value]').forEach(function(row) {
+        row.addEventListener('click', function() {
+          window.bxCrossFilter('category', row.getAttribute('data-filter-value') || '');
+        });
+      });
+    }
+  }
+
+  function updateCrossFilterBanner(kpi) {
+    var bar = document.getElementById('bx-crossfilter-bar');
+    var lbl = document.getElementById('bx-crossfilter-label');
+    var st = document.getElementById('bx-crossfilter-stats');
+    var link = document.getElementById('bx-crossfilter-JumpLink');
+    if (!bar) return;
+    if (!_state.filterType || !_state.filterValue) {
+      bar.style.display = 'none';
+      bar.setAttribute('hidden', '');
+      return;
+    }
+    bar.removeAttribute('hidden');
+    bar.style.display = 'flex';
+    if (_state.filterType === 'city') {
+      var cityObj = ((kpi && kpi.cities_intelligence) || []).find(function(x){ return x.city === _state.filterValue; });
+      lbl.textContent = 'Focus Commune : ' + _state.filterValue;
+      st.textContent = cityObj
+        ? ('· ' + fmtFcfa(cityObj.depenses_fcfa) + ' de dépenses · ' + cityObj.missions + ' mission(s) · ' + cityObj.artisans + ' artisan(s) · Métier n°1 : ' + cityObj.top_category)
+        : '';
+      if (link) link.href = '/?section=reservations&q=' + encodeURIComponent(_state.filterValue);
+    } else {
+      var catObj = ((kpi && kpi.categories_intelligence) || []).find(function(x){ return x.nom === _state.filterValue; });
+      lbl.textContent = 'Focus Catégorie : ' + _state.filterValue;
+      st.textContent = catObj
+        ? ('· ' + fmtFcfa(catObj.depenses_fcfa) + ' de dépenses · ' + catObj.missions + ' mission(s) · Panier moyen ' + fmtFcfa(catObj.panier_moyen))
+        : '';
+      if (link) link.href = '/?section=reservations&q=' + encodeURIComponent(_state.filterValue);
+    }
+  }
+
+  function drawExecutiveCharts(){
+    if (typeof Chart === 'undefined') {
+      if (_tries++ < 30) setTimeout(drawExecutiveCharts, 150);
+      return;
+    }
+    window.drawExecutiveCharts = drawExecutiveCharts;
+    var kpi = getKpiData();
+    if (!kpi) return;
+
+    ['activityFinanceChart', 'paymentSplitChart', 'citiesChart', 'categoriesChart', 'funnelChart', 'radarHealthChart'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && Chart.getChart) {
+        var ex = Chart.getChart(el);
+        if (ex) ex.destroy();
+      }
+    });
+
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)';
+    var textColor = isDark ? '#cbd5e1' : '#475569';
+    var tooltipBg = isDark ? '#0f172a' : '#ffffff';
+    var tooltipText = isDark ? '#f8fafc' : '#0f172a';
+
+    var emerald = '#0E3B2E';
+    var emeraldBright = '#10B981';
+    var terracotta = '#C2410C';
+    var amber = '#D97706';
+    var cyan = '#0284C7';
+    var gold = '#E7C463';
+
+    var baseAnim = {
+      duration: 680,
+      easing: 'easeOutQuart'
+    };
+
+    /* 1. Courbe Liquide Temporelle (7j / 30j) */
+    var actEl = document.getElementById('activityFinanceChart');
+    var actData = _state.period === '30d' ? (kpi.activity_30d || kpi.activity_7d) : kpi.activity_7d;
+    if (actEl && actData) {
+      var actCtx = actEl.getContext('2d');
+      var gradGmv = makeLiquidGradient(actCtx, 'rgb(16,185,129)', 0.34, 0.01);
+      var gradComm = makeLiquidGradient(actCtx, 'rgb(194,65,12)', 0.26, 0.01);
+      _charts.activity = new Chart(actEl, {
+        type: 'line',
+        data: {
+          labels: actData.labels,
+          datasets: [
+            {
+              label: 'Dépenses / GMV (FCFA)',
+              data: actData.gmv || actData.payments,
+              borderColor: emeraldBright,
+              backgroundColor: gradGmv,
+              borderWidth: 2.8,
+              pointBackgroundColor: emeraldBright,
+              pointRadius: _state.period === '30d' ? 2.5 : 4,
+              pointHoverRadius: 6,
+              fill: true,
+              tension: 0.44,
+              yAxisID: 'y1'
+            },
+            {
+              label: 'Commissions BABIFIX (FCFA)',
+              data: actData.commissions || [],
+              borderColor: terracotta,
+              backgroundColor: gradComm,
+              borderWidth: 2.2,
+              pointBackgroundColor: terracotta,
+              pointRadius: _state.period === '30d' ? 2 : 3.5,
+              fill: true,
+              tension: 0.44,
+              yAxisID: 'y1'
+            },
+            {
+              label: 'Missions créées',
+              data: actData.reservations,
+              borderColor: cyan,
+              backgroundColor: 'rgba(2,132,199,0.08)',
+              borderWidth: 2,
+              borderDash: [4, 3],
+              pointBackgroundColor: cyan,
+              pointRadius: 3,
+              fill: false,
+              tension: 0.44,
+              yAxisID: 'y'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: baseAnim,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: textColor, usePointStyle: true, pointStyleWidth: 8, font: { size: 11.5 } } },
+            tooltip: { backgroundColor: tooltipBg, titleColor: tooltipText, bodyColor: textColor, borderColor: gridColor, borderWidth: 1, padding: 11, cornerRadius: 10 }
+          },
+          scales: {
+            x: { ticks: { color: textColor, maxTicksLimit: 10 }, grid: { color: gridColor } },
+            y: { type: 'linear', position: 'left', beginAtZero: true, title: { display: true, text: 'Missions', color: textColor, font: { size: 11 } }, ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
+            y1: { type: 'linear', position: 'right', beginAtZero: true, title: { display: true, text: 'Montant (FCFA)', color: textColor, font: { size: 11 } }, ticks: { color: textColor, callback: function(v){ return v.toLocaleString('fr-FR') + ' F'; } }, grid: { drawOnChartArea: false } }
+          }
+        }
+      });
+    }
+
+    /* 2. Anneau Operateurs Mobile Money & Sequestre */
+    var splitEl = document.getElementById('paymentSplitChart');
+    var opData = kpi.operators_split || { labels: (kpi.payment_split && kpi.payment_split.labels) || [], counts: (kpi.payment_split && kpi.payment_split.data) || [], volumes: (kpi.payment_split && kpi.payment_split.data) || [] };
+    if (splitEl) {
+      var series = _state.opMode === 'counts' ? opData.counts : opData.volumes;
+      var totalOp = (series || []).reduce(function(a, b){ return a + (Number(b) || 0); }, 0);
+      var labelsToUse = totalOp > 0 ? opData.labels : ((kpi.payment_split && kpi.payment_split.labels) || ['Mobile Money', 'Espèces']);
+      var valuesToUse = totalOp > 0 ? series : ((kpi.payment_split && kpi.payment_split.data) || [1, 0]);
+      _charts.split = new Chart(splitEl, {
+        type: 'doughnut',
+        data: {
+          labels: labelsToUse,
+          datasets: [{
+            data: valuesToUse,
+            backgroundColor: ['#0284C7', '#EA580C', '#EAB308', '#0E3B2E', '#64748B'],
+            borderWidth: 0,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: baseAnim,
+          cutout: '64%',
+          plugins: {
+            legend: { position: 'bottom', labels: { color: textColor, usePointStyle: true, pointStyleWidth: 8, padding: 12, font: { size: 11 } } },
+            tooltip: {
+              backgroundColor: tooltipBg,
+              titleColor: tooltipText,
+              bodyColor: textColor,
+              callbacks: {
+                label: function(ctx) {
+                  var v = Number(ctx.parsed) || 0;
+                  return ' ' + ctx.label + ' : ' + (_state.opMode === 'counts' ? (v + ' mission(s)') : fmtFcfa(v));
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    /* 3. Graphique des Villes & Communes les plus actives */
+    var cityEl = document.getElementById('citiesChart');
+    var cities = kpi.cities_intelligence || [];
+    if (cityEl && cities.length) {
+      var cLabels = cities.map(function(c){ return c.city; });
+      var cVals = cities.map(function(c){
+        if (_state.filterType === 'category' && _state.filterValue) {
+          return (c.cat_counts && c.cat_counts[_state.filterValue]) || 0;
+        }
+        if (_state.metric === 'missions') return c.missions;
+        if (_state.metric === 'artisans') return c.artisans;
+        return c.depenses_fcfa;
+      });
+      _charts.cities = new Chart(cityEl, {
+        type: 'bar',
+        data: {
+          labels: cLabels,
+          datasets: [{
+            label: _state.metric === 'depenses' && !_state.filterValue ? 'Dépenses (FCFA)' : (_state.metric === 'artisans' ? 'Artisans actifs' : 'Missions'),
+            data: cVals,
+            backgroundColor: cLabels.map(function(l){
+              return (_state.filterType === 'city' && _state.filterValue === l) ? terracotta : (isDark ? 'rgba(16,185,129,0.82)' : 'rgba(14,59,46,0.86)');
+            }),
+            hoverBackgroundColor: terracotta,
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: baseAnim,
+          onClick: function(evt, elements) {
+            if (elements && elements.length > 0) {
+              var idx = elements[0].index;
+              window.bxCrossFilter('city', cLabels[idx]);
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { backgroundColor: tooltipBg, titleColor: tooltipText, bodyColor: textColor }
+          },
+          scales: {
+            x: { ticks: { color: textColor, font: { size: 11 } }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } }
+          }
+        }
+      });
+    }
+
+    /* 4. Graphique des Categories les plus demandees */
+    var catEl = document.getElementById('categoriesChart');
+    var cats = kpi.categories_intelligence || [];
+    if (catEl && cats.length) {
+      var catLabels = cats.map(function(c){ return c.nom; });
+      var catVals = cats.map(function(c){
+        if (_state.filterType === 'city' && _state.filterValue) {
+          var bc = c.by_city && c.by_city[_state.filterValue];
+          if (!bc) return 0;
+          return _state.metric === 'depenses' ? bc.depenses : bc.missions;
+        }
+        if (_state.metric === 'missions') return c.missions;
+        if (_state.metric === 'artisans') return c.artisans;
+        return c.depenses_fcfa;
+      });
+      _charts.cats = new Chart(catEl, {
+        type: 'bar',
+        data: {
+          labels: catLabels,
+          datasets: [{
+            label: _state.metric === 'depenses' ? 'Dépenses (FCFA)' : (_state.metric === 'artisans' ? 'Artisans' : 'Demandes'),
+            data: catVals,
+            backgroundColor: catLabels.map(function(l){
+              return (_state.filterType === 'category' && _state.filterValue === l) ? emeraldBright : 'rgba(194,65,12,0.85)';
+            }),
+            hoverBackgroundColor: emeraldBright,
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: baseAnim,
+          onClick: function(evt, elements) {
+            if (elements && elements.length > 0) {
+              var idx = elements[0].index;
+              window.bxCrossFilter('category', catLabels[idx]);
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { backgroundColor: tooltipBg, titleColor: tooltipText, bodyColor: textColor }
+          },
+          scales: {
+            x: { ticks: { color: textColor, font: { size: 11 } }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } }
+          }
+        }
+      });
+    }
+
+    /* 5. Entonnoir de Conversion */
+    var funEl = document.getElementById('funnelChart');
+    if (funEl && kpi.funnel) {
+      _charts.funnel = new Chart(funEl, {
+        type: 'bar',
+        data: {
+          labels: kpi.funnel.labels,
+          datasets: [{
+            label: 'Volume',
+            data: kpi.funnel.counts,
+            backgroundColor: ['#0284C7', '#0E3B2E', '#10B981', '#C2410C', '#D97706'],
+            borderRadius: 8
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: baseAnim,
+          plugins: { legend: { display: false }, tooltip: { backgroundColor: tooltipBg, titleColor: tooltipText, bodyColor: textColor } },
+          scales: {
+            x: { beginAtZero: true, ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
+            y: { ticks: { color: textColor, font: { size: 11.5, weight: 'bold' } }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    /* 6. Radar 360 Sante Plateforme */
+    var radEl = document.getElementById('radarHealthChart');
+    if (radEl && kpi.radar) {
+      _charts.radar = new Chart(radEl, {
+        type: 'radar',
+        data: {
+          labels: kpi.radar.labels,
+          datasets: [{
+            label: 'Score opérationnel (/100)',
+            data: kpi.radar.scores,
+            backgroundColor: 'rgba(16,185,129,0.20)',
+            borderColor: emeraldBright,
+            pointBackgroundColor: terracotta,
+            borderWidth: 2.2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: baseAnim,
+          plugins: { legend: { display: false } },
+          scales: {
+            r: {
+              min: 0,
+              max: 100,
+              ticks: { display: false, stepSize: 25 },
+              grid: { color: gridColor },
+              angleLines: { color: gridColor },
+              pointLabels: { color: textColor, font: { size: 11, weight: 'bold' } }
+            }
+          }
+        }
+      });
+    }
+
+    renderLiquidLists(kpi);
+    updateCrossFilterBanner(kpi);
+  }
+
+  window.bxSwitchPeriod = function(period, btn) {
+    _state.period = period;
+    document.querySelectorAll('.bx-period-btn').forEach(function(b){ b.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+    var tEl = document.getElementById('bx-activity-chart-title');
+    var bEl = document.getElementById('bx-activity-chart-badge');
+    if (tEl) tEl.textContent = 'Flux Financier Liquide : Dépenses, Commissions & Missions (' + (period === '30d' ? '30 derniers jours' : '7 derniers jours') + ')';
+    if (bEl) bEl.textContent = period === '30d' ? 'Dynamique 30j' : 'Dynamique 7j';
+    drawExecutiveCharts();
+  };
+
+  window.bxSwitchMetric = function(metric, btn) {
+    _state.metric = metric;
+    document.querySelectorAll('.bx-metric-btn').forEach(function(b){ b.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+    drawExecutiveCharts();
+  };
+
+  window.bxToggleOpMode = function(btn) {
+    _state.opMode = _state.opMode === 'volumes' ? 'counts' : 'volumes';
+    if (btn) btn.textContent = _state.opMode === 'volumes' ? 'Mode : FCFA' : 'Mode : Missions';
+    drawExecutiveCharts();
+  };
+
+  window.bxCrossFilter = function(type, val) {
+    if (_state.filterType === type && _state.filterValue === val) {
+      _state.filterType = null;
+      _state.filterValue = null;
+    } else {
+      _state.filterType = type;
+      _state.filterValue = val;
+    }
+    drawExecutiveCharts();
+  };
+
+  window.bxResetCrossFilter = function() {
+    _state.filterType = null;
+    _state.filterValue = null;
+    drawExecutiveCharts();
+  };
+
+  function bindSpotlightFilters() {
+    document.querySelectorAll('.bx-intel-spot[data-spot-filter-type]').forEach(function(card) {
+      if (card.dataset.bxSpotBound === '1') return;
+      card.dataset.bxSpotBound = '1';
+      card.addEventListener('click', function() {
+        var fType = card.getAttribute('data-spot-filter-type');
+        var fVal = card.getAttribute('data-spot-filter-value') || '';
+        if (fType && fVal) window.bxCrossFilter(fType, fVal);
+      });
+    });
+  }
+
+  bindSpotlightFilters();
+  drawExecutiveCharts();
+  document.body.addEventListener('htmx:afterSwap', function(e){
+    if (e.target && e.target.id === 'dashboard-stats-fragment') {
+      bindSpotlightFilters();
+      drawExecutiveCharts();
+    }
+  });
+})();
+</script>
+{% endif %}
+
+{# 3. Indicateurs Operationnels (KPI Cards) #}
+<div class="operational-kpi-header" style="margin-top: 2rem; margin-bottom: 0.8rem;">
+  <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text); margin: 0;">Indicateurs Opérationnels de Pilotage</h3>
+  <p style="font-size: 0.78rem; color: var(--muted); margin: 2px 0 0;">Utilisateurs, réservations en cours, litiges et conformité des dossiers</p>
+</div>
+
+<section class="kpi-grid" aria-label="Indicateurs opérationnels">
   {% for stat in stats %}
   <article class="kpi-card kpi-card--ic-{{ stat.icon }}{% if stat.warn and stat.value > 0 %} kpi-card--alert{% endif %}" style="--i:{{ forloop.counter0 }}">
     <div class="kpi-card__icon">
@@ -29,9 +791,6 @@
     <div class="kpi-card__body">
       <span class="kpi-card__label">{{ stat.label }}</span>
       <strong class="kpi-card__value" data-target="{{ stat.value }}">{{ stat.value }}</strong>
-      {% comment %}Sobre : bandeau de tendance uniquement s'il porte une info
-      utile (traitement requis). Le « Mise à jour live » répété était du bruit
-      visuel, retiré.{% endcomment %}
       {% if stat.warn and stat.value > 0 %}
       <span class="kpi-card__trend kpi-card__trend--warn">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4M12 17h.01M10.3 3.2L3 20h18L13.7 3.2a1 1 0 00-1.8 0z"/></svg>
@@ -43,229 +802,35 @@
   {% endfor %}
 </section>
 
-{% if kpi_chart %}
-{{ kpi_chart|json_script:"kpi-data" }}
-
-{# ── Graphiques analytics ─────────────────────────────────────────────────── #}
-<section class="charts-row" aria-label="Graphiques analytiques">
-
-  {# Graphique courbe — évolution simulée sur 7 jours #}
-  <div class="chart-card card card-elevate chart-card--line">
-    <div class="chart-card__header">
-      <div>
-        <h3 class="chart-card__title">Activité : 7 derniers jours</h3>
-        <p class="chart-card__sub">Réservations confirmées &amp; paiements traités</p>
-      </div>
-      <span class="chart-badge chart-badge--blue">Courbe</span>
+{% if smart_risk_radar %}
+<section class="card" style="margin-top: 1.5rem; padding: 1.25rem;" aria-label="Radar executif des risques et anomalies">
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.9rem;">
+    <div>
+      <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--text);">Radar Operationnel &amp; Anomalies</h3>
+      <p style="margin: 2px 0 0; font-size: 0.78rem; color: var(--muted);">Detection automatique : demandes en attente, devis hors norme, fiabilite et litiges</p>
     </div>
-    <div class="chart-wrap"><canvas id="lineChart" aria-label="Graphique courbe activité"></canvas></div>
+    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; font-variant-numeric: tabular-nums; border: 1px solid var(--border); color: var(--text);">
+      Indice sante : {{ smart_risk_radar.health_score }}/100
+    </span>
   </div>
-
-  {# Graphique camembert — répartition KPI #}
-  <div class="chart-card card card-elevate chart-card--pie">
-    <div class="chart-card__header">
-      <div>
-        <h3 class="chart-card__title">Répartition KPI</h3>
-        <p class="chart-card__sub">Vue d'ensemble des indicateurs actuels</p>
+  {% if smart_risk_radar.alerts %}
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.75rem;">
+    {% for alert in smart_risk_radar.alerts %}
+    <a href="/?section={{ alert.section }}" style="text-decoration: none; display: block; padding: 0.85rem 1rem; border-radius: 10px; border: 1px solid {% if alert.level == 'high' %}rgba(220,38,38,0.35){% else %}rgba(217,119,6,0.35){% endif %}; background: var(--surface);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+        <span style="font-size: 0.84rem; font-weight: 700; color: {% if alert.level == 'high' %}#dc2626{% else %}#d97706{% endif %};">{{ alert.title }}</span>
+        <span style="font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase;">Voir</span>
       </div>
-      <span class="chart-badge chart-badge--purple">Camembert</span>
-    </div>
-    <div class="chart-wrap chart-wrap--pie"><canvas id="pieChart" aria-label="Graphique camembert KPI"></canvas></div>
+      <p style="margin: 4px 0 0; font-size: 0.77rem; color: var(--muted); line-height: 1.4;">{{ alert.detail }}</p>
+    </a>
+    {% endfor %}
   </div>
-
+  {% else %}
+  <p style="margin: 0; font-size: 0.84rem; color: var(--muted);">Aucune anomalie critique detectee sur les flux recents.</p>
+  {% endif %}
 </section>
-
-<script>
-(function(){
-  'use strict';
-  var _tries = 0;
-  function drawCharts(){
-    /* Chart.js (CDN) peut ne pas etre encore charge quand ce script tourne :
-       on RETENTE au lieu d'abandonner -> corrige les graphiques restes vides. */
-    if (typeof Chart === 'undefined') {
-      if (_tries++ < 30) setTimeout(drawCharts, 150);
-      return;
-    }
-    var kpiRaw = document.getElementById('kpi-data');
-    if (!kpiRaw) return;
-    var kpi;
-    try { kpi = JSON.parse(kpiRaw.textContent); } catch(e){ return; }
-    /* Evite « Canvas is already in use » apres un rafraichissement htmx. */
-    ['lineChart','pieChart'].forEach(function(id){
-      var el = document.getElementById(id);
-      if (el && Chart.getChart) { var ex = Chart.getChart(el); if (ex) ex.destroy(); }
-    });
-
-    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    var gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-    var textColor = isDark ? '#94a3b8' : '#64748b';
-    var tooltipBg = isDark ? '#1e293b' : '#ffffff';
-    var tooltipText = isDark ? '#f8fafc' : '#0f172a';
-
-    /* · Palette · */
-    var cyan = '#4CC9F0';
-    var navy = '#2563EB';
-    var amber = '#F59E0B';
-    var green = '#10B981';
-    var purple = '#8B5CF6';
-    var red = '#EF4444';
-
-  /* ── Graphique COURBE ─────────────────────────────────────────── */
-  var lineCtx = document.getElementById('lineChart');
-  if (lineCtx) {
-    /* Génération de données simulées sur 7 jours à partir des KPI actuels */
-    /* Ordre kpi_chart.data : [providers, clients, actives, terminées, paiements, litiges] */
-    var baseRes = Math.max(kpi.data[2] || 0, 1);
-    var basePay = Math.max(kpi.data[4] || 0, 1);
-    var labels7 = [];
-    var dataRes = [];
-    var dataPay = [];
-    var now = new Date();
-    for (var d = 6; d >= 0; d--) {
-      var dd = new Date(now); dd.setDate(dd.getDate() - d);
-      labels7.push(dd.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }));
-      /* Variation pseudo-aléatoire autour de la valeur réelle */
-      dataRes.push(Math.max(0, Math.round(baseRes * (0.7 + Math.random() * 0.6))));
-      dataPay.push(Math.max(0, Math.round(basePay * (0.6 + Math.random() * 0.8))));
-    }
-    /* Forcer le dernier point à la valeur réelle */
-    dataRes[6] = baseRes;
-    dataPay[6] = basePay;
-
-    new Chart(lineCtx, {
-      type: 'line',
-      data: {
-        labels: labels7,
-        datasets: [
-          {
-            label: 'Réservations',
-            data: dataRes,
-            borderColor: cyan,
-            backgroundColor: 'rgba(76,201,240,0.12)',
-            borderWidth: 2.5,
-            pointBackgroundColor: cyan,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            fill: true,
-            tension: 0.4
-          },
-          {
-            label: 'Paiements',
-            data: dataPay,
-            borderColor: green,
-            backgroundColor: 'rgba(16,185,129,0.08)',
-            borderWidth: 2.5,
-            pointBackgroundColor: green,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            fill: true,
-            tension: 0.4
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: {
-            labels: { color: textColor, usePointStyle: true, pointStyleWidth: 8 }
-          },
-          tooltip: {
-            backgroundColor: tooltipBg,
-            titleColor: tooltipText,
-            bodyColor: textColor,
-            borderColor: isDark ? '#334155' : '#e2e8f0',
-            borderWidth: 1,
-            padding: 12,
-            cornerRadius: 10
-          }
-        },
-        scales: {
-          x: {
-            ticks: { color: textColor, maxRotation: 0 },
-            grid: { color: gridColor }
-          },
-          y: {
-            ticks: { color: textColor },
-            grid: { color: gridColor },
-            beginAtZero: true
-          }
-        }
-      }
-    });
-  }
-
-  /* ── Graphique CAMEMBERT ──────────────────────────────────────── */
-  var pieCtx = document.getElementById('pieChart');
-  if (pieCtx) {
-    var nonZero = kpi.data.filter(function(v){ return v > 0; });
-    var pieLabels = [], pieData = [], pieColors = [];
-    var palette = [cyan, green, red, amber, purple];
-    for (var i = 0; i < kpi.labels.length; i++) {
-      if (kpi.data[i] > 0) {
-        pieLabels.push(kpi.labels[i]);
-        pieData.push(kpi.data[i]);
-        pieColors.push(palette[i % palette.length]);
-      }
-    }
-    if (pieData.length === 0) {
-      pieLabels = ['Aucune donnée'];
-      pieData = [1];
-      pieColors = ['#e2e8f0'];
-    }
-    new Chart(pieCtx, {
-      type: 'doughnut',
-      data: {
-        labels: pieLabels,
-        datasets: [{
-          data: pieData,
-          backgroundColor: pieColors,
-          borderWidth: 0,
-          hoverOffset: 8
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '60%',
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              color: textColor,
-              usePointStyle: true,
-              pointStyleWidth: 8,
-              padding: 14,
-              font: { size: 12 }
-            }
-          },
-          tooltip: {
-            backgroundColor: tooltipBg,
-            titleColor: tooltipText,
-            bodyColor: textColor,
-            borderColor: isDark ? '#334155' : '#e2e8f0',
-            borderWidth: 1,
-            padding: 12,
-            cornerRadius: 10
-          }
-        }
-      }
-    });
-    }
-  }
-  drawCharts();
-  document.body.addEventListener('htmx:afterSwap', function(e){
-    if (e.target && e.target.id === 'dashboard-stats-fragment') drawCharts();
-  });
-})();
 {% endif %}
 
-{% comment %}
-Compteur animé — enhancement JS, sorti du bloc des graphiques pour tourner
-TOUJOURS. La vraie valeur est déjà rendue en dur : si le JS ne tourne pas,
-le chiffre reste correct (avant : tout restait figé à 0).
-{% endcomment %}
 <script>
 (function(){
   var counters = document.querySelectorAll('.kpi-card__value[data-target]');

@@ -4,12 +4,33 @@ from django.db import migrations, models
 
 
 def drop_catalogue_table(apps, schema_editor):
-    # Compatible MySQL (local) ET PostgreSQL (Render) : la syntaxe des
-    # identifiants diffère (backticks MySQL vs guillemets Postgres), et
-    # Postgres exige CASCADE pour lever les contraintes FK dépendantes.
+    # Compatible MySQL (local), PostgreSQL (Render) ET SQLite (tests).
+    # Sur SQLite, DROP TABLE seul suffit, mais l'AlterField ultérieur sur
+    # lignedevis recrée la table à partir du state : il faut donc aussi retirer
+    # la colonne catalogue_item_id en base si elle existe encore.
+    conn = schema_editor.connection
+    quote = conn.ops.quote_name
+    with conn.cursor() as cur:
+        existing_cols = {
+            col.name for col in conn.introspection.get_table_description(cur, "adminpanel_lignedevis")
+        }
+    if "catalogue_item_id" in existing_cols:
+        if conn.vendor == "sqlite":
+            with conn.cursor() as cur:
+                for (idx_name,) in cur.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='adminpanel_lignedevis'"
+                ).fetchall():
+                    if idx_name.startswith("sqlite_autoindex_"):
+                        continue
+                    cols = [row[2] for row in cur.execute(f"PRAGMA index_info({idx_name})")]
+                    if "catalogue_item_id" in cols:
+                        schema_editor.execute(f"DROP INDEX IF EXISTS {quote(idx_name)}")
+        schema_editor.execute(
+            f"ALTER TABLE {quote('adminpanel_lignedevis')} DROP COLUMN {quote('catalogue_item_id')}"
+        )
     table = "adminpanel_catalogueitem"
-    with schema_editor.connection.cursor() as c:
-        if schema_editor.connection.vendor == "postgresql":
+    with conn.cursor() as c:
+        if conn.vendor == "postgresql":
             c.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE')
         else:
             c.execute(f"DROP TABLE IF EXISTS `{table}`")

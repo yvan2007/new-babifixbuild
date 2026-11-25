@@ -89,9 +89,9 @@ def api_admin_health_config(request):
     }
 
     db = {
-        "engine": settings.DATABASES["default"].get("ENGINE", ""),
-        "name": settings.DATABASES["default"].get("NAME", ""),
-        "host": settings.DATABASES["default"].get("HOST", ""),
+        "engine": str(settings.DATABASES["default"].get("ENGINE", "")),
+        "name": str(settings.DATABASES["default"].get("NAME", "")),
+        "host": str(settings.DATABASES["default"].get("HOST", "")),
     }
 
     security = {

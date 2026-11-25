@@ -20,7 +20,7 @@ from django.conf import settings
 class BabifixSecurityHeadersMiddleware:
     """Pose les en-têtes manquants après le passage de SecurityMiddleware."""
 
-    # Politique CSP — strict mais compatible avec :
+    # Politique CSP : strict mais compatible avec :
     # - Google Fonts (vitrine) ;
     # - les images statiques BABIFIX (logo, payment-logos) ;
     # - le tableau de bord admin (inline styles autorisés via 'unsafe-inline').
@@ -81,10 +81,17 @@ class BabifixSecurityHeadersMiddleware:
             response["Content-Security-Policy"] = self._CSP
         if "Permissions-Policy" not in response:
             response["Permissions-Policy"] = self._PERMISSIONS
-        # Politique COEP/CORP : empêche le hotlinking de nos ressources.
-        response.setdefault("Cross-Origin-Resource-Policy", "same-site")
-        # Cache-Control pour les pages d'admin sensibles : pas de cache public.
         path = request.path or ""
+        is_media_or_static = path.startswith(("/media/", "/static/"))
+        if is_media_or_static or self._is_dev:
+            # Autoriser les apps Flutter Web / Vitrine cross-origin a charger images et medias.
+            response["Cross-Origin-Resource-Policy"] = "cross-origin"
+            if is_media_or_static:
+                response.setdefault("Access-Control-Allow-Origin", "*")
+        else:
+            # Politique COEP/CORP : empêche le hotlinking de nos ressources.
+            response.setdefault("Cross-Origin-Resource-Policy", "same-site")
+        # Cache-Control pour les pages d'admin sensibles : pas de cache public.
         if path.startswith(("/admin", "/api/admin", "/dashboard")):
             response["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
             response["Pragma"] = "no-cache"

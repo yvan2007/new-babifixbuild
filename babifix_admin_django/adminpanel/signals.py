@@ -12,6 +12,7 @@ from .models import (
     Client,
     Dispute,
     Message,
+    MetierPropose,
     Notification,
     Payment,
     Provider,
@@ -19,6 +20,7 @@ from .models import (
     Reservation,
     SiteContent,
     SystemSetting,
+    UserProfile,
 )
 
 
@@ -43,6 +45,7 @@ def on_message_saved(sender, instance, created, **kwargs):
 def on_reservation_saved(sender, instance, created, **kwargs):
     if _skip_signal_kwargs(**kwargs):
         return
+    uf = _update_fields_frozen(**kwargs)
     event = 'reservation.created' if created else 'reservation.updated'
     payload = realtime.serialize_reservation(instance)
 
@@ -50,21 +53,51 @@ def on_reservation_saved(sender, instance, created, **kwargs):
     realtime.broadcast_admin_event(event, payload)
 
     # 2) Push FCM (déjà géré pour des cas spécifiques).
-    push_dispatch.on_reservation_change(instance, created, _update_fields_frozen(**kwargs))
+    push_dispatch.on_reservation_change(instance, created, uf)
+
+    # Ciblage intelligent : seul le destinataire réel de l'étape reçoit
+    # une notification WebSocket ; l'initiateur reçoit un event silencieux
+    # `reservations.sync` pour rafraîchir son écran sans doublon ni pop-up.
+    statut_changed = uf is None or 'statut' in uf
+    client_notif_statuts = {
+        'DEVIS_ENVOYE',
+        'Confirmee',
+        'INTERVENTION_EN_COURS',
+        'En attente client',
+        'Annulee',
+    }
+    presta_notif_statuts = {
+        'DEVIS_ACCEPTE',
+        'Terminee',
+        'Annulee',
+    }
+    if created:
+        client_ws_event = 'reservations.sync'
+        presta_ws_event = 'reservation.created'
+    elif not statut_changed:
+        client_ws_event = 'reservations.sync'
+        presta_ws_event = 'reservations.sync'
+    else:
+        client_ws_event = (
+            'reservation.updated'
+            if instance.statut in client_notif_statuts
+            else 'reservations.sync'
+        )
+        presta_ws_event = (
+            'reservation.updated'
+            if instance.statut in presta_notif_statuts
+            else 'reservations.sync'
+        )
 
     # 3) Temps réel CLIENT : pousser sur le groupe `babifix_client_<uid>`.
-    #    Le client est connecté à `/ws/client/events/` qui s'abonne au groupe
-    #    `babifix_client_<son_uid>` automatiquement.
     client_uid = getattr(instance, 'client_user_id', None) or getattr(instance, 'client_id', None)
     if client_uid:
         try:
-            realtime.broadcast_client_user(int(client_uid), event, payload)
+            realtime.broadcast_client_user(int(client_uid), client_ws_event, payload)
         except (TypeError, ValueError):
             pass
 
-    # 4) Temps réel PRESTATAIRE : pousser sur `babifix_prestataire_<uid>`
-    #    pour le prestataire assigné (ou désigné directement). Le prestataire
-    #    est connecté à `/ws/prestataire/events/`.
+    # 4) Temps réel PRESTATAIRE : pousser sur `babifix_prestataire_<uid>`.
     prov_uid = (
         getattr(instance, 'prestataire_user_id', None)
         or (
@@ -75,7 +108,7 @@ def on_reservation_saved(sender, instance, created, **kwargs):
     )
     if prov_uid:
         try:
-            realtime.broadcast_prestataire_user(int(prov_uid), event, payload)
+            realtime.broadcast_prestataire_user(int(prov_uid), presta_ws_event, payload)
         except (TypeError, ValueError):
             pass
 
@@ -188,7 +221,7 @@ def on_actualite_saved(sender, instance, created, **kwargs):
 
 
 ## NOTE : l'envoi FCM des Notifications est centralisé plus bas dans
-## `on_notification_saved` — un seul handler, filtré sur `created`, qui
+## `on_notification_saved` : un seul handler, filtré sur `created`, qui
 ## délègue à `push_dispatch.on_notification_created` (gère user ciblé ET
 ## broadcast global). Ce stub est volontairement conservé sans receiver
 ## pour garder un point d'entrée si on veut un jour ré-introduire un
@@ -212,6 +245,7 @@ def on_dispute_saved(sender, instance, created, **kwargs):
         return
     event = 'dispute.created' if created else 'dispute.updated'
     realtime.broadcast_admin_event(event, realtime.serialize_dispute(instance))
+    push_dispatch.on_dispute_change(instance, created, _update_fields_frozen(**kwargs))
 
 
 @receiver(post_delete, sender=Dispute)
@@ -268,10 +302,24 @@ def on_notification_saved(sender, instance, created, **kwargs):
     if _skip_signal_kwargs(**kwargs):
         return
     event = 'notification.created' if created else 'notification.updated'
-    realtime.broadcast_admin_event(event, realtime.serialize_notification(instance))
-    # Push FCM seulement à la création — évite de re-blaster tous les users
-    # à chaque update (mark-as-read, archivage, etc.).
-    if created:
+    payload = realtime.serialize_notification(instance)
+    if instance.user_id is None:
+        realtime.broadcast_admin_event(event, payload)
+    else:
+        try:
+            role = (
+                UserProfile.objects.filter(user_id=instance.user_id)
+                .values_list('role', flat=True)
+                .first()
+            )
+            if role == UserProfile.Role.PRESTATAIRE:
+                realtime.broadcast_prestataire_user(instance.user_id, event, payload)
+            elif role == UserProfile.Role.CLIENT:
+                realtime.broadcast_client_user(instance.user_id, event, payload)
+        except Exception:
+            pass
+    # Push FCM seulement a la creation si _skip_fcm n est pas active.
+    if created and not getattr(instance, '_skip_fcm', False):
         push_dispatch.on_notification_created(instance)
 
 
@@ -344,10 +392,22 @@ def on_rating_saved(sender, instance, created, **kwargs):
 
 
 def _update_provider_rating(provider):
-    """Recalcule et met à jour la note moyenne du prestataire."""
+    """Recalcule et met a jour la note moyenne du prestataire."""
     from django.db.models import Avg
     avg = provider.ratings.aggregate(avg=Avg('note'))['avg'] or 0.0
     count = provider.ratings.count()
     provider.average_rating = round(avg, 2)
     provider.rating_count = count
     provider.save(update_fields=['average_rating', 'rating_count'])
+
+
+@receiver(post_save, sender=MetierPropose)
+def on_metier_propose_saved(sender, instance, created, **kwargs):
+    if _skip_signal_kwargs(**kwargs):
+        return
+    if created:
+        realtime.broadcast_admin_event(
+            'metier_propose.created',
+            {'id': instance.pk, 'nom': instance.nom, 'votes': instance.votes},
+        )
+        push_dispatch.on_metier_propose_created(instance)

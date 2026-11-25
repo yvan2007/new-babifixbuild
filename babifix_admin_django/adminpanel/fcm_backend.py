@@ -85,7 +85,7 @@ def send_push_to_user_ids(
     """Envoie une notification aux appareils enregistrés pour ces utilisateurs.
 
     Si ``app`` est fourni ('client' ou 'pro'), on ne cible QUE les jetons de
-    cette application — pour qu'un push « client » n'atterrisse pas sur l'app
+    cette application : pour qu'un push « client » n'atterrisse pas sur l'app
     prestataire (et inversement).
 
     Retourne un résumé : {ready, tokens, sent, failed, reason}.
@@ -111,17 +111,21 @@ def send_push_to_user_ids(
     data['body'] = str(body)
     data_str = {k: str(v) for k, v in data.items() if v is not None}
 
-    # Canal Android partagé avec les apps Flutter (cf. babifix_fcm.dart).
-    # Uniquement data payload — pas de notification section, pour que
-    # `onMessage` / `onBackgroundMessage` soient toujours déclenchés.
-    android_cfg = messaging.AndroidConfig(
-        priority='high',
-        notification=messaging.AndroidNotification(
-            channel_id='babifix_notifications',
+    from datetime import timedelta
+
+    channel_id = str(data_str.get('android_channel_id') or 'babifix_notifications').strip()
+    is_call = data_str.get('type') == 'call.incoming'
+    android_kwargs: dict[str, Any] = {
+        'priority': 'high',
+        'notification': messaging.AndroidNotification(
+            channel_id=channel_id,
             sound='notification_soft',
             default_sound=False,
         ),
-    )
+    }
+    if is_call:
+        android_kwargs['ttl'] = timedelta(seconds=60)
+    android_cfg = messaging.AndroidConfig(**android_kwargs)
     apns_cfg = messaging.APNSConfig(
         payload=messaging.APNSPayload(
             aps=messaging.Aps(

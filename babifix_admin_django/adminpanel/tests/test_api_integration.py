@@ -1,5 +1,5 @@
 """
-Tests d'intégration API — BABIFIX Backend
+Tests d'intégration API : BABIFIX Backend
 Couvre : Auth (TI-01 à TI-10), Prestataires (TI-11 à TI-16), Réservations (TI-17 à TI-20)
 Run : python manage.py test adminpanel.tests.test_api_integration
 """
@@ -19,7 +19,7 @@ def _make_user(username, role, password='Pwd12345!'):
 
 
 class AuthIntegrationTests(TestCase):
-    """TI-01 à TI-08 — Tests d'intégration de l'authentification."""
+    """TI-01 à TI-08 : Tests d'intégration de l'authentification."""
 
     def setUp(self):
         self.client_api = DjangoClient()
@@ -81,7 +81,7 @@ class AuthIntegrationTests(TestCase):
         self.assertEqual(resp.status_code, 401)
 
     def test_TI06_login_compte_inexistant(self):
-        """TI-06 : login avec compte inexistant — ne pas révéler si email existe."""
+        """TI-06 : login avec compte inexistant : ne pas révéler si email existe."""
         resp = self.client_api.post(
             '/api/auth/login',
             data=json.dumps({
@@ -138,7 +138,7 @@ class AuthIntegrationTests(TestCase):
 
 
 class PrestataireIntegrationTests(TestCase):
-    """TI-11 à TI-16 — Tests d'intégration des prestataires."""
+    """TI-11 à TI-16 : Tests d'intégration des prestataires."""
 
     def setUp(self):
         self.client_api = DjangoClient()
@@ -210,7 +210,7 @@ class PrestataireIntegrationTests(TestCase):
 
 
 class ReservationIntegrationTests(TestCase):
-    """TI-17 à TI-20 — Tests d'intégration des réservations."""
+    """TI-17 à TI-20 : Tests d'intégration des réservations."""
 
     def setUp(self):
         self.client_api = DjangoClient()
@@ -277,7 +277,7 @@ class ReservationIntegrationTests(TestCase):
             }),
             content_type='application/json',
         )
-        self.assertEqual(resp.status_code, [401, 403])
+        self.assertIn(resp.status_code, [401, 403])
 
     def test_TI20_acceder_reservation_autrui(self):
         """TI-20 : accéder à la réservation d'un autre client."""
@@ -305,7 +305,7 @@ class ReservationIntegrationTests(TestCase):
 
 
 class ChatSecurityTests(TestCase):
-    """TI-22 — Tests de sécurité du chat."""
+    """TI-22 : Tests de sécurité du chat."""
 
     def setUp(self):
         self.api = DjangoClient()

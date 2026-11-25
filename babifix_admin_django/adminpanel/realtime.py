@@ -44,7 +44,7 @@ def broadcast_client_user(
     user_id: int, event_type: str, payload: dict[str, Any] | None = None
 ) -> None:
     """
-    Événement temps réel vers UN client précis — par exemple sa réservation
+    Événement temps réel vers UN client précis : par exemple sa réservation
     qui change de statut. Le client doit s'être connecté à
     `/ws/client/events/` (ClientEventsConsumer s'abonne automatiquement
     au groupe `babifix_client_<uid>` pour les events ciblés).
@@ -64,7 +64,7 @@ def broadcast_client_user(
 
 
 def broadcast_client_event(event_type: str, payload: dict[str, Any] | None = None) -> None:
-    """Prestataire approuvé, nouvelle actualité, etc. — apps Flutter client & prestataire."""
+    """Prestataire approuvé, nouvelle actualité, etc. : apps Flutter client & prestataire."""
     layer = get_channel_layer()
     if layer is None:
         return
@@ -140,7 +140,7 @@ def serialize_provider(p) -> dict[str, Any]:
 
 
 def serialize_provider_public(p) -> dict[str, Any]:
-    """Payload WebSocket / FCM — prestataire visible côté client."""
+    """Payload WebSocket / FCM : prestataire visible côté client."""
     cat = getattr(p, 'category', None)
     return {
         'id': int(p.pk),
@@ -192,14 +192,25 @@ def serialize_payment(p) -> dict[str, Any]:
 
 
 def serialize_category(c) -> dict[str, Any]:
-    return {'id': c.pk, 'nom': c.nom, 'actif': c.actif}
+    return {
+        'id': c.pk,
+        'nom': c.nom,
+        'actif': c.actif,
+        'regime_kyc': getattr(c, 'regime_kyc', 'STANDARD_TERRAIN'),
+        'groupe': getattr(c, 'groupe', ''),
+    }
 
 
 def invalidate_categories_cache() -> None:
     """Invalidates the public categories cache so next request fetches fresh data."""
     try:
         from django.core.cache import cache
-        cache.delete('babifix:public:categories')
+        for key in (
+            'babifix:public:categories',
+            'babifix:public:categories:all',
+            'babifix:public:categories:client',
+        ):
+            cache.delete(key)
     except Exception:
         pass
 

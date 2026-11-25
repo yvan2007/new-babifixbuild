@@ -1,163 +1,113 @@
-"""
-WhatsApp Business API — Notifications BABIFIX
-Configurer via .env :
-  WHATSAPP_API_TOKEN=...
-  WHATSAPP_PHONE_NUMBER_ID=...
-  WHATSAPP_API_VERSION=v19.0   (optionnel)
+"""Connecteur WhatsApp BABIFIX : liens wa.me gratuits + adaptateur Meta Cloud API optionnel.
 
-Utilise l'API officielle Meta Cloud API.
-Si non configuré → les envois sont silencieusement ignorés (fallback FCM).
+Deux niveaux :
+  1. Liens profonds `wa.me` (100 % gratuit, zero configuration, utilisable partout)
+  2. Meta WhatsApp Cloud API v21.0 (inactif tant que WHATSAPP_CLOUD_TOKEN et
+     WHATSAPP_PHONE_NUMBER_ID ne sont pas renseignes dans .env).
 """
 
-import json
+from __future__ import annotations
+
 import logging
 import os
-import urllib.request
-import urllib.error
+import re
+from urllib.parse import quote
+
+import requests
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-_TOKEN = os.getenv("WHATSAPP_API_TOKEN", "")
-_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
-_API_VERSION = os.getenv("WHATSAPP_API_VERSION", "v19.0")
-_BASE_URL = f"https://graph.facebook.com/{_API_VERSION}/{_PHONE_NUMBER_ID}/messages"
+
+def normalize_ci_phone(phone: str) -> str:
+    """Normalise un numero ivoirien en chiffres internationaux sans '+' (ex: 2250700000000)."""
+    digits = re.sub(r"\D+", "", str(phone or ""))
+    if not digits:
+        return ""
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if len(digits) == 10 and digits.startswith("0"):
+        return f"225{digits}"
+    if len(digits) == 8:
+        return f"22507{digits}"
+    return digits
 
 
-def _is_configured() -> bool:
-    return bool(_TOKEN and _PHONE_NUMBER_ID)
+def build_whatsapp_deeplink(phone: str, message: str = "") -> str:
+    """Genere un lien WhatsApp 100 % gratuit (wa.me) avec message pre-rempli."""
+    norm = normalize_ci_phone(phone)
+    if not norm:
+        return ""
+    msg = (message or "").strip()
+    if msg:
+        return f"https://wa.me/{norm}?text={quote(msg)}"
+    return f"https://wa.me/{norm}"
 
 
-def _send_whatsapp(to_phone: str, payload: dict) -> bool:
-    """Envoi bas niveau via Meta Cloud API."""
-    if not _is_configured():
-        logger.debug("WhatsApp non configuré — message ignoré vers %s", to_phone)
-        return False
-
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        _BASE_URL,
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {_TOKEN}",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            resp_data = json.loads(resp.read().decode("utf-8"))
-            logger.info("WhatsApp envoyé à %s: %s", to_phone, resp_data.get("messages", [{}])[0].get("id", ""))
-            return True
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        logger.warning("WhatsApp HTTP %s vers %s: %s", e.code, to_phone, body)
-        return False
-    except Exception as exc:
-        logger.warning("WhatsApp erreur vers %s: %s", to_phone, exc)
-        return False
+def whatsapp_cloud_configured() -> bool:
+    token = (os.getenv("WHATSAPP_CLOUD_TOKEN") or getattr(settings, "WHATSAPP_CLOUD_TOKEN", "")).strip()
+    phone_id = (
+        os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+        or getattr(settings, "WHATSAPP_PHONE_NUMBER_ID", "")
+    ).strip()
+    return bool(token and phone_id)
 
 
-def send_text(to_phone: str, message: str) -> bool:
-    """Envoie un message texte simple."""
-    # Normaliser le numéro (supprimer + et espaces)
-    phone = to_phone.replace("+", "").replace(" ", "").replace("-", "")
-    if not phone.startswith("225"):
-        phone = "225" + phone.lstrip("0")
+def send_whatsapp_utility_template(
+    phone: str,
+    template_name: str,
+    body_params: list[str] | None = None,
+    *,
+    lang_code: str = "fr",
+) -> dict:
+    """Envoie un template utilitaire via Meta WhatsApp Cloud API si configure.
 
+    Sans cles dans .env : no-op silencieux retournant configured=False.
+    """
+    norm = normalize_ci_phone(phone)
+    if not norm:
+        return {"ok": False, "configured": whatsapp_cloud_configured(), "reason": "phone_missing"}
+    if not whatsapp_cloud_configured():
+        return {"ok": False, "configured": False, "reason": "whatsapp_cloud_not_configured"}
+
+    token = (os.getenv("WHATSAPP_CLOUD_TOKEN") or getattr(settings, "WHATSAPP_CLOUD_TOKEN", "")).strip()
+    phone_id = (
+        os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+        or getattr(settings, "WHATSAPP_PHONE_NUMBER_ID", "")
+    ).strip()
+    url = f"https://graph.facebook.com/v21.0/{phone_id}/messages"
+    components = []
+    if body_params:
+        components.append(
+            {
+                "type": "body",
+                "parameters": [{"type": "text", "text": str(p)[:240]} for p in body_params],
+            }
+        )
     payload = {
         "messaging_product": "whatsapp",
-        "to": phone,
-        "type": "text",
-        "text": {"body": message},
+        "to": norm,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": lang_code},
+            "components": components,
+        },
     }
-    return _send_whatsapp(phone, payload)
-
-
-def send_reservation_confirmation(to_phone: str, nom_client: str, reference: str, prestataire: str) -> bool:
-    """Template : confirmation de réservation."""
-    msg = (
-        f"✅ *BABIFIX* — Réservation confirmée !\n\n"
-        f"Bonjour {nom_client},\n"
-        f"Votre demande *{reference}* a été envoyée à {prestataire}.\n"
-        f"Vous serez notifié dès qu'un devis est disponible."
-    )
-    return send_text(to_phone, msg)
-
-
-def send_devis_available(to_phone: str, nom_client: str, reference: str, montant: float, prestataire: str) -> bool:
-    """Template : nouveau devis disponible."""
-    msg = (
-        f"📋 *BABIFIX* — Devis disponible !\n\n"
-        f"Bonjour {nom_client},\n"
-        f"{prestataire} vous a envoyé un devis de *{montant:,.0f} FCFA*\n"
-        f"pour la demande {reference}.\n\n"
-        f"Ouvrez l'app BABIFIX pour consulter et accepter."
-    )
-    return send_text(to_phone, msg)
-
-
-def send_payment_received(to_phone: str, nom_prestataire: str, reference: str, montant_net: float) -> bool:
-    """Template : paiement reçu (prestataire)."""
-    msg = (
-        f"💰 *BABIFIX* — Paiement reçu !\n\n"
-        f"Bonjour {nom_prestataire},\n"
-        f"Le paiement pour la mission *{reference}* est confirmé.\n"
-        f"*{montant_net:,.0f} FCFA* ont été crédités sur votre wallet BABIFIX.\n\n"
-        f"Consultez votre wallet dans l'app pour demander un retrait."
-    )
-    return send_text(to_phone, msg)
-
-
-def send_withdrawal_done(to_phone: str, nom_prestataire: str, montant: float, operator: str) -> bool:
-    """Template : retrait effectué."""
-    msg = (
-        f"🏦 *BABIFIX* — Retrait effectué !\n\n"
-        f"Bonjour {nom_prestataire},\n"
-        f"Votre retrait de *{montant:,.0f} FCFA* via {operator.upper()} "
-        f"a été traité avec succès."
-    )
-    return send_text(to_phone, msg)
-
-
-def send_referral_bonus(to_phone: str, nom: str, bonus: int, code: str) -> bool:
-    """Template : bonus parrainage."""
-    msg = (
-        f"🎁 *BABIFIX* — Bonus parrainage !\n\n"
-        f"Bonjour {nom},\n"
-        f"Votre filleul a rejoint BABIFIX avec votre code *{code}*.\n"
-        f"*{bonus:,} FCFA* ont été crédités sur votre compte !"
-    )
-    return send_text(to_phone, msg)
-
-
-def send_urgent_request(to_phone: str, nom_prestataire: str, reference: str, adresse: str) -> bool:
-    """Template : nouvelle demande urgente (prestataire)."""
-    msg = (
-        f"🚨 *BABIFIX URGENT* — Nouvelle demande !\n\n"
-        f"Bonjour {nom_prestataire},\n"
-        f"Une demande *urgente* ({reference}) vous attend.\n"
-        f"📍 {adresse}\n\n"
-        f"Ouvrez l'app BABIFIX immédiatement pour accepter."
-    )
-    return send_text(to_phone, msg)
-
-
-def notify_user_if_opted_in(user, message: str, template_fn=None, **kwargs) -> bool:
-    """
-    Envoie un WhatsApp à l'utilisateur seulement si whatsapp_opt_in=True.
-    Utilise le numéro phone_e164 du profil.
-    """
     try:
-        from adminpanel.models import UserProfile
-        profile = UserProfile.objects.get(user=user)
-        if not profile.whatsapp_opt_in:
-            return False
-        phone = profile.phone_e164 or ""
-        if not phone:
-            return False
-        if template_fn:
-            return template_fn(phone, **kwargs)
-        return send_text(phone, message)
+        resp = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=10,
+        )
+        if 200 <= resp.status_code < 300:
+            return {"ok": True, "configured": True, "status_code": resp.status_code}
+        logger.warning("WhatsApp Cloud API HTTP %s: %s", resp.status_code, resp.text[:200])
+        return {"ok": False, "configured": True, "status_code": resp.status_code}
     except Exception as exc:
-        logger.warning("WhatsApp opt-in check failed: %s", exc)
-        return False
+        logger.warning("WhatsApp Cloud API error: %s", exc)
+        return {"ok": False, "configured": True, "reason": str(exc)[:200]}

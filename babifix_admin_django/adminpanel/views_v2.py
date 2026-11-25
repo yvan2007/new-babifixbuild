@@ -1,20 +1,20 @@
 """
-BABIFIX — Nouvelles fonctionnalités v2
-  1.  GET  /api/client/reservations               — historique réservations client
-  2.  GET  /api/client/reservations/<ref>          — détail réservation + statut temps réel
-  3.  POST /api/client/reservations/<ref>/cancel   — annulation réservation
-  4.  POST /api/client/reservations/<ref>/dispute  — ouvrir un litige
-  5.  POST /api/auth/forgot-password               — demande reset mot de passe
-  6.  POST /api/auth/reset-password                — confirmer reset avec token
-  7.  POST /api/auth/refresh                       — refresh token JWT
-  8.  GET  /api/auth/verify-email/<token>          — confirmer email
-  9.  PATCH /api/prestataire/profile               — modifier profil prestataire
-  10. GET  /api/prestataire/portfolio              — galerie réalisations prestataire
-  11. POST /api/prestataire/portfolio              — ajouter photo réalisation
-  12. DELETE /api/prestataire/portfolio/<idx>      — supprimer photo réalisation
-  13. POST /api/prestataire/reservations/<ref>/rate-client — noter le client
-  14. GET  /api/client/notifications               — notifications persistantes client
-  15. POST /api/admin/push-broadcast               — push notif manuelle tous users
+BABIFIX  :  Nouvelles fonctionnalités v2
+  1.  GET  /api/client/reservations                :  historique réservations client
+  2.  GET  /api/client/reservations/<ref>           :  détail réservation + statut temps réel
+  3.  POST /api/client/reservations/<ref>/cancel    :  annulation réservation
+  4.  POST /api/client/reservations/<ref>/dispute   :  ouvrir un litige
+  5.  POST /api/auth/forgot-password                :  demande reset mot de passe
+  6.  POST /api/auth/reset-password                 :  confirmer reset avec token
+  7.  POST /api/auth/refresh                        :  refresh token JWT
+  8.  GET  /api/auth/verify-email/<token>           :  confirmer email
+  9.  PATCH /api/prestataire/profile                :  modifier profil prestataire
+  10. GET  /api/prestataire/portfolio               :  galerie réalisations prestataire
+  11. POST /api/prestataire/portfolio               :  ajouter photo réalisation
+  12. DELETE /api/prestataire/portfolio/<idx>       :  supprimer photo réalisation
+  13. POST /api/prestataire/reservations/<ref>/rate-client  :  noter le client
+  14. GET  /api/client/notifications                :  notifications persistantes client
+  15. POST /api/admin/push-broadcast                :  push notif manuelle tous users
 """
 
 import json
@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Version minimale des apps (force update) — public, sans auth.
+# Version minimale des apps (force update)  :  public, sans auth.
 # Pilotable par variables d'environnement, sans redéploiement de code.
 # ─────────────────────────────────────────────────────────────────────────────
 @require_http_methods(["GET"])
@@ -101,26 +101,64 @@ def api_app_version(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_app_log_error(request):
-    """Reçoit les crashs des apps mobiles et les journalise (logger.error).
+    """Recoit les crashs, erreurs HTTP et latences mobiles et les persiste dans SystemEventLog.
 
-    Si Sentry est actif côté serveur, ces erreurs y remontent automatiquement
-    (intégration logging). Alternative légère à sentry_flutter (qui cassait le
-    build mobile). Public + rate-limité ; ne renvoie jamais d'erreur à l'app.
+    Public + rate-limite (anti-flood), redaction stricte des secrets et deduplication 60s.
     """
+    from .services.observability_service import (
+        build_client_ip,
+        record_system_event,
+        redact_mapping,
+        redact_text,
+    )
     from .throttle import check_rate_limit
 
     if check_rate_limit(request, "log_error", max_requests=20, window=60):
-        return JsonResponse({"ok": True})  # silencieux : on ignore le surplus
+        return JsonResponse({"ok": True})  # silencieux : anti-flood
     try:
         p = json.loads(request.body or b"{}")
     except json.JSONDecodeError:
         return JsonResponse({"ok": True})
-    msg = str(p.get("message", ""))[:500]
-    stack = str(p.get("stack", ""))[:4000]
-    app = str(p.get("app", ""))[:20]
-    version = str(p.get("version", ""))[:20]
+
+    msg = redact_text(p.get("message", ""), max_len=1000)
+    stack = redact_text(p.get("stack", ""), max_len=4000)
+    app = str(p.get("app", "client"))[:20].lower()
+    version = str(p.get("version", ""))[:24]
     platform = str(p.get("platform", ""))[:20]
+    endpoint = str(p.get("endpoint") or p.get("screen") or "/mobile-app")[:255]
+    raw_level = str(p.get("level") or "error").lower()
+    level = raw_level if raw_level in {"critical", "error", "slow", "warning"} else "error"
+    try:
+        status_code = int(p.get("status_code")) if p.get("status_code") is not None else None
+    except (TypeError, ValueError):
+        status_code = None
+    try:
+        duration_ms = float(p.get("duration_ms")) if p.get("duration_ms") is not None else None
+    except (TypeError, ValueError):
+        duration_ms = None
+
+    source = "mobile_pro" if "prest" in app or "pro" in app else "mobile_client"
+    extra_payload = redact_mapping(p.get("extra")) if isinstance(p.get("extra"), dict) else ""
+
     logger.error("MOBILE[%s/%s v%s] %s\n%s", app, platform, version, msg, stack)
+    record_system_event(
+        source=source,
+        level=level,
+        message=msg or "Erreur application mobile",
+        endpoint=endpoint,
+        method=str(p.get("method") or "APP")[:12],
+        status_code=status_code,
+        duration_ms=duration_ms,
+        user=getattr(request, "user", None),
+        user_label=redact_text(p.get("user_label") or "", max_len=120),
+        client_ip=build_client_ip(request),
+        user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        exception_type=str(p.get("exception_type") or ("SlowMobileAPI" if level == "slow" else "FlutterError"))[:120],
+        source_file=str(p.get("screen") or platform)[:255],
+        traceback_text=stack,
+        payload_redacted=json.dumps(extra_payload, ensure_ascii=False) if extra_payload else "",
+        app_version=f"{platform} v{version}".strip()[:48],
+    )
     return JsonResponse({"ok": True})
 
 
@@ -130,7 +168,7 @@ def api_app_log_error(request):
 
 
 def _frais_mise_en_relation_config() -> float:
-    """Frais fixe de mise en relation (config plateforme) — pour l'app client,
+    """Frais fixe de mise en relation (config plateforme)  :  pour l'app client,
     affiché AVANT le paiement de la caution (transport + frais = total)."""
     try:
         from .models import PlatformConfig
@@ -196,7 +234,7 @@ def _get_res_for_client(reference: str, uid: int):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. GET /api/client/reservations — historique
+# 1. GET /api/client/reservations  :  historique
 # ─────────────────────────────────────────────────────────────────────────────
 @require_GET
 @require_api_auth(["client", "admin"])
@@ -218,7 +256,7 @@ def api_client_reservations_list(request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. GET /api/client/reservations/<ref> — détail
+# 2. GET /api/client/reservations/<ref>  :  détail
 # ─────────────────────────────────────────────────────────────────────────────
 @require_GET
 @require_api_auth(["client", "admin"])
@@ -397,10 +435,10 @@ def _res_receipt_extras(res: Reservation) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. POST /api/client/reservations/<ref>/cancel — annuler
+# 3. POST /api/client/reservations/<ref>/cancel  :  annuler
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["POST", "PATCH"])
 @require_api_auth(["client", "admin"])
 def api_client_cancel_reservation(request, reference):
     uid = request.api_user_id
@@ -433,9 +471,9 @@ def api_client_cancel_reservation(request, reference):
             res.cancellation_reason = motif
             fields.append("cancellation_reason")
 
-        # ── Règlement de la caution de visite (Phase 3) ──────────────────────
-        # Visite déjà effectuée → le presta garde la caution ; sinon → remboursée
-        # au client (commission plateforme rendue aussi).
+        # ── Reglement de la caution de visite (Phase 3) ──────────────────────
+        # Visite deja effectuee : le presta garde la caution ; sinon : remboursee
+        # au client (commission plateforme neutralisee proprement).
         if (
             res.caution_payee
             and not res.caution_deduite
@@ -444,28 +482,30 @@ def api_client_cancel_reservation(request, reference):
         ):
             res.caution_remboursee = True
             fields.append("caution_remboursee")
-            # La plateforme rend sa commission de caution : écriture négative
-            # d'offset (le champ refunded_at a été retiré du modèle → on
-            # neutralise via un revenu négatif, cohérent avec la compta).
             try:
                 from adminpanel.models import PlatformRevenue, Payment
                 cpay = Payment.objects.filter(
                     reference__startswith=f"CAUTION-{res.reference}"
                 ).first()
-                if cpay and (cpay.commission or 0) > 0:
-                    PlatformRevenue.objects.create(
-                        amount_fcfa=-cpay.commission,
-                        source=PlatformRevenue.Source.COMMISSION,
-                        reference=res.reference,
-                        description=f"Remboursement commission caution {res.reference}",
+                if cpay:
+                    updated_cnt = PlatformRevenue.objects.filter(
                         payment=cpay,
-                    )
+                        refunded_at__isnull=True,
+                    ).update(refunded_at=timezone.now())
+                    if not updated_cnt and (cpay.commission or 0) > 0:
+                        PlatformRevenue.objects.create(
+                            amount_fcfa=-cpay.commission,
+                            source=PlatformRevenue.Source.COMMISSION,
+                            reference=res.reference,
+                            description=f"Remboursement commission caution {res.reference}",
+                            payment=cpay,
+                        )
             except Exception:
                 pass
 
         res.save(update_fields=fields)
 
-        # ── Score de fiabilité + détection anti-contournement (Phase 4) ──────
+        # ── Score de fiabilite + detection anti-contournement (Phase 4) ──────
         try:
             from adminpanel.services.reliability_service import ReliabilityService
             _stage = "after_devis" if statut_avant == "DEVIS_ENVOYE" else "before_devis"
@@ -477,7 +517,7 @@ def api_client_cancel_reservation(request, reference):
         if res.prestataire_user_id:
             Notification.objects.create(
                 title=f"Réservation {reference} annulée par le client"
-                + (f" — {motif}" if motif else ""),
+                + (f" : {motif}" if motif else ""),
                 user_id=res.prestataire_user_id,
             )
     if res.prestataire_user_id:
@@ -491,7 +531,7 @@ def api_client_cancel_reservation(request, reference):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. POST /api/client/reservations/<ref>/dispute — ouvrir un litige
+# 4. POST /api/client/reservations/<ref>/dispute  :  ouvrir un litige
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -527,12 +567,11 @@ def api_client_open_dispute(request, reference):
         )
         res.dispute_ouverte = True
         res.save(update_fields=["dispute_ouverte"])
-        Notification.objects.create(title=f"Nouveau litige {ref_litige} : {reference}")
     return JsonResponse({"ok": True, "litige_reference": ref_litige})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. POST /api/auth/forgot-password — demander un reset
+# 5. POST /api/auth/forgot-password  :  demander un reset
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -545,19 +584,23 @@ def api_auth_forgot_password(request):
         payload = json.loads(request.body or b"{}")
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
-    email = str(payload.get("email", "") or "").strip().lower()
+    email = str(payload.get("email", "") or "").replace("\r", "").replace("\n", "").strip().lower()[:254]
     if not email:
         return JsonResponse({"error": "email_required"}, status=400)
     # Toujours répondre ok pour ne pas révéler si l'email existe
-    user = User.objects.filter(email__iexact=email).first()
+    user = User.objects.filter(email__iexact=email, is_active=True).first()
     if user:
-        token = secrets.token_urlsafe(32)
+        # Code OTP numérique 6 chiffres ergonomique sur mobile + compatible token urlsafe
+        token = f"{secrets.randbelow(900000) + 100000}"
         profile, _ = UserProfile.objects.get_or_create(
             user=user, defaults={"role": "client"}
         )
         profile.reset_token = token
         profile.reset_token_created_at = timezone.now()
         profile.save(update_fields=["reset_token", "reset_token_created_at"])
+        # Ne jamais exposer le code de réinitialisation en clair hors mode DEBUG local
+        if getattr(settings, "DEBUG", False):
+            logger.debug("[BABIFIX RESET OTP dev] Email=%s", user.email)
         # Email transactionnel
         _send_reset_email(user.email, token)
     return JsonResponse(
@@ -566,87 +609,59 @@ def api_auth_forgot_password(request):
 
 
 def _send_verification_email(to_email: str, token: str) -> None:
-    import threading
+    from .services.email_service import send_babifix_html_email
 
-    from django.core.mail import send_mail
-    from django.conf import settings
-
-    def _deliver() -> None:
-        # SMTP en arrière-plan : ne bloque pas l'inscription (sinon CancelledError).
-        try:
-            send_mail(
-                subject="Confirmez votre email BABIFIX",
-                message=(
-                    f"Bonjour,\n\n"
-                    f"Merci de vous être inscrit sur BABIFIX.\n"
-                    f"Pour confirmer votre email, utilisez ce code dans l'application :\n\n"
-                    f"{token}\n\n"
-                    f"L'équipe BABIFIX | contact@babifix.ci"
-                ),
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "contact@babifix.ci"),
-                recipient_list=[to_email],
-                fail_silently=True,
-            )
-        except Exception as exc:
-            logger.warning("Verify email non envoyé (%s) : %s", to_email, exc)
-
-    threading.Thread(target=_deliver, daemon=True).start()
+    send_babifix_html_email(
+        to_email=to_email,
+        subject="Votre code de confirmation BABIFIX",
+        template_name="emails/otp_confirmation_email.html",
+        context={"otp_code": token},
+        async_send=True,
+    )
 
 
 def _send_reset_email(to_email: str, token: str) -> None:
-    import threading
+    from .services.email_service import send_babifix_html_email
 
-    from django.core.mail import send_mail
-    from django.conf import settings
-
-    def _deliver() -> None:
-        # SMTP en arrière-plan : ne bloque pas la requête (sinon CancelledError).
-        try:
-            send_mail(
-                subject="Réinitialisation de votre mot de passe BABIFIX",
-                message=(
-                    f"Bonjour,\n\n"
-                    f"Vous avez demandé à réinitialiser votre mot de passe BABIFIX.\n\n"
-                    f"Utilisez ce token dans l'application :\n{token}\n\n"
-                    f"Ce lien expire dans 30 minutes.\n\n"
-                    f"Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n\n"
-                    f"L'équipe BABIFIX | contact@babifix.ci"
-                ),
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "contact@babifix.ci"),
-                recipient_list=[to_email],
-                fail_silently=True,
-            )
-        except Exception as exc:
-            logger.warning("Reset email non envoyé (%s) : %s", to_email, exc)
-
-    threading.Thread(target=_deliver, daemon=True).start()
-
+    send_babifix_html_email(
+        to_email=to_email,
+        subject="Reinitialisation de votre mot de passe BABIFIX",
+        template_name="emails/password_reset_otp.html",
+        context={"otp_code": token},
+        async_send=True,
+    )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. POST /api/auth/reset-password — confirmer le reset
+# 6. POST /api/auth/reset-password  :  confirmer le reset
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_auth_reset_password(request):
+    from .throttle import check_rate_limit, rate_limited_response
+
+    if check_rate_limit(request, "reset_password", max_requests=5, window=300):
+        return rate_limited_response()
     try:
         payload = json.loads(request.body or b"{}")
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     token = str(payload.get("token", "") or "").strip()
+    email_hint = str(payload.get("email", "") or "").strip().lower()
     new_password = str(payload.get("new_password", "") or "").strip()
     if not token or not new_password:
         return JsonResponse({"error": "token_and_new_password_required"}, status=400)
     if len(new_password) < 6:
         return JsonResponse({"error": "password_too_short"}, status=400)
-    profile = (
-        UserProfile.objects.filter(reset_token=token).select_related("user").first()
-    )
+    qs = UserProfile.objects.filter(reset_token=token, user__is_active=True).select_related("user")
+    if email_hint:
+        qs = qs.filter(user__email__iexact=email_hint)
+    profile = qs.first()
     if not profile:
         return JsonResponse({"error": "invalid_token"}, status=400)
-    # Vérifier expiration (30 min)
+    # Vérifier expiration stricte (15 min)
     if profile.reset_token_created_at:
         age = (timezone.now() - profile.reset_token_created_at).total_seconds()
-        if age > 1800:
+        if age > 900:
             return JsonResponse({"error": "token_expired"}, status=400)
     user = profile.user
     user.set_password(new_password)
@@ -660,7 +675,63 @@ def api_auth_reset_password(request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. POST /api/auth/refresh — renouveler le token
+# 6b. POST /api/auth/change-password : modifier le mot de passe quand connecte
+# ─────────────────────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_auth_change_password(request):
+    from .auth import verify_token, create_token, create_refresh_token
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return JsonResponse({"error": "missing_token", "message": "Authentification requise."}, status=401)
+    tok = auth_header.split(" ", 1)[1].strip()
+    payload = verify_token(tok)
+    if not payload:
+        return JsonResponse({"error": "invalid_token", "message": "Session expirée ou invalide."}, status=401)
+    
+    uid = payload.get("uid") or payload.get("user_id") or payload.get("sub")
+    try:
+        user_id = int(uid)
+        user = User.objects.get(pk=user_id, is_active=True)
+    except Exception:
+        return JsonResponse({"error": "user_not_found", "message": "Utilisateur introuvable."}, status=404)
+    
+    try:
+        body = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+    
+    current_password = str(body.get("current_password") or body.get("old_password") or "").strip()
+    new_password = str(body.get("new_password") or "").strip()
+    
+    if not current_password or not new_password:
+        return JsonResponse({"error": "fields_required", "message": "Mot de passe actuel et nouveau mot de passe requis."}, status=400)
+    
+    if not user.check_password(current_password):
+        return JsonResponse({"error": "invalid_current_password", "message": "Le mot de passe actuel est incorrect."}, status=400)
+    
+    if len(new_password) < 6:
+        return JsonResponse({"error": "password_too_short", "message": "Le nouveau mot de passe doit comporter au moins 6 caractères."}, status=400)
+    
+    user.set_password(new_password)
+    user.save()
+    
+    profile = UserProfile.objects.filter(user=user, active=True).first()
+    role = profile.role if profile else "client"
+    new_tok = create_token(user.id, role)
+    new_ref = create_refresh_token(user.id, role)
+    
+    return JsonResponse({
+        "ok": True,
+        "message": "Mot de passe modifié avec succès.",
+        "token": new_tok,
+        "access": new_tok,
+        "refresh": new_ref,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. POST /api/auth/refresh  :  renouveler le token
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -682,8 +753,19 @@ def api_auth_refresh_token(request):
         token_payload = verify_token(old_token)
     if not token_payload:
         return JsonResponse({"error": "invalid_or_expired_token"}, status=401)
+    from .auth import _is_user_active_and_role_ok
+
     uid = token_payload.get("uid")
     role = token_payload.get("role")
+    if not _is_user_active_and_role_ok(uid, role):
+        return JsonResponse({"error": "account_disabled"}, status=403)
+    # Révoquer l'ancien refresh token JWT pour empêcher son rejeu (rotation stricte)
+    if refresh_token and token_payload.get("jti"):
+        try:
+            from .jwt_auth import _blacklist_jti
+            _blacklist_jti(token_payload["jti"])
+        except Exception:
+            pass
     new_token = create_token(uid, role)
     new_refresh = create_refresh_token(uid, role)
     return JsonResponse(
@@ -692,7 +774,7 @@ def api_auth_refresh_token(request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. GET /api/auth/verify-email/<token> — confirmer l'email
+# 8. GET /api/auth/verify-email/<token>  :  confirmer l'email
 # ─────────────────────────────────────────────────────────────────────────────
 @require_GET
 def api_auth_verify_email(request, token):
@@ -710,7 +792,76 @@ def api_auth_verify_email(request, token):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9. DELETE /api/auth/delete-account — supprimer son compte (loi CI n°2013-450)
+# 8b. POST /api/auth/verify-email-otp : valider le code OTP a 6 chiffres
+# ─────────────────────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_auth_verify_email_otp(request):
+    # Protection anti-brute-force : maximum 5 tentatives par minute
+    from .throttle import check_rate_limit, rate_limited_response
+    if check_rate_limit(request, "verify_email_otp", max_requests=5, window=60):
+        return rate_limited_response()
+
+    try:
+        body = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    email = (body.get("email") or "").strip().lower()
+    otp = (body.get("otp") or body.get("code") or "").strip()
+
+    if not email or not otp:
+        return JsonResponse({"error": "email_and_otp_required", "message": "Email et code OTP requis."}, status=400)
+
+    profile = (
+        UserProfile.objects.filter(user__email__iexact=email, email_verify_token=otp)
+        .select_related("user")
+        .first()
+    )
+    if not profile:
+        return JsonResponse({"error": "invalid_otp", "message": "Code de confirmation erroné ou expiré."}, status=400)
+
+    # Invalidation immédiate du code à usage unique (anti-rejeu)
+    profile.email_verified = True
+    profile.email_verify_token = ""
+    profile.save(update_fields=["email_verified", "email_verify_token"])
+    logger.info("Email verifie avec succes par OTP pour %s", email)
+    return JsonResponse({"ok": True, "message": "Email vérifié avec succès."})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8c. POST /api/auth/resend-email-otp : renvoyer un code OTP a 6 chiffres
+# ─────────────────────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_auth_resend_email_otp(request):
+    # Protection anti-inondation : maximum 3 renvois toutes les 2 minutes
+    from .throttle import check_rate_limit, rate_limited_response
+    if check_rate_limit(request, "resend_email_otp", max_requests=3, window=120):
+        return rate_limited_response()
+
+    try:
+        body = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    email = (body.get("email") or "").strip().lower()
+    if not email:
+        return JsonResponse({"error": "email_required", "message": "Adresse email requise."}, status=400)
+
+    import secrets
+    profile = UserProfile.objects.filter(user__email__iexact=email).select_related("user").first()
+    if profile:
+        new_otp = f"{secrets.randbelow(900000) + 100000}"
+        profile.email_verify_token = new_otp
+        profile.save(update_fields=["email_verify_token"])
+        _send_verification_email(email, new_otp)
+
+    return JsonResponse({"ok": True, "message": "Si cette adresse existe, un nouveau code a été envoyé."})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. DELETE /api/auth/delete-account  :  supprimer son compte (loi CI n°2013-450)
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["DELETE"])
@@ -792,7 +943,7 @@ def api_auth_delete_account(request):
             status=400,
         )
 
-    # ── Anonymisation (loi ivoirienne n°2013-450 — droit à l'effacement).
+    # ── Anonymisation (loi ivoirienne n°2013-450  :  droit à l'effacement).
     #    Soft-delete : on conserve les écritures comptables liées mais on
     #    retire les données personnelles. ──
     with transaction.atomic():
@@ -827,7 +978,7 @@ def api_auth_delete_account(request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9. PATCH /api/prestataire/profile — modifier profil
+# 9. PATCH /api/prestataire/profile  :  modifier profil
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["PATCH", "GET"])
@@ -855,6 +1006,8 @@ def api_prestataire_profile_update(request):
                 "average_rating": provider.average_rating,
                 "rating_count": provider.rating_count,
                 "photo_portrait_url": provider.photo_portrait_url,
+                "cni_recto_url": provider.cni_recto_url or "",
+                "cni_verso_url": provider.cni_verso_url or "",
                 "latitude": float(provider.latitude)
                 if provider.latitude is not None
                 else None,
@@ -869,14 +1022,14 @@ def api_prestataire_profile_update(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
     update_fields = []
-    allowed = {"nom", "specialite", "ville", "bio", "tarif_horaire", "years_experience"}
+    allowed = {"nom", "specialite", "ville", "bio", "tarif_horaire", "years_experience", "latitude", "longitude"}
     for field in allowed:
         if field in payload and payload[field] is not None:
             val = payload[field]
-            if field == "tarif_horaire":
+            if field in ("tarif_horaire", "latitude", "longitude"):
                 try:
                     val = float(val)
-                    if val < 0:
+                    if field == "tarif_horaire" and val < 0:
                         continue
                 except (TypeError, ValueError):
                     continue
@@ -891,7 +1044,7 @@ def api_prestataire_profile_update(request):
                 val = val.strip()[:500]
             setattr(provider, field, val)
             update_fields.append(field)
-    # Photo portrait — base64 → fichier sur disque
+    # Photo portrait  :  base64 → fichier sur disque
     portrait = payload.get("photo_portrait_url", "") or payload.get("photo_portrait_b64", "")
     if portrait and isinstance(portrait, str) and portrait.startswith("data:image/"):
         from .views import _decode_and_save_media
@@ -925,7 +1078,7 @@ def api_prestataire_portfolio(request):
     if request.method == "GET":
         photos = provider.portfolio_photos or []
         return JsonResponse({"photos": photos, "count": len(photos)})
-    # POST — ajouter une photo
+    # POST  :  ajouter une photo
     try:
         payload = json.loads(request.body or b"{}")
     except json.JSONDecodeError:
@@ -971,7 +1124,7 @@ def api_prestataire_portfolio_delete(request, idx):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 13. POST /api/prestataire/reservations/<ref>/rate-client — noter le client
+# 13. POST /api/prestataire/reservations/<ref>/rate-client  :  noter le client
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
@@ -1029,13 +1182,16 @@ def api_prestataire_rate_client(request, reference):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 14. GET /api/client/notifications — liste notifications persistantes
+# 14. GET /api/client/notifications  :  liste notifications persistantes
 # ─────────────────────────────────────────────────────────────────────────────
 @require_GET
 @require_api_auth(["client", "prestataire", "admin"])
 def api_user_notifications(request):
     uid = request.api_user_id
-    qs = Notification.objects.filter(user_id=uid).order_by("-created_at")[:50]
+    unread_only = str(request.GET.get("unread_only", "") or "").strip() in ("1", "true", "True")
+    base_qs = Notification.objects.filter(user_id=uid)
+    unread_total = base_qs.filter(lu=False).count()
+    qs = (base_qs.filter(lu=False) if unread_only else base_qs).order_by("-created_at")[:50]
     data = [
         {
             "id": n.pk,
@@ -1048,9 +1204,7 @@ def api_user_notifications(request):
         }
         for n in qs
     ]
-    return JsonResponse(
-        {"notifications": data, "unread": sum(1 for n in data if not n["lu"])}
-    )
+    return JsonResponse({"notifications": data, "unread": unread_total})
 
 
 @csrf_exempt
@@ -1067,11 +1221,104 @@ def api_user_notifications_mark_read(request):
         Notification.objects.filter(pk__in=ids, user_id=uid).update(lu=True)
     else:
         Notification.objects.filter(user_id=uid, lu=False).update(lu=True)
-    return JsonResponse({"ok": True})
+    unread_total = Notification.objects.filter(user_id=uid, lu=False).count()
+    return JsonResponse({"ok": True, "unread": unread_total})
+
+
+def _admin_notif_target_url(n) -> str:
+    ref = (n.reference or "").upper()
+    ntype = (n.notif_type or "").lower()
+    if ref.startswith("METIER-"):
+        return "/?section=ecosysteme"
+    if ref.startswith("PROV-"):
+        return "/?section=prestataires"
+    if ref.startswith("LIT-"):
+        return "/?section=litiges"
+    if ref.startswith("RES-"):
+        return "/?section=reservations"
+    if ref.startswith("PAY-"):
+        return "/?section=paiements"
+    mapping = {
+        "dispute": "/?section=litiges",
+        "validation": "/?section=prestataires",
+        "reservation": "/?section=reservations",
+        "payment": "/?section=paiements",
+    }
+    return mapping.get(ntype, "/?section=notifications")
+
+
+def _extract_notif_focus_person(n) -> str:
+    title = (n.title or "").strip()
+    if ":" in title:
+        tail = title.split(":", 1)[1].strip()
+        if tail and not tail.upper().startswith(("RES-", "LIT-", "PAY-", "PROV-", "METIER-")):
+            return tail
+    return ""
+
+
+def _admin_notif_filter_q(user):
+    from django.db.models import Q
+
+    return Q(user__isnull=True) | Q(user=user)
+
+
+@require_GET
+def api_admin_notifications_feed(request):
+    if not (request.user and request.user.is_authenticated and request.user.is_staff):
+        return JsonResponse({"error": "admin_required"}, status=403)
+    base_qs = Notification.objects.filter(_admin_notif_filter_q(request.user), lu=False)
+    unread_count = base_qs.count()
+    rows = base_qs.order_by("-created_at")[:20]
+    items = [
+        {
+            "id": n.pk,
+            "title": n.title,
+            "body": n.body,
+            "notif_type": n.notif_type,
+            "reference": n.reference,
+            "lu": n.lu,
+            "created_at": n.created_at.isoformat(),
+            "target_url": _admin_notif_target_url(n),
+            "focus_ref": (n.reference or "").strip(),
+            "focus_person": _extract_notif_focus_person(n),
+        }
+        for n in rows
+    ]
+    return JsonResponse({"unread_count": unread_count, "notifications": items})
+
+
+@require_http_methods(["POST"])
+def api_admin_notifications_mark_read(request):
+    if not (request.user and request.user.is_authenticated and request.user.is_staff):
+        return JsonResponse({"error": "admin_required"}, status=403)
+    nid = None
+    ids = []
+    try:
+        if request.body:
+            payload = json.loads(request.body)
+            nid = payload.get("id")
+            ids = payload.get("ids") or []
+    except json.JSONDecodeError:
+        nid = request.POST.get("id")
+    if not nid and not ids:
+        nid = request.POST.get("id")
+    target_ids = [int(x) for x in ([nid] if nid else ids) if str(x).isdigit()]
+    if target_ids:
+        Notification.objects.filter(_admin_notif_filter_q(request.user), pk__in=target_ids).update(lu=True)
+    unread_count = Notification.objects.filter(_admin_notif_filter_q(request.user), lu=False).count()
+    return JsonResponse({"ok": True, "unread_count": unread_count})
+
+
+@require_http_methods(["POST"])
+def api_admin_notifications_mark_all_read(request):
+    if not (request.user and request.user.is_authenticated and request.user.is_staff):
+        return JsonResponse({"error": "admin_required"}, status=403)
+    updated = Notification.objects.filter(_admin_notif_filter_q(request.user), lu=False).update(lu=True)
+    return JsonResponse({"ok": True, "updated": updated, "unread_count": 0})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 15. POST /api/admin/push-broadcast — push manuelle vers tous les users
+# 15. POST /api/admin/push-broadcast  :  push manuelle vers tous les users
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -1089,35 +1336,43 @@ def api_admin_push_broadcast(request):
     target_role = (
         str(payload.get("role", "") or "").strip().lower()
     )  # '', 'client', 'prestataire'
+    notif_type = str(payload.get("notif_type", "") or "broadcast").strip().lower()
+    reference = str(payload.get("reference", "") or "").strip()
     if not title or not body:
         return JsonResponse({"error": "title_and_body_required"}, status=400)
-    qs = DeviceToken.objects.select_related("user")
+
+    user_qs = User.objects.filter(is_active=True)
     if target_role in ("client", "prestataire"):
-        qs = qs.filter(user__profile__role=target_role)
-    user_ids = list(qs.values_list("user_id", flat=True).distinct())
-    if user_ids:
+        user_qs = user_qs.filter(profile__role=target_role)
+    target_user_ids = list(user_qs.values_list("id", flat=True))
+
+    device_user_ids = list(
+        DeviceToken.objects.filter(user_id__in=target_user_ids).values_list("user_id", flat=True).distinct()
+    )
+    if device_user_ids:
         _schedule(
-            user_ids=user_ids,
+            user_ids=device_user_ids,
             title=title,
             body=body,
-            data={"type": "broadcast", "role": target_role},
+            data={"type": notif_type, "role": target_role, "reference": reference},
         )
-    # Créer une notification persistante pour chaque user ciblé
+    # Creer une notification persistante pour chaque user cible
     notifs = [
         Notification(
             title=title,
             body=body,
-            notif_type="broadcast",
+            notif_type=notif_type,
+            reference=reference,
             user_id=uid,
         )
-        for uid in user_ids
+        for uid in target_user_ids
     ]
     Notification.objects.bulk_create(notifs, ignore_conflicts=True)
-    return JsonResponse({"ok": True, "sent_to": len(user_ids)})
+    return JsonResponse({"ok": True, "sent_to_users": len(target_user_ids), "fcm_devices": len(device_user_ids)})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 16. GET /api/client/prestataires/<id>/portfolio — galerie publique
+# 16. GET /api/client/prestataires/<id>/portfolio  :  galerie publique
 # ─────────────────────────────────────────────────────────────────────────────
 @require_GET
 def api_provider_portfolio_public(request, provider_id):
@@ -1161,7 +1416,7 @@ def _init_client_rating():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 17. GET /api/reservations/<ref>/payment/quote — devis récap paiement
+# 17. GET /api/reservations/<ref>/payment/quote  :  devis récap paiement
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -1170,9 +1425,17 @@ def api_payment_quote(request, reference):
     from .models import Reservation
     from .services.escrow_service import EscrowService
 
-    res = Reservation.objects.filter(reference=reference).first()
+    res = Reservation.objects.select_related("assigned_provider").filter(reference=reference).first()
     if not res:
         return JsonResponse({"error": "not_found"}, status=404)
+    uid = int(request.api_user_id)
+    role = getattr(request, "api_role", "")
+    is_client = res.client_user_id == uid
+    is_presta = (res.prestataire_user_id == uid) or (
+        res.assigned_provider is not None and res.assigned_provider.user_id == uid
+    )
+    if role != "admin" and not is_client and not is_presta:
+        return JsonResponse({"error": "forbidden"}, status=403)
     quote = EscrowService.quote(res)
     return JsonResponse({
         "reference": res.reference,
@@ -1201,7 +1464,7 @@ def api_payment_quote(request, reference):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 18. GET/POST /api/client/reservations/<ref>/journal — journal client
+# 18. GET/POST /api/client/reservations/<ref>/journal  :  journal client
 # ─────────────────────────────────────────────────────────────────────────────
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
@@ -1234,21 +1497,33 @@ def api_client_journal(request, reference):
     except json.JSONDecodeError:
         return JsonResponse({"error": "invalid_json"}, status=400)
 
+    def _sanitize_journal_photos(items):
+        if not isinstance(items, list):
+            return []
+        safe = []
+        for item in items[:20]:
+            s = str(item or "").strip()
+            if s.startswith(("/media/", "https://", "http://", "data:image/")):
+                safe.append(s[:1500000])
+        return safe
+
     mode = payload.get("mode", "replace")
     if payload.get("photos_avant") is not None:
+        cleaned = _sanitize_journal_photos(payload["photos_avant"])
         if mode == "replace":
-            res.client_photos_avant = payload["photos_avant"]
+            res.client_photos_avant = cleaned
         else:
             current = list(res.client_photos_avant or [])
-            current.extend(payload["photos_avant"])
-            res.client_photos_avant = current
+            current.extend(cleaned)
+            res.client_photos_avant = current[:40]
     if payload.get("photos_apres") is not None:
+        cleaned = _sanitize_journal_photos(payload["photos_apres"])
         if mode == "replace":
-            res.client_photos_apres = payload["photos_apres"]
+            res.client_photos_apres = cleaned
         else:
             current = list(res.client_photos_apres or [])
-            current.extend(payload["photos_apres"])
-            res.client_photos_apres = current
+            current.extend(cleaned)
+            res.client_photos_apres = current[:40]
     if payload.get("note") is not None:
         res.client_journal_note = str(payload["note"])[:5000]
     res.client_journal_updated_at = timezone.now()
@@ -1260,3 +1535,193 @@ def api_client_journal(request, reference):
 
 
 _init_client_rating()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Catalogue de devis hybride (Fournitures + Prestations par metier)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def api_category_catalogue(request, category_id):
+    """Retourne la liste d'items types et prix indicatifs pour un metier."""
+    from .services.catalogue_service import CatalogueService
+    from .models import Category
+
+    cat_id = None
+    try:
+        cat_id = int(category_id)
+    except (ValueError, TypeError):
+        cat_id = None
+
+    items = CatalogueService.get_catalogue_items(cat_id)
+    units = CatalogueService.get_recommended_units(cat_id)
+
+    category_name = "Tous metiers"
+    icone_slug = "generique"
+    if cat_id:
+        c = Category.objects.filter(id=cat_id).first()
+        if c:
+            category_name = c.nom
+            icone_slug = c.icone_slug or "generique"
+
+    return JsonResponse({
+        "success": True,
+        "category_id": cat_id,
+        "category_name": category_name,
+        "icone_slug": icone_slug,
+        "recommended_units": units,
+        "items": items,
+    })
+
+
+def api_reservation_bon_de_commande_pdf(request, reference):
+    """Telechargement du Bon de Commande contractuel officiel au format PDF (auth + ownership requis)."""
+    from django.http import HttpResponse
+    from .auth import _is_user_active_and_role_ok, verify_token
+    from .models import Reservation
+    from .services.order_form_service import OrderFormService
+
+    # Accepter soit session Django staff authentifiée, soit JWT Bearer participant/admin
+    is_admin = False
+    uid = None
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        if request.user.is_active and (request.user.is_staff or request.user.is_superuser):
+            is_admin = True
+        else:
+            uid = request.user.id
+    if not is_admin and uid is None:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JsonResponse({"error": "missing_token"}, status=401)
+        payload = verify_token(auth_header.split(" ", 1)[1].strip())
+        if not payload:
+            return JsonResponse({"error": "invalid_token"}, status=401)
+        role = payload.get("role")
+        raw_uid = payload.get("uid") or payload.get("user_id") or payload.get("sub")
+        try:
+            uid = int(raw_uid)
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "invalid_token"}, status=401)
+        if not _is_user_active_and_role_ok(uid, role):
+            return JsonResponse({"error": "account_disabled"}, status=403)
+        if role == "admin":
+            is_admin = True
+
+    res = Reservation.objects.filter(reference=reference).select_related("assigned_provider", "client_user").first()
+    if not res:
+        return JsonResponse({"error": "not_found", "message": "Reservation introuvable."}, status=404)
+
+    is_owner = (res.client_user_id == uid) or (res.prestataire_user_id == uid) or (
+        res.assigned_provider is not None and res.assigned_provider.user_id == uid
+    )
+    if not is_admin and not is_owner:
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    pdf_bytes = OrderFormService.generate_pdf(res)
+    if not pdf_bytes:
+        return JsonResponse({"error": "pdf_generation_failed", "message": "Echec generation bon de commande."}, status=500)
+
+    safe_ref = "".join(ch for ch in str(reference) if ch.isalnum() or ch in ("-", "_")) or "document"
+    filename = f"Bon_Commande_Babifix_{safe_ref}.pdf"
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire", "admin"])
+def api_prestataire_upload_cni(request, side: str):
+    """Upload sécurisé CNI recto ou verso en multipart depuis EditProfileScreen."""
+    import io
+    import os
+    import uuid
+    from PIL import Image
+    from django.conf import settings
+    from django.contrib.auth.models import User
+    from .models import Provider
+    from .secure_uploads import SafeUploadError, validate_image_upload
+
+    uid = int(request.api_user_id)
+    user = User.objects.filter(pk=uid, is_active=True).first()
+    if not user:
+        return JsonResponse({"error": "Authentification requise."}, status=401)
+
+    uploaded = request.FILES.get("file")
+    try:
+        uploaded = validate_image_upload(uploaded, max_mb=8)
+    except SafeUploadError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    # Ré-encodage Pillow : supprime les métadonnées EXIF/GPS et neutralise tout payload caché
+    try:
+        uploaded.seek(0)
+        img = Image.open(uploaded)
+        img.verify()
+        uploaded.seek(0)
+        img = Image.open(uploaded).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=88, optimize=True)
+        clean_bytes = buf.getvalue()
+    except Exception:
+        return JsonResponse({"error": "invalid_image_content"}, status=400)
+
+    subfolder = "cni"
+    dest_dir = os.path.join(settings.MEDIA_ROOT, subfolder)
+    os.makedirs(dest_dir, exist_ok=True)
+    clean_side = "recto" if "recto" in side.lower() else "verso"
+    # Nom non prédictible (UUID 128 bits) pour empêcher toute énumération de pièces CNI
+    fname = f"cni_{clean_side}_{uuid.uuid4().hex}.jpg"
+    full_path = os.path.join(dest_dir, fname)
+    with open(full_path, "wb") as out_f:
+        out_f.write(clean_bytes)
+    rel_url = f"{settings.MEDIA_URL}{subfolder}/{fname}"
+    prov = Provider.objects.filter(user=user).first()
+    if prov:
+        if clean_side == "recto":
+            prov.cni_recto_url = rel_url
+            prov.kyc_cni_recto_url = rel_url
+            prov.save(update_fields=["cni_recto_url", "kyc_cni_recto_url"])
+        else:
+            prov.cni_verso_url = rel_url
+            prov.kyc_cni_verso_url = rel_url
+            prov.save(update_fields=["cni_verso_url", "kyc_cni_verso_url"])
+    return JsonResponse({"ok": True, "url": rel_url, "side": clean_side})
+
+
+@require_GET
+@require_api_auth(["client", "prestataire", "admin"])
+def api_client_sos_preview(request):
+    """Previsualisation dynamique BABIFIX SOS 24/7 (eligibilite, horaire jour/nuit, tarif)."""
+    from .services.sos_service import check_sos_eligibility
+
+    cat_raw = request.GET.get("category_id") or request.GET.get("category")
+    category_id = int(cat_raw) if (cat_raw and str(cat_raw).isdigit()) else None
+    title = (request.GET.get("title") or request.GET.get("service") or "").strip()[:200]
+    info = check_sos_eligibility(category_id=category_id, title=title)
+    return JsonResponse({"ok": True, **info})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_api_auth(["prestataire"])
+def api_prestataire_sos_claim(request, reference: str):
+    """Prise en charge atomique (1er artisan du secteur = gagnant) d'une mission SOS."""
+    from .models import Provider
+    from .services.sos_service import claim_sos_mission
+
+    prov = Provider.objects.filter(user_id=request.api_user_id).first()
+    if not prov:
+        return JsonResponse({"error": "no_provider", "detail": "Profil prestataire introuvable."}, status=404)
+    if prov.statut == Provider.Status.PENDING and (prov.kyc_status or "not_submitted") in ("", "not_submitted"):
+        return JsonResponse(
+            {
+                "error": "kyc_required_to_operate",
+                "detail": "Completez votre verification KYC (CNI) avant de prendre en charge une urgence SOS.",
+            },
+            status=403,
+        )
+    _ok, body, code = claim_sos_mission(prov, reference)
+    return JsonResponse(body, status=code)
+
