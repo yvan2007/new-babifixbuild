@@ -1,0 +1,7 @@
+{% extends 'vitrine/base.html' %}
+
+{% block title %}Erreur {{ error_code|default:"505" }} · BABIFIX{% endblock %}
+
+{% block content %}
+  {% include 'vitrine/_error_train.html' %}
+{% endblock %}

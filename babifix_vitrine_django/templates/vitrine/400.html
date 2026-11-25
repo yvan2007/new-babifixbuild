@@ -1,0 +1,7 @@
+{% extends 'vitrine/base.html' %}
+
+{% block title %}Requête invalide (400) · BABIFIX{% endblock %}
+
+{% block content %}
+  {% include 'vitrine/_error_train.html' with error_code=error_code|default:"400" error_svg_text=error_svg_text|default:"Requête invalide." error_title=error_title|default:"Requête incorrecte" error_message=error_message|default:"Les paramètres envoyés ne peuvent pas être traités. Vérifiez votre lien et réessayez." %}
+{% endblock %}

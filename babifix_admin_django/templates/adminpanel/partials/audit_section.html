@@ -1,0 +1,198 @@
+{% load babifix_tags %}
+
+<section class="data-section bx-audit-hub" id="bx-audit-section">
+  <div class="bx-section-headbar" style="margin-bottom:16px;">
+    <div class="bx-section-headbar__left">
+      <span class="bx-bento-ico" style="width:38px;height:38px;border-radius:11px;background:rgba(14,59,46,0.12);color:var(--bx-accent);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      </span>
+      <div>
+        <h2 class="bx-section-headbar__title" style="font-size:1.15rem;margin:0;">Journal d'Audit &amp; Traçabilité Forensique</h2>
+        <span class="bx-section-headbar__sub">Registre horodaté des décisions administrateurs, arbitrages de litiges, validations KYC et bascules système</span>
+      </div>
+    </div>
+    <div class="bx-section-headbar__tools">
+      <span class="bx-pill bx-pill--info tabular-nums">{{ audit_logs|length }} affichée(s) / {{ audit_stats.total|default:0 }} total</span>
+      <a href="?section=audit" class="bx-btn-ghost">Actualiser</a>
+    </div>
+  </div>
+
+  {% if audit_stats %}
+  <div class="bx-audit-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:16px;">
+    <article class="card" style="padding:14px 16px;border-left:3px solid var(--bx-info);">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Total Événements</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-ink);margin-top:4px;">{{ audit_stats.total }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Historique intégral conservé</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid var(--bx-ok);">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Dernières 24 heures</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-ok);margin-top:4px;">{{ audit_stats.last_24h }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Opérations récentes</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid var(--bx-accent);">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Prestataires &amp; KYC</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-ink);margin-top:4px;">{{ audit_stats.providers_count }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Validations, refus et suspensions</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid #0284c7;">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Finance &amp; Litiges</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:#0284c7;margin-top:4px;">{{ audit_stats.finance_litige_count }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Arbitrages et paiements validés</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid var(--bx-danger);">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Décisions Sensibles</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-danger);margin-top:4px;">{{ audit_stats.critical_count }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Suspensions, rejets et litiges</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid #64748b;">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Opérateurs Actifs</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-ink);margin-top:4px;">{{ audit_stats.admins_count }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Comptes staff signataires</span>
+    </article>
+  </div>
+  {% endif %}
+
+  <div class="card" style="padding:14px 16px;margin-bottom:16px;">
+    <form method="get" class="pay-filter-bar" style="margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+      <input type="hidden" name="section" value="audit">
+      <select name="audit_action" class="pay-filter-input" title="Action">
+        <option value="">Toutes les actions</option>
+        <option value="provider_accepted" {% if audit_filter_action == 'provider_accepted' %}selected{% endif %}>Prestataire accepté</option>
+        <option value="provider_refused" {% if audit_filter_action == 'provider_refused' %}selected{% endif %}>Prestataire refusé</option>
+        <option value="provider_suspended" {% if audit_filter_action == 'provider_suspended' %}selected{% endif %}>Prestataire suspendu</option>
+        <option value="litige_resolved" {% if audit_filter_action == 'litige_resolved' %}selected{% endif %}>Litige arbitré</option>
+        <option value="payment_validated" {% if audit_filter_action == 'payment_validated' %}selected{% endif %}>Paiement validé</option>
+        <option value="bulk_accept" {% if audit_filter_action == 'bulk_accept' %}selected{% endif %}>Validation en masse</option>
+        <option value="bulk_refuse" {% if audit_filter_action == 'bulk_refuse' %}selected{% endif %}>Refus en masse</option>
+        <option value="other" {% if audit_filter_action == 'other' %}selected{% endif %}>Système / Maintenance / Config</option>
+      </select>
+      <input type="text" name="audit_type" value="{{ audit_filter_type }}" class="pay-filter-input" placeholder="Cible ou personne (Provider, Litige, Nom...)" style="min-width:220px;">
+      <input type="search" id="bx-audit-live-search" class="pay-filter-input" placeholder="Filtre instantané (opérateur, détail, ID...)" oninput="babifixFilterAuditTable(this.value)" style="min-width:230px;flex:1;">
+      <button type="submit" class="pay-filter-btn">Appliquer</button>
+      <a href="?section=audit" class="pay-filter-reset">Réinitialiser</a>
+    </form>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--bx-border);">
+      <span style="font-size:11.5px;color:var(--bx-muted);font-weight:700;align-self:center;margin-right:4px;">Filtre rapide :</span>
+      <button type="button" class="bx-btn-ghost bx-audit-chip is-active" onclick="babifixFilterAuditSeverity('', this)" style="padding:3px 10px;font-size:11.5px;">Tout voir</button>
+      <button type="button" class="bx-btn-ghost bx-audit-chip" onclick="babifixFilterAuditSeverity('ok', this)" style="padding:3px 10px;font-size:11.5px;">Validations</button>
+      <button type="button" class="bx-btn-ghost bx-audit-chip" onclick="babifixFilterAuditSeverity('warn', this)" style="padding:3px 10px;font-size:11.5px;">Avertissements &amp; Maintenance</button>
+      <button type="button" class="bx-btn-ghost bx-audit-chip" onclick="babifixFilterAuditSeverity('danger', this)" style="padding:3px 10px;font-size:11.5px;">Refus &amp; Suspensions</button>
+      <button type="button" class="bx-btn-ghost bx-audit-chip" onclick="babifixFilterAuditSeverity('info', this)" style="padding:3px 10px;font-size:11.5px;">Litiges &amp; Arbitrages</button>
+    </div>
+  </div>
+
+  <div class="table-wrap card" style="padding:0;overflow:hidden;">
+    <table class="data-table" id="bx-audit-table">
+      <thead>
+        <tr>
+          <th style="width:155px;">Horodatage</th>
+          <th style="width:170px;">Opérateur Admin</th>
+          <th style="width:210px;">Action &amp; Domaine</th>
+          <th style="width:220px;">Cible / Personne</th>
+          <th>Détails &amp; Paramètres Enregistrés</th>
+          <th style="width:120px;text-align:right;">Inspection</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in audit_logs %}
+        <tr class="bx-audit-row"
+            id="audit-row-{{ row.id }}"
+            data-severity="{{ row.severity }}"
+            data-search="{{ row.admin_user__username|default:'systeme'|lower }} {{ row.action_label|lower }} {{ row.category_label|lower }} {{ row.target_type|lower }} {{ row.target_label|lower }} {{ row.details_json|lower }}">
+          <td class="tabular-nums" style="vertical-align:top;">
+            <div style="font-weight:700;color:var(--bx-ink);font-size:12.5px;">{{ row.created_at|date:"d/m/Y H:i:s" }}</div>
+            <div style="font-size:11px;color:var(--bx-muted);margin-top:2px;">{{ row.created_at|relative_time }}</div>
+            <span style="display:inline-block;margin-top:3px;font-size:10px;color:var(--bx-muted);font-family:'JetBrains Mono',monospace;">#AUD-{{ row.id }}</span>
+          </td>
+          <td style="vertical-align:top;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="bx-avatar-chip" style="width:28px;height:28px;font-size:11px;flex-shrink:0;">{{ row.admin_initials }}</span>
+              <div>
+                <div style="font-weight:700;color:var(--bx-ink);font-size:12.5px;">{{ row.admin_user__username|default:"Système" }}</div>
+                <div style="font-size:11px;color:var(--bx-muted);">{{ row.admin_user__email|default:"Automate interne" }}</div>
+                {% if row.ip_address %}
+                <span class="tabular-nums" style="display:inline-block;margin-top:2px;font-size:10px;padding:1px 5px;border-radius:4px;background:var(--bx-surface-2);color:var(--bx-muted);">IP {{ row.ip_address }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td style="vertical-align:top;">
+            <span class="bx-pill bx-pill--{{ row.severity }}" style="font-size:11.5px;font-weight:700;">{{ row.action_label }}</span>
+            <div style="font-size:11px;color:var(--bx-muted);margin-top:4px;font-weight:600;">{{ row.category_label }}</div>
+          </td>
+          <td style="vertical-align:top;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--bx-surface-2);border:1px solid var(--bx-border);color:var(--bx-ink);">
+                {{ row.target_type|default:"Système" }}{% if row.target_id %} <span class="tabular-nums">#{{ row.target_id }}</span>{% endif %}
+              </span>
+            </div>
+            {% if row.target_label %}
+            <div style="font-weight:700;color:var(--bx-ink);font-size:12.5px;margin-top:5px;word-break:break-word;">{{ row.target_label }}</div>
+            {% else %}
+            <div style="font-size:11.5px;color:var(--bx-muted);margin-top:4px;"> Cible globale plateforme</div>
+            {% endif %}
+          </td>
+          <td style="vertical-align:top;">
+            {% if row.details_items %}
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              {% for item in row.details_items|slice:":6" %}
+              <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:7px;background:var(--bx-surface-2);border:1px solid var(--bx-border);font-size:11.5px;">
+                <strong style="color:var(--bx-muted);font-weight:600;">{{ item.key }} :</strong>
+                <span style="color:var(--bx-ink);font-weight:700;">{{ item.val|truncatechars:48 }}</span>
+              </span>
+              {% endfor %}
+            </div>
+            {% if row.details_json %}
+            <details style="margin-top:6px;">
+              <summary style="cursor:pointer;font-size:11px;color:var(--bx-info);font-weight:700;">Inspecter l'objet JSON complet</summary>
+              <pre style="margin:6px 0 0;padding:8px 10px;border-radius:8px;background:var(--bx-surface-2);border:1px solid var(--bx-border);font-size:11px;max-height:160px;overflow:auto;font-family:'JetBrains Mono',monospace;">{{ row.details_json }}</pre>
+            </details>
+            {% endif %}
+            {% else %}
+            <span style="font-size:12px;color:var(--bx-muted);">Aucun paramètre additionnel</span>
+            {% endif %}
+          </td>
+          <td style="vertical-align:top;text-align:right;">
+            {% if row.target_url %}
+            <a href="{{ row.target_url }}"
+               onclick="if(window.babifixRememberFocus){window.babifixRememberFocus('{{ row.focus_ref|escapejs }}','{{ row.focus_person|escapejs }}','{{ row.action_label|escapejs }}');}"
+               class="bx-btn-ghost"
+               style="padding:5px 10px;font-size:11.5px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;"
+               title="Aller sur l'élément et le mettre en évidence">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Localiser
+            </a>
+            {% else %}
+            <span style="font-size:11px;color:var(--bx-muted);">Trace interne</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" style="text-align:center;padding:32px;color:var(--bx-muted);">Aucune trace d'audit ne correspond à ce filtre.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+function babifixFilterAuditTable(query) {
+  var q = (query || '').toLowerCase().trim();
+  var rows = document.querySelectorAll('#bx-audit-table tbody .bx-audit-row');
+  rows.forEach(function(r) {
+    var hay = (r.getAttribute('data-search') || '').toLowerCase();
+    var sevMatch = !window._bxAuditSev || r.getAttribute('data-severity') === window._bxAuditSev;
+    var textMatch = !q || hay.indexOf(q) !== -1;
+    r.style.display = (sevMatch && textMatch) ? '' : 'none';
+  });
+}
+function babifixFilterAuditSeverity(sev, btn) {
+  window._bxAuditSev = sev || '';
+  document.querySelectorAll('.bx-audit-chip').forEach(function(b) { b.classList.remove('is-active'); });
+  if (btn) btn.classList.add('is-active');
+  var searchEl = document.getElementById('bx-audit-live-search');
+  babifixFilterAuditTable(searchEl ? searchEl.value : '');
+}
+</script>

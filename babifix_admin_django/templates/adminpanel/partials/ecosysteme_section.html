@@ -1,0 +1,183 @@
+{% load babifix_tags %}
+
+<div class="bx-ecosysteme-admin">
+  {% if ecosystem_stats %}
+  <div class="bx-eco-grid">
+    <article class="card card-elevate" style="padding:16px;">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">Métiers proposés</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;">{{ ecosystem_stats.metiers_pending }}</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-warn);">{{ ecosystem_stats.metiers_threshold_reached }} ont atteint le seuil (5 votes)</p>
+    </article>
+    <article class="card card-elevate" style="padding:16px;">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">Comptes BABIFIX Pro B2B</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;">{{ ecosystem_stats.pro_accounts_active }}</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-muted);">{{ ecosystem_stats.pro_sites_total }} site(s) géré(s)</p>
+    </article>
+    <article class="card card-elevate" style="padding:16px;">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">Qualité Avis Clients</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;">{{ ecosystem_stats.avg_rating|default:"0.0" }} / 5</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-info);">{{ ecosystem_stats.reviews_with_voice }} avis avec note vocale</p>
+    </article>
+  </div>
+  {% endif %}
+
+  <!-- 1. Métiers proposés depuis la vitrine & apps --------------------------->
+  <article class="card card-elevate" style="margin-bottom:18px;">
+    <h3 style="margin-top:0;">Métiers proposés par la communauté</h3>
+    <p class="section-help">Validation sans modifier le catalogue existant : vous pouvez approuver et ouvrir une nouvelle catégorie active en 1 clic.</p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Métier demandé</th><th>Votes</th><th>Statut</th><th>Créé le</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          {% for m in metiers_proposes %}
+          <tr id="metier-row-{{ m.id }}" data-focus-ref="METIER-{{ m.id }}" data-focus-person="{{ m.nom }}">
+            <td><strong>{{ m.nom }}</strong></td>
+            <td class="tabular-nums">
+              <strong>{{ m.votes }}</strong> / 5
+              {% if m.votes >= 5 and m.statut == 'en_attente' %}<span class="bx-pill bx-pill--warn">Seuil atteint</span>{% endif %}
+            </td>
+            <td>
+              {% if m.statut == 'disponible' %}<span class="bx-pill bx-pill--ok">Disponible</span>
+              {% else %}<span class="bx-pill bx-pill--info">En attente</span>{% endif %}
+            </td>
+            <td class="tabular-nums">{{ m.created_at|date:"d/m/Y" }}</td>
+            <td class="td-actions">
+              {% if m.statut == 'en_attente' %}
+              <form method="post" class="inline-form" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="metier_approve">
+                <input type="hidden" name="pk" value="{{ m.id }}">
+                <input type="hidden" name="create_category" value="1">
+                <select name="regime_kyc" style="padding:4px 6px;border-radius:6px;border:1px solid var(--bx-border);font-size:11.5px;">
+                  <option value="STANDARD_TERRAIN">Standard terrain</option>
+                  <option value="SENSIBLE_CASIER">Sensible (Casier requis)</option>
+                </select>
+                <button type="submit" class="table-btn table-btn--approve">Valider &amp; Créer catégorie</button>
+              </form>
+              {% endif %}
+              <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer cette demande ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="metier_delete">
+                <input type="hidden" name="pk" value="{{ m.id }}">
+                <button type="submit" class="table-btn danger">Supprimer</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="empty-state">Aucun métier proposé pour le moment.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <!-- 2. BABIFIX Pro B2B (Comptes, Sites & Factures DGI) --------------------->
+  <article class="card card-elevate" style="margin-bottom:18px;">
+    <h3 style="margin-top:0;">BABIFIX Pro B2B · Entreprises &amp; Syndics</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Raison sociale</th><th>Formule</th><th>Sites</th><th>Comm.</th><th>SLA</th><th>NCC / RCCM</th><th>Statut</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          {% for acc in pro_accounts %}
+          <tr>
+            <td><strong>{{ acc.raison_sociale }}</strong><br><small style="color:var(--bx-muted);">{{ acc.contact_nom }} · {{ acc.contact_telephone }}</small></td>
+            <td><span class="bx-pill bx-pill--info">{{ acc.get_formule_display }}</span></td>
+            <td class="tabular-nums">{{ acc.sites.count }} site(s)</td>
+            <td class="tabular-nums">{{ acc.commission_rate }}%</td>
+            <td class="tabular-nums">{{ acc.sla_heures }}h</td>
+            <td><small>{{ acc.compte_contribuable|default:"N/A" }} / {{ acc.rccm|default:"N/A" }}</small></td>
+            <td>{% if acc.actif %}<span class="bx-pill bx-pill--ok">Actif</span>{% else %}<span class="bx-pill bx-pill--danger">Suspendu</span>{% endif %}</td>
+            <td class="td-actions">
+              <form method="post" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="pro_account_toggle">
+                <input type="hidden" name="pk" value="{{ acc.id }}">
+                <button type="submit" class="table-btn">{% if acc.actif %}Suspendre{% else %}Activer{% endif %}</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="empty-state">Aucun compte B2B BABIFIX Pro inscrit.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pro_invoices %}
+    <h4 style="margin:18px 0 8px;">Factures mensuelles groupées B2B (TVA 18% CIV)</h4>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Réf.</th><th>Entreprise</th><th>Période</th><th>Missions</th><th>Total TTC</th><th>Statut</th><th>Action</th></tr></thead>
+        <tbody>
+          {% for inv in pro_invoices %}
+          <tr>
+            <td><code>{{ inv.reference }}</code></td>
+            <td>{{ inv.pro_account.raison_sociale }}</td>
+            <td class="tabular-nums">{{ inv.periode }}</td>
+            <td class="tabular-nums">{{ inv.nombre_interventions }}</td>
+            <td class="tabular-nums"><strong>{{ inv.total_fcfa|floatformat:0 }} FCFA</strong></td>
+            <td>
+              {% if inv.statut == 'payee' %}<span class="bx-pill bx-pill--ok">Payée</span>
+              {% elif inv.statut == 'emise' %}<span class="bx-pill bx-pill--warn">Émise</span>
+              {% else %}<span class="bx-pill bx-pill--neutral">Brouillon</span>{% endif %}
+            </td>
+            <td class="td-actions">
+              {% if inv.statut != 'payee' %}
+              <form method="post" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="pro_invoice_mark_paid">
+                <input type="hidden" name="pk" value="{{ inv.id }}">
+                <button type="submit" class="table-btn table-btn--approve">Marquer payée</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </article>
+
+  <!-- 3. Avis clients & Notes vocales ----------------------------------------->
+  <article class="card card-elevate">
+    <h3 style="margin-top:0;">Avis Clients &amp; Notes Vocales</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Réservation</th><th>Artisan</th><th>Note</th><th>Commentaire &amp; Audio</th><th>Action</th></tr></thead>
+        <tbody>
+          {% for rt in client_reviews %}
+          <tr>
+            <td class="tabular-nums">{{ rt.created_at|date:"d/m/Y" }}</td>
+            <td><code>{{ rt.reservation.reference }}</code></td>
+            <td>{{ rt.provider.nom }}</td>
+            <td class="tabular-nums"><strong>{{ rt.note }} / 5</strong></td>
+            <td>
+              {{ rt.commentaire|default:"Aucun commentaire"|truncatechars:90 }}
+              {% if rt.voice_note_url %}
+              <div style="margin-top:6px;">
+                <audio controls preload="none" src="{{ rt.voice_note_url }}" style="height:30px;max-width:220px;"></audio>
+              </div>
+              {% endif %}
+            </td>
+            <td class="td-actions">
+              <form method="post" class="inline-delete" onsubmit="return confirm('Supprimer cet avis et recalculer la note ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="rating_delete">
+                <input type="hidden" name="pk" value="{{ rt.id }}">
+                <button type="submit" class="table-btn danger">Modérer</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="empty-state">Aucun avis client enregistré.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</div>

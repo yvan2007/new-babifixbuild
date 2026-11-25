@@ -1,0 +1,211 @@
+{% load babifix_tags %}
+
+<section class="data-section bx-audit-hub" id="bx-observability-section">
+  <div class="bx-section-headbar" style="margin-bottom:16px;">
+    <div class="bx-section-headbar__left">
+      <span class="bx-bento-ico" style="width:38px;height:38px;border-radius:11px;background:rgba(14,59,46,0.12);color:var(--bx-accent);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </span>
+      <div>
+        <h2 class="bx-section-headbar__title" style="font-size:1.15rem;margin:0;">Sante Serveur, Erreurs Exactes &amp; Latence Live</h2>
+        <span class="bx-section-headbar__sub">Journal technique centralise (Backend Django, Site Vitrine, Apps Flutter Client &amp; Prestataire) avec masquage strict des donnees privees</span>
+      </div>
+    </div>
+    <div class="bx-section-headbar__tools">
+      <span class="bx-pill bx-pill--info tabular-nums">RAM Processus : {{ obs_stats.ram_mb|default:0 }} Mo</span>
+      <a href="?section=observability" class="bx-btn-ghost">Actualiser</a>
+    </div>
+  </div>
+
+  <div class="bx-audit-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:16px;">
+    <article class="card" style="padding:14px 16px;border-left:3px solid var(--bx-danger);">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Erreurs Ouvertes (24h)</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-danger);margin-top:4px;">{{ obs_stats.open_errors|default:0 }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Critiques &amp; HTTP 5xx non resolues</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid #d97706;">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Requetes Lentes (&gt;= {{ obs_stats.slow_threshold_ms|default:800 }} ms)</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:#b45309;margin-top:4px;">{{ obs_stats.slow_count|default:0 }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Alertes latence 24h</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid #0284c7;">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Latence Moy. / Max (24h)</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:#0284c7;margin-top:4px;">{{ obs_stats.avg_ms|default:0 }} / {{ obs_stats.max_ms|default:0 }} ms</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Temps mesures sur incidents</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid var(--bx-accent);">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Remontees Mobile Flutter</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-ink);margin-top:4px;">{{ obs_stats.mobile_count|default:0 }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Crashs &amp; echecs reseau Client/Pro</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid #475569;">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">Remontees Vitrine</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-ink);margin-top:4px;">{{ obs_stats.vitrine_count|default:0 }}</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Evenements web sur 24h</span>
+    </article>
+    <article class="card" style="padding:14px 16px;border-left:3px solid var(--bx-ok);">
+      <span style="font-size:11px;font-weight:700;color:var(--bx-muted);text-transform:uppercase;letter-spacing:0.04em;">RAM Live Worker</span>
+      <div class="tabular-nums" style="font-size:22px;font-weight:900;color:var(--bx-ok);margin-top:4px;">{{ obs_stats.ram_mb|default:0 }} Mo</div>
+      <span style="font-size:11px;color:var(--bx-muted);">Empreinte memoire courante</span>
+    </article>
+  </div>
+
+  <div class="card" style="padding:14px 16px;margin-bottom:16px;">
+    <form method="get" class="pay-filter-bar" style="margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+      <input type="hidden" name="section" value="observability">
+      <select name="obs_source" class="pay-filter-input" title="Source">
+        <option value="">Toutes les sources</option>
+        <option value="backend" {% if obs_filter_source == 'backend' %}selected{% endif %}>Backend API / Admin</option>
+        <option value="vitrine" {% if obs_filter_source == 'vitrine' %}selected{% endif %}>Site Vitrine</option>
+        <option value="mobile_client" {% if obs_filter_source == 'mobile_client' %}selected{% endif %}>App Client Flutter</option>
+        <option value="mobile_pro" {% if obs_filter_source == 'mobile_pro' %}selected{% endif %}>App Prestataire Flutter</option>
+      </select>
+      <select name="obs_level" class="pay-filter-input" title="Niveau">
+        <option value="">Tous les niveaux</option>
+        <option value="critical" {% if obs_filter_level == 'critical' %}selected{% endif %}>Critique (500 / Exception)</option>
+        <option value="error" {% if obs_filter_level == 'error' %}selected{% endif %}>Erreur (HTTP 5xx / Crash)</option>
+        <option value="slow" {% if obs_filter_level == 'slow' %}selected{% endif %}>Latence elevee</option>
+        <option value="warning" {% if obs_filter_level == 'warning' %}selected{% endif %}>Avertissement (4xx)</option>
+      </select>
+      <select name="obs_status" class="pay-filter-input" title="Statut">
+        <option value="open" {% if obs_filter_status == 'open' %}selected{% endif %}>Ouverts uniquement</option>
+        <option value="resolved" {% if obs_filter_status == 'resolved' %}selected{% endif %}>Resolus</option>
+        <option value="all" {% if obs_filter_status == 'all' %}selected{% endif %}>Tout l historique</option>
+      </select>
+      <input type="text" name="obs_q" value="{{ obs_filter_q }}" placeholder="Endpoint, fichier, message, request_id..." class="pay-filter-input" style="min-width:220px;">
+      <button type="submit" class="bx-btn-primary">Filtrer</button>
+      <button type="button" class="bx-btn-ghost" onclick="bxPurgeObs('resolved')">Purger resolus</button>
+      <button type="button" class="bx-btn-ghost" onclick="bxPurgeObs('old')">Purger &gt; 30 jours</button>
+    </form>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="overflow-x:auto;">
+      <table class="data-table" style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th>Derniere vue</th>
+            <th>Source / Niveau</th>
+            <th>Endpoint / Origine exacte</th>
+            <th>HTTP / Latence</th>
+            <th>Utilisateur</th>
+            <th>Erreur exacte &amp; Diagnostic</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ev in obs_events %}
+          <tr id="obs-row-{{ ev.id }}">
+            <td class="tabular-nums" style="white-space:nowrap;font-size:12px;">
+              <div>{{ ev.last_seen_at|date:"d/m H:i:s" }}</div>
+              {% if ev.occurrence_count > 1 %}
+              <span class="bx-pill bx-pill--warning" style="margin-top:4px;">x{{ ev.occurrence_count }}</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+              <div style="font-weight:700;font-size:12px;color:var(--bx-ink);">{{ ev.get_source_display }}</div>
+              {% if ev.level == 'critical' or ev.level == 'error' %}
+                <span class="bx-pill bx-pill--danger">{{ ev.get_level_display }}</span>
+              {% elif ev.level == 'slow' %}
+                <span class="bx-pill bx-pill--warning">{{ ev.get_level_display }}</span>
+              {% else %}
+                <span class="bx-pill bx-pill--info">{{ ev.get_level_display }}</span>
+              {% endif %}
+            </td>
+            <td style="max-width:260px;word-break:break-word;font-size:12px;">
+              <div><strong>{{ ev.method }}</strong> <code>{{ ev.endpoint }}</code></div>
+              {% if ev.source_file %}
+              <div style="color:var(--bx-muted);margin-top:2px;"><code>{{ ev.source_file }}{% if ev.source_line %}:{{ ev.source_line }}{% endif %}</code></div>
+              {% endif %}
+              {% if ev.request_id %}
+              <div style="color:var(--bx-muted);font-size:11px;">ID: <code>{{ ev.request_id }}</code></div>
+              {% endif %}
+            </td>
+            <td class="tabular-nums" style="white-space:nowrap;font-size:12px;">
+              {% if ev.status_code %}<div>HTTP <strong>{{ ev.status_code }}</strong></div>{% endif %}
+              {% if ev.duration_ms is not None %}<div>{{ ev.duration_ms|floatformat:0 }} ms</div>{% endif %}
+              {% if ev.ram_mb %}<div>RAM {{ ev.ram_mb|floatformat:0 }} Mo</div>{% endif %}
+            </td>
+            <td style="font-size:12px;max-width:150px;word-break:break-word;">
+              <div>{{ ev.user_label|default:"Anonyme" }}</div>
+              {% if ev.client_ip %}<div style="color:var(--bx-muted);">{{ ev.client_ip }}</div>{% endif %}
+              {% if ev.app_version %}<div style="color:var(--bx-muted);">{{ ev.app_version }}</div>{% endif %}
+            </td>
+            <td style="max-width:360px;font-size:12px;">
+              {% if ev.exception_type %}<div style="font-weight:700;color:var(--bx-danger);">{{ ev.exception_type }}</div>{% endif %}
+              <div style="color:var(--bx-ink);margin-top:2px;">{{ ev.message|truncatechars:180 }}</div>
+              {% if ev.traceback_text or ev.payload_redacted %}
+              <details style="margin-top:6px;">
+                <summary style="cursor:pointer;color:var(--bx-accent);font-weight:600;">Inspecter trace &amp; requete masquee</summary>
+                {% if ev.payload_redacted %}
+                <pre style="white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;padding:8px;border-radius:6px;margin-top:6px;font-size:11px;max-height:140px;overflow:auto;">{{ ev.payload_redacted }}</pre>
+                {% endif %}
+                {% if ev.traceback_text %}
+                <pre style="white-space:pre-wrap;background:#0f172a;color:#f8fafc;padding:8px;border-radius:6px;margin-top:6px;font-size:11px;max-height:220px;overflow:auto;">{{ ev.traceback_text }}</pre>
+                {% endif %}
+              </details>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+              {% if ev.resolved %}
+                <span class="bx-pill bx-pill--ok">Resolu</span>
+              {% else %}
+                <button type="button" class="bx-btn-ghost" onclick="bxResolveObs({{ ev.id }}, this)">Marquer resolu</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" style="text-align:center;padding:32px;color:var(--bx-muted);">
+              Aucun incident technique enregistre pour ces filtres. Le systeme est sain.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<script>
+function bxGetCsrfToken() {
+  var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  var inp = document.querySelector('input[name="csrfmiddlewaretoken"]');
+  return inp ? inp.value : '';
+}
+
+function bxResolveObs(id, btn) {
+  if (!btn) return;
+  btn.disabled = true;
+  fetch('/api/admin/observability/' + id + '/resolve/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': bxGetCsrfToken() },
+    credentials: 'same-origin'
+  }).then(function (r) {
+    if (r.ok) {
+      var row = document.getElementById('obs-row-' + id);
+      if (row) row.style.opacity = '0.55';
+      btn.outerHTML = '<span class="bx-pill bx-pill--ok">Resolu</span>';
+    } else {
+      btn.disabled = false;
+    }
+  }).catch(function () {
+    btn.disabled = false;
+  });
+}
+
+function bxPurgeObs(mode) {
+  var fd = new FormData();
+  fd.append('mode', mode);
+  fetch('/api/admin/observability/purge/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': bxGetCsrfToken() },
+    body: fd,
+    credentials: 'same-origin'
+  }).then(function (r) {
+    if (r.ok) window.location.reload();
+  });
+}
+</script>
+{% csrf_token %}

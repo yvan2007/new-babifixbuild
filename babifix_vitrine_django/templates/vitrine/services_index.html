@@ -1,0 +1,88 @@
+{% extends 'vitrine/base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block head_meta %}
+  <meta name="description" content="{{ meta_description }}">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <link rel="canonical" href="{{ canonical_url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BABIFIX">
+  <meta property="og:locale" content="fr_CI">
+  <meta property="og:url" content="{{ canonical_url }}">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ meta_description }}">
+  <meta property="og:image" content="{{ canonical_base }}{% static 'vitrine/assets/babifix-logo.png' %}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_title }}">
+  <meta name="twitter:description" content="{{ meta_description }}">
+  <script type="application/ld+json">{{ page_jsonld }}</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.seo-wrap{width:min(1160px,92vw);margin:108px auto 72px;color:var(--c-ink,#0b1b34)}
+.seo-crumb{display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--c-mid,#475569);margin-bottom:20px}
+.seo-crumb a{color:var(--c-blue,#0369a1);text-decoration:none;font-weight:600}
+.seo-hero{background:#0e3b2e;color:#ffffff;border-radius:20px;padding:42px 36px;margin-bottom:40px}
+.seo-badge{display:inline-block;background:#c2410c;color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:6px 14px;border-radius:999px;margin-bottom:16px}
+.seo-hero h1{font-size:clamp(28px,4vw,42px);line-height:1.12;font-weight:900;margin:0 0 14px;color:#ffffff}
+.seo-hero p{font-size:16px;line-height:1.6;max-width:740px;margin:0 0 24px;color:#e2e8f0}
+.seo-cta-row{display:flex;flex-wrap:wrap;gap:12px}
+.seo-btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:999px;font-weight:700;font-size:14.5px;text-decoration:none}
+.seo-btn-primary{background:#c2410c;color:#ffffff}
+.seo-btn-ghost{background:#ffffff;color:#0e3b2e}
+.seo-section-h2{font-size:24px;font-weight:800;margin:36px 0 18px}
+.seo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+.seo-card{background:var(--c-card,#ffffff);border:1px solid var(--c-border,#e2e8f0);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:10px;text-decoration:none;color:inherit}
+.seo-card:hover{border-color:#0e3b2e}
+.seo-card h3{margin:0;font-size:18px;font-weight:800;color:var(--c-ink,#0b1b34)}
+.seo-card p{margin:0;font-size:13.5px;line-height:1.55;color:var(--c-mid,#475569)}
+.seo-tag{display:inline-block;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:#ecfdf5;color:#065f46;width:fit-content}
+.seo-tag.sos{background:#fff7ed;color:#9a3412}
+.seo-zones{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.seo-zone-pill{display:inline-block;padding:8px 14px;border-radius:999px;border:1px solid var(--c-border,#cbd5e1);background:var(--c-card,#ffffff);color:var(--c-ink,#0b1b34);text-decoration:none;font-size:13.5px;font-weight:600}
+.seo-zone-pill:hover{border-color:#0e3b2e;color:#0e3b2e}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="seo-wrap">
+  <nav class="seo-crumb" aria-label="Fil d'Ariane">
+    <a href="{% url 'vitrine-home' %}">Accueil</a>
+    <span>/</span>
+    <span>Tous nos services</span>
+  </nav>
+
+  <section class="seo-hero">
+    <span class="seo-badge">Annuaire Officiel · Cote d'Ivoire</span>
+    <h1>Tous les services a domicile verifies sur BABIFIX</h1>
+    <p>Plombier, electricien, frigoriste climatisation, serrurier, menage, nounou au dossier renforce ou carreleur : chaque prestataire est identifie (CNI), fournit un devis ecrit et votre paiement Mobile Money reste protege sous sequestre jusqu'a votre validation.</p>
+    <div class="seo-cta-row">
+      <a class="seo-btn seo-btn-primary" href="{% url 'vitrine-download-client' %}">Telecharger l'app Client</a>
+      <a class="seo-btn seo-btn-ghost" href="{% url 'vitrine-devenir-prestataire' %}">Rejoindre comme Artisan Pro</a>
+    </div>
+  </section>
+
+  <h2 class="seo-section-h2">Choisissez votre corps de metier</h2>
+  <div class="seo-grid">
+    {% for t in seo_trades %}
+    <a class="seo-card" href="{% url 'vitrine-service-detail' trade_slug=t.slug %}">
+      <span class="seo-tag {% if t.urgent_247 %}sos{% endif %}">{% if t.urgent_247 %}SOS 24/7 disponible{% else %}{{ t.eta }}{% endif %}</span>
+      <h3>{{ t.name }}</h3>
+      <p>{{ t.hero_subtitle }}</p>
+      <span style="font-size:13px;font-weight:700;color:#0e3b2e;margin-top:auto;">Voir {{ t.artisan_plural|lower }} &rarr;</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <h2 class="seo-section-h2">Interventions par commune et ville en Cote d'Ivoire</h2>
+  <p style="font-size:14.5px;color:var(--c-mid,#475569);margin:0 0 12px;">Selectionnez une zone pour decouvrir nos depannages locaux (exemple : Plomberie) :</p>
+  <div class="seo-zones">
+    {% for z in seo_zones %}
+    <a class="seo-zone-pill" href="{% url 'vitrine-service-local' trade_slug='plomberie' zone_slug=z.slug %}">{{ z.name }} ({{ z.region }})</a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

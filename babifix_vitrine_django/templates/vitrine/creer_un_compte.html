@@ -1,0 +1,63 @@
+{% extends 'vitrine/base.html' %}
+
+{% block title %}Créer un compte BABIFIX · Client ou Prestataire{% endblock %}
+
+{% block content %}
+<section class="bx-sub-hero">
+  <div class="container">
+    <span class="bx-pill">Orientation Compte</span>
+    <h1 style="font-size:clamp(28px,4vw,44px);font-weight:900;letter-spacing:-0.025em;color:var(--bx-ink);margin-bottom:10px;">
+      Choisissez votre parcours BABIFIX
+    </h1>
+    <p style="font-size:16px;color:var(--bx-muted);max-width:650px;line-height:1.6;">
+      Deux espaces distincts pour protéger à la fois vos interventions à domicile et vos encaissements professionnels en Côte d'Ivoire.
+    </p>
+  </div>
+</section>
+
+<section style="padding:52px 0 84px;">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:26px;">
+      <article class="bx-card" style="display:flex;flex-direction:column;gap:16px;">
+        <span class="bx-pill">Pour les particuliers &amp; entreprises</span>
+        <h2 style="font-size:24px;font-weight:900;color:var(--bx-ink);">Je cherche un artisan vérifié</h2>
+        <p style="font-size:14.5px;color:var(--bx-muted);line-height:1.6;">
+          Commandez un plombier, électricien, frigoriste ou technicien près de chez vous avec devis numérique avant intervention et paiement protégé sous séquestre.
+        </p>
+        <div style="background:var(--bx-surface);border:1px solid var(--bx-border);border-radius:14px;padding:16px;">
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--bx-muted);margin-bottom:10px;">Prérequis d'inscription (~2 min)</div>
+          <ul style="margin-left:18px;font-size:13.5px;color:var(--bx-ink-2);line-height:1.7;">
+            <li>Numéro de téléphone ivoirien actif</li>
+            <li>Adresse email de suivi des reçus</li>
+            <li>Commune d'intervention principale à Abidjan ou en Côte d'Ivoire</li>
+          </ul>
+        </div>
+        <div style="margin-top:auto;display:flex;flex-wrap:wrap;gap:10px;">
+          <a class="bx-btn bx-btn-primary" href="{% url 'vitrine-download-client' %}?app=client">Ouvrir l'app Client</a>
+          <a class="bx-btn bx-btn-outline" href="{% url 'vitrine-home' %}#parcours-devis">Découvrir le parcours devis</a>
+        </div>
+      </article>
+
+      <article class="bx-card" style="display:flex;flex-direction:column;gap:16px;border-color:rgba(232,119,34,0.35);">
+        <span class="bx-pill orange">Pour les artisans &amp; techniciens</span>
+        <h2 style="font-size:24px;font-weight:900;color:var(--bx-ink);">Je veux devenir prestataire Pro</h2>
+        <p style="font-size:14.5px;color:var(--bx-muted);line-height:1.6;">
+          Recevez des demandes solvables autour de vous, émettez vos devis avec barème intelligent et encaissez sur Wave, Orange Money ou MTN MoMo.
+        </p>
+        <div style="background:var(--bx-surface);border:1px solid var(--bx-border);border-radius:14px;padding:16px;">
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--bx-muted);margin-bottom:10px;">Dossier KYC vérifié (24 à 48 h)</div>
+          <ul style="margin-left:18px;font-size:13.5px;color:var(--bx-ink-2);line-height:1.7;">
+            <li>Pièce d'identité nationale (CNI) recto-verso</li>
+            <li>Photo portrait nette pour le badge client</li>
+            <li>Justificatif de spécialité et numéro Mobile Money</li>
+          </ul>
+        </div>
+        <div style="margin-top:auto;display:flex;flex-wrap:wrap;gap:10px;">
+          <a class="bx-btn bx-btn-orange" href="{% url 'vitrine-devenir-prestataire' %}">Simuler mes revenus Pro</a>
+          <a class="bx-btn bx-btn-outline" href="{% url 'vitrine-proposer-metier' %}">Proposer un métier</a>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}

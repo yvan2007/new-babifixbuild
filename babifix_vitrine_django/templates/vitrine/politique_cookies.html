@@ -1,0 +1,49 @@
+{% extends 'vitrine/_legal_layout.html' %}
+
+{% block title %}Politique de Cookies · BABIFIX{% endblock %}
+{% block legal_heading %}Politique de Cookies{% endblock %}
+{% block legal_subheading %}Gestion transparente des traceurs techniques, préférences de thème et mesures d'audience.{% endblock %}
+
+{% block legal_body %}
+  <p class="bx-legal-intro">Cette page détaille les cookies et stockages locaux utilisés sur la vitrine BABIFIX ainsi que vos moyens de contrôle.</p>
+
+  <h2>1. Qu'est-ce qu'un cookie ou traceur local ?</h2>
+  <p>Un cookie ou stockage local est un petit fichier enregistré par votre navigateur afin de sécuriser votre navigation, mémoriser votre choix d'apparence (Blanc, Clair ou Sombre) et, uniquement avec votre accord, mesurer l'audience du site.</p>
+
+  <h2>2. Traceurs utilisés sur BABIFIX</h2>
+  <table class="bx-legal-table">
+    <thead>
+      <tr>
+        <th>Catégorie</th>
+        <th>Finalité exacte</th>
+        <th>Durée</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Essentiels</strong></td>
+        <td>Protection CSRF des formulaires, sécurité HTTP et mémorisation de votre choix de consentement.</td>
+        <td>Session / 6 mois</td>
+      </tr>
+      <tr>
+        <td><strong>Préférences d'affichage</strong></td>
+        <td>Mémorisation du thème visuel sélectionné (« Blanc », « Clair » ou « Sombre »).</td>
+        <td>12 mois</td>
+      </tr>
+      <tr>
+        <td><strong>Mesure d'audience (Optionnel)</strong></td>
+        <td>Statistiques anonymisées de fréquentation (activées uniquement après accord explicite).</td>
+        <td>13 mois max</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Modifier vos choix à tout moment</h2>
+  <p>Vous pouvez accepter, refuser ou personnaliser le dépôt des traceurs optionnels dès maintenant depuis le panneau ci-dessous :</p>
+  <p style="margin:18px 0;">
+    <button type="button" class="bx-btn bx-btn-primary" data-open-cookie-prefs>Gérer mes préférences cookies</button>
+  </p>
+
+  <h2>4. Contact</h2>
+  <p>Pour toute demande complémentaire : <a href="mailto:contact@babifix.ci">contact@babifix.ci</a>.</p>
+{% endblock %}

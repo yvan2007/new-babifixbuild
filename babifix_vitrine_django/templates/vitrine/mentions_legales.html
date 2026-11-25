@@ -1,0 +1,23 @@
+{% extends 'vitrine/_legal_layout.html' %}
+
+{% block title %}Mentions Légales · BABIFIX{% endblock %}
+{% block legal_heading %}Mentions Légales{% endblock %}
+{% block legal_subheading %}Informations légales relatives à l'éditeur, à l'hébergement et à la propriété intellectuelle de BABIFIX.{% endblock %}
+
+{% block legal_body %}
+  <p class="bx-legal-intro">Informations réglementaires applicables au site vitrine babifix.ci et aux services associés.</p>
+
+  <h2>1. Éditeur de la plateforme</h2>
+  <p><strong>BABIFIX</strong> · Plateforme de mise en relation pour les services à domicile et le dépannage technique.</p>
+  <p><strong>Siège d'exploitation :</strong> Abidjan, Côte d'Ivoire.</p>
+  <p><strong>Contact officiel :</strong> <a href="mailto:contact@babifix.ci">contact@babifix.ci</a></p>
+
+  <h2>2. Hébergement et sécurité</h2>
+  <p>Les services applicatifs et bases de données sont hébergés sur des infrastructures sécurisées dotées de sauvegardes automatisées et de chiffrement TLS des communications.</p>
+
+  <h2>3. Propriété intellectuelle</h2>
+  <p>L'ensemble des textes, marques, logotypes BABIFIX, icônes vectorielles, éléments graphiques et codes sources présents sur ce site sont la propriété exclusive de BABIFIX. Toute reproduction, représentation ou extraction sans accord écrit préalable est strictement interdite.</p>
+
+  <h2>4. Données personnelles et cookies</h2>
+  <p>Le traitement des données personnelles collectées via les formulaires de contact, de liste d'attente ou de proposition de métier respecte la Loi ivoirienne n° 2013-450. Consultez notre <a href="{% url 'vitrine-confidentialite' %}">Politique de Confidentialité</a> et notre <a href="{% url 'vitrine-politique-cookies' %}">Politique de Cookies</a>.</p>
+{% endblock %}

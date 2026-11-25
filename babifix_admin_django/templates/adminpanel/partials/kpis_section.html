@@ -1,0 +1,84 @@
+{% load babifix_tags %}
+
+<div class="bx-kpis-admin">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+    <div>
+      <h3 style="margin:0;">Indicateurs Exécutifs &amp; Intelligence Territoriale ({{ kpis_days }} derniers jours)</h3>
+      <p class="section-help" style="margin:4px 0 0;">Données calculées en direct depuis la base de production sans approximation · Cliquez sur une ville ou un métier pour croiser les vues.</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a href="?section=kpis&days=7" class="bx-btn-ghost {% if kpis_days == 7 %}active{% endif %}">7 j</a>
+      <a href="?section=kpis&days=30" class="bx-btn-ghost {% if kpis_days == 30 %}active{% endif %}">30 j</a>
+      <a href="?section=kpis&days=90" class="bx-btn-ghost {% if kpis_days == 90 %}active{% endif %}">90 j</a>
+    </div>
+  </div>
+
+  {% if business_kpis %}
+  <div class="bx-eco-grid" style="margin-bottom:18px;">
+    <article class="card card-elevate" style="padding:18px;border-left:4px solid var(--bx-accent);">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">GMV Période</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;">{{ business_kpis.gmv_display }} FCFA</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-muted);">{{ business_kpis.missions }} missions ({{ business_kpis.missions_per_day }}/j)</p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">Commissions &amp; Take-Rate</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;color:var(--bx-ok);">{{ business_kpis.commission_display }} FCFA</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-muted);">Take-rate effectif : {{ business_kpis.take_rate_pct }}%</p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">Rétention Artisans M+1</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;">{{ business_kpis.retention_m1_pct }}%</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-muted);">Base active précédente : {{ business_kpis.retention_base }}</p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">Satisfaction &amp; NPS</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;">NPS {{ business_kpis.nps }}</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-muted);">Note moy. {{ business_kpis.avg_rating }}/5 ({{ business_kpis.nb_ratings }} avis)</p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">Part Séquestre vs Cash</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;">{{ business_kpis.escrow_pct }}% / {{ business_kpis.cash_pct }}%</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-muted);">{{ business_kpis.escrow_count }} mobile · {{ business_kpis.cash_count }} espèces</p>
+    </article>
+    <article class="card card-elevate" style="padding:18px;">
+      <p style="margin:0 0 4px;font-size:12px;color:var(--bx-muted);font-weight:700;">Abonnés Pro Actifs</p>
+      <p class="tabular-nums" style="margin:0;font-size:24px;font-weight:900;">{{ business_kpis.premium_silver|add:business_kpis.premium_gold }}</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:var(--bx-muted);">{{ business_kpis.premium_silver }} Silver · {{ business_kpis.premium_gold }} Gold</p>
+    </article>
+  </div>
+  {% endif %}
+
+  {% include 'adminpanel/partials/dashboard_stats.html' %}
+
+  {% if app_versions %}
+  <article class="card card-elevate" style="margin-top:18px;">
+    <h3 style="margin-top:0;">Santé Infrastructure &amp; Versions Apps Mobiles</h3>
+    <div class="bx-kv-grid" style="margin-top:12px;">
+      <div class="bx-kv-item">
+        <span>App Client Android</span>
+        <strong class="tabular-nums">Min v{{ app_versions.client_android_min }} · Dernière v{{ app_versions.client_android_latest }}</strong>
+      </div>
+      <div class="bx-kv-item">
+        <span>App Prestataire Android</span>
+        <strong class="tabular-nums">Min v{{ app_versions.presta_android_min }} · Dernière v{{ app_versions.presta_android_latest }}</strong>
+      </div>
+      <div class="bx-kv-item">
+        <span>GeniusPay Mobile Money</span>
+        <strong><span class="bx-pill {% if app_versions.geniuspay_mode == 'LIVE' %}bx-pill--ok{% else %}bx-pill--warn{% endif %}">{{ app_versions.geniuspay_mode }}</span></strong>
+      </div>
+      <div class="bx-kv-item">
+        <span>LiveKit VoIP / Visio</span>
+        <strong><span class="bx-pill {% if app_versions.livekit_ok %}bx-pill--ok{% else %}bx-pill--warn{% endif %}">{% if app_versions.livekit_ok %}Configuré{% else %}À vérifier{% endif %}</span></strong>
+      </div>
+      <div class="bx-kv-item">
+        <span>Firebase Push FCM</span>
+        <strong><span class="bx-pill {% if app_versions.firebase_ok %}bx-pill--ok{% else %}bx-pill--warn{% endif %}">{% if app_versions.firebase_ok %}Actif{% else %}À vérifier{% endif %}</span></strong>
+      </div>
+      <div class="bx-kv-item">
+        <span>Passerelle Email SMTP</span>
+        <strong><span class="bx-pill {% if app_versions.smtp_ok %}bx-pill--ok{% else %}bx-pill--warn{% endif %}">{% if app_versions.smtp_ok %}Connecté{% else %}À vérifier{% endif %}</span></strong>
+      </div>
+    </div>
+  </article>
+  {% endif %}
+</div>

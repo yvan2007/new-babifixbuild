@@ -1,0 +1,740 @@
+{% extends 'vitrine/base.html' %}
+{% load static %}
+
+{% block title %}Devenir Prestataire Pro · BABIFIX Côte d'Ivoire{% endblock %}
+
+{% block extra_css %}
+<style>
+.dp-hero {
+  padding: 64px 0 56px;
+  background: var(--bx-bg);
+}
+.dp-hero-grid {
+  display: grid;
+  grid-template-columns: 1.12fr 0.88fr;
+  gap: 44px;
+  align-items: center;
+}
+.dp-h1 {
+  font-size: clamp(32px, 4.4vw, 50px);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -0.028em;
+  color: var(--bx-ink);
+  margin-bottom: 18px;
+}
+.dp-h1 .hl-orange { color: var(--bx-orange-bright); }
+.dp-p {
+  font-size: 16.5px;
+  color: var(--bx-muted);
+  line-height: 1.65;
+  max-width: 560px;
+  margin-bottom: 28px;
+}
+.dp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.dp-proofs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 13px;
+  color: var(--bx-ink-2);
+  font-weight: 600;
+}
+.dp-proof-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.dp-proof-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bx-green-soft);
+  color: var(--bx-green);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Carte Mission Temps Reel */
+.dp-device-card {
+  background: #0b1b34;
+  color: #ffffff;
+  border: 1px solid rgba(76, 201, 240, 0.24);
+  border-radius: 24px;
+  padding: 26px;
+  box-shadow: var(--bx-shadow-lg);
+}
+.dp-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.dp-live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #34d399;
+  letter-spacing: 0.04em;
+}
+.dp-live-dot i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px #34d399;
+}
+.dp-job-box {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.dp-job-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #7dd3fc;
+  background: rgba(76, 201, 240, 0.14);
+  padding: 4px 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.dp-job-title { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+.dp-job-loc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-bottom: 14px;
+}
+.dp-job-pay {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+.dp-pay-amt { font-size: 20px; font-weight: 900; color: #34d399; }
+.dp-pay-sub { font-size: 11.5px; color: #cbd5e1; }
+.dp-ready-pill {
+  background: #10b981;
+  color: #052e16;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 6px 11px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* Simulateur Revenus + Carte Wallet 3D synchronisee */
+.dp-sim-sec {
+  padding: 56px 0;
+  background: var(--bx-surface);
+  border-top: 1px solid var(--bx-border);
+  border-bottom: 1px solid var(--bx-border);
+}
+.dp-sim-card {
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-border-strong);
+  border-radius: 26px;
+  padding: 36px;
+  box-shadow: var(--bx-shadow-md);
+  display: grid;
+  grid-template-columns: 1fr 1.05fr;
+  gap: 36px;
+  align-items: start;
+}
+.dp-form-grp { margin-bottom: 22px; }
+.dp-form-grp label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bx-muted);
+  margin-bottom: 8px;
+}
+.dp-select {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 13px;
+  border: 1px solid var(--bx-border-strong);
+  background: var(--bx-surface);
+  color: var(--bx-ink);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dp-range-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.dp-range-num {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--bx-orange-bright);
+}
+input[type="range"].dp-range {
+  width: 100%;
+  accent-color: var(--bx-orange-bright);
+  cursor: pointer;
+}
+
+/* Apercu Carte Wallet physique 3D Recto / Verso */
+.dp-wallet-perspective { perspective: 1100px; margin-top: 18px; }
+.dp-wallet-stage {
+  position: relative;
+  min-height: 222px;
+  transform-style: preserve-3d;
+  transition: transform 640ms cubic-bezier(.22, 1, .36, 1);
+  cursor: pointer;
+}
+.dp-wallet-stage.is-flipped { transform: rotateY(180deg); }
+.dp-wallet-face {
+  position: relative;
+  overflow: hidden;
+  padding: 20px 22px;
+  border-radius: 20px;
+  color: #ffffff;
+  background: #0e3b2e;
+  border: 1.5px solid rgba(245, 166, 35, 0.48);
+  box-shadow: 0 22px 42px -14px rgba(7, 13, 25, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: background-color 240ms ease, border-color 240ms ease;
+}
+.dp-wallet-face--back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.dp-wallet-face::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+.dp-wallet-stage[data-tier="silver"] .dp-wallet-face {
+  background: #22303d;
+  border-color: rgba(203, 213, 225, 0.56);
+}
+.dp-wallet-stage[data-tier="gold"] .dp-wallet-face {
+  background: #121512;
+  border-color: rgba(231, 196, 99, 0.68);
+}
+.dp-wallet-stage[data-tier="gold"] .dp-wallet-face::after {
+  border-color: rgba(231, 196, 99, 0.18);
+}
+.dp-wallet-guilloche {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.22;
+  color: #6ee7b7;
+}
+.dp-wallet-stage[data-tier="silver"] .dp-wallet-guilloche { color: #cbd5e1; }
+.dp-wallet-stage[data-tier="gold"] .dp-wallet-guilloche { color: #e7c463; }
+@media (prefers-reduced-motion: reduce) {
+  .dp-wallet-stage, .dp-wallet-face { transition: none !important; }
+}
+.dp-wallet-top,
+.dp-wallet-chiprow,
+.dp-wallet-bal,
+.dp-wallet-sub,
+.dp-wallet-foot {
+  position: relative;
+  z-index: 2;
+}
+.dp-wallet-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.dp-wallet-brand { font-size: 11.5px; font-weight: 800; letter-spacing: 0.12em; color: #f1f5f9; }
+.dp-wallet-tier-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(76, 201, 240, 0.16);
+  border: 1px solid rgba(76, 201, 240, 0.34);
+  color: #7dd3fc;
+}
+.dp-wallet-stage[data-tier="silver"] .dp-wallet-tier-badge {
+  background: rgba(226, 232, 240, 0.18);
+  border-color: rgba(226, 232, 240, 0.38);
+  color: #f8fafc;
+}
+.dp-wallet-stage[data-tier="gold"] .dp-wallet-tier-badge {
+  background: rgba(231, 196, 99, 0.18);
+  border-color: rgba(231, 196, 99, 0.45);
+  color: #fde68a;
+}
+.dp-wallet-chiprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dp-wallet-digits {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(241, 245, 249, 0.80);
+}
+.dp-wallet-bal { font-size: 27px; font-weight: 900; margin-bottom: 4px; letter-spacing: -0.02em; }
+.dp-wallet-sub { font-size: 12px; color: #cbd5e1; }
+.dp-wallet-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.dp-sim-results {
+  background: var(--bx-surface);
+  border: 1px solid var(--bx-border);
+  border-radius: 20px;
+  padding: 26px;
+}
+.dp-res-gain {
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 900;
+  color: var(--bx-ink);
+  line-height: 1.05;
+  margin: 8px 0 6px;
+}
+.dp-res-gain span.cur { font-size: 17px; color: var(--bx-orange-bright); font-weight: 800; }
+.dp-tier-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 20px 0 22px;
+}
+.dp-tier-box {
+  background: var(--bx-card-bg);
+  border: 1px solid var(--bx-border);
+  border-radius: 14px;
+  padding: 13px 11px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.dp-tier-box:hover { transform: translateY(-2px); }
+.dp-tier-box.active {
+  border-color: var(--bx-orange-bright);
+  box-shadow: 0 0 0 2px rgba(232, 119, 34, 0.22);
+}
+.dp-tier-name { font-size: 12px; font-weight: 800; color: var(--bx-ink); }
+.dp-tier-comm { font-size: 11px; color: var(--bx-muted); margin: 3px 0 6px; }
+.dp-tier-val { font-size: 14.5px; font-weight: 900; color: var(--bx-green); }
+
+/* Bento Garanties & Tunnel */
+.dp-bento-sec { padding: 68px 0; background: var(--bx-bg); }
+.dp-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 34px;
+}
+.dp-bento-ico {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: var(--bx-orange-soft);
+  color: var(--bx-orange-bright);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.dp-steps-sec {
+  padding: 68px 0;
+  background: var(--bx-surface);
+  border-top: 1px solid var(--bx-border);
+}
+.dp-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 36px;
+}
+.dp-step-num {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bx-orange-bright);
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 960px) {
+  .dp-hero-grid,
+  .dp-sim-card,
+  .dp-bento-grid,
+  .dp-steps-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 580px) {
+  .dp-tier-grid { grid-template-columns: 1fr; }
+  .dp-sim-card { padding: 22px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="dp-hero">
+  <div class="container">
+    <div class="dp-hero-grid">
+      <div>
+        <span class="bx-pill orange">{{ pill }}</span>
+        <h1 class="dp-h1">
+          {{ heading_pre }} <span class="hl-orange">{{ heading_hl }}</span>
+        </h1>
+        <p class="dp-p">{{ lead }}</p>
+
+        <div class="dp-actions">
+          <a href="#simulateur" class="bx-btn bx-btn-orange">Calculer mes revenus</a>
+          <a href="{% if android_url %}{{ android_url }}{% elif ios_url %}{{ ios_url }}{% else %}{% url 'vitrine-download-client' %}?app=prestataire{% endif %}" class="bx-btn bx-btn-outline">
+            Télécharger l'app Prestataire
+          </a>
+        </div>
+
+        <div class="dp-proofs">
+          <span class="dp-proof-item">
+            <span class="dp-proof-check" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+            Acompte consigné avant trajet
+          </span>
+          <span class="dp-proof-item">
+            <span class="dp-proof-check" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+            Virement Wave / Orange Money direct
+          </span>
+          <span class="dp-proof-item">
+            <span class="dp-proof-check" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+            Zéro abonnement obligatoire
+          </span>
+        </div>
+      </div>
+
+      <div class="dp-device-card" aria-label="Aperçu d'une mission en temps réel">
+        <div class="dp-card-head">
+          <span class="dp-live-dot"><i></i> MISSION EN TEMPS RÉEL</span>
+          <span style="font-size:12px;color:#94a3b8;">À l'instant</span>
+        </div>
+
+        <div class="dp-job-box">
+          <span class="dp-job-badge">Plomberie Sanitaire · Urgent</span>
+          <div class="dp-job-title">Remplacement chauffe-eau &amp; étanchéité</div>
+          <div class="dp-job-loc">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4cc9f0" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>Cocody Riviera Golf · à 1,4 km</span>
+          </div>
+          <div class="dp-job-pay">
+            <div>
+              <div class="dp-pay-amt num-tab">45 000 FCFA</div>
+              <div class="dp-pay-sub">Acompte 20 000 F déjà consigné</div>
+            </div>
+            <span class="dp-ready-pill">Prêt à accepter</span>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.05);border-radius:14px;padding:13px 16px;display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+          <span style="color:#cbd5e1;">Libération après validation client :</span>
+          <strong style="color:#34d399;" class="num-tab">Immédiat sur Wallet</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dp-sim-sec" id="simulateur">
+  <div class="container">
+    <div class="dp-sim-card">
+      <div>
+        <span class="bx-pill orange">Transparence Financière</span>
+        <h2 style="font-size:28px;font-weight:900;color:var(--bx-ink);margin-bottom:8px;">Simulez vos revenus nets mensuels</h2>
+        <p style="font-size:14.5px;color:var(--bx-muted);line-height:1.6;margin-bottom:24px;">
+          Saisissez votre objectif de facturation mensuelle sur vos devis : comparez instantanément ce que vous conservez selon le palier Standard, Silver ou Gold.
+        </p>
+
+        <div class="dp-form-grp">
+          <label for="tradeSelect">Votre spécialité artisanale</label>
+          <select id="tradeSelect" class="dp-select">
+            <option value="plomberie">Plomberie &amp; Sanitaire</option>
+            <option value="climatisation">Climatisation &amp; Froid</option>
+            <option value="electricite">Électricité Générale</option>
+            <option value="serrurerie">Serrurerie &amp; Blindage</option>
+            <option value="peinture">Peinture &amp; Rénovation</option>
+          </select>
+        </div>
+
+        <div class="dp-form-grp">
+          <div class="dp-range-head">
+            <label for="jobsRange" style="margin:0;">Montant total de vos devis mensuels</label>
+            <span class="dp-range-num num-tab"><span id="jobsCount">600 000</span> FCFA</span>
+          </div>
+          <input type="range" id="jobsRange" class="dp-range" min="100000" max="3000000" step="50000" value="600000">
+        </div>
+
+        <div class="dp-wallet-perspective">
+          <div class="dp-wallet-stage" id="dpWalletCard" data-tier="standard" title="Cliquer pour voir le verso technique">
+            <div class="dp-wallet-face dp-wallet-face--front">
+              <svg class="dp-wallet-guilloche" viewBox="0 0 420 220" fill="none" aria-hidden="true">
+                <g stroke="currentColor" stroke-width="0.9">
+                  <circle cx="370" cy="40" r="34"/><circle cx="370" cy="40" r="64"/><circle cx="370" cy="40" r="94"/><circle cx="370" cy="40" r="124"/>
+                  <path d="M0 150 Q160 110 420 165" stroke-opacity="0.5"/>
+                  <path d="M0 185 Q180 145 420 198" stroke-opacity="0.35"/>
+                </g>
+              </svg>
+              <div class="dp-wallet-top">
+                <span class="dp-wallet-brand">BABIFIX WALLET PRO</span>
+                <span class="dp-wallet-tier-badge" id="dpWalletTierLabel">Standard · {{ platform_cfg.std_rate|default:18 }} %</span>
+              </div>
+              <div class="dp-wallet-chiprow">
+                <div style="display:inline-flex;align-items:center;gap:8px;">
+                  <svg width="36" height="26" viewBox="0 0 42 30" fill="none" aria-hidden="true">
+                    <rect x="0.75" y="0.75" width="40.5" height="28.5" rx="5.5" fill="#D4AF37" fill-opacity="0.92" stroke="#F8E18C" stroke-width="1"/>
+                    <path d="M1 10.5 H14.5 M27.5 10.5 H41 M1 19.5 H14.5 M27.5 19.5 H41 M14.5 1 V29 M27.5 1 V29 M14.5 15 H27.5" stroke="#5B4411" stroke-width="1.15"/>
+                  </svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M7.5 9.5a4.5 4.5 0 0 1 0 5"/><path d="M11 7a8 8 0 0 1 0 10"/>
+                  </svg>
+                </div>
+                <span class="dp-wallet-digits">4592 •••• •••• 8421</span>
+              </div>
+              <div class="dp-wallet-bal num-tab"><span id="dpWalletAmt">492 000</span> FCFA / mois</div>
+              <div class="dp-wallet-sub">Solde disponible sur Wave · Orange Money · MTN MoMo</div>
+              <div class="dp-wallet-foot">
+                <span id="dpWalletBenefit">Sans abonnement fixe</span>
+                <span class="num-tab" id="dpWalletRate">Part nette 82 %</span>
+              </div>
+            </div>
+
+            <div class="dp-wallet-face dp-wallet-face--back">
+              <div class="dp-wallet-top">
+                <span class="dp-wallet-brand">VERSO SECURISE · XOF</span>
+                <span class="dp-wallet-tier-badge">KYC CNI VERIFIE</span>
+              </div>
+              <div style="font-size:12px;color:#e2e8f0;line-height:1.55;margin:10px 0;">
+                Retraits des gains disponibles vers Wave, Orange Money, MTN MoMo et Moov dès <strong>{{ platform_cfg.min_withdrawal|default:1000 }} FCFA</strong>. Fonds bloqués sous séquestre technique avant début d'intervention.
+              </div>
+              <div class="dp-wallet-foot">
+                <span>Loi CI 2013-450</span>
+                <span>Cliquer pour retourner</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:8px;display:flex;justify-content:flex-end;">
+          <button type="button" class="bx-btn bx-btn-outline" id="dpWalletFlipBtn" style="padding:7px 14px;font-size:12.5px;">Retourner la carte</button>
+        </div>
+      </div>
+
+      <div class="dp-sim-results">
+        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--bx-muted);">Part nette artisan conservée</div>
+        <div class="dp-res-gain num-tab"><span id="netGain">492 000</span> <span class="cur">FCFA</span></div>
+        <div style="font-size:13.5px;color:var(--bx-muted);">Basé sur <strong id="monthlyJobs" class="num-tab">600 000 FCFA</strong> facturés sur vos propres devis :</div>
+
+        <div class="dp-tier-grid" role="group" aria-label="Paliers de commission BABIFIX Wallet">
+          <button type="button" class="dp-tier-box active" data-select-tier="standard">
+            <div class="dp-tier-name">Standard ({{ platform_cfg.std_rate|default:18 }} %)</div>
+            <div class="dp-tier-comm">Gratuit sans abonnement</div>
+            <div class="dp-tier-val num-tab" id="gainStandard">590 400 F</div>
+          </button>
+          <button type="button" class="dp-tier-box" data-select-tier="silver">
+            <div class="dp-tier-name">Pro Silver ({{ platform_cfg.silver_rate|default:13 }} %)</div>
+            <div class="dp-tier-comm" id="diffSilver">+36 000 F / mois</div>
+            <div class="dp-tier-val num-tab" id="gainSilver">626 400 F</div>
+          </button>
+          <button type="button" class="dp-tier-box" data-select-tier="gold">
+            <div class="dp-tier-name">Pro Gold ({{ platform_cfg.gold_rate|default:8 }} %)</div>
+            <div class="dp-tier-comm" id="diffGold">+72 000 F / mois</div>
+            <div class="dp-tier-val num-tab" id="gainGold">662 400 F</div>
+          </button>
+        </div>
+
+        <a href="#etapes" class="bx-btn bx-btn-orange" style="width:100%;">Activer mon profil artisan</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dp-bento-sec">
+  <div class="container">
+    <div style="text-align:center;max-width:680px;margin:0 auto;">
+      <h2 style="font-size:clamp(24px,3.2vw,36px);font-weight:900;color:var(--bx-ink);margin-bottom:10px;">Pourquoi les artisans choisissent BABIFIX</h2>
+      <p style="font-size:15.5px;color:var(--bx-muted);line-height:1.6;">Fini les clients qui annulent au dernier moment ou négocient à perte. Chaque intervention est encadrée du devis jusqu'au règlement final.</p>
+    </div>
+
+    <div class="dp-bento-grid">
+      <div class="bx-card">
+        <div class="dp-bento-ico" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3 style="font-size:18px;font-weight:800;color:var(--bx-ink);margin-bottom:8px;">Acompte consigné d'avance</h3>
+        <p style="font-size:14px;color:var(--bx-muted);line-height:1.6;">Le client sécurise l'acompte sur notre compte tiers avant même votre départ. Vous ne vous déplacez plus jamais sans garantie de règlement.</p>
+      </div>
+
+      <div class="bx-card">
+        <div class="dp-bento-ico" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <h3 style="font-size:18px;font-weight:800;color:var(--bx-ink);margin-bottom:8px;">Paiement Mobile Money direct</h3>
+        <p style="font-size:14px;color:var(--bx-muted);line-height:1.6;">Dès que l'intervention est validée par le client, votre gain est disponible dans votre BABIFIX Wallet, transférable sur Wave ou Orange Money.</p>
+      </div>
+
+      <div class="bx-card">
+        <div class="dp-bento-ico" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3 style="font-size:18px;font-weight:800;color:var(--bx-ink);margin-bottom:8px;">Protection des données (ARTCI)</h3>
+        <p style="font-size:14px;color:var(--bx-muted);line-height:1.6;">Vos pièces d'identité (CNI) et données professionnelles sont chiffrées et protégées conformément à la Loi ivoirienne n° 2013-450.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dp-steps-sec" id="etapes">
+  <div class="container">
+    <div style="text-align:center;max-width:640px;margin:0 auto;">
+      <span class="bx-pill orange">Intégration en 3 étapes</span>
+      <h2 style="font-size:clamp(24px,3.2vw,36px);font-weight:900;color:var(--bx-ink);margin-bottom:10px;">Comment commencer à recevoir des missions</h2>
+      <p style="font-size:15.5px;color:var(--bx-muted);">Un dossier contrôlé par notre équipe technique pour inspirer confiance dès votre première visite.</p>
+    </div>
+
+    <div class="dp-steps-grid">
+      <div class="bx-card">
+        <div class="dp-step-num num-tab">1</div>
+        <h3 style="font-size:18px;font-weight:800;color:var(--bx-ink);margin-bottom:8px;">Inscription &amp; Spécialités</h3>
+        <p style="font-size:14px;color:var(--bx-muted);line-height:1.6;">Renseignez vos coordonnées, vos corps de métier et vos communes d'intervention préférées à Abidjan ou en région.</p>
+      </div>
+      <div class="bx-card">
+        <div class="dp-step-num num-tab">2</div>
+        <h3 style="font-size:18px;font-weight:800;color:var(--bx-ink);margin-bottom:8px;">Validation KYC (CNI)</h3>
+        <p style="font-size:14px;color:var(--bx-muted);line-height:1.6;">Déposez votre CNI et une photo portrait dans l'application Prestataire pour obtenir le badge vérifié BABIFIX.</p>
+      </div>
+      <div class="bx-card">
+        <div class="dp-step-num num-tab">3</div>
+        <h3 style="font-size:18px;font-weight:800;color:var(--bx-ink);margin-bottom:8px;">Devis &amp; Encaissement</h3>
+        <p style="font-size:14px;color:var(--bx-muted);line-height:1.6;">Recevez les demandes en temps réel, envoyez vos devis clairs et suivez vos gains sur votre Wallet 3D.</p>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:38px;display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;">
+      <a href="{% if android_url %}{{ android_url }}{% elif ios_url %}{{ ios_url }}{% else %}{% url 'vitrine-download-client' %}?app=prestataire{% endif %}" class="bx-btn bx-btn-primary">
+        Télécharger l'application Prestataire
+      </a>
+      <a href="{% url 'vitrine-proposer-metier' %}" class="bx-btn bx-btn-outline">
+        Votre métier n'est pas listé ? Proposer un métier
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var STD_R = {{ platform_cfg.std_rate|default:18 }};
+  var SIL_R = {{ platform_cfg.silver_rate|default:13 }};
+  var GLD_R = {{ platform_cfg.gold_rate|default:8 }};
+  var TIER_META = {
+    standard: { comm: STD_R / 100, label: 'Standard · ' + STD_R + ' %', rate: 'Part nette ' + (100 - STD_R) + ' %', benefit: 'Sans abonnement fixe' },
+    silver: { comm: SIL_R / 100, label: 'Pro Silver · ' + SIL_R + ' %', rate: 'Part nette ' + (100 - SIL_R) + ' %', benefit: 'Badge prioritaire + commission réduite' },
+    gold: { comm: GLD_R / 100, label: 'Pro Gold · ' + GLD_R + ' %', rate: 'Part nette ' + (100 - GLD_R) + ' %', benefit: 'Top classement + commission plancher ' + GLD_R + ' %' }
+  };
+  var activeTier = 'standard';
+
+  var tradeEl = document.getElementById('tradeSelect');
+  var rangeEl = document.getElementById('jobsRange');
+  var walletCard = document.getElementById('dpWalletCard');
+  var flipBtn = document.getElementById('dpWalletFlipBtn');
+
+  function toggleDpFlip() {
+    if (!walletCard) return;
+    var flipped = walletCard.classList.toggle('is-flipped');
+    if (flipBtn) flipBtn.textContent = flipped ? 'Voir le recto' : 'Retourner la carte';
+  }
+  if (walletCard) walletCard.addEventListener('click', toggleDpFlip);
+  if (flipBtn) flipBtn.addEventListener('click', toggleDpFlip);
+
+  function updateSimulation() {
+    if (!rangeEl) return;
+    var grossTotal = parseInt(rangeEl.value, 10) || 600000;
+
+    var gainStandard = Math.round(grossTotal * (1 - TIER_META.standard.comm));
+    var gainSilver = Math.round(grossTotal * (1 - TIER_META.silver.comm));
+    var gainGold = Math.round(grossTotal * (1 - TIER_META.gold.comm));
+
+    var selectedGain = activeTier === 'gold' ? gainGold : (activeTier === 'silver' ? gainSilver : gainStandard);
+    var meta = TIER_META[activeTier];
+
+    document.getElementById('jobsCount').textContent = grossTotal.toLocaleString('fr-FR');
+    document.getElementById('monthlyJobs').textContent = grossTotal.toLocaleString('fr-FR') + ' FCFA';
+    document.getElementById('netGain').textContent = selectedGain.toLocaleString('fr-FR');
+    document.getElementById('gainStandard').textContent = gainStandard.toLocaleString('fr-FR') + ' F';
+    document.getElementById('gainSilver').textContent = gainSilver.toLocaleString('fr-FR') + ' F';
+    document.getElementById('gainGold').textContent = gainGold.toLocaleString('fr-FR') + ' F';
+    document.getElementById('diffSilver').textContent = '+' + (gainSilver - gainStandard).toLocaleString('fr-FR') + ' F / mois';
+    document.getElementById('diffGold').textContent = '+' + (gainGold - gainStandard).toLocaleString('fr-FR') + ' F / mois';
+
+    if (walletCard) walletCard.setAttribute('data-tier', activeTier);
+    document.getElementById('dpWalletTierLabel').textContent = meta.label;
+    document.getElementById('dpWalletAmt').textContent = selectedGain.toLocaleString('fr-FR');
+    document.getElementById('dpWalletBenefit').textContent = meta.benefit;
+    document.getElementById('dpWalletRate').textContent = meta.rate;
+  }
+
+  if (tradeEl) tradeEl.addEventListener('change', updateSimulation);
+  if (rangeEl) rangeEl.addEventListener('input', updateSimulation);
+
+  document.querySelectorAll('.dp-tier-box[data-select-tier]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      activeTier = btn.getAttribute('data-select-tier');
+      document.querySelectorAll('.dp-tier-box[data-select-tier]').forEach(function (b) {
+        b.classList.toggle('active', b === btn);
+      });
+      updateSimulation();
+    });
+  });
+
+  updateSimulation();
+})();
+</script>
+{% endblock %}

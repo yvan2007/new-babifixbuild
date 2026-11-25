@@ -1,0 +1,7 @@
+{% extends 'vitrine/base.html' %}
+
+{% block title %}Accès refusé (403) · BABIFIX{% endblock %}
+
+{% block content %}
+  {% include 'vitrine/_error_train.html' with error_code=error_code|default:"403" error_svg_text=error_svg_text|default:"Accès refusé." error_title=error_title|default:"Accès non autorisé" error_message=error_message|default:"Vous n'avez pas les autorisations nécessaires pour consulter cette ressource." %}
+{% endblock %}

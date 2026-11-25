@@ -115,3 +115,16 @@ serviceAccountKey.json
 *.pem
 keys/*.pem
 
+# ─── Builds, médias locaux et fichiers temporaires ───
+*.mp4
+APK/
+IPA/
+.tmp_chrome/
+corbeille/
+scratch/
+db.sqlite3*
+babifix_admin_django/media/
+babifix_admin_django/private_kyc/
+babifix_admin_django/.jwt_secret_dev
+
+

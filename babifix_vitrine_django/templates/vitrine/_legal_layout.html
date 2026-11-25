@@ -1,0 +1,52 @@
+{% extends 'vitrine/base.html' %}
+
+{% block content %}
+<section class="bx-sub-hero">
+  <div class="container">
+    <span class="bx-pill green">Conformité &amp; Transparence · Côte d'Ivoire</span>
+    <h1 style="font-size:clamp(28px,3.8vw,44px);font-weight:900;letter-spacing:-0.025em;color:var(--bx-ink);margin-bottom:10px;">
+      {% block legal_heading %}Centre Légal BABIFIX{% endblock %}
+    </h1>
+    <p style="font-size:15.5px;color:var(--bx-muted);max-width:680px;line-height:1.6;">
+      {% block legal_subheading %}Engagements contractuels, protection des données personnelles (Loi n° 2013-450 ARTCI) et transparence des paiements sous séquestre.{% endblock %}
+    </p>
+  </div>
+</section>
+
+<section class="bx-legal-wrap">
+  <div class="container">
+    <div class="bx-legal-grid">
+      <aside class="bx-legal-sidebar" aria-label="Navigation des documents légaux">
+        <div class="bx-legal-side-title">Documents légaux</div>
+        <nav class="bx-legal-nav">
+          <a href="{% url 'vitrine-cgu' %}" class="{% if active_legal == 'cgu' %}active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>Conditions d'utilisation (CGU)</span>
+          </a>
+          <a href="{% url 'vitrine-confidentialite' %}" class="{% if active_legal == 'confidentialite' %}active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Politique de confidentialité</span>
+          </a>
+          <a href="{% url 'vitrine-mentions-legales' %}" class="{% if active_legal == 'mentions' %}active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Mentions légales</span>
+          </a>
+          <a href="{% url 'vitrine-politique-cookies' %}" class="{% if active_legal == 'cookies' %}active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/></svg>
+            <span>Politique de cookies</span>
+          </a>
+        </nav>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--bx-border);font-size:12.5px;color:var(--bx-muted);line-height:1.55;">
+          Une question juridique ou une demande d'accès ARTCI ? Écrivez à
+          <a href="mailto:contact@babifix.ci" style="color:var(--bx-cyan);font-weight:700;">contact@babifix.ci</a>.
+        </div>
+      </aside>
+
+      <article class="bx-legal-article">
+        {% block legal_body %}{% endblock %}
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends 'vitrine/base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block head_meta %}
+  <meta name="description" content="{{ meta_description }}">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <link rel="canonical" href="{{ canonical_url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BABIFIX">
+  <meta property="og:locale" content="fr_CI">
+  <meta property="og:url" content="{{ canonical_url }}">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ meta_description }}">
+  <meta property="og:image" content="{{ canonical_base }}{% static 'vitrine/assets/babifix-logo.png' %}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_title }}">
+  <meta name="twitter:description" content="{{ meta_description }}">
+  <script type="application/ld+json">{{ page_jsonld }}</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.sl-wrap{width:min(1140px,92vw);margin:108px auto 76px;color:var(--c-ink,#0b1b34)}
+.sl-crumb{display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--c-mid,#475569);margin-bottom:20px}
+.sl-crumb a{color:#0e3b2e;text-decoration:none;font-weight:700}
+.sl-hero{background:#0e3b2e;color:#ffffff;border-radius:20px;padding:42px 36px;margin-bottom:36px}
+.sl-pill{display:inline-block;background:#c2410c;color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;padding:6px 14px;border-radius:999px;margin-bottom:14px}
+.sl-hero h1{font-size:clamp(28px,4vw,42px);line-height:1.12;font-weight:900;margin:0 0 14px;color:#ffffff}
+.sl-hero p{font-size:16px;line-height:1.65;max-width:760px;margin:0 0 22px;color:#e2e8f0}
+.sl-actions{display:flex;flex-wrap:wrap;gap:12px}
+.sl-btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:999px;font-weight:700;font-size:14.5px;text-decoration:none}
+.sl-btn-cta{background:#c2410c;color:#ffffff}
+.sl-btn-sec{background:#ffffff;color:#0e3b2e}
+.sl-grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;margin-bottom:36px}
+.sl-box{background:var(--c-card,#ffffff);border:1px solid var(--c-border,#e2e8f0);border-radius:16px;padding:24px}
+.sl-box h2{font-size:20px;font-weight:800;margin:0 0 14px}
+.sl-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+.sl-list li{padding-left:22px;position:relative;font-size:14.5px;line-height:1.5;color:var(--c-mid,#334155)}
+.sl-list li::before{content:"✓";position:absolute;left:0;color:#0e3b2e;font-weight:900}
+.sl-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:36px}
+.sl-step{background:var(--c-card,#ffffff);border:1px solid var(--c-border,#e2e8f0);border-radius:14px;padding:20px}
+.sl-step-num{display:inline-flex;width:30px;height:30px;border-radius:999px;background:#0e3b2e;color:#ffffff;align-items:center;justify-content:center;font-weight:800;font-size:13px;margin-bottom:10px}
+.sl-step h3{margin:0 0 6px;font-size:16px;font-weight:800}
+.sl-step p{margin:0;font-size:13.5px;line-height:1.5;color:var(--c-mid,#475569)}
+.sl-chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:10px}
+.sl-chip{display:inline-block;padding:8px 14px;border-radius:999px;border:1px solid var(--c-border,#cbd5e1);background:var(--c-card,#ffffff);color:var(--c-ink,#0b1b34);text-decoration:none;font-size:13px;font-weight:600}
+.sl-chip:hover{border-color:#0e3b2e;color:#0e3b2e}
+.sl-faq details{border:1px solid var(--c-border,#e2e8f0);border-radius:12px;padding:16px 18px;margin-bottom:10px;background:var(--c-card,#ffffff)}
+.sl-faq summary{font-weight:700;font-size:15px;cursor:pointer}
+.sl-faq p{margin:10px 0 0;font-size:14px;line-height:1.6;color:var(--c-mid,#475569)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sl-wrap">
+  <nav class="sl-crumb" aria-label="Fil d'Ariane">
+    <a href="{% url 'vitrine-home' %}">Accueil</a>
+    <span>/</span>
+    <a href="{% url 'vitrine-services-index' %}">Services</a>
+    <span>/</span>
+    {% if zone %}
+      <a href="{% url 'vitrine-service-detail' trade_slug=trade.slug %}">{{ trade.name }}</a>
+      <span>/</span>
+      <span>{{ zone.name }}</span>
+    {% else %}
+      <span>{{ trade.name }}</span>
+    {% endif %}
+  </nav>
+
+  <section class="sl-hero">
+    <span class="sl-pill">{{ trade.eta }}{% if zone %} · {{ zone.region }}{% endif %}</span>
+    <h1>{{ h1_title }}</h1>
+    <p>{{ trade.hero_subtitle }}{% if zone %} {{ zone.intro }}{% endif %}</p>
+    <div class="sl-actions">
+      <a class="sl-btn sl-btn-cta" href="{% url 'vitrine-download-client' %}">Demander un devis sur BABIFIX</a>
+      <a class="sl-btn sl-btn-sec" href="{% url 'vitrine-devenir-prestataire' %}">Vous etes {{ trade.artisan_label|lower }} ? Rejoindre</a>
+    </div>
+  </section>
+
+  <div class="sl-grid-2">
+    <article class="sl-box">
+      <h2>Prestations {{ trade.name|lower }} les plus demandees{% if zone %} a {{ zone.name }}{% endif %}</h2>
+      <ul class="sl-list">
+        {% for item in trade.interventions %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </article>
+
+    <article class="sl-box">
+      <h2>Pourquoi reserver votre {{ trade.artisan_label|lower }} sur BABIFIX ?</h2>
+      <ul class="sl-list">
+        <li>Identite verifiee (CNI ONECI et photo portrait controlees avant activation).</li>
+        <li>Devis ecrit detaille (main-d'oeuvre et fournitures separees) avant le debut des travaux.</li>
+        <li>Paiement sous sequestre Mobile Money (Wave, Orange Money, MTN MoMo, Moov) libere apres votre confirmation.</li>
+        <li>Description facile de votre besoin par photo, video ou note vocale depuis votre telephone.</li>
+        <li>Recu PDF officiel envoye automatiquement par e-mail a chaque paiement.</li>
+      </ul>
+      {% if zone %}
+      <h3 style="font-size:15px;font-weight:800;margin:18px 0 8px;">Quartiers couverts a {{ zone.name }}</h3>
+      <div class="sl-chips">
+        {% for q in zone.quartiers %}
+        <span class="sl-chip">{{ q }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </article>
+  </div>
+
+  <h2 style="font-size:22px;font-weight:800;margin:0 0 16px;">Comment se deroule votre intervention en 3 etapes</h2>
+  <div class="sl-steps">
+    <div class="sl-step">
+      <div class="sl-step-num">1</div>
+      <h3>Decrivez votre besoin en 30 s</h3>
+      <p>Choisissez {{ trade.name|lower }}, envoyez une photo ou une note vocale et selectionnez votre creneau{% if zone %} a {{ zone.name }}{% endif %}.</p>
+    </div>
+    <div class="sl-step">
+      <div class="sl-step-num">2</div>
+      <h3>Validez un devis ecrit clair</h3>
+      <p>Votre {{ trade.artisan_label|lower }} vous transmet un devis transparent (ou propose une visite de diagnostic deductible).</p>
+    </div>
+    <div class="sl-step">
+      <div class="sl-step-num">3</div>
+      <h3>Paiement protege sous sequestre</h3>
+      <p>Votre paiement Mobile Money est bloque jusqu'a la fin du travail et libere uniquement apres votre validation.</p>
+    </div>
+  </div>
+
+  <section class="sl-faq" style="margin-bottom:36px;">
+    <h2 style="font-size:22px;font-weight:800;margin:0 0 14px;">Questions frequentes · {{ trade.name }}{% if zone %} a {{ zone.name }}{% endif %}</h2>
+    {% for q, a in trade.faq %}
+    <details {% if forloop.first %}open{% endif %}>
+      <summary>{{ q }}</summary>
+      <p>{{ a }}</p>
+    </details>
+    {% endfor %}
+  </section>
+
+  <section class="sl-box" style="margin-bottom:24px;">
+    <h2>{{ trade.artisan_plural }} dans les autres communes et villes</h2>
+    <div class="sl-chips">
+      {% for z in all_zones %}
+      <a class="sl-chip" href="{% url 'vitrine-service-local' trade_slug=trade.slug zone_slug=z.slug %}">{{ trade.artisan_label }} a {{ z.name }}</a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="sl-box">
+    <h2>Autres services a domicile{% if zone %} a {{ zone.name }}{% endif %}</h2>
+    <div class="sl-chips">
+      {% for rt in related_trades %}
+        {% if zone %}
+        <a class="sl-chip" href="{% url 'vitrine-service-local' trade_slug=rt.slug zone_slug=zone.slug %}">{{ rt.name }} a {{ zone.name }}</a>
+        {% else %}
+        <a class="sl-chip" href="{% url 'vitrine-service-detail' trade_slug=rt.slug %}">{{ rt.name }}</a>
+        {% endif %}
+      {% endfor %}
+      <a class="sl-chip" href="{% url 'vitrine-services-index' %}">Voir tous les metiers &rarr;</a>
+    </div>
+  </section>
+</div>
+{% endblock %}
