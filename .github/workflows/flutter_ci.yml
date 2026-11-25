@@ -22,7 +22,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.41.x"
+          flutter-version: "3.47.x"
           channel: stable
           cache: true
 
@@ -37,7 +37,7 @@ jobs:
 
       - name: Build APK (debug)
         run: |
-          flutter build apk --debug \
+          flutter build apk --debug --android-skip-build-dependency-validation \
             --dart-define=BABIFIX_ENV=development \
             --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com
 
@@ -62,7 +62,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.41.x"
+          flutter-version: "3.47.x"
           channel: stable
           cache: true
 
@@ -77,7 +77,7 @@ jobs:
 
       - name: Build APK (debug)
         run: |
-          flutter build apk --debug \
+          flutter build apk --debug --android-skip-build-dependency-validation \
             --dart-define=BABIFIX_ENV=development \
             --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com
 
@@ -103,7 +103,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.41.x"
+          flutter-version: "3.47.x"
           channel: stable
           cache: true
 
@@ -111,16 +111,18 @@ jobs:
         working-directory: babifix_client_flutter
         run: |
           flutter pub get
-          flutter build apk --release \
+          flutter build apk --release --android-skip-build-dependency-validation \
             --dart-define=BABIFIX_ENV=production \
+            --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com \
             --dart-define=BABIFIX_SENTRY_DSN=${{ secrets.BABIFIX_SENTRY_DSN }}
 
       - name: Build Prestataire Release APK
         working-directory: babifix_prestataire_flutter
         run: |
           flutter pub get
-          flutter build apk --release \
+          flutter build apk --release --android-skip-build-dependency-validation \
             --dart-define=BABIFIX_ENV=production \
+            --dart-define=BABIFIX_API_BASE=https://new-babifixbuild.onrender.com \
             --dart-define=BABIFIX_SENTRY_DSN=${{ secrets.BABIFIX_SENTRY_DSN }}
 
       - name: Upload release APKs

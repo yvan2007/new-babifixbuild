@@ -34,11 +34,13 @@ Assert-Markers "$RepoRoot\babifix_client_flutter\lib\shared\services\nominatim_g
 Assert-Markers "$RepoRoot\babifix_client_flutter\lib\features\booking\confirm_travaux_screen.dart" @("_buildAvantApresShowcase")
 Assert-Markers "$RepoRoot\babifix_client_flutter\lib\features\reservations\reservations_history_screen.dart" @("_ReservationProgressTracker")
 Assert-Markers "$RepoRoot\babifix_client_flutter\lib\babifix_fcm.dart" @("CONFIGUREZ_IOS")
+Assert-Markers "$RepoRoot\babifix_client_flutter\ios\Runner\Info.plist" @("LSApplicationQueriesSchemes", "whatsapp", "NSLocationAlwaysAndWhenInUseUsageDescription")
 Assert-Markers "$RepoRoot\babifix_prestataire_flutter\lib\features\requests\devis_kanban_editor_screen.dart" @("_buildQuickSuggestionsBar", "_devisCoherenceBanner")
 Assert-Markers "$RepoRoot\babifix_prestataire_flutter\lib\features\profile\edit_profile_screen.dart" @("_categoryNom")
 Assert-Markers "$RepoRoot\babifix_prestataire_flutter\lib\features\auth\registration_screen.dart" @("_CategoryPickerSheet")
 Assert-Markers "$RepoRoot\babifix_prestataire_flutter\lib\shared\services\nominatim_geocode.dart" @("kCivCommunesReference", "resolveNearestCivCommune", "nominatimReverse")
 Assert-Markers "$RepoRoot\babifix_prestataire_flutter\lib\babifix_fcm.dart" @("CONFIGUREZ_IOS")
+Assert-Markers "$RepoRoot\babifix_prestataire_flutter\ios\Runner\Info.plist" @("LSApplicationQueriesSchemes", "whatsapp", "FirebaseMessagingAutoInitEnabled", "NSLocationAlwaysAndWhenInUseUsageDescription")
 
 # Verifie que pageIn ne reintroduit pas transform (bloque les modales fixed)
 $adminCss = Get-Content -LiteralPath "$RepoRoot\babifix_admin_django\static\adminpanel\style.css" -Raw -Encoding UTF8
