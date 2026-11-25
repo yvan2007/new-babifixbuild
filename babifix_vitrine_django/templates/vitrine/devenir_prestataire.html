@@ -219,15 +219,45 @@ input[type="range"].dp-range {
   box-shadow: 0 22px 42px -14px rgba(7, 13, 25, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  isolation: isolate;
   transition: background-color 240ms ease, border-color 240ms ease;
+}
+.dp-wallet-face--front {
+  transform: rotateY(0deg);
+  z-index: 2;
 }
 .dp-wallet-face--back {
   position: absolute;
   inset: 0;
   transform: rotateY(180deg);
+  z-index: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+}
+.dp-wallet-stage:not(.is-flipped) .dp-wallet-face--front {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0s linear 180ms, visibility 0s linear 180ms, background-color 240ms ease, border-color 240ms ease;
+}
+.dp-wallet-stage.is-flipped .dp-wallet-face--front {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0s linear 180ms, visibility 0s linear 180ms, background-color 240ms ease, border-color 240ms ease;
+}
+.dp-wallet-stage:not(.is-flipped) .dp-wallet-face--back {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0s linear 180ms, visibility 0s linear 180ms, background-color 240ms ease, border-color 240ms ease;
+}
+.dp-wallet-stage.is-flipped .dp-wallet-face--back {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0s linear 180ms, visibility 0s linear 180ms, background-color 240ms ease, border-color 240ms ease;
 }
 .dp-wallet-face::after {
   content: "";

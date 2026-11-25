@@ -264,7 +264,7 @@ html[data-theme="sombre"] .parcours-result {
 .wal-card {
   position: relative;
   width: 100%;
-  min-height: 286px;
+  min-height: 304px;
   aspect-ratio: 1.586 / 1;
   transform-style: preserve-3d;
   transition: transform 640ms cubic-bezier(.22, 1, .36, 1);
@@ -276,6 +276,7 @@ html[data-theme="sombre"] .parcours-result {
 .wal-face {
   position: absolute;
   inset: 0;
+  -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   border-radius: 22px;
   padding: 22px 24px;
@@ -288,6 +289,44 @@ html[data-theme="sombre"] .parcours-result {
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
+  isolation: isolate;
+}
+.wal-front {
+  transform: rotateY(0deg);
+  z-index: 2;
+}
+.wal-card:not(.is-flipped) .wal-front {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0s linear 180ms, visibility 0s linear 180ms;
+}
+.wal-card.is-flipped .wal-front {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0s linear 180ms, visibility 0s linear 180ms;
+}
+.wal-card:not(.is-flipped) .wal-back {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0s linear 180ms, visibility 0s linear 180ms;
+}
+.wal-card.is-flipped .wal-back {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0s linear 180ms, visibility 0s linear 180ms;
+}
+@media (max-width: 520px) {
+  .wal-card {
+    min-height: 328px;
+    aspect-ratio: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wal-card, .wal-face { transition: none !important; }
 }
 .wal-card[data-tier="silver"] .wal-face {
   background-color: #22303d;
@@ -334,6 +373,7 @@ html[data-theme="sombre"] .parcours-result {
 .wal-card[data-tier="gold"] .wal-pat-gold { display: block; }
 .wal-back {
   transform: rotateY(180deg);
+  z-index: 1;
   padding: 0;
 }
 .wal-top,
