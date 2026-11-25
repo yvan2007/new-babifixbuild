@@ -12,7 +12,7 @@ on:
 jobs:
   build_ios_client:
     name: Build iOS IPA · Client
-    runs-on: macos-14
+    runs-on: macos-latest
     defaults:
       run:
         working-directory: babifix_client_flutter
@@ -53,7 +53,7 @@ jobs:
 
   build_ios_prestataire:
     name: Build iOS IPA · Prestataire
-    runs-on: macos-14
+    runs-on: macos-latest
     defaults:
       run:
         working-directory: babifix_prestataire_flutter
