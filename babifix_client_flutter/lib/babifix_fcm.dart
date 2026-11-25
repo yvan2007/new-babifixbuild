@@ -14,18 +14,23 @@ import 'services/notification_sound_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> babifixFcmBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await BabifixNotificationSoundService.ensureInitialized();
-  final data = message.data;
-  await BabifixNotificationSoundService.showNotification(
-    id: DateTime.now().millisecondsSinceEpoch % 100000,
-    title: data['title'] ?? 'BABIFIX',
-    body: data['body'] ?? '',
-    payload: jsonEncode({
-      'type': data['type'] ?? '',
-      'reference': data['reference'] ?? '',
-    }),
-  );
+  if (Platform.isIOS && DefaultFirebaseOptions.ios.appId.contains('CONFIGUREZ_IOS')) {
+    return;
+  }
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await BabifixNotificationSoundService.ensureInitialized();
+    final data = message.data;
+    await BabifixNotificationSoundService.showNotification(
+      id: DateTime.now().millisecondsSinceEpoch % 100000,
+      title: data['title'] ?? 'BABIFIX',
+      body: data['body'] ?? '',
+      payload: jsonEncode({
+        'type': data['type'] ?? '',
+        'reference': data['reference'] ?? '',
+      }),
+    );
+  } catch (_) {}
 }
 
 /// Enregistrement FCM → API Django `POST /api/auth/fcm-token`.
@@ -45,6 +50,10 @@ class BabifixFcm {
     if (_initAttempted) return;
     _initAttempted = true;
     if (kIsWeb) return;
+    if (Platform.isIOS && DefaultFirebaseOptions.ios.appId.contains('CONFIGUREZ_IOS')) {
+      debugPrint('BABIFIX FCM: iOS Firebase non configure (options placeholder), FCM ignore.');
+      return;
+    }
     try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
       if (kDebugMode) {
