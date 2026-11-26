@@ -102,11 +102,11 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
   String _tileUrl() {
     switch (_effectiveStyle()) {
       case 'dark':
-        return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
       case 'satellite':
         return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
       default:
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
     }
   }
 
@@ -353,31 +353,33 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
     } catch (_) {}
   }
 
+  void _safeMoveMap(LatLng center, double zoom) {
+    try {
+      _mapCtrl.move(center, zoom);
+    } catch (_) {}
+  }
+
   Future<void> _locate({bool forceFresh = false}) async {
     setState(() { _loading = true; _error = null; });
     try {
+      // 1) Centrage instantane sur position cachee ou adresse enregistree (sans attendre 12s de GPS)
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) throw Exception('GPS désactivé');
-
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-        if (perm == LocationPermission.denied) throw Exception('Permission refusée');
+      LocationPermission perm = LocationPermission.denied;
+      if (serviceEnabled) {
+        perm = await Geolocator.checkPermission();
+        if (perm == LocationPermission.denied) {
+          perm = await Geolocator.requestPermission();
+        }
       }
-      if (perm == LocationPermission.deniedForever) throw Exception('Permission bloquée définitivement');
+      final gpsGranted = serviceEnabled &&
+          (perm == LocationPermission.always ||
+              perm == LocationPermission.whileInUse);
 
       Position? pos;
-      if (!forceFresh) {
+      if (gpsGranted && !forceFresh) {
         pos = await Geolocator.getLastKnownPosition();
       }
-      pos ??= await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-      ).timeout(
-        const Duration(seconds: 12),
-        onTimeout: () => throw Exception('GPS timeout'),
-      );
-
-      if (isInCotedIvoire(pos.latitude, pos.longitude)) {
+      if (pos != null && isInCotedIvoire(pos.latitude, pos.longitude)) {
         _myPosition = LatLng(pos.latitude, pos.longitude);
         _hasExactUserPosition = true;
         _updateCityBadge(_myPosition!);
@@ -388,37 +390,68 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
           _hasExactUserPosition = true;
           _updateCityBadge(_myPosition!);
         } else {
-          // Vue nationale Cote d'Ivoire (Yamoussoukro) sans forcer Abidjan
+          // Vue nationale Cote d'Ivoire (Yamoussoukro) immediate pendant l'acquisition GPS
           _myPosition = const LatLng(6.8276, -5.2893);
           _hasExactUserPosition = false;
           _radiusKm = 100;
           _myCityLabel = 'Côte d\'Ivoire (toutes zones)';
         }
       }
-      _mapCtrl.move(_myPosition!, _hasExactUserPosition ? 12.5 : 6.8);
-      await _loadProviders();
+      if (mounted) {
+        _safeMoveMap(_myPosition!, _hasExactUserPosition ? 12.5 : 6.8);
+      }
+
+      // 2) Charger les prestataires tout de suite, et en parallele affiner le GPS
+      final loadFuture = _loadProviders();
+      if (gpsGranted && (forceFresh || pos == null)) {
+        Geolocator.getCurrentPosition(
+          locationSettings:
+              const LocationSettings(accuracy: LocationAccuracy.medium),
+        ).timeout(const Duration(seconds: 6)).then((freshPos) {
+          if (!mounted ||
+              !isInCotedIvoire(freshPos.latitude, freshPos.longitude)) {
+            return;
+          }
+          setState(() {
+            _myPosition = LatLng(freshPos.latitude, freshPos.longitude);
+            _hasExactUserPosition = true;
+            if (_radiusKm >= 100) _radiusKm = 25;
+          });
+          _updateCityBadge(_myPosition!);
+          _safeMoveMap(_myPosition!, 12.5);
+          _loadProviders();
+        }).catchError((_) {});
+      }
+      await loadFuture;
     } catch (e) {
       final saved = await BabifixUserStore.loadAddressCoords();
       if (saved != null) {
         _myPosition = LatLng(saved.lat, saved.lng);
         _hasExactUserPosition = true;
         _updateCityBadge(_myPosition!);
-        _mapCtrl.move(_myPosition!, 12.5);
+        _safeMoveMap(_myPosition!, 12.5);
         await _loadProviders();
         return;
       }
-      // Dernier repli : carte nationale Côte d'Ivoire plutot qu'ecran d'erreur bloquant
+      // Dernier repli : carte nationale Cote d'Ivoire plutot qu'ecran d'erreur bloquant
       _myPosition = const LatLng(6.8276, -5.2893);
       _hasExactUserPosition = false;
       _radiusKm = 100;
       _myCityLabel = 'Côte d\'Ivoire (activez le GPS)';
-      _mapCtrl.move(_myPosition!, 6.8);
+      _safeMoveMap(_myPosition!, 6.8);
       await _loadProviders();
+    } finally {
+      if (mounted && _loading) {
+        setState(() { _loading = false; });
+      }
     }
   }
 
   Future<void> _loadProviders() async {
-    if (_myPosition == null) return;
+    if (_myPosition == null) {
+      if (mounted) setState(() { _loading = false; });
+      return;
+    }
     final token = await BabifixUserStore.getApiToken();
     final useAuth = token != null;
     final base = babifixApiBaseUrl();
@@ -438,7 +471,7 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
       final res = await http.get(
         Uri.parse(url),
         headers: {if (useAuth) 'Authorization': 'Bearer $token'},
-      );
+      ).timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) {
         setState(() { _loading = false; });
         return;
@@ -558,8 +591,11 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
             options: MapOptions(
               initialCenter: _myPosition ?? const LatLng(6.8276, -5.2893),
               initialZoom: _hasExactUserPosition ? 12.5 : 6.8,
+              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFF1F5F9),
               onTap: (_, __) => setState(() => _selected = null),
-              // Suivi du zoom → recalcul du clustering (regroupement des pins
+              // Suivi du zoom -> recalcul du clustering (regroupement des pins
               // proches). On ne rebuild que si le zoom change notablement.
               onPositionChanged: (camera, hasGesture) {
                 if ((camera.zoom - _zoom).abs() > 0.3) {
@@ -570,8 +606,8 @@ class _ProvidersMapScreenState extends State<ProvidersMapScreen>
             children: [
               TileLayer(
                 urlTemplate: _tileUrl(),
-                tileProvider: NetworkTileProvider(),
-                userAgentPackageName: 'app.babifix.client',
+                retinaMode: false,
+                userAgentPackageName: 'com.babifix.client',
               ),
               if (_myPosition != null && _hasExactUserPosition)
                 AnimatedBuilder(

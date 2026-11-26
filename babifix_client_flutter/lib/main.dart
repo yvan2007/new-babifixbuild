@@ -7522,7 +7522,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
       final base = babifixApiBaseUrl();
       final url = '$base/api/public/categories/';
       debugPrint('BABIFIX: _loadPublicCategories START');
-      final cres = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 40));
+      final cres = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 18));
       debugPrint('BABIFIX: Categories response status: ${cres.statusCode}');
       if (cres.statusCode == 200) {
         final cdata = jsonDecode(cres.body) as Map<String, dynamic>;
@@ -7587,7 +7587,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
     try {
       final base = babifixApiBaseUrl();
       final url = '$base/api/public/actualites';
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 40));
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 18));
       if (res.statusCode == 200 && mounted) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final items = (data['items'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
@@ -7610,36 +7610,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
       final base = babifixApiBaseUrl();
       final params = <String, String>{};
       try {
-        var gperm = await Geolocator.checkPermission();
-        if (gperm == LocationPermission.denied) {
-          gperm = await Geolocator.requestPermission();
-        }
+        final gperm = await Geolocator.checkPermission();
         if (gperm == LocationPermission.always || gperm == LocationPermission.whileInUse) {
-          Position? pos = await Geolocator.getLastKnownPosition();
-          if (pos != null) {
-            final age = DateTime.now().difference(pos.timestamp);
-            if (age.inMinutes > 5) pos = null;
-          }
-          if (pos == null || !isInCotedIvoire(pos.latitude, pos.longitude)) {
-            pos = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.high,
-              ),
-            ).timeout(
-              const Duration(seconds: 12),
-              onTimeout: () => throw TimeoutException('GPS timeout'),
-            );
-          }
-          if (isInCotedIvoire(pos.latitude, pos.longitude)) {
+          final Position? pos = await Geolocator.getLastKnownPosition();
+          if (pos != null && isInCotedIvoire(pos.latitude, pos.longitude)) {
             params['lat'] = pos.latitude.toStringAsFixed(6);
             params['lon'] = pos.longitude.toStringAsFixed(6);
           } else {
-            // Hors CI (emulateur) : uniquement l'adresse enregistree si elle existe (pas d'Abidjan arbitraire).
+            // Hors CI (emulateur) ou pas encore de cache GPS : adresse enregistree instantanee,
+            // et acquisition GPS fraiche en arriere-plan pour ne jamais figer le chargement 12 s.
             final saved = await BabifixUserStore.loadAddressCoords();
             if (saved != null) {
               params['lat'] = saved.lat.toStringAsFixed(6);
               params['lon'] = saved.lng.toStringAsFixed(6);
             }
+            unawaited(_requestLocationInBackground());
           }
         } else {
           final saved = await BabifixUserStore.loadAddressCoords();
