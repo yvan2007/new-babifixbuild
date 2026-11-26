@@ -633,7 +633,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           context,
           type: BabifixToastType.success,
           message:
-              'Pre-inscription Express reussie ! Explorez votre espace Pro et completez votre KYC CNI en 2 min.',
+              'Inscription enregistree ! Votre dossier est en attente de validation par notre equipe.',
         );
         widget.onSubmit();
         return;

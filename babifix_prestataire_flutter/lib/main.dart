@@ -317,7 +317,6 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
 
   /// bootstrap -> onboarding | landing | dashboard | pending | refused | registration | kyc
   String current = 'bootstrap';
-  bool _isPreRegistered = false;
   final List<String> _navHistory = <String>[];
 
   void _navigateTo(String target) {
@@ -872,7 +871,6 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       // au 1er lancement (permissions/réseau), `current` n'était jamais mis à
       // jour → ROUE QUI TOURNE À L'INFINI. On la lance donc en arrière-plan.
       final st = '${prov['statut'] ?? ''}';
-      final isPreReg = prov['pre_registered'] == true;
       final unread = jsonInt(data['unread_chat_messages']);
       _unreadChat.value = unread;
       if (st == 'Valide') {
@@ -881,7 +879,6 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         final contratSigne = prov['contrat_signe'] == true;
         if (mounted) {
           setState(() {
-            _isPreRegistered = false;
             current = contratSigne ? 'dashboard' : 'contrat_mandatory';
           });
         }
@@ -892,26 +889,15 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       } else if (st == 'Refuse') {
         if (mounted) {
           setState(() {
-            _isPreRegistered = false;
             _refusalReason = '${prov['refusal_reason'] ?? ''}'.trim();
             current = 'refused';
           });
         }
-      } else if (isPreReg) {
-        // Pre-inscription Express (60 s) : acces immediat au dashboard en mode
-        // decouverte, avec bandeau KYC CNI pour activer l'acceptation de missions.
-        if (mounted) {
-          setState(() {
-            _isPreRegistered = true;
-            current = 'dashboard';
-          });
-        }
-        _syncServerNotifications(t);
       } else {
-        // Statut "En attente" (dossier complet soumis) : ecran d'attente.
+        // Statut "En attente" (inscription rapide ou dossier complet soumis) :
+        // meme ecran d'attente PendingScreen dans tous les cas.
         if (mounted) {
           setState(() {
-            _isPreRegistered = false;
             current = 'pending';
           });
         }
@@ -1520,74 +1506,13 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
         paletteMode: widget.paletteMode,
       );
     } else {
-      final dashboard = PrestataireDashboardScreen(
+      child = PrestataireDashboardScreen(
         paletteMode: widget.paletteMode,
         onNavigate: _navigateTo,
         inAppNotifs: _inAppNotifs,
         unreadChat: _unreadChat,
         onMessagesOpened: _refreshUnreadChat,
       );
-      child = _isPreRegistered
-          ? Column(
-              children: [
-                Material(
-                  color: const Color(0xFF0E3B2E),
-                  child: SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.verified_user_outlined,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Compte pre-inscrit · Completez votre KYC CNI en 2 min pour accepter vos premieres missions.',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                height: 1.3,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton(
-                            onPressed: () => _navigateTo('kyc'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFFC2410C),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text(
-                              'Completer KYC',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(child: dashboard),
-              ],
-            )
-          : dashboard;
     }
 
     // Interception du RETOUR système (Android) : sans ça, comme la navigation

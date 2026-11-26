@@ -19,7 +19,7 @@ class _PendingScreenState extends State<PendingScreen>
   static const _cyan = Color(0xFF4CC9F0);
   static const _navy = Color(0xFF0B1B34);
   static const _bg = Color(0xFFF4F9FF);
-  static const _logoAsset = 'assets/images/babifix-logo.png';
+  static const _logoAsset = 'assets/images/splash_pro.png';
 
   late AnimationController _pulseCtrl;
   late AnimationController _fadeCtrl;
@@ -113,13 +113,17 @@ class _PendingScreenState extends State<PendingScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Logo
+                // Logo circulaire blanc (identite Prestataire)
                 Container(
-                  width: 80,
-                  height: 80,
+                  width: 84,
+                  height: 84,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: _navy,
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(
+                      color: const Color(0xFFE87722).withValues(alpha: 0.45),
+                      width: 2,
+                    ),
                     image: const DecorationImage(
                       image: AssetImage(_logoAsset),
                       fit: BoxFit.cover,

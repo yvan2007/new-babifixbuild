@@ -188,17 +188,40 @@ class _BabifixPrestataireSplashScreenState
                                 ),
                               ),
                             ),
-                            // Logo réel — pas de fond blanc, agrandi.
+                            // Logo en medaillon circulaire blanc imbrique dans l'anneau orange
                             Opacity(
                               opacity: _logoOpacity.value,
                               child: Transform.scale(
                                 scale: _logoScale.value,
-                                child: SizedBox(
-                                  width: 180,
-                                  height: 180,
-                                  child: Image.asset(
-                                    'assets/images/logo_babifix.png',
-                                    fit: BoxFit.contain,
+                                child: Container(
+                                  width: 148,
+                                  height: 148,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: _accent.withValues(alpha: 0.65),
+                                      width: 2.0,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _accent.withValues(alpha: 0.25),
+                                        blurRadius: 24,
+                                        spreadRadius: 2,
+                                      ),
+                                      BoxShadow(
+                                        color: Colors.black
+                                            .withValues(alpha: 0.32),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipOval(
+                                    child: Image.asset(
+                                      'assets/images/splash_pro.png',
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
                               ),
