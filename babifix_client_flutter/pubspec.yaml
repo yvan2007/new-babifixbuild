@@ -92,14 +92,16 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
-# Icones d'application BABIFIX (logo sur fond navy) : iOS uniquement ici
-# (Android deja configure). Genere : dart run flutter_launcher_icons
+# Icones d'application Babifix Client (embleme plein cadre sur fond navy)
+# Genere iOS + Android : dart run flutter_launcher_icons
 flutter_launcher_icons:
   ios: true
-  android: false
+  android: true
   remove_alpha_ios: true
   background_color_ios: "#0B1B34"
-  image_path: "assets/images/logo_babifix.png"
+  image_path: "assets/images/app_icon_client.png"
+  adaptive_icon_background: "#0B1B34"
+  adaptive_icon_foreground: "assets/images/app_icon_client_fg.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

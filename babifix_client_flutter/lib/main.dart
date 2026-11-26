@@ -2454,7 +2454,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
           children: [
             _buildTopBar('Accueil'),
             _buildHomeHero(),
-            _buildEmergencyExpressSection(),
+            if (services.isNotEmpty || recentProviders.isNotEmpty)
+              _buildEmergencyExpressSection(),
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),

@@ -18,7 +18,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
                      android:maxSdkVersion="32"/>
     <application
-        android:label="BABIFIX"
+        android:label="Babifix"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
