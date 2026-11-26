@@ -117,13 +117,18 @@ body.app-shell {
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 100;
-  /* Masquer la scrollbar de la sidebar  :  elle défile si besoin mais sans barre visible */
-  scrollbar-width: none;       /* Firefox */
-  -ms-overflow-style: none;    /* IE/Edge */
+  /* Barre de defilement discrete sur petits ecrans pour garder toutes les sections accessibles */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
 }
 
 .sidebar::-webkit-scrollbar {
-  display: none;               /* Chrome/Safari */
+  width: 5px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.32);
+  border-radius: 999px;
 }
 
 .sidebar::after {
@@ -210,12 +215,12 @@ body.app-shell {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: #cbd5e1;
   text-decoration: none;
-  padding: 11px 14px;
-  border-radius: 12px;
-  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
   font-weight: 500;
   user-select: none;
   -webkit-user-select: none;

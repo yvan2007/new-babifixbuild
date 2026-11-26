@@ -3608,10 +3608,12 @@
       }, 900);
     }
 
+    var wsRetryDelay = 2500;
     function connect() {
       setStatus('Connexion...', 'connecting');
       var ws = new WebSocket(wsUrl);
       ws.onopen = function () {
+        wsRetryDelay = 2500;
         setStatus('Temps réel', 'online');
         pushLiveEvent('Canal WebSocket admin ouvert', 'ok');
       };
@@ -3647,7 +3649,8 @@
       };
       ws.onclose = function () {
         setStatus('Hors ligne', 'offline');
-        setTimeout(connect, 2500);
+        setTimeout(connect, wsRetryDelay);
+        wsRetryDelay = Math.min(30000, wsRetryDelay * 2);
       };
       ws.onerror = function () { try { ws.close(); } catch (e) {} };
     }

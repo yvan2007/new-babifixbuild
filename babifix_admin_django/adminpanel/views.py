@@ -1472,7 +1472,7 @@ def _finance_overview():
 
 
 def _dashboard_kpi_payload():
-    """KPI pour le tableau de bord (réutilisé par la page complète et le fragment HTMX)."""
+    """KPI pour le tableau de bord (reutilise par la page complete et le fragment HTMX)."""
     conv_n = Conversation.objects.count()
 
     # Réservation « active » = toute réservation NON terminale (toutes les
@@ -1862,24 +1862,38 @@ def _dashboard_kpi_payload():
         "scores": [cov_score, escrow_ratio, comp_score, sat_score, devis_cov_score, no_dispute_score],
     }
 
-    # Activité réelle sur 7 jours et 30 jours
+    # Activite reelle sur 7 jours et 30 jours en 2 requetes SQL agregees (au lieu de 111)
     from datetime import timedelta
+    from django.db.models.functions import TruncDate
+
     today = timezone.localdate() if hasattr(timezone, "localdate") else timezone.now().date()
+    start_30 = today - timedelta(days=29)
+
+    res_by_day = {
+        row["day"]: row
+        for row in Reservation.objects.filter(created_at__date__gte=start_30)
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(cnt=Count("id"), vol=Sum("montant"), comm=Sum("commission"))
+    }
+    pay_by_day = {
+        row["day"]: row["cnt"]
+        for row in Payment.objects.filter(created_at__date__gte=start_30)
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(cnt=Count("id"))
+    }
 
     def _build_timeline(num_days: int):
         lbls, r_arr, p_arr, g_arr, c_arr = [], [], [], [], []
         for i in range(num_days - 1, -1, -1):
             d = today - timedelta(days=i)
             lbls.append(d.strftime("%d/%m") if num_days > 10 else d.strftime("%a %d"))
-            cnt_r = Reservation.objects.filter(created_at__date=d).count()
-            cnt_p = Payment.objects.filter(created_at__date=d).count()
-            agg_r = Reservation.objects.filter(created_at__date=d).aggregate(
-                vol=Sum("montant"), comm=Sum("commission")
-            )
-            r_arr.append(cnt_r)
-            p_arr.append(cnt_p)
-            g_arr.append(float(agg_r["vol"] or 0))
-            c_arr.append(float(agg_r["comm"] or 0))
+            r_row = res_by_day.get(d)
+            r_arr.append(int(r_row["cnt"]) if r_row else 0)
+            p_arr.append(int(pay_by_day.get(d, 0) or 0))
+            g_arr.append(float(r_row["vol"] or 0) if r_row else 0.0)
+            c_arr.append(float(r_row["comm"] or 0) if r_row else 0.0)
         return {
             "labels": lbls,
             "reservations": r_arr,
@@ -3025,21 +3039,33 @@ def dashboard(request):
             _handled, _next_sec = handle_cockpit_post_action(request, action or "", settings_obj)
             if _handled and _next_sec:
                 section = _next_sec
+        try:
+            from django.core.cache import cache as _kpi_cache
+
+            _kpi_cache.delete("babifix:admin:kpi_payload:v1")
+        except Exception:
+            pass
         return redirect(f"/?section={section}")
 
     search_q = request.GET.get("q", "").strip()
-    stats, kpi, kpi_chart, finance_kpis = _dashboard_kpi_payload()
+    if section == "dashboard":
+        stats, kpi, kpi_chart, finance_kpis = _dashboard_kpi_payload()
+    else:
+        stats, kpi, kpi_chart, finance_kpis = [], {}, {}, {}
     providers, reservations, litiges, clients, paiements, categories, notifications = (
         _filter_lists_for_section(
             section,
             search_q,
         )
     )
-    actualites = Actualite.objects.all().order_by("-date_publication")
-    if section == "actualites" and search_q:
-        actualites = actualites.filter(
-            Q(titre__icontains=search_q) | Q(description__icontains=search_q)
-        )
+    if section in ("actualites", "dashboard"):
+        actualites = Actualite.objects.all().order_by("-date_publication")
+        if section == "actualites" and search_q:
+            actualites = actualites.filter(
+                Q(titre__icontains=search_q) | Q(description__icontains=search_q)
+            )
+    else:
+        actualites = Actualite.objects.none()
 
     # ── Paiements : filtres avancés + mini-stats (section « pro ») ──────────
     # Filtres : état, opérateur Mobile Money, plage de dates (date_start/end,
@@ -11224,7 +11250,7 @@ def api_public_search(request):
     supplies_out = []
     seen_sup = set()
     for c in cats_list:
-        for cs in CatalogueService.get_catalogue_items(c.id):
+        for cs in CatalogueService.get_catalogue_items_for_category(c):
             sup_key = (cs.get("nom") or "").lower()
             if not sup_key or sup_key in seen_sup:
                 continue

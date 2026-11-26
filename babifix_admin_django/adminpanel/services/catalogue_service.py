@@ -593,11 +593,10 @@ class CatalogueService:
             return None
 
     @classmethod
-    def get_catalogue_items(cls, category_id: Optional[int]) -> List[Dict[str, Any]]:
-        category = cls._load_category(category_id)
-        slug = cls.get_slug_for_category(category)
+    def _build_items_for_slug(
+        cls, category_id: Optional[int], slug: str
+    ) -> List[Dict[str, Any]]:
         raw_items = CATALOGUE_DATA.get(slug) or CATALOGUE_DATA["generique"]
-
         items = []
         base_id = (category_id or 1) * 1000
         for idx, item in enumerate(raw_items, start=1):
@@ -613,6 +612,21 @@ class CatalogueService:
                 }
             )
         return items
+
+    @classmethod
+    def get_catalogue_items_for_category(
+        cls, category: Optional[Any]
+    ) -> List[Dict[str, Any]]:
+        """Construit les articles depuis un objet Category deja charge (0 requete SQL)."""
+        slug = cls.get_slug_for_category(category)
+        cid = getattr(category, "id", None) if category is not None else None
+        return cls._build_items_for_slug(cid, slug)
+
+    @classmethod
+    def get_catalogue_items(cls, category_id: Optional[int]) -> List[Dict[str, Any]]:
+        category = cls._load_category(category_id)
+        slug = cls.get_slug_for_category(category)
+        return cls._build_items_for_slug(category_id, slug)
 
     @classmethod
     def get_recommended_units(cls, category_id: Optional[int]) -> List[str]:

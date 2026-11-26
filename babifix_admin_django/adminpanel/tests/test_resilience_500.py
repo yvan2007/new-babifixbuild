@@ -15,6 +15,14 @@ class ResilienceAnti500Tests(SimpleTestCase):
             with patch.object(RedisCache, "set", side_effect=ConnectionError("redis down")):
                 cache.set("k1", "valeur", 60)
                 self.assertEqual(cache.get("k1"), "valeur")
+                self.assertTrue(cache._is_circuit_open())
+
+    def test_safe_redis_cache_skips_redis_calls_while_circuit_open(self):
+        cache = SafeRedisCache("redis://127.0.0.1:6399/0", {})
+        with patch.object(RedisCache, "set", side_effect=ConnectionError("redis down")) as m_set:
+            cache.set("k2", "v2", 60)
+            cache.set("k3", "v3", 60)
+            self.assertEqual(m_set.call_count, 1)
 
     def test_check_rate_limit_never_crashes_when_cache_raises(self):
         rf = RequestFactory()
