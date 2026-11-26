@@ -349,12 +349,18 @@ def _bootstrap_data():
     """Toujours : parametres systeme + contenu vitrine (mis en cache worker). Le reste = option demo."""
     from django.core.cache import cache
 
-    if cache.get("babifix:bootstrapped:v1") and SystemSetting.objects.filter(pk=1).exists():
-        return
+    try:
+        if cache.get("babifix:bootstrapped:v1") and SystemSetting.objects.filter(pk=1).exists():
+            return
+    except Exception:
+        pass
     SystemSetting.objects.get_or_create(pk=1)
     _ensure_site_content_defaults()
     if not _demo_seed_enabled():
-        cache.set("babifix:bootstrapped:v1", True, 300)
+        try:
+            cache.set("babifix:bootstrapped:v1", True, 300)
+        except Exception:
+            pass
         return
     if not Provider.objects.exists():
         Provider.objects.bulk_create(

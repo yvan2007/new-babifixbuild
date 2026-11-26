@@ -45,18 +45,22 @@ def check_rate_limit(
     subject = (subject_identifier or _extract_subject_identifier(request)).strip()
     throttle_scope = f'{ip}:{subject}' if subject else ip
     cache_key = f'rl:{key_prefix}:{hashlib.md5(throttle_scope.encode()).hexdigest()}'
-    current = cache.get(cache_key, 0)
-    if current >= max_requests:
-        return True
-    if current == 0:
-        cache.set(cache_key, 1, timeout=window)
-    else:
-        # La clé peut expirer entre le get et le incr (fenêtre écoulée) →
-        # cache.incr lève alors ValueError. On retombe proprement sur un set.
-        try:
-            cache.incr(cache_key)
-        except ValueError:
+    try:
+        current = cache.get(cache_key, 0)
+        if current >= max_requests:
+            return True
+        if current == 0:
             cache.set(cache_key, 1, timeout=window)
+        else:
+            # La clé peut expirer entre le get et le incr (fenêtre écoulée) →
+            # cache.incr lève alors ValueError. On retombe proprement sur un set.
+            try:
+                cache.incr(cache_key)
+            except ValueError:
+                cache.set(cache_key, 1, timeout=window)
+    except Exception:
+        # Ne jamais bloquer ou renvoyer 500 si le backend de cache est indisponible.
+        return False
     return False
 
 

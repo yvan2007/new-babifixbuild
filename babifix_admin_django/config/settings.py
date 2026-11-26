@@ -435,7 +435,7 @@ CACHES = {
 if _redis_url:
     CACHES = {
         "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "BACKEND": "adminpanel.safe_cache.SafeRedisCache",
             "LOCATION": _redis_url,
         }
     }

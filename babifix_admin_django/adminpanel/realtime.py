@@ -3,14 +3,28 @@ Diffusion temps réel vers le panel admin (WebSocket / Django Channels).
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+logger = logging.getLogger('adminpanel.realtime')
+
 ADMIN_EVENTS_GROUP = 'babifix_admin_events'
 """Tous les apps client + prestataire connectés en WebSocket (JWT)."""
 CLIENT_EVENTS_GROUP = 'babifix_client_events'
+
+
+def _safe_group_send(group_name: str, message: dict[str, Any]) -> None:
+    """Envoie sur un groupe Channels sans jamais propager une coupure Redis en HTTP 500."""
+    try:
+        layer = get_channel_layer()
+        if layer is None:
+            return
+        async_to_sync(layer.group_send)(group_name, message)
+    except Exception as exc:
+        logger.warning('Broadcast Channels ignore (%s) : %s', group_name, exc)
 
 
 def prestataire_user_group(user_id: int) -> str:
@@ -26,11 +40,8 @@ def broadcast_prestataire_user(
     user_id: int, event_type: str, payload: dict[str, Any] | None = None
 ) -> None:
     """Événement temps réel vers l’app prestataire (WebSocket JWT sur ce groupe)."""
-    layer = get_channel_layer()
-    if layer is None:
-        return
     payload = payload or {}
-    async_to_sync(layer.group_send)(
+    _safe_group_send(
         prestataire_user_group(user_id),
         {
             'type': 'prestataire.notify',
@@ -49,11 +60,8 @@ def broadcast_client_user(
     `/ws/client/events/` (ClientEventsConsumer s'abonne automatiquement
     au groupe `babifix_client_<uid>` pour les events ciblés).
     """
-    layer = get_channel_layer()
-    if layer is None:
-        return
     payload = payload or {}
-    async_to_sync(layer.group_send)(
+    _safe_group_send(
         client_user_group(user_id),
         {
             'type': 'client.notify',
@@ -65,11 +73,8 @@ def broadcast_client_user(
 
 def broadcast_client_event(event_type: str, payload: dict[str, Any] | None = None) -> None:
     """Prestataire approuvé, nouvelle actualité, etc. : apps Flutter client & prestataire."""
-    layer = get_channel_layer()
-    if layer is None:
-        return
     payload = payload or {}
-    async_to_sync(layer.group_send)(
+    _safe_group_send(
         CLIENT_EVENTS_GROUP,
         {
             'type': 'client.notify',
@@ -86,10 +91,7 @@ def broadcast_chat_message(conv_id: int, message_payload: dict[str, Any]) -> Non
     arrive via POST /api/messages/send pour que les apps reçoivent l'event
     temps réel et affichent une bannière toast + son.
     """
-    layer = get_channel_layer()
-    if layer is None:
-        return
-    async_to_sync(layer.group_send)(
+    _safe_group_send(
         f"chat_{conv_id}",
         {
             "type": "chat_message",
@@ -103,11 +105,8 @@ def broadcast_admin_event(event_type: str, payload: dict[str, Any] | None = None
     Envoie un événement à tous les navigateurs connectés sur /ws/admin/events/
     (utilisateurs staff authentifiés uniquement, filtré dans le consumer).
     """
-    layer = get_channel_layer()
-    if layer is None:
-        return
     payload = payload or {}
-    async_to_sync(layer.group_send)(
+    _safe_group_send(
         ADMIN_EVENTS_GROUP,
         {
             'type': 'admin.notify',
