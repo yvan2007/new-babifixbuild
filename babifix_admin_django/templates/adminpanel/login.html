@@ -1,0 +1,277 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connexion : BABIFIX Admin</title>
+  <link rel="icon" type="image/png" href="{% static 'adminpanel/logo_babifix.png' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: #FFFFFF;
+      color: #0B1B34;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .login-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background: #FFFFFF;
+    }
+    .login-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    .login-logo-wrap {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: #0B1B34;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 28px rgba(11, 27, 52, 0.14);
+      overflow: hidden;
+    }
+    .login-logo-wrap img {
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+    }
+    .login-brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #0B1B34;
+      margin: 0;
+    }
+    .login-brand-sub {
+      font-size: 13px;
+      font-weight: 500;
+      color: #64748B;
+      margin: 0;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 400px;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 18px;
+      padding: 28px 24px;
+      box-shadow: 0 12px 36px rgba(15, 23, 42, 0.06);
+    }
+    .login-card h1 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      font-weight: 800;
+      color: #0B1B34;
+    }
+    .login-card-desc {
+      margin: 0 0 20px;
+      font-size: 13px;
+      color: #64748B;
+      line-height: 1.45;
+    }
+    .login-error {
+      margin-bottom: 16px;
+      padding: 11px 13px;
+      border-radius: 10px;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      color: #B91C1C;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .field-group {
+      margin-bottom: 16px;
+    }
+    .field-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #334155;
+    }
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .field-input {
+      width: 100%;
+      height: 44px;
+      padding: 0 14px;
+      border: 1px solid #CBD5E1;
+      border-radius: 11px;
+      background: #F8FAFC;
+      color: #0B1B34;
+      font-size: 15px;
+      font-family: inherit;
+      transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+    }
+    .field-input:focus {
+      outline: none;
+      background: #FFFFFF;
+      border-color: #0B1B34;
+      box-shadow: 0 0 0 3px rgba(11, 27, 52, 0.08);
+    }
+    .field-input--pwd {
+      padding-right: 46px;
+    }
+    .pwd-eye-btn {
+      position: absolute;
+      right: 6px;
+      width: 34px;
+      height: 34px;
+      border: none;
+      background: transparent;
+      color: #64748B;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .pwd-eye-btn:hover {
+      color: #0B1B34;
+      background: #F1F5F9;
+    }
+    .submit-btn {
+      width: 100%;
+      height: 46px;
+      margin-top: 6px;
+      border: none;
+      border-radius: 11px;
+      background: #E87722;
+      color: #FFFFFF;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.16s ease, transform 0.1s ease;
+    }
+    .submit-btn:hover {
+      background: #D46515;
+    }
+    .submit-btn:active {
+      transform: scale(0.99);
+    }
+    .login-foot {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #94A3B8;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main class="login-shell">
+    <div class="login-brand">
+      <div class="login-logo-wrap">
+        <img src="{% static 'adminpanel/logo_babifix.png' %}" alt="BABIFIX">
+      </div>
+      <p class="login-brand-title">BABIFIX Admin</p>
+      <p class="login-brand-sub">Espace de pilotage et de validation</p>
+    </div>
+
+    <section class="login-card" aria-label="Connexion administrateur">
+      <h1>Connexion</h1>
+      <p class="login-card-desc">Connectez-vous avec votre compte administrateur autorisé.</p>
+
+      {% if error_message %}
+      <div class="login-error" role="alert">{{ error_message }}</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'admin-login' %}">
+        {% csrf_token %}
+        {% if next_url %}
+        <input type="hidden" name="next" value="{{ next_url }}">
+        {% endif %}
+
+        <div class="field-group">
+          <label for="id_username">Identifiant</label>
+          <input
+            type="text"
+            id="id_username"
+            name="username"
+            class="field-input"
+            value="{{ username_value|default:'' }}"
+            autocomplete="username"
+            required
+            autofocus
+          >
+        </div>
+
+        <div class="field-group">
+          <label for="id_password">Mot de passe</label>
+          <div class="input-wrap">
+            <input
+              type="password"
+              id="id_password"
+              name="password"
+              class="field-input field-input--pwd"
+              autocomplete="current-password"
+              required
+            >
+            <button
+              type="button"
+              class="pwd-eye-btn"
+              id="toggle-pwd-btn"
+              aria-label="Afficher le mot de passe"
+              aria-pressed="false"
+              title="Afficher / masquer le mot de passe"
+            >
+              <svg id="eye-open-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg id="eye-off-ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="submit-btn">Se connecter</button>
+      </form>
+    </section>
+
+    <p class="login-foot">BABIFIX · Accès sécurisé réservé à l'administration</p>
+  </main>
+
+  <script>
+    (function () {
+      var btn = document.getElementById('toggle-pwd-btn');
+      var pwd = document.getElementById('id_password');
+      var eyeOpen = document.getElementById('eye-open-ico');
+      var eyeOff = document.getElementById('eye-off-ico');
+      if (!btn || !pwd) return;
+      btn.addEventListener('click', function () {
+        var isHidden = pwd.type === 'password';
+        pwd.type = isHidden ? 'text' : 'password';
+        btn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+        btn.setAttribute('aria-label', isHidden ? 'Masquer le mot de passe' : 'Afficher le mot de passe');
+        if (eyeOpen) eyeOpen.style.display = isHidden ? 'none' : 'block';
+        if (eyeOff) eyeOff.style.display = isHidden ? 'block' : 'none';
+      });
+    })();
+  </script>
+</body>
+</html>

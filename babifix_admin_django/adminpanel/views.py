@@ -10872,6 +10872,49 @@ def api_client_refuse_devis(request, reference):
     return JsonResponse({"ok": True, "statut": res.statut})
 
 
+def admin_login_view(request):
+    """Page de connexion Admin dediee (blanche, sobre, securisee, anti-bruteforce)."""
+    from django.contrib.auth import authenticate, login as auth_login
+    from django.utils.http import url_has_allowed_host_and_scheme
+    from .throttle import check_rate_limit
+
+    next_url = (request.GET.get("next") or request.POST.get("next") or "/").strip()
+    if not url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        next_url = "/"
+
+    if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
+        return redirect(next_url)
+
+    error_message = ""
+    username_value = ""
+    if request.method == "POST":
+        username_value = (request.POST.get("username") or "").strip()
+        password = request.POST.get("password") or ""
+        if check_rate_limit(request, "admin_login", max_requests=8, window=60, subject_identifier=username_value):
+            error_message = "Trop de tentatives. Reessayez dans une minute."
+        else:
+            user = authenticate(request, username=username_value, password=password)
+            if user is not None and user.is_active and (user.is_staff or user.is_superuser):
+                auth_login(request, user)
+                return redirect(next_url)
+            error_message = "Identifiant ou mot de passe incorrect."
+
+    return render(
+        request,
+        "adminpanel/login.html",
+        {
+            "error_message": error_message,
+            "username_value": username_value,
+            "next_url": next_url,
+        },
+        status=401 if error_message else 200,
+    )
+
+
 def error_500(request):
     # Logue la traceback complète de l'exception non gérée (sinon les 500 sont
     # opaques côté Render  :  on ne voit que « server_error »). Indispensable pour

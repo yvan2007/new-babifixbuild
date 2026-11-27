@@ -20,11 +20,13 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from adminpanel.views import admin_login_view
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
+    path("admin/login/", admin_login_view, name="admin-login"),
     path("admin/", admin.site.urls),
     path(
         "logout/",
