@@ -2358,7 +2358,7 @@ class _StepAddressState extends State<_StepAddress> {
 
                 // ── Raccourcis adresse ──
                 SizedBox(
-                  height: 86,
+                  height: 98,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: chips.length,
@@ -2918,9 +2918,11 @@ class _Sos247Card extends StatelessWidget {
                 children: const [
                   Icon(Icons.emergency_share_rounded, color: Color(0xFFC2410C), size: 22),
                   SizedBox(width: 8),
-                  Text(
-                    'Comment fonctionne BABIFIX SOS 24/7 ?',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  Expanded(
+                    child: Text(
+                      'Comment fonctionne BABIFIX SOS 24/7 ?',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ],
               ),
@@ -3148,10 +3150,13 @@ class _StepDoneState extends State<_StepDone> with SingleTickerProviderStateMixi
     final isWaitingSos = widget.sosMode && _claimedProviderName == null;
     const sosTerra = Color(0xFFC2410C);
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: _StepSectionCard(
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: _StepSectionCard(
           padding: const EdgeInsets.fromLTRB(24, 30, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3303,6 +3308,7 @@ class _StepDoneState extends State<_StepDone> with SingleTickerProviderStateMixi
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -3559,12 +3565,14 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
           children: [
             Icon(Icons.event_available_rounded, color: pal.accent, size: 18),
             const SizedBox(width: 8),
-            Text(
-              'Disponibilites du prestataire',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w800,
-                color: pal.textPrimary,
+            Flexible(
+              child: Text(
+                'Disponibilites du prestataire',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: pal.textPrimary,
+                ),
               ),
             ),
           ],
@@ -3605,7 +3613,7 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
           )
         else ...[
           SizedBox(
-            height: 86,
+            height: 98,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: _days.length,
@@ -3639,9 +3647,9 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
           : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        width: 58,
+        width: 62,
         margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
           color: selected
               ? (pal.isLight ? BabifixDesign.navy : BabifixDesign.cyan)
@@ -3775,13 +3783,16 @@ class _AvailabilityCalendarState extends State<_AvailabilityCalendar> {
               color: selected ? Colors.white : pal.accent,
             ),
             const SizedBox(width: 6),
-            Text(
-              '${slot['start']} - ${slot['end']}',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                fontFeatures: BabifixDesign.tabularFigures,
-                color: selected ? Colors.white : pal.textPrimary,
+            Flexible(
+              child: Text(
+                '${slot['start']} - ${slot['end']}',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: BabifixDesign.tabularFigures,
+                  color: selected ? Colors.white : pal.textPrimary,
+                ),
               ),
             ),
             if (selected) ...[

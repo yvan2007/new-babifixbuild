@@ -196,11 +196,12 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Détail du devis'),
         backgroundColor: BabifixDesign.surfaceOf(context),
         foregroundColor: BabifixDesign.textPrimaryOf(context),
+        iconTheme: IconThemeData(color: BabifixDesign.textPrimaryOf(context)),
         elevation: 0,
       ),
       body: _loading
@@ -214,7 +215,9 @@ class _DevisKanbanScreenState extends State<DevisKanbanScreen> {
               : _devis == null
                   ? _empty()
                   : _content(_devis!),
-      bottomNavigationBar: _devis == null ? null : _actionsBar(_devis!),
+      bottomNavigationBar: _devis == null
+          ? null
+          : SafeArea(top: false, bottom: true, child: _actionsBar(_devis!)),
     );
   }
 

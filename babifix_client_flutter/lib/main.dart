@@ -2442,18 +2442,21 @@ class _ClientHomePageState extends State<ClientHomePage> {
     );
   }
 
-  /// Accueil : un seul scroll vertical (evite les bugs Windows où seul le bas defilait).
+  /// Accueil : barre superieure fixe protegee par SafeArea puis scroll vertical.
   Widget _buildNews() {
-    return RefreshIndicator(
-      onRefresh: _loadRemoteData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildTopBar('Accueil'),
-            _buildHomeHero(),
+    return Column(
+      children: [
+        _buildTopBar('Accueil'),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadRemoteData,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildHomeHero(),
             if (services.isNotEmpty || recentProviders.isNotEmpty)
               _buildEmergencyExpressSection(),
             const SizedBox(height: 4),
@@ -2552,7 +2555,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
               if (_radiusAdaptive && _radiusUsedKm != null)
                 _RadiusBanner(radiusKm: _radiusUsedKm!),
               SizedBox(
-                height: 148,
+                height: 162,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(16, 2, 12, 8),
@@ -2820,11 +2823,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
                                         ),
                                       ),
                                       const SizedBox(width: 6),
-                                      BabifixTierBadge(
-                                        tier: p.premiumTier,
-                                        customLabel: p.premiumBadge,
-                                        isLight: _isLight,
-                                        compact: true,
+                                      Flexible(
+                                        child: BabifixTierBadge(
+                                          tier: p.premiumTier,
+                                          customLabel: p.premiumBadge,
+                                          isLight: _isLight,
+                                          compact: true,
+                                        ),
                                       ),
                                       const Spacer(),
                                       Icon(
@@ -2946,19 +2951,22 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  for (int index = 0; index < actualites.length; index++)
-                    _buildFeaturedNewsCard(index),
-                ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    for (int index = 0; index < actualites.length; index++)
+                      _buildFeaturedNewsCard(index),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    );
+    ),
+  ],
+);
   }
 
   void _triggerEmergencyCategory(String categoryQuery) {
@@ -3016,12 +3024,15 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                '· Intervention rapide',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: _textSecondary,
+              Flexible(
+                child: Text(
+                  '· Intervention rapide',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _textSecondary,
+                  ),
                 ),
               ),
             ],
@@ -3946,16 +3957,19 @@ class _ClientHomePageState extends State<ClientHomePage> {
       });
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadRemoteData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildTopBar('Services'),
-            // ── Barre de recherche ──────────────────────────────────────
+    return Column(
+      children: [
+        _buildTopBar('Services'),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadRemoteData,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Barre de recherche ──────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
               child: TextField(
@@ -4079,10 +4093,13 @@ class _ClientHomePageState extends State<ClientHomePage> {
                     _buildCatalogServiceCard(filtered[index], index),
                 ],
               ),
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 

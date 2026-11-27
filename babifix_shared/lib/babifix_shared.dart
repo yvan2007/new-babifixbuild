@@ -266,9 +266,11 @@ Future<bool> promptSecurityActionConfirm(
                 children: [
                   const Icon(Icons.lock_rounded, size: 12, color: Color(0xFF64748B)),
                   const SizedBox(width: 5),
-                  Text(
-                    'Paiement securise conformite Loi ivoirienne n° 2013-450',
-                    style: TextStyle(fontSize: 11, color: textSub),
+                  Flexible(
+                    child: Text(
+                      'Paiement securise conformite Loi ivoirienne n° 2013-450',
+                      style: TextStyle(fontSize: 11, color: textSub),
+                    ),
                   ),
                 ],
               ),

@@ -295,14 +295,17 @@ class _PremiumReceiptScreenState extends State<PremiumReceiptScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      bottomNavigationBar: _devisActionnable ? _buildQuoteActions() : null,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      bottomNavigationBar: _devisActionnable
+          ? SafeArea(top: false, bottom: true, child: _buildQuoteActions())
+          : null,
       appBar: AppBar(
         title: Text(widget.isQuote ? 'Devis' : 'Reçu de paiement'),
-        backgroundColor: Colors.white,
-        foregroundColor: BabifixDesign.navy,
+        backgroundColor: BabifixDesign.surfaceOf(context),
+        foregroundColor: BabifixDesign.textPrimaryOf(context),
+        iconTheme: IconThemeData(color: BabifixDesign.textPrimaryOf(context)),
         elevation: 0,
-        surfaceTintColor: Colors.white,
+        surfaceTintColor: BabifixDesign.surfaceOf(context),
         actions: [
           if (_pdfBytes != null)
             IconButton(icon: const Icon(Icons.share_outlined), onPressed: _sharePdf),

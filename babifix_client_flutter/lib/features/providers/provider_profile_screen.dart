@@ -278,11 +278,15 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomBar(
-        context,
-        name: name,
-        disponible: disponible,
-        tarif: tarif,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        bottom: true,
+        child: _buildBottomBar(
+          context,
+          name: name,
+          disponible: disponible,
+          tarif: tarif,
+        ),
       ),
     );
   }
@@ -849,8 +853,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
   // ── Loading / Error ────────────────────────────────────────────────────────
 
   Widget _buildLoading() {
+    final isDark = BabifixDesign.isDark(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1628),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -858,10 +863,13 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
             SizedBox(
               width: 48,
               height: 48,
-              child: BabifixRingLoader.cyan(size: 28),
+              child: isDark
+                  ? const BabifixRingLoader.cyan(size: 28)
+                  : const BabifixRingLoader.dark(size: 28),
             ),
             const SizedBox(height: 16),
-            const Text('Chargement du profil…', style: TextStyle(color: Colors.white54)),
+            Text('Chargement du profil…',
+                style: TextStyle(color: BabifixDesign.textMutedOf(context))),
           ],
         ),
       ),
@@ -869,36 +877,45 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
   }
 
   Widget _buildError() {
+    final isDark = BabifixDesign.isDark(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1628),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: BabifixDesign.textPrimaryOf(context),
+        iconTheme: IconThemeData(color: BabifixDesign.textPrimaryOf(context)),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.wifi_off_rounded, size: 72, color: Colors.white24),
-              const SizedBox(height: 20),
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white60, fontSize: 15),
-              ),
-              const SizedBox(height: 28),
-              BabifixButton(
-                label: 'Réessayer',
-                icon: Icons.refresh_rounded,
-                backgroundColor: BabifixDesign.cyan,
-                foregroundColor: BabifixDesign.navy,
-                width: 180,
-                height: 46,
-                onPressed: _load,
-              ),
-            ],
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.wifi_off_rounded,
+                    size: 72,
+                    color: BabifixDesign.textMutedOf(context).withValues(alpha: 0.45)),
+                const SizedBox(height: 20),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: BabifixDesign.textMutedOf(context), fontSize: 15),
+                ),
+                const SizedBox(height: 28),
+                BabifixButton(
+                  label: 'Réessayer',
+                  icon: Icons.refresh_rounded,
+                  backgroundColor: isDark ? BabifixDesign.cyan : BabifixDesign.navy,
+                  foregroundColor: isDark ? BabifixDesign.navy : Colors.white,
+                  width: 180,
+                  height: 46,
+                  onPressed: _load,
+                ),
+              ],
+            ),
           ),
         ),
       ),

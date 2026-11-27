@@ -131,11 +131,15 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
         ),
         title: const Text('Confirmer les travaux'),
       ),
-      body: _loading
-          ? const Center(child: BabifixRingLoader.cyan(size: 28))
-          : _error != null
-          ? Center(child: Text(_error!))
-          : _buildContent(),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: _loading
+            ? const Center(child: BabifixRingLoader.cyan(size: 28))
+            : _error != null
+            ? Center(child: Text(_error!))
+            : _buildContent(),
+      ),
     );
   }
 
@@ -191,12 +195,17 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
                       'Montant à payer',
                       style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
-                    Text(
-                      '${montant.toStringAsFixed(0)} francs CFA',
-                      style: const TextStyle(
-                        color: Color(0xFF4CC9F0),
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '${montant.toStringAsFixed(0)} francs CFA',
+                        textAlign: TextAlign.end,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF4CC9F0),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ],
@@ -209,14 +218,19 @@ class _ConfirmTravauxScreenState extends State<ConfirmTravauxScreen> {
                       'Mode de paiement',
                       style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
-                    Text(
-                      paymentType == 'MOBILE_MONEY'
-                          ? 'Mobile Money'
-                          : 'Espèces',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        paymentType == 'MOBILE_MONEY'
+                            ? 'Mobile Money'
+                            : 'Espèces',
+                        textAlign: TextAlign.end,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],

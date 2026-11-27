@@ -170,7 +170,9 @@ class _ProviderProfilePremiumScreenState
           : _error != null
               ? _errorView()
               : _content(),
-      bottomNavigationBar: _p == null ? null : _bottomBar(),
+      bottomNavigationBar: _p == null
+          ? null
+          : SafeArea(top: false, bottom: true, child: _bottomBar()),
     );
   }
 

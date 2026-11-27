@@ -171,20 +171,28 @@ class _ClientJournalScreenState extends State<ClientJournalScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Mon journal'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: BabifixDesign.surfaceOf(context),
+        foregroundColor: BabifixDesign.textPrimaryOf(context),
+        iconTheme: IconThemeData(color: BabifixDesign.textPrimaryOf(context)),
         elevation: 0.5,
       ),
       body: _loading
-          ? const Center(child: BabifixRingLoader.dark(size: 80))
+          ? Center(
+              child: isDark
+                  ? const BabifixRingLoader.cyan(size: 80)
+                  : const BabifixRingLoader.dark(size: 80),
+            )
           : _error != null
               ? Center(child: Text(_error!))
               : _body(),
-      bottomNavigationBar: _loading || _error != null ? null : _saveBar(),
+      bottomNavigationBar: _loading || _error != null
+          ? null
+          : SafeArea(top: false, bottom: true, child: _saveBar()),
     );
   }
 

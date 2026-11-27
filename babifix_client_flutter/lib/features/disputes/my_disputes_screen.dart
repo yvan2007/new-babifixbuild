@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../user_store.dart';
 import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
@@ -106,42 +107,54 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = BabifixDesign.isDark(context);
+    final textPrimary = BabifixDesign.textPrimaryOf(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF050D1A),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: textPrimary,
+        iconTheme: IconThemeData(color: textPrimary),
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Mes litiges',
           style: TextStyle(
-            color: Colors.white,
+            color: textPrimary,
             fontWeight: FontWeight.w800,
             fontSize: 17,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white70, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded,
+              color: textPrimary, size: 20),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: _kCyan,
-        backgroundColor: _kNavy,
-        child: _loading
-            ? const Center(child: BabifixRingLoader.cyan(size: 28))
-            : _error != null
-                ? _buildError()
-                : _disputes.isEmpty
-                    ? _buildEmpty()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                        itemCount: _disputes.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (_, i) => _buildCard(_disputes[i]),
-                      ),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          color: _kCyan,
+          backgroundColor: BabifixDesign.surfaceOf(context),
+          child: _loading
+              ? Center(
+                  child: isDark
+                      ? const BabifixRingLoader.cyan(size: 28)
+                      : const BabifixRingLoader.dark(size: 28),
+                )
+              : _error != null
+                  ? _buildError()
+                  : _disputes.isEmpty
+                      ? _buildEmpty()
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                          itemCount: _disputes.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, i) => _buildCard(_disputes[i]),
+                        ),
+        ),
       ),
     );
   }
@@ -164,22 +177,23 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        const Center(
+        Center(
           child: Text(
             'Aucun litige',
             style: TextStyle(
-              color: Colors.white,
+              color: BabifixDesign.textPrimaryOf(context),
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
         const SizedBox(height: 8),
-        const Center(
+        Center(
           child: Text(
             'Vos interventions se passent bien.\nContinuez comme ça !',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+            style: TextStyle(
+                color: BabifixDesign.textMutedOf(context), fontSize: 13),
           ),
         ),
       ],
@@ -187,6 +201,7 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
   }
 
   Widget _buildError() {
+    final isDark = BabifixDesign.isDark(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -199,13 +214,13 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
             Text(
               _error ?? '',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF94A3B8)),
+              style: TextStyle(color: BabifixDesign.textMutedOf(context)),
             ),
             const SizedBox(height: 16),
             BabifixButton(
               label: 'Réessayer',
-              backgroundColor: _kCyan,
-              foregroundColor: _kNavy,
+              backgroundColor: isDark ? _kCyan : _kNavy,
+              foregroundColor: isDark ? _kNavy : Colors.white,
               width: 170,
               height: 46,
               onPressed: _load,
@@ -225,17 +240,21 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
     final hasPrestaResp = d['has_presta_response'] == true;
     final photosCount = (d['photos_client_count'] ?? 0) as int;
     final decisionNote = (d['decision_note'] ?? '').toString();
+    final isDark = BabifixDesign.isDark(context);
+    final textPrimary = BabifixDesign.textPrimaryOf(context);
+    final textMuted = BabifixDesign.textMutedOf(context);
 
     return Container(
       decoration: BoxDecoration(
-        color: _kNavy,
+        color: BabifixDesign.surfaceOf(context),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isOpen
               ? decStyle.color.withValues(alpha: 0.45)
-              : Colors.white.withValues(alpha: 0.08),
+              : BabifixDesign.borderOf(context),
           width: isOpen ? 1.5 : 1,
         ),
+        boxShadow: BabifixDesign.elevationShadowSM(!isDark),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,8 +316,8 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
               children: [
                 Text(
                   (d['categorie_label'] ?? 'Litige').toString(),
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: textPrimary,
                     fontWeight: FontWeight.w900,
                     fontSize: 15,
                   ),
@@ -307,7 +326,7 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
                 Text(
                   (d['reservation_title'] ?? 'N/A').toString(),
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.65),
+                    color: textMuted,
                     fontSize: 12.5,
                   ),
                   maxLines: 1,
@@ -318,7 +337,7 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
                 Text(
                   (d['motif'] ?? '').toString(),
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
+                    color: textPrimary.withValues(alpha: 0.85),
                     fontSize: 13,
                     height: 1.45,
                   ),
@@ -334,19 +353,19 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
                     _chip(
                       Icons.tag_rounded,
                       d['reference']?.toString() ?? '',
-                      _kCyan,
+                      isDark ? _kCyan : BabifixDesign.cyanDeep,
                     ),
                     if (montant > 0)
                       _chip(
                         Icons.shield_rounded,
                         '${montant.toStringAsFixed(0)} F bloqués',
-                        _kAmber,
+                        isDark ? _kAmber : BabifixDesign.ciOrange,
                       ),
                     if (photosCount > 0)
                       _chip(
                         Icons.image_rounded,
                         '$photosCount photo${photosCount > 1 ? "s" : ""}',
-                        _kCyan,
+                        isDark ? _kCyan : BabifixDesign.cyanDeep,
                       ),
                     if (hasPrestaResp)
                       _chip(
@@ -384,8 +403,8 @@ class _MyDisputesScreenState extends State<MyDisputesScreen> {
                         const SizedBox(height: 4),
                         Text(
                           decisionNote,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: textPrimary,
                             fontSize: 12.5,
                             height: 1.5,
                           ),
