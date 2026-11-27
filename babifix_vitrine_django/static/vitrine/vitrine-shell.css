@@ -945,3 +945,16 @@ html[data-theme="sombre"] .cookie-title { color: #f8fafc; }
 html[data-theme="sombre"] .cookie-sub,
 html[data-theme="sombre"] .cookie-text { color: #cbd5e1; }
 html[data-theme="sombre"] .cookie-text a { color: #4cc9f0; }
+
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}

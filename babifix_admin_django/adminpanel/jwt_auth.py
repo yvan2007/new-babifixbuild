@@ -184,7 +184,7 @@ def verify_access_token(token: str) -> Optional[dict]:
         # complète est faite ENSUITE (sécurité défense-en-profondeur).
         decoded = jwt.decode(token, options={"verify_signature": False})
         jti = decoded.get("jti")
-        if jti in _token_blacklist:
+        if jti and _is_blacklisted(jti):
             logger.warning(f"Token revoked: {jti}")
             return None
 
@@ -388,6 +388,10 @@ def require_jwt_auth(roles: Optional[list] = None):
             role = payload.get("role")
             if allowed_roles and role not in allowed_roles:
                 return JsonResponse({"error": "forbidden_role"}, status=403)
+            from .auth import _is_user_active_and_role_ok
+
+            if not _is_user_active_and_role_ok(payload.get("sub"), role):
+                return JsonResponse({"error": "account_inactive_or_demoted"}, status=401)
             
             request.api_user_id = int(payload.get("sub"))
             request.api_role = role
@@ -433,6 +437,10 @@ def require_jwt_auth_or_refresh(roles: Optional[list] = None):
             role = payload.get("role")
             if allowed_roles and role not in allowed_roles:
                 return JsonResponse({"error": "forbidden_role"}, status=403)
+            from .auth import _is_user_active_and_role_ok
+
+            if not _is_user_active_and_role_ok(payload.get("sub"), role):
+                return JsonResponse({"error": "account_inactive_or_demoted"}, status=401)
             
             request.api_user_id = int(payload.get("sub"))
             request.api_role = role

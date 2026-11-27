@@ -721,22 +721,39 @@ def _decode_and_save_media(b64_data: str, subfolder: str, prefix: str) -> str:
     match = _re.match(r"data:(image/\w+|video/\w+);base64,(.+)", b64_data, _re.DOTALL)
     if not match:
         return ""
-    mime_type = match.group(1)
+    mime_type = match.group(1).lower()
     raw_b64 = match.group(2).strip()
-    # Déterminer l'extension
+    # Déterminer l'extension (rejet strict de tout MIME hors whitelist)
     ext_map = {
         "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png",
         "image/gif": "gif", "image/webp": "webp",
         "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
     }
-    ext = ext_map.get(mime_type, "bin")
-    try:
-        file_bytes = _b64.b64decode(raw_b64)
-    except Exception:
+    ext = ext_map.get(mime_type)
+    if not ext:
         return ""
+    try:
+        file_bytes = _b64.b64decode(raw_b64, validate=True)
+    except Exception:
+        try:
+            file_bytes = _b64.b64decode(raw_b64)
+        except Exception:
+            return ""
+    is_video = mime_type.startswith("video/")
+    max_bytes = (25 * 1024 * 1024) if is_video else (8 * 1024 * 1024)
+    if not file_bytes or len(file_bytes) > max_bytes:
+        return ""
+    if mime_type.startswith("image/"):
+        try:
+            import io
+            from PIL import Image
+
+            with Image.open(io.BytesIO(file_bytes)) as img:
+                img.verify()
+        except Exception:
+            return ""
 
     name = f"providers/{subfolder}/{prefix}_{uuid.uuid4().hex[:12]}.{ext}"
-    is_video = mime_type.startswith("video/")
 
     # Sécurité KYC / Loi 2013-450 : les pièces d'identité (CNI, selfie KYC)
     # sont stockées hors de MEDIA_ROOT public dans un répertoire privé servi
@@ -799,9 +816,12 @@ def api_admin_kyc_media(request, subfolder, filename):
     if not is_admin:
         auth_header = request.META.get("HTTP_AUTHORIZATION", "")
         if auth_header.startswith("Bearer "):
+            from .auth import _is_user_active_and_role_ok
+
             tok = auth_header.split(" ", 1)[1].strip()
             claims = verify_token(tok)
-            if claims and claims.get("role") == "admin":
+            uid = (claims or {}).get("uid") or (claims or {}).get("user_id") or (claims or {}).get("sub")
+            if claims and claims.get("role") == "admin" and _is_user_active_and_role_ok(uid, "admin"):
                 is_admin = True
     if not is_admin:
         return HttpResponseForbidden("Accès réservé à l'administration.")
@@ -8109,7 +8129,13 @@ def api_auth_fcm_token(request):
 @require_http_methods(["POST"])
 def api_auth_google(request):
     from django.conf import settings
+    from urllib.parse import quote as _url_quote
     import urllib.request
+
+    from .throttle import check_rate_limit, rate_limited_response
+
+    if check_rate_limit(request, "oauth_google", max_requests=10, window=60):
+        return rate_limited_response()
 
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
@@ -8134,7 +8160,7 @@ def api_auth_google(request):
         return JsonResponse({"error": "id_token_required"}, status=400)
 
     try:
-        url = f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
+        url = f"https://oauth2.googleapis.com/tokeninfo?id_token={_url_quote(id_token, safe='')}"
         with urllib.request.urlopen(url, timeout=5) as resp:
             raw = resp.read()
             if isinstance(raw, bytes):
@@ -8204,6 +8230,11 @@ def api_auth_google(request):
 def api_auth_apple(request):
     from django.conf import settings
     import jwt as _pyjwt
+
+    from .throttle import check_rate_limit, rate_limited_response
+
+    if check_rate_limit(request, "oauth_apple", max_requests=10, window=60):
+        return rate_limited_response()
 
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
@@ -9968,18 +9999,39 @@ def api_prestataire_upload_photos(request, reference):
     photos_apres = data.get("photos_apres", [])
     type_photo = data.get("type", "avant")  # "avant" ou "apres"
 
-    if type_photo == "avant" and photos_avant:
+    def _clean_photo_urls(items):
+        if not isinstance(items, list) or len(items) > 20:
+            return None
+        cleaned = []
+        for item in items:
+            if not isinstance(item, str):
+                return None
+            url = item.strip()
+            if not url or len(url) > 2048:
+                return None
+            low = url.lower()
+            if not (low.startswith("https://") or low.startswith("http://") or (url.startswith("/") and not url.startswith("//"))):
+                return None
+            cleaned.append(url)
+        return cleaned
+
+    clean_avant = _clean_photo_urls(photos_avant)
+    clean_apres = _clean_photo_urls(photos_apres)
+    if clean_avant is None or clean_apres is None:
+        return JsonResponse({"error": "invalid_photo_urls"}, status=400)
+
+    if type_photo == "avant" and clean_avant:
         current = res.photos_avant or []
-        res.photos_avant = current + photos_avant
-    elif type_photo == "apres" and photos_apres:
+        res.photos_avant = current + clean_avant
+    elif type_photo == "apres" and clean_apres:
         current = res.photos_apres or []
-        res.photos_apres = current + photos_apres
-    elif photos_avant:
+        res.photos_apres = current + clean_apres
+    elif clean_avant:
         current = res.photos_avant or []
-        res.photos_avant = current + photos_avant
-    elif photos_apres:
+        res.photos_avant = current + clean_avant
+    elif clean_apres:
         current = res.photos_apres or []
-        res.photos_apres = current + photos_apres
+        res.photos_apres = current + clean_apres
 
     res.save(update_fields=["photos_avant", "photos_apres"])
 
@@ -10872,49 +10924,6 @@ def api_client_refuse_devis(request, reference):
     return JsonResponse({"ok": True, "statut": res.statut})
 
 
-def admin_login_view(request):
-    """Page de connexion Admin dediee (blanche, sobre, securisee, anti-bruteforce)."""
-    from django.contrib.auth import authenticate, login as auth_login
-    from django.utils.http import url_has_allowed_host_and_scheme
-    from .throttle import check_rate_limit
-
-    next_url = (request.GET.get("next") or request.POST.get("next") or "/").strip()
-    if not url_has_allowed_host_and_scheme(
-        next_url,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
-    ):
-        next_url = "/"
-
-    if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
-        return redirect(next_url)
-
-    error_message = ""
-    username_value = ""
-    if request.method == "POST":
-        username_value = (request.POST.get("username") or "").strip()
-        password = request.POST.get("password") or ""
-        if check_rate_limit(request, "admin_login", max_requests=8, window=60, subject_identifier=username_value):
-            error_message = "Trop de tentatives. Reessayez dans une minute."
-        else:
-            user = authenticate(request, username=username_value, password=password)
-            if user is not None and user.is_active and (user.is_staff or user.is_superuser):
-                auth_login(request, user)
-                return redirect(next_url)
-            error_message = "Identifiant ou mot de passe incorrect."
-
-    return render(
-        request,
-        "adminpanel/login.html",
-        {
-            "error_message": error_message,
-            "username_value": username_value,
-            "next_url": next_url,
-        },
-        status=401 if error_message else 200,
-    )
-
-
 def error_500(request):
     # Logue la traceback complète de l'exception non gérée (sinon les 500 sont
     # opaques côté Render  :  on ne voit que « server_error »). Indispensable pour
@@ -11403,3 +11412,28 @@ def api_transcribe_audio(request):
         return JsonResponse(res_stt, status=200)
 
     return JsonResponse({"error": "message_id_or_reservation_required"}, status=400)
+
+
+def admin_login_view(request):
+    """Connexion Admin securisee avec protection anti brute-force (CSRF actif)."""
+    from django.contrib import admin
+    from .throttle import check_rate_limit
+
+    if request.method == "POST":
+        if check_rate_limit(request, "admin_login", max_requests=5, window=300):
+            return render(
+                request,
+                "admin/login.html",
+                {
+                    "rate_limited_message": "Trop de tentatives de connexion. Patientez 5 minutes avant de reessayer.",
+                    "app_path": request.get_full_path(),
+                    "next": request.POST.get("next") or request.GET.get("next") or "/admin/",
+                    "site_header": getattr(admin.site, "site_header", "BABIFIX Administration"),
+                },
+                status=429,
+            )
+
+    return admin.site.login(
+        request,
+        extra_context={"next": request.GET.get("next") or "/admin/"},
+    )

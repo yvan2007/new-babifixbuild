@@ -1147,6 +1147,7 @@
                         </button>
                       </div>
                       {% if p.auto_check_result.checks %}
+                      <div class="table-wrap">
                       <table class="kyc-checks-table">
                         <thead><tr><th>Contrôle</th><th>Résultat</th><th>Détail</th></tr></thead>
                         <tbody>
@@ -1159,6 +1160,7 @@
                           {% endfor %}
                         </tbody>
                       </table>
+                      </div>
                       {% endif %}
                       {% if p.auto_check_result.face_detected_selfie is not None %}
                       <div class="kyc-face-match" style="margin-top:10px;font-size:13px;">
@@ -1339,7 +1341,7 @@
                         <input type="hidden" name="provider_id" value="{{ p.id }}">
                         <input type="text" name="reason" placeholder="Motif de refus obligatoire..."
                                class="dossier-refusal-input" required
-                               style="display:inline-block;width:260px;margin-right:8px;">
+                               style="display:inline-block;width:min(260px, 100%);max-width:100%;margin-right:8px;">
                         <button type="submit" class="dossier-btn dossier-btn--reject"
                                 onclick="return confirm('Refuser le dossier de {{ p.nom|escapejs }} ?')">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
@@ -1672,6 +1674,7 @@
           <span class="bulk-bar__count" id="bulk-count-reservation"><b>0</b> sélectionné(s)</span>
           <button type="button" class="bulk-bar__btn" id="bulk-btn-reservation" onclick="babifixBulkDelete('reservation')" disabled>🗑 Supprimer la sélection</button>
         </div>
+        <div class="table-wrap">
         <table class="data-table">
           <thead><tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="reservation" onclick="babifixBulkToggleAll('reservation', this)"></th><th>Ref.</th><th>Client</th><th>Prestataire</th><th>Montant</th><th>Paiement</th><th>Operateur MM</th><th>Flux especes</th><th>Statut</th><th>Actions</th></tr></thead>
           <tbody>
@@ -2122,7 +2125,7 @@
           <span class="bulk-bar__count" id="bulk-count-litige"><b>0</b> sélectionné(s)</span>
           <button type="button" class="bulk-bar__btn" id="bulk-btn-litige" onclick="babifixBulkDelete('litige')" disabled>🗑 Supprimer la sélection</button>
         </div>
-        <div class="table-responsive">
+        <div class="table-wrap">
         <table class="data-table">
           <thead><tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="litige" onclick="babifixBulkToggleAll('litige', this)"></th><th>Réf.</th><th>Motif</th><th>Client</th><th>Prestataire</th><th>Priorité</th><th>Décision actuelle</th><th>Arbitrer</th><th>Actions</th></tr></thead>
           <tbody>
@@ -3374,6 +3377,7 @@
           <span class="bulk-bar__count" id="bulk-count-actualite"><b>0</b> sélectionné(s)</span>
           <button type="button" class="bulk-bar__btn" id="bulk-btn-actualite" onclick="babifixBulkDelete('actualite')" disabled>🗑 Supprimer la sélection</button>
         </div>
+        <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr><th class="bulk-col"><input type="checkbox" class="bulk-all" data-scope="actualite" onclick="babifixBulkToggleAll('actualite', this)"></th><th>Titre</th><th>Tag</th><th>Cible</th><th>Statut</th><th>Date</th><th></th></tr>

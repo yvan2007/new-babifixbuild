@@ -458,6 +458,13 @@ def api_rating_voice_upload(request, reference):
     if audio_file.size > 5 * 1024 * 1024:
         return JsonResponse({"error": "file_too_large", "max_mb": 5}, status=400)
 
+    from .secure_uploads import SafeUploadError, validate_audio_upload
+
+    try:
+        audio_file = validate_audio_upload(audio_file, max_mb=5)
+    except SafeUploadError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
     ext_map = {
         "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/ogg": "ogg",
         "audio/wav": "wav", "audio/webm": "webm",

@@ -1047,7 +1047,6 @@ def api_admin_matching_simulate(request):
     return JsonResponse({"ok": True, "mode": mode, "count": len(results), "results": results})
 
 
-@csrf_exempt
 @login_required
 @require_http_methods(["POST"])
 def api_admin_reservation_assign(request, reference):

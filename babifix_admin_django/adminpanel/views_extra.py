@@ -214,10 +214,32 @@ def api_prestataire_availability(request):
 # =============================================================================
 # BULK ACTIONS ADMIN  :  POST /api/admin/prestataires/bulk-action/
 # =============================================================================
-@require_api_auth(["admin"])
+@csrf_exempt
 def api_admin_bulk_provider_action(request):
     if request.method != "POST":
         return JsonResponse({"error": "method_not_allowed"}, status=405)
+
+    from .auth import _is_user_active_and_role_ok, enforce_session_csrf, verify_token
+
+    csrf_err = enforce_session_csrf(request)
+    if csrf_err is not None:
+        return csrf_err
+
+    admin_user_id = None
+    if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
+        admin_user_id = request.user.id
+    else:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            payload_tok = verify_token(auth_header.split(" ", 1)[1].strip())
+            uid = (payload_tok or {}).get("uid") or (payload_tok or {}).get("user_id") or (payload_tok or {}).get("sub")
+            if payload_tok and payload_tok.get("role") == "admin" and _is_user_active_and_role_ok(uid, "admin"):
+                admin_user_id = int(uid)
+            elif payload_tok and payload_tok.get("role") != "admin":
+                return JsonResponse({"error": "forbidden_role"}, status=403)
+    if admin_user_id is None:
+        return JsonResponse({"error": "unauthorized"}, status=401)
+
     try:
         payload = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
@@ -227,9 +249,9 @@ def api_admin_bulk_provider_action(request):
     action = str(payload.get("action", "")).upper()
     motif = str(payload.get("motif", "")).strip()
 
-    if not ids or action not in ("ACCEPT", "REFUSE", "SUSPEND"):
+    if not ids or action not in ("ACCEPT", "REFUSE", "SUSPEND", "RECALCULATE_KYC"):
         return JsonResponse(
-            {"error": "ids (list) and action (ACCEPT|REFUSE|SUSPEND) required"},
+            {"error": "ids (list) and action (ACCEPT|REFUSE|SUSPEND|RECALCULATE_KYC) required"},
             status=400,
         )
 
@@ -240,30 +262,38 @@ def api_admin_bulk_provider_action(request):
         "ACCEPT": AdminAuditLog.ActionType.BULK_ACCEPT,
         "REFUSE": AdminAuditLog.ActionType.BULK_REFUSE,
         "SUSPEND": AdminAuditLog.ActionType.PROVIDER_SUSPENDED,
+        "RECALCULATE_KYC": AdminAuditLog.ActionType.OTHER,
     }
 
     for provider in providers:
         old_statut = provider.statut
         if action == "ACCEPT":
             provider.statut = Provider.Status.VALID
-            provider.save(update_fields=["statut"])
+            provider.is_approved = True
+            provider.save(update_fields=["statut", "is_approved"])
             email_provider_accepted(provider)
         elif action == "REFUSE":
             provider.statut = Provider.Status.REFUSED
+            provider.is_approved = False
             provider.refusal_reason = motif or "Dossier incomplet ou non conforme."
-            provider.save(update_fields=["statut", "refusal_reason"])
+            provider.save(update_fields=["statut", "is_approved", "refusal_reason"])
             email_provider_refused(provider, motif)
         elif action == "SUSPEND":
             provider.statut = Provider.Status.SUSPENDED
-            provider.save(update_fields=["statut"])
+            provider.is_approved = False
+            provider.save(update_fields=["statut", "is_approved"])
+        elif action == "RECALCULATE_KYC":
+            from .kyc_engine import recalculate_provider_kyc
+
+            recalculate_provider_kyc(provider)
 
         AdminAuditLog.objects.create(
-            admin_user_id=request.api_user_id,
+            admin_user_id=admin_user_id,
             action=action_type_map.get(action, AdminAuditLog.ActionType.OTHER),
             target_type="Provider",
             target_id=provider.pk,
             target_label=provider.nom,
-            details={"motif": motif, "old_statut": old_statut},
+            details={"motif": motif, "old_statut": old_statut, "action": action},
         )
         updated += 1
 
@@ -310,9 +340,10 @@ def api_admin_export_csv(request, kind):
     if not is_staff:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
-            from .auth import verify_token
+            from .auth import _is_user_active_and_role_ok, verify_token
             payload = verify_token(auth_header.split(" ", 1)[1].strip())
-            if not payload or payload.get("role") != "admin":
+            uid = (payload or {}).get("uid") or (payload or {}).get("user_id") or (payload or {}).get("sub")
+            if not payload or payload.get("role") != "admin" or not _is_user_active_and_role_ok(uid, "admin"):
                 return JsonResponse({"error": "unauthorized", "detail": "Token admin invalide"}, status=401)
         else:
             return JsonResponse({"error": "unauthorized", "detail": "Session ou token admin requis"}, status=401)

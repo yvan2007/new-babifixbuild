@@ -836,6 +836,26 @@ body.app-shell {
   color: #94a3b8;
 }
 
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  .dossier-refusal-input {
+    width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 6px;
+  }
+}
+
 .notif-count-badge {
   position: absolute;
   top: 2px;
@@ -1041,11 +1061,32 @@ html[data-theme="dark"] .dossier-info-label { color: #cbd5e1 !important; }
   color: #94a3b8;
 }
 
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  .dossier-refusal-input {
+    width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 6px;
+  }
+}
+
 .notif-dropdown {
   position: fixed !important;
   top: 70px !important;
-  right: 32px !important;
-  width: 340px !important;
+  right: min(32px, 3vw) !important;
+  width: min(340px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
   background: #fff !important;
   border: 1px solid #e2e8f0 !important;
   border-radius: 16px !important;
@@ -4019,6 +4060,26 @@ html[data-theme="dark"] .adminty-stats .stat-tile {
 }
 [data-theme="dark"] .notif-item-body {
   color: #94a3b8;
+}
+
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  .dossier-refusal-input {
+    width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 6px;
+  }
 }
 
 

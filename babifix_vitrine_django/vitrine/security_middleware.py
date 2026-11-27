@@ -72,4 +72,10 @@ class BabifixVitrineSecurityHeadersMiddleware:
         if "X-Frame-Options" not in response:
             response["X-Frame-Options"] = "DENY"
 
+        path = request.path or ""
+        if path.startswith(("/admin", "/api/admin")):
+            response["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+            response["Pragma"] = "no-cache"
+        response.setdefault("Cross-Origin-Resource-Policy", "same-site")
+
         return response

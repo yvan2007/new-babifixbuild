@@ -9,7 +9,8 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function parseNum(v, fallback) {
@@ -178,11 +179,11 @@
               "</div>" +
               '<div class="bx-reasons">' + reasonsHtml + "</div>" +
               '<div style="display:flex;justify-content:flex-end;margin-top:4px;">' +
-                '<button type="button" class="bx-btn-accent" onclick="smartAssignFromDrawer(\'' +
+                '<button type="button" class="bx-btn-accent js-smart-assign-btn" data-ref="' +
                 escHtml(r.reference) +
-                "', " +
-                m.provider_id +
-                ')">Affecter cet artisan</button>' +
+                '" data-pid="' +
+                Number(m.provider_id || 0) +
+                '">Affecter cet artisan</button>' +
               "</div>" +
             "</div>"
           );
@@ -356,11 +357,11 @@
             .map(function (rs) { return '<span class="bx-reason-chip">' + escHtml(rs) + "</span>"; })
             .join("");
           var assignBtn = resRefVal
-            ? '<button type="button" class="bx-btn-accent" onclick="smartAssignFromDrawer(\'' +
+            ? '<button type="button" class="bx-btn-accent js-smart-assign-btn" data-ref="' +
               escHtml(resRefVal) +
-              "', " +
-              it.provider_id +
-              ')">Affecter a ' +
+              '" data-pid="' +
+              Number(it.provider_id || 0) +
+              '">Affecter a ' +
               escHtml(resRefVal) +
               "</button>"
             : "";
@@ -616,6 +617,16 @@
     if (pushSel) {
       pushSel.addEventListener("change", window.updatePushAudiencePreview);
     }
+
+    document.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest(".js-smart-assign-btn") : null;
+      if (!btn) return;
+      var ref = btn.getAttribute("data-ref") || "";
+      var pid = parseInt(btn.getAttribute("data-pid") || "0", 10);
+      if (ref && pid && typeof window.smartAssignFromDrawer === "function") {
+        window.smartAssignFromDrawer(ref, pid);
+      }
+    });
   });
 
   document.addEventListener("htmx:afterSwap", function () {

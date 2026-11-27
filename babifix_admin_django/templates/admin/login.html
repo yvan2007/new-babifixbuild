@@ -1,0 +1,331 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connexion Administrateur : BABIFIX</title>
+  <link rel="icon" type="image/png" href="{% static 'adminpanel/logo_babifix.png' %}">
+  <link rel="shortcut icon" type="image/png" href="{% static 'adminpanel/logo_babifix.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'adminpanel/logo_babifix.png' %}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --ink: #0b1b34;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --border-focus: #0b1b34;
+      --accent: #e87722;
+      --danger-bg: #fef2f2;
+      --danger-border: #fecaca;
+      --danger-ink: #b91c1c;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .login-shell {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background: var(--bg);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 28px 30px;
+      box-shadow: 0 12px 36px rgba(11, 27, 52, 0.06);
+    }
+    .login-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      margin-bottom: 26px;
+    }
+    .login-logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      background: #0b1b34;
+      margin-bottom: 14px;
+    }
+    .login-title {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .login-subtitle {
+      margin: 0;
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .login-alert {
+      margin-bottom: 18px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      color: var(--danger-ink);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+    .login-alert ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .field {
+      margin-bottom: 16px;
+    }
+    .field label {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .field input {
+      width: 100%;
+      height: 46px;
+      padding: 10px 14px;
+      font-size: 16px;
+      color: var(--ink);
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 12px;
+      outline: none;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+    .field input.has-eye {
+      padding-right: 46px;
+    }
+    .field input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(11, 27, 52, 0.08);
+    }
+    .eye-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+    }
+    .eye-btn:hover {
+      color: var(--ink);
+      background: #f1f5f9;
+    }
+    .eye-btn:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 1px;
+    }
+    .field-err {
+      margin-top: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--danger-ink);
+    }
+    .submit-btn {
+      width: 100%;
+      height: 48px;
+      margin-top: 6px;
+      border: none;
+      border-radius: 12px;
+      background: var(--ink);
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.16s ease, transform 0.12s ease;
+    }
+    .submit-btn:hover {
+      background: #132c54;
+    }
+    .submit-btn:active {
+      transform: scale(0.99);
+    }
+    .login-footer {
+      margin-top: 22px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .dot-safe {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #16a34a;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    @media (max-width: 480px) {
+      .login-card {
+        padding: 28px 20px 24px;
+        border-radius: 16px;
+      }
+      .login-logo {
+        width: 64px;
+        height: 64px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-card" aria-labelledby="login-heading">
+      <div class="login-brand">
+        <img src="{% static 'adminpanel/logo_babifix.png' %}" alt="Logo Babifix" class="login-logo">
+        <h1 id="login-heading" class="login-title">Babifix Admin</h1>
+        <p class="login-subtitle">Connectez-vous pour accéder au cockpit d'administration.</p>
+      </div>
+
+      {% if rate_limited_message %}
+      <div class="login-alert" role="alert">{{ rate_limited_message }}</div>
+      {% endif %}
+
+      {% if form.errors and not form.non_field_errors and not rate_limited_message %}
+      <div class="login-alert" role="alert">Veuillez vérifier les champs saisis ci-dessous.</div>
+      {% endif %}
+
+      {% if form.non_field_errors %}
+      <div class="login-alert" role="alert">
+        {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if user.is_authenticated %}
+      <div class="login-alert" role="alert">
+        Vous êtes connecté en tant que {{ user.username }}, mais ce compte n'a pas les droits d'accès administrateur.
+      </div>
+      {% endif %}
+
+      <form action="{{ app_path }}" method="post" id="admin-login-form" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <div class="field">
+          <label for="id_username">Identifiant ou e-mail</label>
+          <div class="input-wrap">
+            <input
+              type="text"
+              name="username"
+              id="id_username"
+              value="{{ form.username.value|default:'' }}"
+              autocomplete="username"
+              autocapitalize="none"
+              spellcheck="false"
+              placeholder="Nom d'utilisateur ou e-mail"
+              required
+              autofocus
+            >
+          </div>
+          {% if form.username.errors %}
+            <div class="field-err">{{ form.username.errors|striptags }}</div>
+          {% endif %}
+        </div>
+
+        <div class="field">
+          <label for="id_password">Mot de passe</label>
+          <div class="input-wrap">
+            <input
+              type="password"
+              name="password"
+              id="id_password"
+              class="has-eye"
+              autocomplete="current-password"
+              placeholder="Votre mot de passe"
+              required
+            >
+            <button
+              type="button"
+              id="toggle-password-eye"
+              class="eye-btn"
+              aria-label="Afficher le mot de passe"
+              aria-pressed="false"
+              title="Afficher / masquer le mot de passe"
+            >
+              <svg id="eye-icon-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg id="eye-icon-closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
+          {% if form.password.errors %}
+            <div class="field-err">{{ form.password.errors|striptags }}</div>
+          {% endif %}
+        </div>
+
+        <button type="submit" class="submit-btn">Se connecter</button>
+      </form>
+
+      <div class="login-footer">
+        <span class="dot-safe" aria-hidden="true"></span>
+        <span>Session chiffrée · Protection anti-intrusion active</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var pwd = document.getElementById("id_password");
+      var btn = document.getElementById("toggle-password-eye");
+      var iconOpen = document.getElementById("eye-icon-open");
+      var iconClosed = document.getElementById("eye-icon-closed");
+      if (!pwd || !btn) return;
+      btn.addEventListener("click", function () {
+        var show = pwd.type === "password";
+        pwd.type = show ? "text" : "password";
+        btn.setAttribute("aria-pressed", show ? "true" : "false");
+        btn.setAttribute("aria-label", show ? "Masquer le mot de passe" : "Afficher le mot de passe");
+        if (iconOpen) iconOpen.hidden = show;
+        if (iconClosed) iconClosed.hidden = !show;
+      });
+    })();
+  </script>
+</body>
+</html>

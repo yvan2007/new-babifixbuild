@@ -1320,7 +1320,6 @@ def api_admin_notifications_mark_all_read(request):
 # ─────────────────────────────────────────────────────────────────────────────
 # 15. POST /api/admin/push-broadcast  :  push manuelle vers tous les users
 # ─────────────────────────────────────────────────────────────────────────────
-@csrf_exempt
 @require_http_methods(["POST"])
 def api_admin_push_broadcast(request):
     from django.contrib.auth.decorators import login_required

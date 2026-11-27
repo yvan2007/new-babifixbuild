@@ -1439,7 +1439,7 @@ html[data-theme="dark"] .bx-kcard:hover {
    ============================================================================ */
 .bx-inbox-split {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -1796,7 +1796,8 @@ html[data-theme="dark"] .bx-kcard:hover {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 340px;
+  width: min(340px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   background: var(--bx-surface);
   border: 1px solid var(--bx-border);
   border-radius: 14px;
