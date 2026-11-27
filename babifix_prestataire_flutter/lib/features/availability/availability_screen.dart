@@ -13,7 +13,6 @@ import '../../shared/widgets/babifix_snackbar.dart';
 const _premiumGold = Color(0xFFFFD700);
 const _deepNavy = Color(0xFF0A0E27);
 const _charcoal = Color(0xFF1A1F3A);
-const _darkSurface = Color(0xFF0D1117);
 const _cardBg = Color(0xFF151B30);
 
 // ─── Modèle local ────────────────────────────────────────────────────────────
@@ -962,46 +961,49 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_deepNavy, _darkSurface, _deepNavy],
-          stops: [0.0, 0.5, 1.0],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? _deepNavy : const Color(0xFFF8FAFC);
+    final fgColor = isDark ? Colors.white : const Color(0xFF0B1B34);
+    final subFgColor = isDark ? Colors.white54 : const Color(0xFF64748B);
+    final tabActiveColor = isDark ? _premiumGold : const Color(0xFFE87722);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        title: Text(
+          'Mes disponibilités',
+          style: TextStyle(
+            color: fgColor,
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            letterSpacing: 0.3,
+          ),
+        ),
+        backgroundColor: isDark ? _deepNavy : Colors.white,
+        foregroundColor: fgColor,
+        iconTheme: IconThemeData(color: fgColor),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        bottom: TabBar(
+          controller: _tab,
+          indicatorColor: tabActiveColor,
+          indicatorWeight: 3,
+          labelColor: tabActiveColor,
+          unselectedLabelColor: subFgColor,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          dividerColor: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : const Color(0xFFE2E8F0),
+          tabs: const [
+            Tab(icon: Icon(Icons.schedule_rounded, size: 20), text: 'Créneaux'),
+            Tab(icon: Icon(Icons.event_busy_rounded, size: 20), text: 'Congés'),
+          ],
         ),
       ),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          title: const Text(
-            'Mes disponibilités',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 20,
-              letterSpacing: 0.3,
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          bottom: TabBar(
-            controller: _tab,
-            indicatorColor: _premiumGold,
-            indicatorWeight: 3,
-            labelColor: _premiumGold,
-            unselectedLabelColor: Colors.white54,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            dividerColor: Colors.white.withValues(alpha: 0.1),
-            tabs: const [
-              Tab(icon: Icon(Icons.schedule_rounded, size: 20), text: 'Créneaux'),
-              Tab(icon: Icon(Icons.event_busy_rounded, size: 20), text: 'Congés'),
-            ],
-          ),
-        ),
-        body: _loading
+      body: SafeArea(
+        top: false,
+        child: _loading
             ? Center(
                 child: SizedBox(
                   width: 40,

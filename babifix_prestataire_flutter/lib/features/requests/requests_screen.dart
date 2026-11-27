@@ -236,9 +236,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
     return Scaffold(
       backgroundColor: pageBg,
-      body: loading
-          ? _buildShimmer()
-          : RefreshIndicator(
+      body: SafeArea(
+        bottom: false,
+        child: loading
+            ? _buildShimmer()
+            : RefreshIndicator(
               onRefresh: _loadRequests,
               color: const Color(0xFF38BDF8),
               child: CustomScrollView(
@@ -594,6 +596,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ],
             ),
           ),
+      ),
     );
   }
 

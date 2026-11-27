@@ -560,10 +560,12 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
     return Scaffold(
       extendBody: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: RefreshIndicator(
-        onRefresh: _refreshAll,
-        color: const Color(0xFF4CC9F0),
-        child: CustomScrollView(
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: _refreshAll,
+          color: const Color(0xFF4CC9F0),
+          child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           if (_provStatut == 'En attente')
@@ -901,6 +903,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
           ),
         ],
         ),
+      ),
       ),
       bottomNavigationBar: PrestataireFloatingNavBar(
         selectedIndex: selected,
