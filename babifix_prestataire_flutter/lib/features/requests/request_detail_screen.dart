@@ -629,9 +629,16 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomActions = _buildBottomActions(context);
     return Scaffold(
       backgroundColor: BabifixDesign.navy,
-      bottomNavigationBar: _buildBottomActions(context),
+      bottomNavigationBar: bottomActions == null
+          ? null
+          : SafeArea(
+              top: false,
+              bottom: true,
+              child: bottomActions,
+            ),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(

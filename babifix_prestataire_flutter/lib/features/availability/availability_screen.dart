@@ -4,16 +4,74 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
 import '../../shared/widgets/babifix_snackbar.dart';
 
-// ─── Premium Colors ────────────────────────────────────────────────────────
+// ─── Palette adaptative (Blanc / Clair / Bleu Sombre) ───────────────────────
 
-const _premiumGold = Color(0xFFFFD700);
-const _deepNavy = Color(0xFF0A0E27);
-const _charcoal = Color(0xFF1A1F3A);
-const _cardBg = Color(0xFF151B30);
+class _AvailPalette {
+  final bool isDark;
+  final Color pageTop;
+  final Color pageBottom;
+  final Color cardBg;
+  final Color dialogBg;
+  final Color softBg;
+  final Color border;
+  final Color textPrimary;
+  final Color textMuted;
+  final Color accent;
+  final Color onAccent;
+  final Color danger;
+  final Color unavailBgStart;
+  final Color unavailBgEnd;
+
+  const _AvailPalette({
+    required this.isDark,
+    required this.pageTop,
+    required this.pageBottom,
+    required this.cardBg,
+    required this.dialogBg,
+    required this.softBg,
+    required this.border,
+    required this.textPrimary,
+    required this.textMuted,
+    required this.accent,
+    required this.onAccent,
+    required this.danger,
+    required this.unavailBgStart,
+    required this.unavailBgEnd,
+  });
+
+  factory _AvailPalette.of(BuildContext context) {
+    final dark = BabifixDesign.isDark(context);
+    final whiteMode = BabifixDesign.isWhiteMode(context);
+    return _AvailPalette(
+      isDark: dark,
+      pageTop: dark
+          ? BabifixDesign.navy
+          : (whiteMode ? BabifixDesign.bgWhite : BabifixDesign.bgLight),
+      pageBottom: dark
+          ? BabifixDesign.obsidian
+          : (whiteMode ? BabifixDesign.bgWhite : BabifixDesign.bgSoft),
+      cardBg: dark ? BabifixDesign.navySurface : BabifixDesign.bgWhite,
+      dialogBg: dark ? BabifixDesign.navySurface : BabifixDesign.bgWhite,
+      softBg: dark ? BabifixDesign.navyElevated : BabifixDesign.bgSoft,
+      border: dark
+          ? BabifixDesign.borderDark
+          : BabifixDesign.borderLight,
+      textPrimary: BabifixDesign.textPrimaryOf(context),
+      textMuted: BabifixDesign.textMutedOf(context),
+      accent: dark ? const Color(0xFFFFD700) : BabifixDesign.navy,
+      onAccent: dark ? const Color(0xFF0A0E27) : Colors.white,
+      danger: dark ? const Color(0xFFFF6B6B) : const Color(0xFFB91C1C),
+      unavailBgStart:
+          dark ? const Color(0xFF2A1A1A) : const Color(0xFFFFF5F5),
+      unavailBgEnd: dark ? const Color(0xFF1A1515) : BabifixDesign.bgWhite,
+    );
+  }
+}
 
 // ─── Modèle local ────────────────────────────────────────────────────────────
 
@@ -176,138 +234,81 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     int? weekday;
     TimeOfDay? start;
     TimeOfDay? end;
+    final pal = _AvailPalette.of(context);
 
     weekday = await showDialog<int>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: _charcoal,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: _premiumGold.withValues(alpha: 0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Choisir le jour',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+      builder: (ctx) {
+        final dPal = _AvailPalette.of(ctx);
+        return Dialog(
+          backgroundColor: dPal.dialogBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: dPal.accent.withValues(alpha: 0.25)),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Choisir le jour',
+                  style: TextStyle(
+                    color: dPal.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              ...List.generate(
-                7,
-                (i) => ListTile(
-                  leading: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          _premiumGold.withValues(alpha: 0.2),
-                          _premiumGold.withValues(alpha: 0.05),
-                        ],
+                const SizedBox(height: 16),
+                ...List.generate(
+                  7,
+                  (i) => ListTile(
+                    leading: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: dPal.accent.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Text(
-                        _weekdays[i],
-                        style: const TextStyle(
-                          color: _premiumGold,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                      child: Center(
+                        child: Text(
+                          _weekdays[i],
+                          style: TextStyle(
+                            color: dPal.accent,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ),
+                    title: Text(
+                      _weekdaysFull[i],
+                      style: TextStyle(
+                          color: dPal.textPrimary,
+                          fontWeight: FontWeight.w600),
+                    ),
+                    onTap: () => Navigator.pop(ctx, i),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
-                  title: Text(
-                    _weekdaysFull[i],
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                  ),
-                  onTap: () => Navigator.pop(ctx, i),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
     if (weekday == null || !mounted) return;
 
-    start = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 8, minute: 0),
-      helpText: 'Heure de début',
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            timePickerTheme: TimePickerThemeData(
-              backgroundColor: _charcoal,
-              hourMinuteTextColor: Colors.white,
-              hourMinuteColor: _premiumGold.withValues(alpha: 0.2),
-              dayPeriodTextColor: Colors.white,
-              dayPeriodColor: _premiumGold.withValues(alpha: 0.2),
-              dialHandColor: _premiumGold,
-              dialBackgroundColor: _cardBg,
-              entryModeIconColor: _premiumGold,
-              confirmButtonStyle: ButtonStyle(
-                foregroundColor: WidgetStateProperty.all(_premiumGold),
-              ),
-              cancelButtonStyle: ButtonStyle(
-                foregroundColor: WidgetStateProperty.all(Colors.white70),
-              ),
-            ),
-            colorScheme: const ColorScheme.dark(
-              primary: _premiumGold,
-              surface: _charcoal,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
+    start = await _pickTimeThemed(const TimeOfDay(hour: 8, minute: 0), 'Heure de début');
     if (start == null || !mounted) return;
 
-    end = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(
+    end = await _pickTimeThemed(
+      TimeOfDay(
         hour: start.hour == 23 ? 23 : start.hour + 1,
         minute: start.hour == 23 ? 59 : start.minute,
       ),
-      helpText: 'Heure de fin',
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            timePickerTheme: TimePickerThemeData(
-              backgroundColor: _charcoal,
-              hourMinuteTextColor: Colors.white,
-              hourMinuteColor: _premiumGold.withValues(alpha: 0.2),
-              dayPeriodTextColor: Colors.white,
-              dayPeriodColor: _premiumGold.withValues(alpha: 0.2),
-              dialHandColor: _premiumGold,
-              dialBackgroundColor: _cardBg,
-              entryModeIconColor: _premiumGold,
-              confirmButtonStyle: ButtonStyle(
-                foregroundColor: WidgetStateProperty.all(_premiumGold),
-              ),
-              cancelButtonStyle: ButtonStyle(
-                foregroundColor: WidgetStateProperty.all(Colors.white70),
-              ),
-            ),
-            colorScheme: const ColorScheme.dark(
-              primary: _premiumGold,
-              surface: _charcoal,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      'Heure de fin',
     );
     if (end == null || !mounted) return;
 
@@ -338,33 +339,44 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
         _showError('Erreur réseau.');
       }
     }
+    // Keep reference to pal clean if needed.
+    assert(pal.textPrimary != Colors.transparent);
   }
 
-  // Sélecteur d'heure thémé (réutilisé par la saisie rapide).
+  // Sélecteur d'heure adaptatif au thème actif.
   Future<TimeOfDay?> _pickTimeThemed(TimeOfDay initial, String help) {
+    final pal = _AvailPalette.of(context);
     return showTimePicker(
       context: context,
       initialTime: initial,
       helpText: help,
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          timePickerTheme: TimePickerThemeData(
-            backgroundColor: _charcoal,
-            hourMinuteTextColor: Colors.white,
-            hourMinuteColor: _premiumGold.withValues(alpha: 0.2),
-            dayPeriodTextColor: Colors.white,
-            dayPeriodColor: _premiumGold.withValues(alpha: 0.2),
-            dialHandColor: _premiumGold,
-            dialBackgroundColor: _cardBg,
-            entryModeIconColor: _premiumGold,
+      builder: (context, child) {
+        final base = pal.isDark ? ThemeData.dark() : ThemeData.light();
+        return Theme(
+          data: base.copyWith(
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: pal.dialogBg,
+              hourMinuteTextColor: pal.textPrimary,
+              hourMinuteColor: pal.accent.withValues(alpha: 0.14),
+              dayPeriodTextColor: pal.textPrimary,
+              dayPeriodColor: pal.accent.withValues(alpha: 0.14),
+              dialHandColor: pal.accent,
+              dialBackgroundColor: pal.softBg,
+              entryModeIconColor: pal.accent,
+              confirmButtonStyle: ButtonStyle(
+                foregroundColor: WidgetStateProperty.all(pal.accent),
+              ),
+              cancelButtonStyle: ButtonStyle(
+                foregroundColor: WidgetStateProperty.all(pal.textMuted),
+              ),
+            ),
+            colorScheme: pal.isDark
+                ? ColorScheme.dark(primary: pal.accent, surface: pal.dialogBg, onPrimary: pal.onAccent, onSurface: pal.textPrimary)
+                : ColorScheme.light(primary: pal.accent, surface: pal.dialogBg, onPrimary: pal.onAccent, onSurface: pal.textPrimary),
           ),
-          colorScheme: const ColorScheme.dark(
-            primary: _premiumGold,
-            surface: _charcoal,
-          ),
-        ),
-        child: child!,
-      ),
+          child: child!,
+        );
+      },
     );
   }
 
@@ -380,154 +392,154 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => Dialog(
-          backgroundColor: _charcoal,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: _premiumGold.withValues(alpha: 0.3)),
-          ),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Saisie rapide',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
-                  Text('Choisissez les jours et une plage horaire.',
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          fontSize: 12.5)),
-                  const SizedBox(height: 14),
-                  // Presets rapides
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      _preset('Lun - Ven', () {
-                        setLocal(() {
-                          selected
-                            ..clear()
-                            ..addAll([0, 1, 2, 3, 4]);
-                        });
-                      }),
-                      _preset('Week-end', () {
-                        setLocal(() {
-                          selected
-                            ..clear()
-                            ..addAll([5, 6]);
-                        });
-                      }),
-                      _preset('Tous', () {
-                        setLocal(() {
-                          selected
-                            ..clear()
-                            ..addAll([0, 1, 2, 3, 4, 5, 6]);
-                        });
-                      }),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Chips jours (multi-sélection)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: List.generate(7, (i) {
-                      final sel = selected.contains(i);
-                      return GestureDetector(
-                        onTap: () => setLocal(() {
-                          if (sel) {
-                            selected.remove(i);
-                          } else {
-                            selected.add(i);
-                          }
+        builder: (ctx, setLocal) {
+          final pal = _AvailPalette.of(ctx);
+          return Dialog(
+            backgroundColor: pal.dialogBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: pal.accent.withValues(alpha: 0.25)),
+            ),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Saisie rapide',
+                        style: TextStyle(
+                            color: pal.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text('Choisissez les jours et une plage horaire.',
+                        style: TextStyle(color: pal.textMuted, fontSize: 12.5)),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _preset('Lun - Ven', pal, () {
+                          setLocal(() {
+                            selected
+                              ..clear()
+                              ..addAll([0, 1, 2, 3, 4]);
+                          });
                         }),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 9),
-                          decoration: BoxDecoration(
-                            color: sel
-                                ? _premiumGold.withValues(alpha: 0.22)
-                                : Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: _premiumGold.withValues(
-                                  alpha: sel ? 0.8 : 0.2),
-                              width: sel ? 1.5 : 1,
-                            ),
-                          ),
-                          child: Text(_weekdays[i],
-                              style: TextStyle(
-                                  color: sel ? _premiumGold : Colors.white70,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13)),
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 16),
-                  // Plage horaire
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            final t = await _pickTimeThemed(start, 'Heure de début');
-                            if (t != null) setLocal(() => start = t);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: BorderSide(
-                                color: _premiumGold.withValues(alpha: 0.4)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: Text('Début : ${fmt(start)}'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            final t = await _pickTimeThemed(end, 'Heure de fin');
-                            if (t != null) setLocal(() => end = t);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: BorderSide(
-                                color: _premiumGold.withValues(alpha: 0.4)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: Text('Fin : ${fmt(end)}'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _premiumGold,
-                        foregroundColor: _deepNavy,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        textStyle:
-                            const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      child: const Text('Appliquer'),
+                        _preset('Week-end', pal, () {
+                          setLocal(() {
+                            selected
+                              ..clear()
+                              ..addAll([5, 6]);
+                          });
+                        }),
+                        _preset('Tous', pal, () {
+                          setLocal(() {
+                            selected
+                              ..clear()
+                              ..addAll([0, 1, 2, 3, 4, 5, 6]);
+                          });
+                        }),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: List.generate(7, (i) {
+                        final sel = selected.contains(i);
+                        return GestureDetector(
+                          onTap: () => setLocal(() {
+                            if (sel) {
+                              selected.remove(i);
+                            } else {
+                              selected.add(i);
+                            }
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: sel
+                                  ? pal.accent.withValues(alpha: 0.16)
+                                  : pal.softBg,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: sel
+                                    ? pal.accent
+                                    : pal.border,
+                                width: sel ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Text(_weekdays[i],
+                                style: TextStyle(
+                                    color: sel ? pal.accent : pal.textMuted,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13)),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final t = await _pickTimeThemed(start, 'Heure de début');
+                              if (t != null) setLocal(() => start = t);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: pal.textPrimary,
+                              side: BorderSide(
+                                  color: pal.accent.withValues(alpha: 0.4)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: Text('Début : ${fmt(start)}'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final t = await _pickTimeThemed(end, 'Heure de fin');
+                              if (t != null) setLocal(() => end = t);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: pal.textPrimary,
+                              side: BorderSide(
+                                  color: pal.accent.withValues(alpha: 0.4)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: Text('Fin : ${fmt(end)}'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: pal.accent,
+                          foregroundColor: pal.onAccent,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          textStyle:
+                              const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        child: const Text('Appliquer'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
 
@@ -564,19 +576,19 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     }
   }
 
-  Widget _preset(String label, VoidCallback onTap) {
+  Widget _preset(String label, _AvailPalette pal, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: _premiumGold.withValues(alpha: 0.12),
+          color: pal.accent.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _premiumGold.withValues(alpha: 0.3)),
+          border: Border.all(color: pal.accent.withValues(alpha: 0.3)),
         ),
         child: Text(label,
-            style: const TextStyle(
-                color: _premiumGold,
+            style: TextStyle(
+                color: pal.accent,
                 fontSize: 12,
                 fontWeight: FontWeight.w700)),
       ),
@@ -587,62 +599,66 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     if (slot.id == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: _charcoal,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 30),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Supprimer ce créneau ?',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white70,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text('Annuler'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Supprimer'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+      builder: (ctx) {
+        final pal = _AvailPalette.of(ctx);
+        return Dialog(
+          backgroundColor: pal.dialogBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
           ),
-        ),
-      ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 30),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Supprimer ce créneau ?',
+                  style: TextStyle(color: pal.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: pal.textMuted,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Annuler'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Supprimer'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
     if (confirmed != true) return;
     final tok = await _token();
@@ -657,6 +673,7 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
 
   Future<void> _addUnavailability() async {
     final now = DateTime.now();
+    final outerPal = _AvailPalette.of(context);
     DateTimeRange? range = await showDateRangePicker(
       context: context,
       firstDate: now,
@@ -666,63 +683,64 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
       confirmText: 'Confirmer',
       saveText: 'Sauvegarder',
       builder: (context, child) {
+        final base = outerPal.isDark ? ThemeData.dark() : ThemeData.light();
         return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFFFF6B6B),
-              onPrimary: Colors.white,
-              surface: _charcoal,
-              onSurface: Colors.white,
-              onSurfaceVariant: Colors.white70,
-            ),
-            dialogTheme: const DialogThemeData(backgroundColor: _charcoal),
+          data: base.copyWith(
+            colorScheme: outerPal.isDark
+                ? ColorScheme.dark(
+                    primary: outerPal.danger,
+                    onPrimary: Colors.white,
+                    surface: outerPal.dialogBg,
+                    onSurface: outerPal.textPrimary,
+                    onSurfaceVariant: outerPal.textMuted,
+                  )
+                : ColorScheme.light(
+                    primary: outerPal.danger,
+                    onPrimary: Colors.white,
+                    surface: outerPal.dialogBg,
+                    onSurface: outerPal.textPrimary,
+                    onSurfaceVariant: outerPal.textMuted,
+                  ),
+            dialogTheme: DialogThemeData(backgroundColor: outerPal.dialogBg),
             datePickerTheme: DatePickerThemeData(
-              backgroundColor: _charcoal,
-              headerBackgroundColor: _deepNavy,
-              headerForegroundColor: Colors.white,
+              backgroundColor: outerPal.dialogBg,
+              headerBackgroundColor: outerPal.pageTop,
+              headerForegroundColor: outerPal.textPrimary,
               surfaceTintColor: Colors.transparent,
-              rangePickerBackgroundColor: _charcoal,
-              rangePickerHeaderBackgroundColor: _deepNavy,
-              rangePickerHeaderForegroundColor: Colors.white,
-              rangeSelectionBackgroundColor: const Color(0xFFFF6B6B).withValues(alpha: 0.2),
+              rangePickerBackgroundColor: outerPal.dialogBg,
+              rangePickerHeaderBackgroundColor: outerPal.pageTop,
+              rangePickerHeaderForegroundColor: outerPal.textPrimary,
+              rangeSelectionBackgroundColor: outerPal.danger.withValues(alpha: 0.18),
               rangeSelectionOverlayColor: WidgetStateProperty.all(
-                const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                outerPal.danger.withValues(alpha: 0.14),
               ),
-              dayStyle: const TextStyle(color: Colors.white, fontSize: 13),
+              dayStyle: TextStyle(color: outerPal.textPrimary, fontSize: 13),
               dayForegroundColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.selected)) return Colors.white;
-                if (states.contains(WidgetState.disabled)) return Colors.white24;
-                return Colors.white;
+                if (states.contains(WidgetState.disabled)) {
+                  return outerPal.textMuted.withValues(alpha: 0.38);
+                }
+                return outerPal.textPrimary;
               }),
               dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) return const Color(0xFFFF6B6B);
+                if (states.contains(WidgetState.selected)) return outerPal.danger;
                 return null;
               }),
-              todayBorder: BorderSide(color: _premiumGold),
-              yearStyle: const TextStyle(color: Colors.white),
+              todayBorder: BorderSide(color: outerPal.accent),
+              yearStyle: TextStyle(color: outerPal.textPrimary),
               yearForegroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) return const Color(0xFFFF6B6B);
-                return Colors.white;
+                if (states.contains(WidgetState.selected)) return outerPal.danger;
+                return outerPal.textPrimary;
               }),
-              weekdayStyle: const TextStyle(color: _premiumGold, fontWeight: FontWeight.w700),
-              dividerColor: _premiumGold.withValues(alpha: 0.2),
-              inputDecorationTheme: const InputDecorationTheme(
-                filled: true,
-                fillColor: _cardBg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
-                  borderSide: BorderSide(color: _premiumGold, width: 1),
-                ),
-                labelStyle: TextStyle(color: Colors.white70),
-                hintStyle: TextStyle(color: Colors.white38),
-              ),
+              weekdayStyle: TextStyle(color: outerPal.accent, fontWeight: FontWeight.w700),
+              dividerColor: outerPal.border,
             ),
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: Colors.white70),
+              style: TextButton.styleFrom(foregroundColor: outerPal.textMuted),
             ),
             filledButtonTheme: FilledButtonThemeData(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6B6B),
+                backgroundColor: outerPal.danger,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -737,74 +755,78 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     final reasonCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: _charcoal,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: const Color(0xFFFF6B6B).withValues(alpha: 0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Motif (optionnel)',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonCtrl,
-                style: const TextStyle(color: Colors.white),
-                maxLength: 100,
-                decoration: InputDecoration(
-                  hintText: 'Congés, voyage, etc.',
-                  hintStyle: const TextStyle(color: Colors.white38),
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.06),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  counterStyle: const TextStyle(color: Colors.white54),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white70,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text('Annuler'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF6B6B),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Confirmer'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+      builder: (ctx) {
+        final pal = _AvailPalette.of(ctx);
+        return Dialog(
+          backgroundColor: pal.dialogBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: pal.danger.withValues(alpha: 0.3)),
           ),
-        ),
-      ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Motif (optionnel)',
+                  style: TextStyle(color: pal.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reasonCtrl,
+                  style: TextStyle(color: pal.textPrimary),
+                  maxLength: 100,
+                  decoration: InputDecoration(
+                    hintText: 'Congés, voyage, etc.',
+                    hintStyle: TextStyle(color: pal.textMuted.withValues(alpha: 0.7)),
+                    filled: true,
+                    fillColor: pal.softBg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: pal.border),
+                    ),
+                    counterStyle: TextStyle(color: pal.textMuted),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: pal.textMuted,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Annuler'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: pal.danger,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Confirmer'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
+    reason = reasonCtrl.text.trim();
     reasonCtrl.dispose();
     if (confirmed != true || !mounted) return;
-    reason = reasonCtrl.text.trim();
 
     final tok = await _token();
     final payload = {
@@ -840,22 +862,25 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     final selected = <DateTime>{};
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: _charcoal,
-        insetPadding: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: const Color(0xFFFF6B6B).withValues(alpha: 0.3)),
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 560),
-          child: _MultiMonthCalendar(
-            selected: selected,
-            onConfirm: () => Navigator.pop(ctx, true),
-            onCancel: () => Navigator.pop(ctx, false),
+      builder: (ctx) {
+        final pal = _AvailPalette.of(ctx);
+        return Dialog(
+          backgroundColor: pal.dialogBg,
+          insetPadding: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: pal.danger.withValues(alpha: 0.3)),
           ),
-        ),
-      ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 560),
+            child: _MultiMonthCalendar(
+              selected: selected,
+              onConfirm: () => Navigator.pop(ctx, true),
+              onCancel: () => Navigator.pop(ctx, false),
+            ),
+          ),
+        );
+      },
     );
     if (result != true || !mounted) return;
     if (selected.isEmpty) {
@@ -889,62 +914,66 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     if (u.id == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: _charcoal,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 30),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Supprimer cette période ?',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white70,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text('Annuler'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Supprimer'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+      builder: (ctx) {
+        final pal = _AvailPalette.of(ctx);
+        return Dialog(
+          backgroundColor: pal.dialogBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
           ),
-        ),
-      ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 30),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Supprimer cette période ?',
+                  style: TextStyle(color: pal.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: pal.textMuted,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Annuler'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Supprimer'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
     if (confirmed != true) return;
     final tok = await _token();
@@ -961,75 +990,81 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? _deepNavy : const Color(0xFFF8FAFC);
-    final fgColor = isDark ? Colors.white : const Color(0xFF0B1B34);
-    final subFgColor = isDark ? Colors.white54 : const Color(0xFF64748B);
-    final tabActiveColor = isDark ? _premiumGold : const Color(0xFFE87722);
-
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        title: Text(
-          'Mes disponibilités',
-          style: TextStyle(
-            color: fgColor,
-            fontWeight: FontWeight.w800,
-            fontSize: 20,
-            letterSpacing: 0.3,
-          ),
-        ),
-        backgroundColor: isDark ? _deepNavy : Colors.white,
-        foregroundColor: fgColor,
-        iconTheme: IconThemeData(color: fgColor),
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tab,
-          indicatorColor: tabActiveColor,
-          indicatorWeight: 3,
-          labelColor: tabActiveColor,
-          unselectedLabelColor: subFgColor,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-          dividerColor: isDark
-              ? Colors.white.withValues(alpha: 0.1)
-              : const Color(0xFFE2E8F0),
-          tabs: const [
-            Tab(icon: Icon(Icons.schedule_rounded, size: 20), text: 'Créneaux'),
-            Tab(icon: Icon(Icons.event_busy_rounded, size: 20), text: 'Congés'),
-          ],
+    final pal = _AvailPalette.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [pal.pageTop, pal.pageBottom],
         ),
       ),
-      body: SafeArea(
-        top: false,
-        child: _loading
-            ? Center(
-                child: SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: BabifixRingLoader.cyan(size: 28),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          leading: Navigator.canPop(context)
+              ? BackButton(color: pal.textPrimary)
+              : null,
+          iconTheme: IconThemeData(color: pal.textPrimary),
+          foregroundColor: pal.textPrimary,
+          title: Text(
+            'Mes disponibilités',
+            style: TextStyle(
+              color: pal.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              letterSpacing: 0.3,
+            ),
+          ),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          bottom: TabBar(
+            controller: _tab,
+            indicatorColor: pal.accent,
+            indicatorWeight: 3,
+            labelColor: pal.accent,
+            unselectedLabelColor: pal.textMuted,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            dividerColor: pal.border,
+            tabs: const [
+              Tab(icon: Icon(Icons.schedule_rounded, size: 20), text: 'Créneaux'),
+              Tab(icon: Icon(Icons.event_busy_rounded, size: 20), text: 'Congés'),
+            ],
+          ),
+        ),
+        body: SafeArea(
+          top: false,
+          bottom: true,
+          child: _loading
+              ? Center(
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: BabifixRingLoader.cyan(size: 28),
+                  ),
+                )
+              : TabBarView(
+                  controller: _tab,
+                  children: [
+                    _SlotsTab(
+                      slots: _slots,
+                      onAdd: _addSlot,
+                      onBulkAdd: _addSlotsBulk,
+                      onDelete: _deleteSlot,
+                      onRefresh: _loadAll,
+                    ),
+                    _UnavailabilityTab(
+                      unavailabilities: _unavailabilities,
+                      onAdd: _addUnavailability,
+                      onAddDates: _addUnavailabilityDates,
+                      onDelete: _deleteUnavailability,
+                      onRefresh: _loadAll,
+                    ),
+                  ],
                 ),
-              )
-            : TabBarView(
-                controller: _tab,
-                children: [
-                  _SlotsTab(
-                    slots: _slots,
-                    onAdd: _addSlot,
-                    onBulkAdd: _addSlotsBulk,
-                    onDelete: _deleteSlot,
-                    onRefresh: _loadAll,
-                  ),
-                  _UnavailabilityTab(
-                    unavailabilities: _unavailabilities,
-                    onAdd: _addUnavailability,
-                    onAddDates: _addUnavailabilityDates,
-                    onDelete: _deleteUnavailability,
-                    onRefresh: _loadAll,
-                  ),
-                ],
-              ),
+        ),
       ),
     );
   }
@@ -1054,6 +1089,7 @@ class _SlotsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pal = _AvailPalette.of(context);
     final grouped = <int, List<_Slot>>{};
     for (final s in slots) {
       grouped.putIfAbsent(s.weekday, () => []).add(s);
@@ -1069,21 +1105,16 @@ class _SlotsTab extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      _premiumGold.withValues(alpha: 0.2),
-                      _premiumGold.withValues(alpha: 0.05),
-                    ],
-                  ),
+                  color: pal.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.info_outline_rounded, color: _premiumGold, size: 18),
+                child: Icon(Icons.info_outline_rounded, color: pal.accent, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'Définissez vos créneaux de travail hebdomadaires.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
+                  style: TextStyle(color: pal.textMuted, fontSize: 13),
                 ),
               ),
             ],
@@ -1093,34 +1124,32 @@ class _SlotsTab extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
           child: Row(
             children: [
-              // Saisie rapide (multi-jours en un geste) — mise en avant.
               Expanded(
                 child: FilledButton.icon(
                   onPressed: onBulkAdd,
                   icon: const Icon(Icons.bolt_rounded, size: 20),
                   label: const Text('Saisie rapide'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: _premiumGold,
-                    foregroundColor: _deepNavy,
+                    backgroundColor: pal.accent,
+                    foregroundColor: pal.onAccent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
-                    elevation: 4,
-                    shadowColor: _premiumGold.withValues(alpha: 0.4),
+                    elevation: pal.isDark ? 4 : 0,
+                    shadowColor: pal.accent.withValues(alpha: 0.3),
                     textStyle: const TextStyle(
                         fontWeight: FontWeight.w800, fontSize: 14),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
-              // Ajout d'un seul créneau (mode détaillé).
               OutlinedButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.add_rounded, size: 20),
                 label: const Text('Un'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _premiumGold,
-                  side: BorderSide(color: _premiumGold.withValues(alpha: 0.5)),
+                  foregroundColor: pal.accent,
+                  side: BorderSide(color: pal.accent.withValues(alpha: 0.45)),
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
@@ -1139,6 +1168,7 @@ class _SlotsTab extends StatelessWidget {
             child: slots.isEmpty
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
                   children: [_EmptyStateSlots()],
                 )
               : ListView.builder(
@@ -1159,33 +1189,35 @@ class _SlotsTab extends StatelessWidget {
                                 width: 4,
                                 height: 16,
                                 decoration: BoxDecoration(
-                                  color: _premiumGold,
+                                  color: pal.accent,
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                _weekdaysFull[dayIndex],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                  color: Colors.white,
-                                  letterSpacing: 0.3,
+                              Flexible(
+                                child: Text(
+                                  _weekdaysFull[dayIndex],
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                    color: pal.textPrimary,
+                                    letterSpacing: 0.3,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: _premiumGold.withValues(alpha: 0.15),
+                                  color: pal.accent.withValues(alpha: 0.14),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
                                   '${daySlots.length} créneau${daySlots.length > 1 ? 'x' : ''}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,
-                                    color: _premiumGold,
+                                    color: pal.accent,
                                   ),
                                 ),
                               ),
@@ -1217,29 +1249,17 @@ class _SlotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pal = _AvailPalette.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _cardBg,
-            _cardBg.withValues(alpha: 0.7),
-          ],
-        ),
+        color: pal.cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _premiumGold.withValues(alpha: 0.2),
+          color: pal.isDark ? pal.accent.withValues(alpha: 0.22) : pal.border,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: _premiumGold.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: BabifixDesign.elevationShadowSM(!pal.isDark),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1247,23 +1267,18 @@ class _SlotCard extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                _premiumGold.withValues(alpha: 0.2),
-                _premiumGold.withValues(alpha: 0.05),
-              ],
-            ),
+            color: pal.accent.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _premiumGold.withValues(alpha: 0.3),
+              color: pal.accent.withValues(alpha: 0.28),
               width: 1,
             ),
           ),
           child: Center(
             child: Text(
               _weekdays[slot.weekday],
-              style: const TextStyle(
-                color: _premiumGold,
+              style: TextStyle(
+                color: pal.accent,
                 fontWeight: FontWeight.w800,
                 fontSize: 12,
               ),
@@ -1272,18 +1287,18 @@ class _SlotCard extends StatelessWidget {
         ),
         title: Text(
           '${_fmt(slot.start)} - ${_fmt(slot.end)}',
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 15,
-            color: Colors.white,
+            color: pal.textPrimary,
             letterSpacing: 0.5,
           ),
         ),
         subtitle: Text(
           '${slot.end.hour - slot.start.hour}h de disponibilité',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: Colors.white54,
+            color: pal.textMuted,
           ),
         ),
         trailing: IconButton(
@@ -1309,6 +1324,7 @@ class _SlotCard extends StatelessWidget {
 class _EmptyStateSlots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final pal = _AvailPalette.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1318,27 +1334,28 @@ class _EmptyStateSlots extends StatelessWidget {
             height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _premiumGold.withValues(alpha: 0.1),
+              color: pal.accent.withValues(alpha: 0.1),
               border: Border.all(
-                color: _premiumGold.withValues(alpha: 0.3),
+                color: pal.accent.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
-            child: const Icon(Icons.schedule_rounded, size: 48, color: _premiumGold),
+            child: Icon(Icons.schedule_rounded, size: 48, color: pal.accent),
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             'Aucun créneau défini',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.white,
+              color: pal.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Ajoutez vos horaires de disponibilité.',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: pal.textMuted, fontSize: 14),
           ),
         ],
       ),
@@ -1365,6 +1382,7 @@ class _UnavailabilityTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pal = _AvailPalette.of(context);
     return Column(
       children: [
         Padding(
@@ -1375,16 +1393,16 @@ class _UnavailabilityTab extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                  color: pal.danger.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.event_busy_rounded, color: Color(0xFFFF6B6B), size: 18),
+                child: Icon(Icons.event_busy_rounded, color: pal.danger, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'Bloquez des périodes où vous n\'êtes pas disponible.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
+                  style: TextStyle(color: pal.textMuted, fontSize: 13),
                 ),
               ),
             ],
@@ -1394,35 +1412,33 @@ class _UnavailabilityTab extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
           child: Row(
             children: [
-              // Dates précises (multi-sélection sur calendrier) — mise en avant.
               Expanded(
                 child: FilledButton.icon(
                   onPressed: onAddDates,
                   icon: const Icon(Icons.calendar_month_rounded, size: 20),
                   label: const Text('Dates précises'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF6B6B),
+                    backgroundColor: pal.danger,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
-                    elevation: 4,
-                    shadowColor: const Color(0xFFFF6B6B).withValues(alpha: 0.4),
+                    elevation: pal.isDark ? 4 : 0,
+                    shadowColor: pal.danger.withValues(alpha: 0.35),
                     textStyle: const TextStyle(
                         fontWeight: FontWeight.w800, fontSize: 14),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
-              // Bloquer une période continue (plage de dates).
               OutlinedButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.date_range_rounded, size: 18),
                 label: const Text('Période'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFFF6B6B),
+                  foregroundColor: pal.danger,
                   side: BorderSide(
-                      color: const Color(0xFFFF6B6B).withValues(alpha: 0.5)),
+                      color: pal.danger.withValues(alpha: 0.5)),
                   padding:
                       const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                   shape: RoundedRectangleBorder(
@@ -1442,6 +1458,7 @@ class _UnavailabilityTab extends StatelessWidget {
             child: unavailabilities.isEmpty
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
                   children: [_EmptyStateUnavailability()],
                 )
               : ListView.separated(
@@ -1472,6 +1489,7 @@ class _UnavailabilityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pal = _AvailPalette.of(context);
     final duration = u.dateTo.difference(u.dateFrom).inDays + 1;
     return Container(
       decoration: BoxDecoration(
@@ -1479,22 +1497,16 @@ class _UnavailabilityCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF2A1A1A),
-            const Color(0xFF1A1515),
+            pal.unavailBgStart,
+            pal.unavailBgEnd,
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
+          color: pal.danger.withValues(alpha: 0.3),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFF6B6B).withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: BabifixDesign.elevationShadowSM(!pal.isDark),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -1502,21 +1514,21 @@ class _UnavailabilityCard extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+            color: pal.danger.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
+              color: pal.danger.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
-          child: const Icon(Icons.event_busy_rounded, color: Color(0xFFFF6B6B), size: 22),
+          child: Icon(Icons.event_busy_rounded, color: pal.danger, size: 22),
         ),
         title: Text(
           '${_fmt(u.dateFrom)} → ${_fmt(u.dateTo)}',
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 14,
-            color: Colors.white,
+            color: pal.textPrimary,
           ),
         ),
         subtitle: Column(
@@ -1527,8 +1539,8 @@ class _UnavailabilityCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   u.reason,
-                  style: const TextStyle(
-                    color: Colors.white70,
+                  style: TextStyle(
+                    color: pal.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -1537,15 +1549,15 @@ class _UnavailabilityCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                color: pal.danger.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 '$duration jour${duration > 1 ? 's' : ''}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFFFF6B6B),
+                  color: pal.danger,
                 ),
               ),
             ),
@@ -1589,7 +1601,6 @@ class _MultiMonthCalendar extends StatefulWidget {
 }
 
 class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
-  static const _red = Color(0xFFFF6B6B);
   static const _moisFr = [
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
@@ -1628,7 +1639,7 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
     ];
   }
 
-  Widget _monthGrid(DateTime month) {
+  Widget _monthGrid(DateTime month, _AvailPalette pal) {
     final firstWeekday = DateTime(month.year, month.month, 1).weekday; // 1=Lun
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final cells = <Widget>[];
@@ -1644,19 +1655,17 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
         child: Container(
           margin: const EdgeInsets.all(2),
           decoration: BoxDecoration(
-            color: sel ? _red : Colors.white.withValues(alpha: 0.04),
+            color: sel ? pal.danger : pal.softBg,
             borderRadius: BorderRadius.circular(8),
-            border: sel
-                ? null
-                : Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: sel ? null : Border.all(color: pal.border),
           ),
           alignment: Alignment.center,
           child: Text(
             '$day',
             style: TextStyle(
               color: past
-                  ? Colors.white24
-                  : (sel ? Colors.white : Colors.white70),
+                  ? pal.textMuted.withValues(alpha: 0.35)
+                  : (sel ? Colors.white : pal.textPrimary),
               fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
               fontSize: 13,
             ),
@@ -1671,8 +1680,8 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
           padding: const EdgeInsets.only(top: 10, bottom: 6),
           child: Text(
             '${_moisFr[month.month - 1]} ${month.year}',
-            style: const TextStyle(
-                color: Colors.white,
+            style: TextStyle(
+                color: pal.textPrimary,
                 fontWeight: FontWeight.w800,
                 fontSize: 14),
           ),
@@ -1690,26 +1699,27 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
 
   @override
   Widget build(BuildContext context) {
+    final pal = _AvailPalette.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
           child: Text('Cochez les jours à bloquer',
               style: TextStyle(
-                  color: Colors.white,
+                  color: pal.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w800)),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            children: const ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+            children: ['L', 'M', 'M', 'J', 'V', 'S', 'D']
                 .map((d) => Expanded(
                       child: Center(
                         child: Text(d,
                             style: TextStyle(
-                                color: _red,
+                                color: pal.danger,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 12)),
                       ),
@@ -1720,7 +1730,8 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(children: _months().map(_monthGrid).toList()),
+            child: Column(
+                children: _months().map((m) => _monthGrid(m, pal)).toList()),
           ),
         ),
         Padding(
@@ -1730,7 +1741,7 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
               Expanded(
                 child: TextButton(
                   onPressed: widget.onCancel,
-                  style: TextButton.styleFrom(foregroundColor: Colors.white70),
+                  style: TextButton.styleFrom(foregroundColor: pal.textMuted),
                   child: const Text('Annuler'),
                 ),
               ),
@@ -1740,8 +1751,8 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
                 child: FilledButton(
                   onPressed: widget.onConfirm,
                   style: FilledButton.styleFrom(
-              foregroundColor: Colors.white,
-                    backgroundColor: _red,
+                    foregroundColor: Colors.white,
+                    backgroundColor: pal.danger,
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
@@ -1765,6 +1776,7 @@ class _MultiMonthCalendarState extends State<_MultiMonthCalendar> {
 class _EmptyStateUnavailability extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final pal = _AvailPalette.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1774,27 +1786,27 @@ class _EmptyStateUnavailability extends StatelessWidget {
             height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+              color: pal.danger.withValues(alpha: 0.1),
               border: Border.all(
-                color: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
+                color: pal.danger.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
-            child: const Icon(Icons.event_available_rounded, size: 48, color: Color(0xFFFF6B6B)),
+            child: Icon(Icons.event_available_rounded, size: 48, color: pal.danger),
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             'Aucune période bloquée',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.white,
+              color: pal.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Ajoutez vos congés ou indisponibilités ponctuelles.',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14),
+            style: TextStyle(color: pal.textMuted, fontSize: 14),
             textAlign: TextAlign.center,
           ),
         ],

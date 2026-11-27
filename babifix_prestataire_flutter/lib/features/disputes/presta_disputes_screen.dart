@@ -20,7 +20,6 @@ class PrestaDisputesScreen extends StatefulWidget {
 }
 
 class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
-  static const _kNavy = Color(0xFF0B1B34);
   static const _kCyan = Color(0xFF4CC9F0);
   static const _kAmber = Color(0xFFF59E0B);
   static const _kError = Color(0xFFEF4444);
@@ -112,19 +111,26 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
   Widget build(BuildContext context) {
     final openCount =
         _disputes.where((d) => d['is_open'] == true).length;
+    final isDark = BabifixDesign.isDark(context);
+    final textPrimary = BabifixDesign.textPrimaryOf(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF050D1A),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: textPrimary,
+        iconTheme: IconThemeData(color: textPrimary),
         elevation: 0,
         title: Row(
           children: [
-            const Text(
-              'Litiges',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
+            Flexible(
+              child: Text(
+                'Litiges',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: textPrimary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                ),
               ),
             ),
             if (openCount > 0) ...[
@@ -149,28 +155,36 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
           ],
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white70, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded,
+              color: textPrimary, size: 20),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: _kCyan,
-        backgroundColor: _kNavy,
-        child: _loading
-            ? const Center(child: BabifixRingLoader.cyan(size: 28))
-            : _error != null
-                ? _buildError()
-                : _disputes.isEmpty
-                    ? _buildEmpty()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                        itemCount: _disputes.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (_, i) => _buildCard(_disputes[i]),
-                      ),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          color: _kCyan,
+          backgroundColor: BabifixDesign.surfaceOf(context),
+          child: _loading
+              ? Center(
+                  child: isDark
+                      ? const BabifixRingLoader.cyan(size: 28)
+                      : const BabifixRingLoader.dark(size: 28),
+                )
+              : _error != null
+                  ? _buildError()
+                  : _disputes.isEmpty
+                      ? _buildEmpty()
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                          itemCount: _disputes.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, i) => _buildCard(_disputes[i]),
+                        ),
+        ),
       ),
     );
   }
@@ -193,11 +207,11 @@ class _PrestaDisputesScreenState extends State<PrestaDisputesScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        const Center(
+        Center(
           child: Text(
             'Aucun litige',
             style: TextStyle(
-              color: Colors.white,
+              color: BabifixDesign.textPrimaryOf(context),
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),

@@ -181,6 +181,8 @@ class _BabifixPrestataireAppState extends State<BabifixPrestataireApp> {
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
         foregroundColor: onBg,
+        iconTheme: IconThemeData(color: onBg),
+        actionsIconTheme: IconThemeData(color: onBg),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,

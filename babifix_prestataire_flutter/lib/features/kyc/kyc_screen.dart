@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../babifix_api_config.dart';
+import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
 import '../../shared/app_palette_mode.dart';
 import '../../shared/widgets/babifix_ring_loader.dart';
@@ -396,8 +397,11 @@ class _KYCScreenState extends State<KYCScreen> {
   }
 
   bool get _isLight => widget.paletteMode != AppPaletteMode.blue;
+  bool get _isWhite => widget.paletteMode == AppPaletteMode.white;
 
-  Color get _bg => _isLight ? const Color(0xFFF6F8FC) : const Color(0xFF0B1B34);
+  Color get _bg => _isLight
+      ? (_isWhite ? BabifixDesign.bgWhite : const Color(0xFFF6F8FC))
+      : const Color(0xFF0B1B34);
   Color get _card => _isLight ? Colors.white : const Color(0xFF14243C);
   Color get _text => _isLight ? const Color(0xFF0F172A) : Colors.white;
   Color get _muted => _isLight ? const Color(0xFF64748B) : const Color(0xFFB4C2D9);
@@ -405,13 +409,16 @@ class _KYCScreenState extends State<KYCScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final barBg = _isLight ? (_isWhite ? BabifixDesign.bgWhite : const Color(0xFFF6F8FC)) : const Color(0xFF0B1B34);
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B1B34),
+        backgroundColor: barBg,
+        foregroundColor: _text,
+        iconTheme: IconThemeData(color: _text),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          icon: Icon(Icons.arrow_back_rounded, color: _text),
           onPressed: () {
             if (_step > 0 && _step < 5) {
               setState(() => _step--);
@@ -420,19 +427,29 @@ class _KYCScreenState extends State<KYCScreen> {
             }
           },
         ),
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Verifier mon compte',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _text)),
             Text('Gratuit · 2 minutes',
-                style: TextStyle(fontSize: 11.5, color: Color(0xFF93C5FD))),
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: _isLight ? BabifixDesign.cyanDeep : const Color(0xFF93C5FD))),
           ],
         ),
       ),
-      body: _loadingStatus
-          ? const Center(child: BabifixRingLoader.cyan(size: 80))
-          : _buildBody(),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: _loadingStatus
+            ? Center(
+                child: _isLight
+                    ? const BabifixRingLoader.dark(size: 80)
+                    : const BabifixRingLoader.cyan(size: 80),
+              )
+            : _buildBody(),
+      ),
     );
   }
 

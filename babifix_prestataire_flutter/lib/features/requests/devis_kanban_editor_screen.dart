@@ -738,14 +738,18 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
               child: Icon(Icons.request_quote_rounded, color: BabifixDesign.navy, size: 18),
             ),
             const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Nouveau devis',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                Text('Établir un devis professionnel',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
-              ],
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Nouveau devis',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text('Établir un devis professionnel',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
+                ],
+              ),
             ),
           ],
         ),
@@ -791,7 +795,7 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
               ],
             ),
           ),
-          _bottomBar(),
+          SafeArea(top: false, bottom: true, child: _bottomBar()),
         ],
       ),
     ),
@@ -847,14 +851,18 @@ class _DevisKanbanEditorScreenState extends State<DevisKanbanEditorScreen> {
                 ),
               ),
               if (widget.reservationTitle.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: BabifixDesign.navy,
-                    borderRadius: BorderRadius.circular(20),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 140),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: BabifixDesign.navy,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(widget.reservationTitle,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
                   ),
-                  child: Text(widget.reservationTitle,
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
                 ),
             ],
           ),

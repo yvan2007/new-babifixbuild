@@ -556,159 +556,165 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final top = MediaQuery.paddingOf(context).top;
+    final topBleedColor = _isLight
+        ? (_isWhite ? BabifixDesign.bgWhite : const Color(0xFF0084D1))
+        : BabifixDesign.navy;
     return Scaffold(
       extendBody: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        bottom: false,
-        child: RefreshIndicator(
-          onRefresh: _refreshAll,
-          color: const Color(0xFF4CC9F0),
-          child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (_provStatut == 'En attente')
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Material(
-                  color: const Color(0xFFFFF7ED),
-                  borderRadius: BorderRadius.circular(12),
-                  child: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text(
-                      'Votre dossier est en cours de v\u00e9rification par l\u2019administrateur BABIFIX. '
-                      'Les clients ne vous voient pas encore dans l\u2019app tant que le compte n\u2019est pas valid\u00e9.',
-                      style: TextStyle(color: Color(0xFF9A3412), height: 1.35),
-                    ),
+      body: Container(
+        color: topBleedColor,
+        child: SafeArea(
+          bottom: false,
+          child: Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: RefreshIndicator(
+              onRefresh: _refreshAll,
+              color: const Color(0xFF4CC9F0),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _isLight
+                        ? _VibrantBlueDashboardHeader(
+                            topInset: 0,
+                            greetingName: _greetingName,
+                            gainsMonth: _gainsMonth,
+                            prestations: _prestations,
+                            noteAvg: _noteAvg,
+                            loading: _loadingMe,
+                            inAppNotifs: widget.inAppNotifs,
+                            onNavigate: widget.onNavigate,
+                            photoUrl: _photoUrl,
+                            isPureWhite: _isWhite,
+                            onboardingChecklist: _buildOnboardingChecklist(),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                            decoration: const BoxDecoration(
+                              color: BabifixDesign.navy,
+                              border: Border(
+                                bottom: BorderSide(color: BabifixDesign.borderDark),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 12),
+                                      child: CircleAvatar(
+                                        radius: 24,
+                                        backgroundImage: _photoUrl != null ? NetworkImage(_photoUrl!) : null,
+                                        backgroundColor: const Color(0xFF1E3A5F),
+                                        child: _photoUrl == null
+                                            ? Text(
+                                                _greetingName.isNotEmpty ? _greetingName[0].toUpperCase() : 'P',
+                                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
+                                              )
+                                            : null,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Tableau de bord',
+                                            style: TextStyle(
+                                              fontSize: 26,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFFF8FAFC),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '${babifixGreeting()}, $_greetingName',
+                                            style: const TextStyle(color: Color(0xFFB4C2D9), fontSize: 15),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    _DashboardNotificationButton(
+                                      lightStyle: false,
+                                      hub: widget.inAppNotifs,
+                                      onNavigate: widget.onNavigate,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _buildOnboardingChecklist(),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _Stat(
+                                        value: _loadingMe ? '\u2026' : '$_gainsMonth FCFA',
+                                        label: 'Gains (total paiements)',
+                                        variant: _StatVariant.onGradient,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _Stat(
+                                        value: _loadingMe ? '\u2026' : _prestations,
+                                        label: 'R\u00e9servations li\u00e9es',
+                                        variant: _StatVariant.onGradient,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _Stat(
+                                        value: _loadingMe ? '\u2026' : _noteAvg,
+                                        label: 'Note moy.',
+                                        variant: _StatVariant.onGradient,
+                                        valueSuffix: const Icon(
+                                          Icons.star_rounded,
+                                          size: 18,
+                                          color: Color(0xFFFFC107),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                   ),
-                ),
-              ),
-            ),
-          if (_refusalReason != null && _refusalReason!.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Material(
-                  color: const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      'Dossier refus\u00e9. Motif communiqu\u00e9 par l\u2019administration :\n$_refusalReason',
-                      style: const TextStyle(color: Color(0xFF991B1B), height: 1.35),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          SliverToBoxAdapter(
-            child: _isLight
-                ? _VibrantBlueDashboardHeader(
-                    topInset: top,
-                    greetingName: _greetingName,
-                    gainsMonth: _gainsMonth,
-                    prestations: _prestations,
-                    noteAvg: _noteAvg,
-                    loading: _loadingMe,
-                    inAppNotifs: widget.inAppNotifs,
-                    onNavigate: widget.onNavigate,
-                    photoUrl: _photoUrl,
-                    isPureWhite: _isWhite,
-                    onboardingChecklist: _buildOnboardingChecklist(),
-                  )
-                : Container(
-                    padding: EdgeInsets.fromLTRB(16, top + 44, 16, 18),
-                    decoration: const BoxDecoration(
-                      color: BabifixDesign.navy,
-                      border: Border(
-                        bottom: BorderSide(color: BabifixDesign.borderDark),
+                  if (_provStatut == 'En attente')
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Material(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(12),
+                          child: const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Text(
+                              'Votre dossier est en cours de v\u00e9rification par l\u2019administrateur BABIFIX. '
+                              'Les clients ne vous voient pas encore dans l\u2019app tant que le compte n\u2019est pas valid\u00e9.',
+                              style: TextStyle(color: Color(0xFF9A3412), height: 1.35),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: CircleAvatar(
-                                radius: 24,
-                                backgroundImage: _photoUrl != null ? NetworkImage(_photoUrl!) : null,
-                                backgroundColor: const Color(0xFF1E3A5F),
-                                child: _photoUrl == null
-                                    ? Text(
-                                        _greetingName.isNotEmpty ? _greetingName[0].toUpperCase() : 'P',
-                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
-                                      )
-                                    : null,
-                              ),
+                  if (_refusalReason != null && _refusalReason!.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Material(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Text(
+                              'Dossier refus\u00e9. Motif communiqu\u00e9 par l\u2019administration :\n$_refusalReason',
+                              style: const TextStyle(color: Color(0xFF991B1B), height: 1.35),
                             ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Tableau de bord',
-                                    style: TextStyle(
-                                      fontSize: 26,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFFF8FAFC),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${babifixGreeting()}, $_greetingName',
-                                    style: const TextStyle(color: Color(0xFFB4C2D9), fontSize: 15),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            _DashboardNotificationButton(
-                              lightStyle: false,
-                              hub: widget.inAppNotifs,
-                              onNavigate: widget.onNavigate,
-                            ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        _buildOnboardingChecklist(),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _Stat(
-                                value: _loadingMe ? '\u2026' : '$_gainsMonth FCFA',
-                                label: 'Gains (total paiements)',
-                                variant: _StatVariant.onGradient,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _Stat(
-                                value: _loadingMe ? '\u2026' : _prestations,
-                                label: 'R\u00e9servations li\u00e9es',
-                                variant: _StatVariant.onGradient,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _Stat(
-                                value: _loadingMe ? '\u2026' : _noteAvg,
-                                label: 'Note moy.',
-                                variant: _StatVariant.onGradient,
-                                valueSuffix: const Icon(
-                                  Icons.star_rounded,
-                                  size: 18,
-                                  color: Color(0xFFFFC107),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-          ),
           SliverPadding(
             padding: const EdgeInsets.all(16),
             sliver: SliverList.list(
@@ -905,6 +911,8 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
         ),
       ),
       ),
+      ),
+      ),
       bottomNavigationBar: PrestataireFloatingNavBar(
         selectedIndex: selected,
         isLight: _isLight,
@@ -968,7 +976,7 @@ class _VibrantBlueDashboardHeader extends StatelessWidget {
     final whiteMode = isPureWhite;
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(16, topInset + 44, 16, 20),
+      padding: EdgeInsets.fromLTRB(16, topInset + 18, 16, 20),
       decoration: BoxDecoration(
         color: whiteMode ? Colors.white : _blue,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),

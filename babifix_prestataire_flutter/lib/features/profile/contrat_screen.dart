@@ -246,7 +246,10 @@ class _ContratScreenState extends State<ContratScreen>
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: PopScope(
+        body: SafeArea(
+          top: false,
+          bottom: true,
+          child: PopScope(
           // En mode obligatoire, on bloque le back système tant que le
           // contrat n'est pas signé.
           canPop: !widget.mustAccept || _acceptedAt != null,
@@ -387,6 +390,7 @@ class _ContratScreenState extends State<ContratScreen>
               ),
             ],
           ),
+        ),
         ),
       ),
     );
