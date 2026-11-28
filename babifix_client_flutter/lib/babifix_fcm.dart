@@ -13,6 +13,7 @@ import 'babifix_api_config.dart';
 import 'firebase_options.dart';
 import 'services/fcm_router.dart';
 import 'services/notification_sound_service.dart';
+import 'user_store.dart';
 
 @pragma('vm:entry-point')
 Future<void> babifixFcmBackgroundHandler(RemoteMessage message) async {
@@ -21,14 +22,23 @@ Future<void> babifixFcmBackgroundHandler(RemoteMessage message) async {
   }
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await BabifixNotificationSoundService.ensureInitialized();
     final data = message.data;
+    final type = (data['type'] ?? '').toString();
+    // Si le payload contient deja un bloc `notification`, Android/iOS l'affiche
+    // nativement dans le panneau systeme : ne pas dupliquer en local.
+    if (message.notification != null || type == 'call.incoming') {
+      return;
+    }
+    await BabifixNotificationSoundService.ensureInitialized();
+    final title = (data['title'] ?? '').toString().trim();
+    final body = (data['body'] ?? '').toString().trim();
+    if (title.isEmpty && body.isEmpty) return;
     await BabifixNotificationSoundService.showNotification(
       id: DateTime.now().millisecondsSinceEpoch % 100000,
-      title: data['title'] ?? 'BABIFIX',
-      body: data['body'] ?? '',
+      title: title.isNotEmpty ? title : 'BABIFIX',
+      body: body,
       payload: jsonEncode({
-        'type': data['type'] ?? '',
+        'type': type,
         'reference': data['reference'] ?? '',
       }),
     );
@@ -52,12 +62,26 @@ class BabifixFcm {
     if (_initAttempted) return;
     _initAttempted = true;
     if (kIsWeb) return;
+    // Toujours initialiser les notifications locales (taps, canaux, son) meme
+    // si iOS APNs est encore en attente de GoogleService-Info.plist.
+    await BabifixNotificationSoundService.ensureInitialized();
     if (Platform.isIOS && DefaultFirebaseOptions.ios.appId.contains('CONFIGUREZ_IOS')) {
       debugPrint('BABIFIX FCM: iOS Firebase non configure (options placeholder), FCM ignore.');
       return;
     }
     try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      try {
+        await FirebaseMessaging.instance.setAutoInitEnabled(true);
+        if (Platform.isIOS) {
+          await FirebaseMessaging.instance
+              .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+        }
+      } catch (_) {}
       if (kDebugMode) {
         try {
           // Sur Android émulateur, l'hôte est 10.0.2.2, pas localhost.
@@ -66,7 +90,6 @@ class BabifixFcm {
         } catch (_) {}
       }
       FirebaseMessaging.onBackgroundMessage(babifixFcmBackgroundHandler);
-      await BabifixNotificationSoundService.ensureInitialized();
 
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
       _initOK = true;
@@ -90,10 +113,14 @@ class BabifixFcm {
       }
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool('babifix_notif_preprompt_v1') == true) return;
+      final laterMs = prefs.getInt('babifix_notif_preprompt_later_ms') ?? 0;
+      if (laterMs > 0 &&
+          DateTime.now().millisecondsSinceEpoch - laterMs < 86400000) {
+        return;
+      }
       if (!context.mounted) return;
 
       _prepromptShowing = true;
-      await prefs.setBool('babifix_notif_preprompt_v1', true);
       final isDark = Theme.of(context).brightness == Brightness.dark;
       final bg = isDark ? const Color(0xFF13223B) : Colors.white;
       final fg = isDark ? Colors.white : const Color(0xFF0B1B34);
@@ -185,10 +212,20 @@ class BabifixFcm {
         ),
       );
       if (wantEnable == true) {
+        await prefs.setBool('babifix_notif_preprompt_v1', true);
         await FirebaseMessaging.instance.requestPermission(
           alert: true,
           badge: true,
           sound: true,
+        );
+        final jwt = await BabifixUserStore.getApiToken();
+        if (jwt != null && jwt.isNotEmpty) {
+          await registerTokenWithBackend(jwt);
+        }
+      } else {
+        await prefs.setInt(
+          'babifix_notif_preprompt_later_ms',
+          DateTime.now().millisecondsSinceEpoch,
         );
       }
     } catch (_) {
@@ -240,28 +277,35 @@ class BabifixFcm {
     if (apiBearerToken.isEmpty || kIsWeb) return;
     try {
       await ensureInitialized();
-      final tok = await FirebaseMessaging.instance.getToken();
+      if (!_initOK) return;
+      final tok = await FirebaseMessaging.instance
+          .getToken()
+          .timeout(const Duration(seconds: 6));
       if (tok == null || tok.isEmpty) return;
 
-      Future<void> send(String t) async {
+      Future<void> send(String t, String jwt) async {
+        if (jwt.isEmpty || t.isEmpty) return;
         final uri = Uri.parse('${babifixApiBaseUrl()}/api/auth/fcm-token');
         await http.post(
           uri,
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer $apiBearerToken',
+            'Authorization': 'Bearer $jwt',
           },
           body: jsonEncode({'token': t, 'platform': _platformLabel(), 'app': 'client'}),
         );
       }
 
-      await send(tok);
+      await send(tok, apiBearerToken);
       debugPrint('BABIFIX FCM: token enregistré côté serveur');
 
       if (!_refreshListening) {
         _refreshListening = true;
-        FirebaseMessaging.instance.onTokenRefresh.listen((newTok) {
-          send(newTok);
+        FirebaseMessaging.instance.onTokenRefresh.listen((newTok) async {
+          final latestJwt = await BabifixUserStore.getApiToken();
+          if (latestJwt != null && latestJwt.isNotEmpty) {
+            await send(newTok, latestJwt);
+          }
         });
       }
     } catch (e) {

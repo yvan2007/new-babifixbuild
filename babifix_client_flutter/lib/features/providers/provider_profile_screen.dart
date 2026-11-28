@@ -150,19 +150,50 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
               if (data['mobile_money_operator'] != null)
                 'mobile_money_operator': data['mobile_money_operator'],
               if (data['client_message'] != null &&
-                  (data['client_message'] as String).isNotEmpty)
-                'message': data['client_message'],
+                  '${data['client_message']}'.trim().isNotEmpty)
+                'message': '${data['client_message']}'.trim(),
+              if (data['client_message'] != null &&
+                  '${data['client_message']}'.trim().isNotEmpty)
+                'client_message': '${data['client_message']}'.trim(),
+              if (data['description_probleme'] != null &&
+                  '${data['description_probleme']}'.trim().isNotEmpty)
+                'description_probleme': '${data['description_probleme']}'.trim(),
               if (data['disponibilites_client'] != null &&
-                  (data['disponibilites_client'] as String).isNotEmpty)
-                'when_label': data['disponibilites_client'],
-              if (widget.providerId > 0) 'provider_id': widget.providerId,
+                  '${data['disponibilites_client']}'.trim().isNotEmpty)
+                'when_label': '${data['disponibilites_client']}'.trim(),
+              if (data['disponibilites_client'] != null &&
+                  '${data['disponibilites_client']}'.trim().isNotEmpty)
+                'disponibilites_client': '${data['disponibilites_client']}'.trim(),
+              if (widget.providerId > 0 && data['sos_mode'] != true)
+                'provider_id': widget.providerId,
               if (data['latitude'] != null) 'latitude': data['latitude'],
               if (data['longitude'] != null) 'longitude': data['longitude'],
               if (data['address_label'] != null &&
-                  (data['address_label'] as String).isNotEmpty)
-                'address_label': data['address_label'],
+                  '${data['address_label']}'.trim().isNotEmpty)
+                'address_label': '${data['address_label']}'.trim(),
+              if (data['address_repere'] != null &&
+                  '${data['address_repere']}'.trim().isNotEmpty)
+                'address_repere': '${data['address_repere']}'.trim(),
               if (data['photo_attachments'] != null)
                 'photo_attachments': data['photo_attachments'],
+              if (data['audio_probleme'] != null &&
+                  '${data['audio_probleme']}'.trim().isNotEmpty)
+                'audio_probleme': '${data['audio_probleme']}'.trim(),
+              if (data['video_probleme'] != null &&
+                  '${data['video_probleme']}'.trim().isNotEmpty)
+                'video_probleme': '${data['video_probleme']}'.trim(),
+              if (data['scheduled_date'] != null &&
+                  '${data['scheduled_date']}'.trim().isNotEmpty)
+                'scheduled_date': '${data['scheduled_date']}'.trim(),
+              if (data['demande_type'] != null &&
+                  '${data['demande_type']}'.trim().isNotEmpty)
+                'demande_type': '${data['demande_type']}'.trim(),
+              if (data['reponses_exigences'] is Map &&
+                  (data['reponses_exigences'] as Map).isNotEmpty)
+                'reponses_exigences': data['reponses_exigences'],
+              if (data['prix_propose'] != null)
+                'prix_propose': data['prix_propose'],
+              if (data['sos_mode'] == true) 'sos_mode': true,
               if (data['is_urgent'] == true) 'is_urgent': true,
             };
             debugPrint('📤 BODY provider_id: ${body['provider_id'] ?? "null"}');

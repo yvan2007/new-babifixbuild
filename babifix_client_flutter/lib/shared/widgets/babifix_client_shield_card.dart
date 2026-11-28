@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../babifix_design_system.dart';
 import '../../babifix_money.dart';
 
@@ -14,6 +15,7 @@ class BabifixClientShieldCard extends StatefulWidget {
     required this.points,
     this.reductionPct = 0,
     this.missionsCount = 0,
+    this.verifyQrUrl = '',
     this.compact = false,
     this.onTapAction,
     this.actionLabel,
@@ -25,6 +27,7 @@ class BabifixClientShieldCard extends StatefulWidget {
   final int points;
   final int reductionPct;
   final int missionsCount;
+  final String verifyQrUrl;
   final bool compact;
   final VoidCallback? onTapAction;
   final String? actionLabel;
@@ -201,47 +204,59 @@ class _BabifixClientShieldCardState extends State<BabifixClientShieldCard>
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: style.accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: style.border.withValues(alpha: 0.5)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.verified_user_rounded, size: 13, color: style.accent),
-                  const SizedBox(width: 5),
-                  Text(
-                    style.tag,
-                    style: TextStyle(
-                      color: style.accent,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: style.accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: style.border.withValues(alpha: 0.5)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified_user_rounded, size: 13, color: style.accent),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        style.tag,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: style.accent,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.7,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const Spacer(),
-            GestureDetector(
-              onTap: () => setState(() => _hideAmount = !_hideAmount),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  _hideAmount
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  size: 18,
-                  color: style.muted,
+                  ],
                 ),
               ),
             ),
-            const SizedBox(width: 6),
-            Icon(Icons.flip_camera_android_rounded, size: 17, color: style.muted),
+            const SizedBox(width: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: () => setState(() => _hideAmount = !_hideAmount),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      _hideAmount
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 18,
+                      color: style.muted,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.flip_camera_android_rounded, size: 17, color: style.muted),
+              ],
+            ),
           ],
         ),
         Column(
@@ -249,6 +264,8 @@ class _BabifixClientShieldCardState extends State<BabifixClientShieldCard>
           children: [
             Text(
               'Credit & paiement protege',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: style.muted,
                 fontSize: 11.5,
@@ -256,14 +273,18 @@ class _BabifixClientShieldCardState extends State<BabifixClientShieldCard>
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              _hideAmount ? '•••••• FCFA' : formatFcfa(widget.creditFcfa),
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: widget.compact ? 22 : 27,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.6,
-                fontFeatures: BabifixDesign.tabularFigures,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _hideAmount ? '•••••• FCFA' : formatFcfa(widget.creditFcfa),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: widget.compact ? 22 : 27,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.6,
+                  fontFeatures: BabifixDesign.tabularFigures,
+                ),
               ),
             ),
           ],
@@ -325,53 +346,152 @@ class _BabifixClientShieldCardState extends State<BabifixClientShieldCard>
     );
   }
 
+  void _openQrModal(_ShieldTierStyle style) {
+    final qrData = widget.verifyQrUrl.trim();
+    if (qrData.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Passeport Bouclier BABIFIX',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: QrImageView(
+                data: qrData,
+                version: QrVersions.auto,
+                size: 200,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Scannez pour verifier la protection du compte sans exposer vos donnees personnelles.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 12.5,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVerso(_ShieldTierStyle style) {
+    final hasQr = widget.verifyQrUrl.trim().isNotEmpty;
+    final qrSize = widget.compact ? 66.0 : 80.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
-            Text(
-              'VOS GARANTIES BABIFIX',
-              style: TextStyle(
-                color: style.accent,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
+            Expanded(
+              child: Text(
+                'VOS GARANTIES BABIFIX',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: style.accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
               ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             Icon(Icons.flip_camera_android_rounded, size: 17, color: style.muted),
           ],
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _guaranteeLine(style, Icons.lock_outline_rounded, 'Fonds bloques jusqu\'au code OTP final'),
-            const SizedBox(height: 6),
-            _guaranteeLine(style, Icons.badge_outlined, 'Artisans verifies KYC & piece d\'identite'),
-            const SizedBox(height: 6),
-            _guaranteeLine(style, Icons.account_balance_wallet_outlined, 'Wave, Orange Money, MTN MoMo, Moov Money'),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _guaranteeLine(style, Icons.lock_outline_rounded, 'Fonds bloques jusqu\'au code OTP final'),
+                  const SizedBox(height: 5),
+                  _guaranteeLine(style, Icons.badge_outlined, 'Artisans verifies KYC & identite'),
+                  const SizedBox(height: 5),
+                  _guaranteeLine(style, Icons.account_balance_wallet_outlined, 'Wave, Orange, MTN, Moov Money'),
+                ],
+              ),
+            ),
+            if (hasQr) ...[
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: () => _openQrModal(style),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: QrImageView(
+                    data: widget.verifyQrUrl.trim(),
+                    version: QrVersions.auto,
+                    size: qrSize,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              '${widget.missionsCount} mission${widget.missionsCount > 1 ? 's' : ''} protegee${widget.missionsCount > 1 ? 's' : ''}',
-              style: TextStyle(
-                color: style.muted,
-                fontSize: 11,
-                fontFeatures: BabifixDesign.tabularFigures,
+            Flexible(
+              child: Text(
+                '${widget.missionsCount} mission${widget.missionsCount > 1 ? 's' : ''} protegee${widget.missionsCount > 1 ? 's' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: style.muted,
+                  fontSize: 11,
+                  fontFeatures: BabifixDesign.tabularFigures,
+                ),
               ),
             ),
-            Text(
-              'babifix.ci',
-              style: TextStyle(
-                color: style.accent,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                hasQr ? 'QR verifie · babifix.ci' : 'babifix.ci',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: style.accent,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],

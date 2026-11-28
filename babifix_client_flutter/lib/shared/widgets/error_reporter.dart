@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 
 DateTime? _lastSent;
+final Map<String, DateTime> _lastSentByEndpoint = <String, DateTime>{};
 String _configuredApp = 'client';
 String _configuredVersion = '1.0.0';
 bool _telemetryEnabled = kReleaseMode || kProfileMode;
@@ -53,7 +54,7 @@ void initErrorReporter({
 class BabifixErrorReporter {
   const BabifixErrorReporter._();
 
-  /// Signale une erreur HTTP critique (>= 500), timeout ou latence elevee (>= 1500ms).
+  /// Signale une erreur HTTP critique (>= 500), timeout ou latence elevee (>= 3000ms).
   static Future<void> reportHttpIssue({
     required String endpoint,
     String method = 'GET',
@@ -64,12 +65,16 @@ class BabifixErrorReporter {
     bool force = false,
   }) async {
     if (!force && !_telemetryEnabled) return;
-    final bool isSlow = durationMs != null && durationMs >= 1500;
+    final cleanEndpoint = endpoint.split('?').first;
+    if (cleanEndpoint.contains('/api/app/log-error') ||
+        cleanEndpoint.contains('/api/telemetry/')) {
+      return;
+    }
+    final bool isSlow = durationMs != null && durationMs >= 3000;
     final bool isServerErr = statusCode != null && statusCode >= 500;
     if (!isServerErr && !isSlow && (message == null || message.isEmpty)) {
       return;
     }
-    final cleanEndpoint = endpoint.split('?').first;
     final level = isServerErr ? 'error' : (isSlow ? 'slow' : 'warning');
     final text = message ??
         (isServerErr
@@ -104,7 +109,13 @@ Future<void> _report({
   String? exceptionType,
 }) async {
   final now = DateTime.now();
-  if (_lastSent != null && now.difference(_lastSent!).inSeconds < 5) return;
+  if (level == 'slow' && endpoint != null && endpoint.isNotEmpty) {
+    final prevEp = _lastSentByEndpoint[endpoint];
+    if (prevEp != null && now.difference(prevEp).inSeconds < 60) return;
+    _lastSentByEndpoint[endpoint] = now;
+  } else {
+    if (_lastSent != null && now.difference(_lastSent!).inSeconds < 5) return;
+  }
   _lastSent = now;
   try {
     await http

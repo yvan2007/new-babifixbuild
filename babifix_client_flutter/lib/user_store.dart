@@ -35,6 +35,22 @@ class BabifixUserStore {
     return _secureStorage.read(key: _kApiToken);
   }
 
+  /// Extrait le role depuis le payload d'un JWT (sans verifier la signature).
+  static String extractJwtRole(String? token) {
+    if (token == null || token.isEmpty) return '';
+    try {
+      final parts = token.split('.');
+      if (parts.length < 2) return '';
+      final normalized = base64Url.normalize(parts[1]);
+      final jsonStr = utf8.decode(base64Url.decode(normalized));
+      final payload = jsonDecode(jsonStr);
+      if (payload is Map) {
+        return (payload['role'] ?? '').toString().trim().toLowerCase();
+      }
+    } catch (_) {}
+    return '';
+  }
+
   static Future<void> saveApiToken(String? token) async {
     await _saveApiToken(token);
   }
@@ -77,6 +93,10 @@ class BabifixUserStore {
           await _saveApiToken(newAccess);
           return newAccess;
         }
+      } else if (res.statusCode == 401 || res.statusCode == 403) {
+        await _saveApiToken(null);
+        await _saveRefreshToken(null);
+        await _setSession(false);
       }
     } catch (_) {}
     return null;
@@ -106,7 +126,7 @@ class BabifixUserStore {
       }
     }
     sw.stop();
-    if (res.statusCode >= 500 || sw.elapsedMilliseconds >= 1500) {
+    if (res.statusCode >= 500 || sw.elapsedMilliseconds >= 3000) {
       unawaited(BabifixErrorReporter.reportHttpIssue(
         endpoint: url,
         method: 'GET',
@@ -144,7 +164,7 @@ class BabifixUserStore {
       }
     }
     sw.stop();
-    if (res.statusCode >= 500 || sw.elapsedMilliseconds >= 1500) {
+    if (res.statusCode >= 500 || sw.elapsedMilliseconds >= 3000) {
       unawaited(BabifixErrorReporter.reportHttpIssue(
         endpoint: url,
         method: 'POST',
@@ -203,13 +223,25 @@ class BabifixUserStore {
   static Future<bool> isLoggedIn() async {
     final p = await SharedPreferences.getInstance();
     final flagged = p.getBool(_kSession) ?? false;
-    if (!flagged) return false;
-    // Une session SANS jeton serveur n'est pas une vraie session : l'app
-    // s'ouvrirait puis tous les appels API seraient rejetés (401). C'est le cas
-    // des anciens comptes crees hors-ligne, avant que l'inscription n'exige le
-    // serveur. On les traite comme deconnectes, sans supprimer leurs donnees.
     final access = await getApiToken();
     final refresh = await _getRefreshToken();
+    if (!flagged) {
+      // Sur iOS, le Keychain survit a une reinstallation alors que SharedPreferences
+      // est vide : on purge tout jeton orphelin pour eviter des 403 "Anonyme".
+      if ((access != null && access.isNotEmpty) ||
+          (refresh != null && refresh.isNotEmpty)) {
+        await _saveApiToken(null);
+        await _saveRefreshToken(null);
+      }
+      return false;
+    }
+    final role = extractJwtRole(access);
+    if (role.isNotEmpty && role != 'client' && role != 'admin') {
+      await _saveApiToken(null);
+      await _saveRefreshToken(null);
+      await p.setBool(_kSession, false);
+      return false;
+    }
     final noAccess = access == null || access.isEmpty;
     final noRefresh = refresh == null || refresh.isEmpty;
     if (noAccess && noRefresh) {
@@ -479,6 +511,10 @@ class BabifixUserStore {
         final token = (data['token'] ?? data['access']) as String?;
         final refreshToken = data['refresh'] as String?;
         if (token != null && token.isNotEmpty) {
+          final role = (data['role'] ?? extractJwtRole(token)).toString().trim().toLowerCase();
+          if (role.isNotEmpty && role != 'client' && role != 'admin') {
+            return 'Ce compte est enregistre comme Prestataire. Utilisez l\'application Babifix Pro.';
+          }
           await _saveApiToken(token);
           if (refreshToken != null) await _saveRefreshToken(refreshToken);
           // Email d'abord, puis on récupère nom/téléphone réels du serveur
@@ -532,12 +568,20 @@ class BabifixUserStore {
     if (token == null || token.isEmpty) {
       return 'Connexion Google acceptée mais le serveur n\'a pas renvoyé de session. Réessayez.';
     }
+    final role = (result.role.isNotEmpty ? result.role : extractJwtRole(token))
+        .trim()
+        .toLowerCase();
+    if (role.isNotEmpty && role != 'client' && role != 'admin') {
+      return 'Ce compte Google est enregistre comme Prestataire. Utilisez Babifix Pro.';
+    }
     await saveProfile(name: result.name ?? '', email: result.email ?? '');
     await _saveApiToken(token);
     if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
       await _saveRefreshToken(result.refreshToken);
     }
     await _setSession(true);
+    hydrateProfileFromServer().catchError((_) {});
+    BabifixFcm.registerTokenWithBackend(token).catchError((_) {});
     return null; // success
   }
 
@@ -550,16 +594,26 @@ class BabifixUserStore {
     if (token == null || token.isEmpty) {
       return 'Connexion Apple acceptée mais le serveur n\'a pas renvoyé de session. Réessayez.';
     }
+    final role = (result.role.isNotEmpty ? result.role : extractJwtRole(token))
+        .trim()
+        .toLowerCase();
+    if (role.isNotEmpty && role != 'client' && role != 'admin') {
+      return 'Ce compte Apple est enregistre comme Prestataire. Utilisez Babifix Pro.';
+    }
     await saveProfile(name: result.name ?? '', email: result.email ?? '');
     await _saveApiToken(token);
     if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
       await _saveRefreshToken(result.refreshToken);
     }
     await _setSession(true);
+    hydrateProfileFromServer().catchError((_) {});
+    BabifixFcm.registerTokenWithBackend(token).catchError((_) {});
     return null; // success
   }
 
   static Future<void> socialDemoLogin() async {
+    await _saveApiToken(null);
+    await _saveRefreshToken(null);
     await saveProfile(name: '', email: '');
     await _setSession(false);
   }

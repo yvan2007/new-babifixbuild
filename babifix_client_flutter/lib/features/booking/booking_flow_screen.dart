@@ -173,6 +173,8 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
 
   Future<void> _loadSosPreview() async {
     try {
+      final logged = await BabifixUserStore.isLoggedIn();
+      if (!logged) return;
       final token = await BabifixUserStore.getApiToken();
       if (token == null || token.isEmpty) return;
       final uri = Uri.parse(
@@ -285,6 +287,10 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
 
   Future<void> _loadSavedAddresses() async {
     try {
+      final logged = await BabifixUserStore.isLoggedIn();
+      if (!logged) return;
+      final token = await BabifixUserStore.getApiToken();
+      if (token == null || token.isEmpty) return;
       final r = await BabifixUserStore.authGet('/api/client/addresses');
       if (r.statusCode == 200 && mounted) {
         final d = jsonDecode(r.body) as Map<String, dynamic>;

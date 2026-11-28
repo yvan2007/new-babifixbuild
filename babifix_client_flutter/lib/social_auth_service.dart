@@ -15,6 +15,7 @@ class SocialAuthResult {
   final String? refreshToken;
   final String? name;
   final String? email;
+  final String role;
   final String? error;
 
   const SocialAuthResult._({
@@ -22,6 +23,7 @@ class SocialAuthResult {
     this.refreshToken,
     this.name,
     this.email,
+    this.role = '',
     this.error,
   });
 
@@ -30,12 +32,14 @@ class SocialAuthResult {
     required String refreshToken,
     required String name,
     required String email,
+    String role = '',
   }) =>
       SocialAuthResult._(
         accessToken: accessToken,
         refreshToken: refreshToken,
         name: name,
         email: email,
+        role: role,
       );
 
   factory SocialAuthResult.failure(String error) =>
@@ -47,8 +51,16 @@ class SocialAuthResult {
 class SocialAuthService {
   SocialAuthService._();
 
+  // Client ID Web OAuth configure sur Firebase Console (babifix-b6454)
+  static const String _googleServerClientId =
+      '583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com';
+
   static final _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
+    clientId: (!kIsWeb && Platform.isIOS)
+        ? DefaultFirebaseOptions.ios.iosClientId
+        : null,
+    serverClientId: _googleServerClientId,
   );
 
   /// Sign in with Google and exchange the ID token with the BABIFIX backend.
@@ -69,7 +81,7 @@ class SocialAuthService {
 
       final auth = await account.authentication;
       final idToken = auth.idToken;
-      if (idToken == null) {
+      if (idToken == null || idToken.isEmpty) {
         return SocialAuthResult.failure(
             'Impossible d\'obtenir le token Google.');
       }
@@ -77,19 +89,35 @@ class SocialAuthService {
       // Exchange with BABIFIX backend
       final res = await http
           .post(
-            Uri.parse('${babifixApiBaseUrl()}/api/auth/social/google/'),
+            Uri.parse('${babifixApiBaseUrl()}/api/auth/google/'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'id_token': idToken}),
+            body: jsonEncode({
+              'id_token': idToken,
+              'role': 'client',
+            }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 25));
 
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final userMap = body['user'] is Map
+            ? Map<String, dynamic>.from(body['user'] as Map)
+            : const <String, dynamic>{};
+        final access = (body['access'] ??
+                body['access_token'] ??
+                body['token'] ??
+                '')
+            .toString();
+        final refresh =
+            (body['refresh'] ?? body['refresh_token'] ?? '').toString();
+        final role = (body['role'] ?? userMap['role'] ?? '').toString();
         return SocialAuthResult.success(
-          accessToken: body['access'] as String? ?? '',
-          refreshToken: body['refresh'] as String? ?? '',
-          name: body['name'] as String? ?? account.displayName ?? '',
-          email: body['email'] as String? ?? account.email,
+          accessToken: access,
+          refreshToken: refresh,
+          name: (userMap['name'] ?? body['name'] ?? account.displayName ?? '')
+              .toString(),
+          email: (userMap['email'] ?? body['email'] ?? account.email).toString(),
+          role: role,
         );
       }
 
@@ -105,7 +133,7 @@ class SocialAuthService {
   /// Sign in with Apple and exchange the identity token with the BABIFIX backend.
   /// Apple Sign-In is only available on iOS 13+ and macOS.
   static Future<SocialAuthResult> signInWithApple() async {
-    final isAppleAvailable = !kIsWeb && Platform.isIOS || Platform.isMacOS;
+    final isAppleAvailable = !kIsWeb && (Platform.isIOS || Platform.isMacOS);
     if (!isAppleAvailable) {
       return SocialAuthResult.failure(
           'Sign in with Apple n\'est disponible que sur iOS/macOS.');
@@ -120,7 +148,7 @@ class SocialAuthService {
       );
 
       final identityToken = credential.identityToken;
-      if (identityToken == null) {
+      if (identityToken == null || identityToken.isEmpty) {
         return SocialAuthResult.failure(
             'Impossible d\'obtenir le token Apple.');
       }
@@ -132,24 +160,39 @@ class SocialAuthService {
 
       final res = await http
           .post(
-            Uri.parse('${babifixApiBaseUrl()}/api/auth/social/apple/'),
+            Uri.parse('${babifixApiBaseUrl()}/api/auth/apple/'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'identity_token': identityToken,
               'authorization_code': credential.authorizationCode,
+              'role': 'client',
+              if (name.isNotEmpty) 'full_name': name,
               if (name.isNotEmpty) 'name': name,
               if (credential.email != null) 'email': credential.email,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 25));
 
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final userMap = body['user'] is Map
+            ? Map<String, dynamic>.from(body['user'] as Map)
+            : const <String, dynamic>{};
+        final access = (body['access'] ??
+                body['access_token'] ??
+                body['token'] ??
+                '')
+            .toString();
+        final refresh =
+            (body['refresh'] ?? body['refresh_token'] ?? '').toString();
+        final role = (body['role'] ?? userMap['role'] ?? '').toString();
         return SocialAuthResult.success(
-          accessToken: body['access'] as String? ?? '',
-          refreshToken: body['refresh'] as String? ?? '',
-          name: body['name'] as String? ?? name,
-          email: body['email'] as String? ?? credential.email ?? '',
+          accessToken: access,
+          refreshToken: refresh,
+          name: (userMap['name'] ?? body['name'] ?? name).toString(),
+          email: (userMap['email'] ?? body['email'] ?? credential.email ?? '')
+              .toString(),
+          role: role,
         );
       }
 
@@ -170,9 +213,28 @@ class SocialAuthService {
   static String _parseError(String body) {
     try {
       final j = jsonDecode(body) as Map<String, dynamic>;
-      return j['detail'] as String? ??
-          j['error'] as String? ??
-          'Erreur serveur.';
+      final message = (j['message'] ?? '').toString().trim();
+      if (message.isNotEmpty) return message;
+      final detail = (j['detail'] ?? '').toString().trim();
+      if (detail.isNotEmpty) return detail;
+      final code = (j['error'] ?? '').toString().trim();
+      switch (code) {
+        case 'wrong_app_role':
+        case 'forbidden_role':
+        case 'role_forbidden':
+          return 'Ce compte est associe a une autre application BABIFIX.';
+        case 'invalid_audience':
+        case 'google_auth_not_configured':
+          return 'Configuration Google OAuth incomplete sur le serveur.';
+        case 'apple_auth_not_configured':
+          return 'Connexion Apple en cours d\'activation.';
+        case 'account_disabled':
+          return 'Ce compte a ete desactive. Contactez le support.';
+        case 'email_not_verified':
+          return 'Veuillez verifier votre adresse email Google.';
+        default:
+          return code.isNotEmpty ? code : 'Erreur serveur.';
+      }
     } catch (_) {
       return 'Erreur serveur.';
     }

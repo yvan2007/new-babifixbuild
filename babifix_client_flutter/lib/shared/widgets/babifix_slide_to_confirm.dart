@@ -1,16 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../babifix_design_system.dart';
 import 'babifix_ring_loader.dart';
 
 /// Bouton glisser pour confirmer BABIFIX.
-/// Piste sobre, remplissage fluide, retour haptique et indicateur orbital.
+/// Piste sobre, remplissage fluide, retour haptique et verification de succes.
 class BabifixSlideToConfirm extends StatefulWidget {
   const BabifixSlideToConfirm({
     super.key,
     required this.label,
     required this.onConfirmed,
-    this.color = const Color(0xFF22C55E),
+    this.color = const Color(0xFF16A34A),
     this.icon = Icons.payments_rounded,
     this.confirmingLabel = 'Confirmation...',
     this.height = 58,
@@ -18,7 +19,7 @@ class BabifixSlideToConfirm extends StatefulWidget {
 
   final String label;
   final String confirmingLabel;
-  final Future<void> Function() onConfirmed;
+  final FutureOr<dynamic> Function() onConfirmed;
   final Color color;
   final IconData icon;
   final double height;
@@ -61,11 +62,21 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
           if (_busy || _done) return;
           HapticFeedback.mediumImpact();
           setState(() => _busy = true);
+          var confirmed = false;
           try {
-            await widget.onConfirmed();
-            if (mounted) setState(() => _done = true);
+            final res = await widget.onConfirmed();
+            confirmed = res is bool ? res : true;
+            if (confirmed && mounted) {
+              HapticFeedback.heavyImpact();
+              setState(() {
+                _done = true;
+                _busy = false;
+              });
+            }
+          } catch (_) {
+            confirmed = false;
           } finally {
-            if (mounted && !_done) {
+            if (mounted && !confirmed) {
               setState(() {
                 _busy = false;
                 _dx = 0;
@@ -76,7 +87,7 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
         }
 
         final fillColor = Color.lerp(
-          widget.color.withValues(alpha: 0.90),
+          widget.color.withValues(alpha: 0.92),
           widget.color,
           progress,
         )!;
@@ -85,11 +96,12 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
           height: h,
           decoration: BoxDecoration(
             color: isDark
-                ? widget.color.withValues(alpha: 0.14)
-                : widget.color.withValues(alpha: 0.09),
+                ? widget.color.withValues(alpha: 0.16)
+                : widget.color.withValues(alpha: 0.11),
             borderRadius: BorderRadius.circular(h / 2),
             border: Border.all(
-              color: widget.color.withValues(alpha: progress > 0.1 ? 0.55 : 0.30),
+              color: widget.color.withValues(alpha: progress > 0.1 ? 0.65 : 0.38),
+              width: 1.2,
             ),
           ),
           child: Stack(
@@ -110,7 +122,7 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
               Positioned.fill(
                 child: Center(
                   child: Padding(
-                    padding: EdgeInsets.only(left: thumb * 0.45, right: 20),
+                    padding: EdgeInsets.only(left: thumb + 10, right: 34),
                     child: Text(
                       _busy
                           ? widget.confirmingLabel
@@ -118,7 +130,7 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: progress > 0.44
+                        color: (_busy || _done || progress > 0.36)
                             ? Colors.white
                             : (isDark ? Colors.white : widget.color),
                         fontWeight: FontWeight.w800,
@@ -183,7 +195,9 @@ class _BabifixSlideToConfirmState extends State<BabifixSlideToConfirm>
                   onHorizontalDragEnd: (_busy || _done)
                       ? null
                       : (_) {
-                          if (progress >= 0.88) {
+                          final currentProgress =
+                              maxDx > 0 ? (_dx / maxDx).clamp(0.0, 1.0) : 0.0;
+                          if (currentProgress >= 0.88) {
                             setState(() => _dx = maxDx);
                             finish();
                           } else {

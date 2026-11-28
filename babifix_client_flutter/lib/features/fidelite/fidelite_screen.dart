@@ -133,6 +133,7 @@ class _FideliteScreenState extends State<FideliteScreen>
                       points: (_data!['points'] as num?)?.toInt() ?? 0,
                       reductionPct: (_data!['reduction_pct'] as num?)?.toInt() ?? 0,
                       missionsCount: (_data!['nb_reservations'] as num?)?.toInt() ?? 0,
+                      verifyQrUrl: (_data!['verify_qr_url'] as String?) ?? '',
                     ),
                     const SizedBox(height: 18),
                     _NiveauCard(

@@ -76,5 +76,20 @@
 	<string>Enregistrer vos recus de paiement dans votre galerie.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>BABIFIX utilise Face ID pour securiser l'acces a votre compte.</string>
+	<key>GIDClientID</key>
+	<string>583956327591-0c5hf3ltaa742om2aspp9gjo6aepmfgc.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.583956327591-0c5hf3ltaa742om2aspp9gjo6aepmfgc</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

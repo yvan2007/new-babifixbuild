@@ -183,23 +183,35 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _googleAuth() async {
-    final err = await BabifixUserStore.tryGoogleAuth();
-    if (!mounted) return;
-    if (err != null) {
-      _snack(err);
-      return;
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final err = await BabifixUserStore.tryGoogleAuth();
+      if (!mounted) return;
+      if (err != null) {
+        _snack(err);
+        return;
+      }
+      widget.onAuthSuccess();
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    widget.onAuthSuccess();
   }
 
   Future<void> _appleAuth() async {
-    final err = await BabifixUserStore.tryAppleAuth();
-    if (!mounted) return;
-    if (err != null) {
-      _snack(err);
-      return;
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final err = await BabifixUserStore.tryAppleAuth();
+      if (!mounted) return;
+      if (err != null) {
+        _snack(err);
+        return;
+      }
+      widget.onAuthSuccess();
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    widget.onAuthSuccess();
   }
 
   void _showForgotPasswordDialog() {

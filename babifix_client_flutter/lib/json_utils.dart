@@ -1,5 +1,26 @@
 import 'dart:convert';
 
+String babifixTranslateErrorCode(String code) {
+  switch (code.trim()) {
+    case 'forbidden_role':
+    case 'role_forbidden':
+    case 'wrong_app_role':
+      return 'Session invalide pour l\'application Client. Reconnectez-vous avec votre compte Client.';
+    case 'missing_token':
+    case 'invalid_token':
+    case 'authentication_required':
+      return 'Session expiree. Veuillez vous reconnecter.';
+    case 'kyc_required_to_operate':
+      return 'Verification du dossier prestataire requise avant cette action.';
+    case 'account_disabled':
+      return 'Ce compte est desactive. Contactez le support BABIFIX.';
+    case 'rate_limited':
+      return 'Trop de tentatives. Patientez quelques instants.';
+    default:
+      return code;
+  }
+}
+
 /// Extrait un message lisible depuis le corps d’erreur DRF / JSON (400, etc.).
 String babifixFormatApiErrorBody(String body) {
   try {
@@ -10,9 +31,9 @@ String babifixFormatApiErrorBody(String body) {
         if (decoded['message'] != null && '${decoded['message']}'.isNotEmpty) {
           return '${decoded['message']}';
         }
-        return '${decoded['error']}';
+        return babifixTranslateErrorCode('${decoded['error']}');
       }
-      if (decoded['detail'] != null) return '${decoded['detail']}';
+      if (decoded['detail'] != null) return babifixTranslateErrorCode('${decoded['detail']}');
       final detail = decoded['non_field_errors'];
       if (detail is List && detail.isNotEmpty) {
         return detail.map((e) => '$e').join(' ');

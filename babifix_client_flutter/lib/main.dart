@@ -363,7 +363,8 @@ class ClientHomePage extends StatefulWidget {
   State<ClientHomePage> createState() => _ClientHomePageState();
 }
 
-class _ClientHomePageState extends State<ClientHomePage> {
+class _ClientHomePageState extends State<ClientHomePage>
+    with WidgetsBindingObserver {
   static const _logoAsset = 'assets/images/babifix-logo.png';
   int navIndex = 0;
   int categoryIndex = 0;
@@ -420,6 +421,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   /// Email support (parametre site Django).
   String contactAdminEmail = '';
+  String _verifyQrUrl = '';
 
   List<ClientReservation> reservations = <ClientReservation>[];
   List<(String, String)> news = <(String, String)>[];
@@ -443,6 +445,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     BabifixRemoteConfig.instance.config.removeListener(_onRemoteConfigChanged);
     _recentProvidersCarouselController.dispose();
     _clientInAppNotifs.dispose();
@@ -460,6 +463,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _recentProvidersCarouselController = PageController(viewportFraction: 0.88);
     _restoreClientNotifsThenInit();
     // Chargement immediat des categories (sans authentification)
@@ -1259,6 +1263,24 @@ class _ClientHomePageState extends State<ClientHomePage> {
       <Map<String, dynamic>>[];
   bool _checkingActiveInterventions = false;
   bool _hasCheckedActiveOnMaintenance = false;
+  bool _checkingMaintenanceStatus = false;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      BabifixRemoteConfig.instance.refresh();
+      BabifixUserStore.isLoggedIn().then((logged) async {
+        if (!logged || !mounted) return;
+        final tok = await BabifixUserStore.getApiToken();
+        if (tok != null && tok.isNotEmpty) {
+          authToken = tok;
+          BabifixFcm.registerTokenWithBackend(tok).catchError((_) {});
+          _syncClientServerNotifications().catchError((_) {});
+          _refreshUnreadChat().catchError((_) {});
+        }
+      });
+    }
+  }
 
   void _onRemoteConfigChanged() {
     final cfg = BabifixRemoteConfig.instance.current;
@@ -1732,14 +1754,45 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           const SizedBox(height: 18),
                           BabifixButton(
                             label: "Actualiser le statut",
+                            loadingLabel: "Verification...",
+                            isLoading: _checkingMaintenanceStatus,
                             icon: Icons.refresh_rounded,
-                            onPressed: () async {
-                              await BabifixRemoteConfig.instance.refresh();
-                              if (BabifixRemoteConfig
-                                  .instance.current.maintenance) {
-                                await _refreshActiveInterventionsForMaintenance();
-                              }
-                            },
+                            onPressed: _checkingMaintenanceStatus
+                                ? null
+                                : () async {
+                                    setState(() => _checkingMaintenanceStatus = true);
+                                    try {
+                                      final ok = await BabifixRemoteConfig.instance.refresh();
+                                      if (!mounted) return;
+                                      if (!ok) {
+                                        showBabifixToast(
+                                          context,
+                                          type: BabifixToastType.error,
+                                          message: 'Impossible de joindre le serveur pour le moment.',
+                                        );
+                                        return;
+                                      }
+                                      if (BabifixRemoteConfig.instance.current.maintenance) {
+                                        await _refreshActiveInterventionsForMaintenance();
+                                        if (!mounted) return;
+                                        showBabifixToast(
+                                          context,
+                                          type: BabifixToastType.info,
+                                          message: 'Maintenance toujours en cours. Merci de votre patience.',
+                                        );
+                                      } else {
+                                        showBabifixToast(
+                                          context,
+                                          type: BabifixToastType.success,
+                                          message: 'Service retabli ! Bienvenue sur BABIFIX.',
+                                        );
+                                      }
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _checkingMaintenanceStatus = false);
+                                      }
+                                    }
+                                  },
                           ),
                         ],
                       ),
@@ -6694,6 +6747,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                           creditFcfa: totalEscrow.toDouble(),
                           points: completedCount * 25,
                           missionsCount: completedCount,
+                          verifyQrUrl: _verifyQrUrl,
                           compact: true,
                           actionLabel: 'Mon Programme',
                           onTapAction: () {
@@ -7278,7 +7332,8 @@ class _ClientHomePageState extends State<ClientHomePage> {
   }
 
   Future<void> _initSession() async {
-    authToken = await BabifixUserStore.getApiToken();
+    final logged = await BabifixUserStore.isLoggedIn();
+    authToken = logged ? await BabifixUserStore.getApiToken() : null;
     // PRIORITÉ : charger les données tout de suite. On ne bloque JAMAIS le
     // chargement de l'écran derrière l'enregistrement FCM ou LiveKit (qui
     // peuvent traîner/échouer au réveil du serveur).
@@ -7659,8 +7714,14 @@ class _ClientHomePageState extends State<ClientHomePage> {
       }
       final uri = Uri.parse('$base/api/client/home').replace(queryParameters: params.isNotEmpty ? params : null);
       final res = await BabifixUserStore.authGet(uri.toString());
+      if (res.statusCode == 401 || res.statusCode == 403) {
+        authToken = null;
+        await BabifixUserStore.socialDemoLogin();
+        if (mounted) setState(() { sessionLoggedIn = false; loadingRemote = false; });
+        return;
+      }
       if (res.statusCode != 200) {
-        setState(() => loadingRemote = false);
+        if (mounted) setState(() => loadingRemote = false);
         return;
       }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -7874,6 +7935,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         );
       }).toList();
       final adminMail = '${data['contact_admin_email'] ?? ''}'.trim();
+      final nextQr = '${data['verify_qr_url'] ?? ''}'.trim();
 
       if (!mounted) return;
       setState(() {
@@ -7913,6 +7975,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
         // garderait ceux déjà chargés par _loadPublicProviders au lieu de vider).
         if (rp.isNotEmpty) recentProviders = rp;
         contactAdminEmail = adminMail;
+        if (nextQr.isNotEmpty) _verifyQrUrl = nextQr;
         _showEmptyAfterDelay = services.isNotEmpty;
       });
       if (services.isEmpty) {
@@ -8319,43 +8382,51 @@ class _ClientHomePageState extends State<ClientHomePage> {
     }
   }
 
-  Future<void> _declareCashPayment(ClientReservation r) async {
-    if (authToken == null || r.reference.isEmpty) return;
-    try {
-      final uri = Uri.parse(
-        '${babifixApiBaseUrl()}/api/client/reservations/${Uri.encodeComponent(r.reference)}/cash-declare',
-      );
-      final res = await http.post(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-        body: '{}',
-      );
-      if (!mounted) return;
-      if (res.statusCode == 200) {
-        showBabifixToast(
-        context,
-        type: BabifixToastType.info,
-        message: 'Paiement especes declare : en attente du prestataire.',
-      );
-        await _loadRemoteData();
-      } else {
-        showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: _friendlyHttpError(res.statusCode),
-      );
-      }
-    } catch (e) {
+  Future<bool> _declareCashPayment(ClientReservation r) async {
+    if (r.reference.isEmpty) return false;
+    final token = await BabifixUserStore.getApiToken();
+    if (token == null || token.isEmpty) {
       if (mounted) {
         showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Une erreur est survenue. Veuillez réessayer.',
-      );
+          context,
+          type: BabifixToastType.error,
+          message: 'Connectez-vous pour declarer votre paiement.',
+        );
       }
+      return false;
+    }
+    try {
+      final res = await BabifixUserStore.authPost(
+        '/api/client/reservations/${Uri.encodeComponent(r.reference)}/cash-declare',
+        body: '{}',
+      );
+      if (!mounted) return res.statusCode == 200;
+      if (res.statusCode == 200) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.success,
+          message: 'Paiement especes declare : en attente du prestataire.',
+        );
+        await _loadRemoteData();
+        return true;
+      } else {
+        final detail = babifixFormatApiErrorBody(res.body);
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: detail.isNotEmpty ? detail : _friendlyHttpError(res.statusCode),
+        );
+        return false;
+      }
+    } catch (_) {
+      if (mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Une erreur est survenue. Veuillez réessayer.',
+        );
+      }
+      return false;
     }
   }
 
@@ -8376,7 +8447,7 @@ class _ClientHomePageState extends State<ClientHomePage> {
                 color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2),
               )),
               const SizedBox(height: 16),
-              const Icon(Icons.money_rounded, size: 48, color: Color(0xFF22C55E)),
+              const Icon(Icons.money_rounded, size: 48, color: Color(0xFF16A34A)),
               const SizedBox(height: 12),
               const Text('Confirmer le paiement en espèces',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
@@ -8389,11 +8460,12 @@ class _ClientHomePageState extends State<ClientHomePage> {
               const SizedBox(height: 24),
               BabifixSlideToConfirm(
                 label: 'Glissez → j\'ai payé en espèces',
-                color: const Color(0xFF22C55E),
+                color: const Color(0xFF16A34A),
                 icon: Icons.money_rounded,
                 onConfirmed: () async {
-                  Navigator.pop(ctx);
-                  await _declareCashPayment(r);
+                  final ok = await _declareCashPayment(r);
+                  if (ok && ctx.mounted) Navigator.pop(ctx);
+                  return ok;
                 },
               ),
             ],

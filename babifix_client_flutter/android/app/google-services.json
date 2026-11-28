@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "583956327591-id9e65c5eslkldas8vb5304gi16cjp50.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.babifix.client",
+            "certificate_hash": "3ed72f103c35861b175a92fc0e0d093d56c7d738"
+          }
+        },
+        {
+          "client_id": "583956327591-9oe4ftnpo6nbp4ismrg3p18rtbu3qdls.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.babifix.client",
+            "certificate_hash": "8fa71d1d61739e487f438be632d92b0999592d44"
+          }
+        },
+        {
           "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -29,6 +45,20 @@
             {
               "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "583956327591-0c5hf3ltaa742om2aspp9gjo6aepmfgc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.babifix.client"
+              }
+            },
+            {
+              "client_id": "583956327591-0l9n3anpn4bsndscsfqd18om7j2472pf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.babifix.babifixPrestataireFlutter"
+              }
             },
             {
               "client_id": "583956327591-4pdegfodagt1u5m5bducqm7u8kh82b40.apps.googleusercontent.com",
@@ -50,6 +80,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "583956327591-272mau9vkvh017cv8r4ll5h3ubidv8n3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.babifix.prestataire",
+            "certificate_hash": "3ed72f103c35861b175a92fc0e0d093d56c7d738"
+          }
+        },
+        {
           "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -65,6 +103,20 @@
             {
               "client_id": "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "583956327591-0c5hf3ltaa742om2aspp9gjo6aepmfgc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.babifix.client"
+              }
+            },
+            {
+              "client_id": "583956327591-0l9n3anpn4bsndscsfqd18om7j2472pf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.babifix.babifixPrestataireFlutter"
+              }
             },
             {
               "client_id": "583956327591-4pdegfodagt1u5m5bducqm7u8kh82b40.apps.googleusercontent.com",
@@ -103,10 +155,17 @@
               "client_type": 3
             },
             {
-              "client_id": "583956327591-4pdegfodagt1u5m5bducqm7u8kh82b40.apps.googleusercontent.com",
+              "client_id": "583956327591-0c5hf3ltaa742om2aspp9gjo6aepmfgc.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.babifix"
+                "bundle_id": "com.babifix.client"
+              }
+            },
+            {
+              "client_id": "583956327591-0l9n3anpn4bsndscsfqd18om7j2472pf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.babifix.babifixPrestataireFlutter"
               }
             }
           ]
