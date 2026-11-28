@@ -241,3 +241,22 @@ class VitrineSecurityAndUiTests(TestCase):
         self.assertIn("overflow-x: clip", css)
         self.assertIn("@media (max-width: 1240px)", css)
         self.assertIn("@media (max-width: 1120px)", css)
+
+    def test_vitrine_wallet_qr_codes_real_verify_links(self):
+        r_home = self.client.get("/")
+        self.assertEqual(r_home.status_code, 200)
+        html_home = r_home.content.decode("utf-8")
+        self.assertIn("homeWalletQrLink", html_home)
+        self.assertIn("https://new-babifixbuild.onrender.com/verify/demo/gold/", html_home)
+        self.assertIn('shape-rendering="crispEdges"', html_home)
+        self.assertNotIn("\u2014", html_home)
+        self.assertNotIn("\u2013", html_home)
+
+        r_pro = self.client.get("/devenir-prestataire/")
+        self.assertEqual(r_pro.status_code, 200)
+        html_pro = r_pro.content.decode("utf-8")
+        self.assertIn("dpWalletQrLink", html_pro)
+        self.assertIn("https://new-babifixbuild.onrender.com/verify/demo/standard/", html_pro)
+        self.assertIn('shape-rendering="crispEdges"', html_pro)
+        self.assertNotIn("\u2014", html_pro)
+        self.assertNotIn("\u2013", html_pro)
