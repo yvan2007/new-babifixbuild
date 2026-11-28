@@ -1,0 +1,12 @@
+{% include 'adminpanel/partials/dashboard_section_content.html' %}
+<script type="application/json" id="bx-partial-meta-json">
+{
+  "page_heading": "{{ page_heading|escapejs }}",
+  "unread_notifications": {{ admin_unread_count|default:0 }},
+  "pending_providers": {{ sidebar_counts.pending_providers|default:0 }},
+  "unassigned_reservations": {{ sidebar_counts.unassigned_reservations|default:0 }},
+  "open_disputes": {{ sidebar_counts.open_disputes|default:0 }},
+  "pending_withdrawals": {{ sidebar_counts.pending_withdrawals|default:0 }},
+  "pending_metiers": {{ sidebar_counts.pending_metiers|default:0 }}
+}
+</script>

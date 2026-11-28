@@ -203,13 +203,9 @@ def serialize_category(c) -> dict[str, Any]:
 def invalidate_categories_cache() -> None:
     """Invalidates the public categories cache so next request fetches fresh data."""
     try:
-        from django.core.cache import cache
-        for key in (
-            'babifix:public:categories',
-            'babifix:public:categories:all',
-            'babifix:public:categories:client',
-        ):
-            cache.delete(key)
+        from .perf_signals import invalidate_public_catalog_cache
+
+        invalidate_public_catalog_cache()
     except Exception:
         pass
 
@@ -217,8 +213,9 @@ def invalidate_categories_cache() -> None:
 def invalidate_providers_cache() -> None:
     """Invalidates the public providers cache so next request fetches fresh data."""
     try:
-        from django.core.cache import cache
-        cache.delete('babifix:public:providers')
+        from .perf_signals import invalidate_public_catalog_cache
+
+        invalidate_public_catalog_cache()
     except Exception:
         pass
 

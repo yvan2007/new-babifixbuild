@@ -11,9 +11,12 @@
         <span class="bx-section-headbar__sub">Journal technique centralise (Backend Django, Site Vitrine, Apps Flutter Client &amp; Prestataire) avec masquage strict des donnees privees</span>
       </div>
     </div>
-    <div class="bx-section-headbar__tools">
+    <div class="bx-section-headbar__tools" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
       <span class="bx-pill bx-pill--info tabular-nums">RAM Processus : {{ obs_stats.ram_mb|default:0 }} Mo</span>
-      <a href="?section=observability" class="bx-btn-ghost">Actualiser</a>
+      <span class="bx-pill bx-pill--ok">Temps reel actif</span>
+      <a href="{% url 'api-admin-observability-export' %}?format=json&source={{ obs_filter_source|urlencode }}&level={{ obs_filter_level|urlencode }}&status={{ obs_filter_status|urlencode }}&q={{ obs_filter_q|urlencode }}" class="bx-btn-primary" style="text-decoration:none;">Telecharger diagnostic (.json)</a>
+      <a href="{% url 'api-admin-observability-export' %}?format=csv&source={{ obs_filter_source|urlencode }}&level={{ obs_filter_level|urlencode }}&status={{ obs_filter_status|urlencode }}&q={{ obs_filter_q|urlencode }}" class="bx-btn-ghost" style="text-decoration:none;">Exporter (.csv)</a>
+      <button type="button" class="bx-btn-ghost" onclick="window.bxRefreshCurrentSection && window.bxRefreshCurrentSection()">Actualiser</button>
     </div>
   </div>
 

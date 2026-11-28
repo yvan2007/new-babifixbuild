@@ -620,6 +620,7 @@ def _compute_provider_elite_profile(
     distance_km=None,
     metrics=None,
     query_match_score=0.0,
+    tier_configs=None,
 ) -> dict:
     """
     Calcule le profil d'elite et le score composite d'un prestataire via SmartProviderScorer :
@@ -636,6 +637,7 @@ def _compute_provider_elite_profile(
         distance_km=distance_km,
         metrics=metrics,
         query_match_score=query_match_score,
+        tier_configs=tier_configs,
     )
 
 
@@ -1492,7 +1494,19 @@ def _finance_overview():
 
 
 def _dashboard_kpi_payload():
-    """KPI pour le tableau de bord (reutilise par la page complete et le fragment HTMX)."""
+    """KPI pour le tableau de bord (cache 45s invalide par signaux ORM)."""
+    from django.core.cache import cache as _kpi_cache
+
+    _cache_key = "babifix:admin:kpi_payload:v1"
+    try:
+        _cached = _kpi_cache.get(_cache_key)
+        if isinstance(_cached, tuple) and len(_cached) == 4:
+            return _cached
+        if isinstance(_cached, list) and len(_cached) == 4:
+            return tuple(_cached)
+    except Exception:
+        pass
+
     conv_n = Conversation.objects.count()
 
     # Réservation « active » = toute réservation NON terminale (toutes les
@@ -1623,12 +1637,32 @@ def _dashboard_kpi_payload():
 
     # Répartition réelle par catégorie / corps d'état + intelligence croisée
     all_res_list = list(
-        Reservation.objects.select_related("assigned_provider", "assigned_provider__category").all()
+        Reservation.objects.select_related("assigned_provider", "assigned_provider__category").only(
+            "id",
+            "statut",
+            "montant",
+            "commission",
+            "montant_verse",
+            "caution_payee",
+            "mobile_money_operator",
+            "payment_type",
+            "address_quartier",
+            "address_ville",
+            "address_label",
+            "title",
+            "description_probleme",
+            "assigned_provider_id",
+            "assigned_provider__category_id",
+            "assigned_provider__category__nom",
+            "assigned_provider__specialite",
+        )
     )
     all_prov_list = list(
-        Provider.objects.filter(is_deleted=False).select_related("category")
+        Provider.objects.filter(is_deleted=False)
+        .select_related("category")
+        .only("id", "statut", "ville", "specialite", "category_id", "category__nom")
     )
-    all_cli_list = list(Client.objects.all())
+    all_cli_list = list(Client.objects.only("id", "ville", "depense"))
 
     def _norm_city(raw_val: str) -> str:
         raw = (raw_val or "").strip()
@@ -1977,7 +2011,14 @@ def _dashboard_kpi_payload():
             else 0,
         },
     }
-    return stats, kpi, kpi_chart, finance_kpis
+    _out = (stats, kpi, kpi_chart, finance_kpis)
+    try:
+        from django.core.cache import cache as _kpi_cache
+
+        _kpi_cache.set(_cache_key, _out, 45)
+    except Exception:
+        pass
+    return _out
 
 
 def _sync_missing_clients():
@@ -2050,40 +2091,62 @@ def _sync_missing_providers():
 def _filter_lists_for_section(section, search_q):
     """
     Filtre les listes selon la section courante et le paramètre GET q=.
+    Ne charge que le QuerySet reellement utilise par la section active.
     """
     q = (search_q or "").strip()
-    # Synchroniser depuis UserProfile (rattrapage des inscriptions passees, max 1x / 5 min)
-    from django.core.cache import cache as _sync_cache
+    if section in ("dashboard", "prestataires", "clients"):
+        from django.core.cache import cache as _sync_cache
 
-    if not _sync_cache.get("babifix:sync_missing_done:v1"):
-        _sync_missing_providers()
-        _sync_missing_clients()
-        _sync_cache.set("babifix:sync_missing_done:v1", True, 300)
+        if not _sync_cache.get("babifix:sync_missing_done:v1"):
+            _sync_missing_providers()
+            _sync_missing_clients()
+            _sync_cache.set("babifix:sync_missing_done:v1", True, 300)
+
     from django.db.models import Case, When, Value, IntegerField
-    providers = (
-        Provider.objects.filter(is_deleted=False)
-        .select_related("user", "category")
-        .defer(*PROVIDER_HEAVY_B64_FIELDS)
-        # Nouveaux / en attente de validation EN HAUT, puis les plus récents.
-        .order_by(
-            Case(
-                When(statut="En attente", then=Value(0)),
-                default=Value(1),
-                output_field=IntegerField(),
-            ),
-            "-id",
+
+    providers = Provider.objects.none()
+    reservations = Reservation.objects.none()
+    litiges = Dispute.objects.none()
+    clients = Client.objects.none()
+    paiements = Payment.objects.none()
+    categories = Category.objects.none()
+    notifications = Notification.objects.none()
+
+    if section in ("dashboard", "prestataires"):
+        providers = (
+            Provider.objects.filter(is_deleted=False)
+            .select_related("user", "category")
+            .defer(*PROVIDER_HEAVY_B64_FIELDS)
+            .order_by(
+                Case(
+                    When(statut="En attente", then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                ),
+                "-id",
+            )
         )
-    )
-    reservations = Reservation.objects.order_by("-created_at", "-id")
-    litiges = Dispute.objects.order_by("-id")
-    clients = Client.objects.order_by("-id")
-    # select_related('reservation') : on affiche l'opérateur Mobile Money
-    # (Orange/MTN/Wave/Moov) + son logo dans le tableau des paiements.
-    paiements = Payment.objects.select_related("reservation").order_by("-created_at", "-id")
-    categories = Category.objects.all()
-    notifications = Notification.objects.all()[:20]
+    if section in ("dashboard", "reservations"):
+        reservations = Reservation.objects.select_related(
+            "client_user", "assigned_provider", "assigned_provider__category"
+        ).order_by("-created_at", "-id")
+    if section in ("dashboard", "litiges"):
+        litiges = Dispute.objects.order_by("-id")
+    if section == "clients":
+        clients = Client.objects.order_by("-id")
+    if section in ("dashboard", "paiements"):
+        paiements = Payment.objects.select_related("reservation").order_by("-created_at", "-id")
+    if section == "categories":
+        categories = Category.objects.all()
+    if section == "notifications":
+        notifications = Notification.objects.all()[:20]
 
     if not q:
+        if section == "dashboard":
+            providers = providers[:8]
+            reservations = reservations[:8]
+            litiges = litiges[:8]
+            paiements = paiements[:8]
         return (
             providers,
             reservations,
@@ -2508,37 +2571,85 @@ def dashboard(request):
             except ValueError:
                 provider_id = 0
             next_status = Provider.Status.VALID if action == "approve" else request.POST.get("next_status", "")
+            force_no_kyc = request.POST.get("force_without_kyc") == "1"
             provider = Provider.objects.filter(id=provider_id).first()
             if provider and next_status:
-                prev_status = provider.statut
-                provider.statut = next_status
-                update_fields = ["statut"]
-                if next_status == Provider.Status.VALID:
-                    provider.refusal_reason = ""
-                    provider.is_approved = True
-                    update_fields += ["refusal_reason", "is_approved"]
-                elif next_status in (Provider.Status.REFUSED, Provider.Status.SUSPENDED):
-                    provider.is_approved = False
-                    update_fields.append("is_approved")
-                provider.save(update_fields=update_fields)
+                has_kyc = any(
+                    bool((getattr(provider, attr, "") or "").strip())
+                    for attr in (
+                        "cni_recto_url",
+                        "kyc_cni_recto_url",
+                        "cni_url",
+                        "selfie_url",
+                        "kyc_selfie_url",
+                    )
+                ) or getattr(provider, "kyc_status", "") in ("pending", "under_review", "approved")
+                if next_status == Provider.Status.VALID and not has_kyc and not force_no_kyc:
+                    messages.warning(
+                        request,
+                        f"Validation differee pour {provider.nom} : ce prestataire (inscription 60s) "
+                        f"n'a pas encore fourni ses pieces CNI / selfie. Un rappel vient de lui etre envoye.",
+                    )
+                    if provider.user_id:
+                        Notification.objects.create(
+                            user_id=provider.user_id,
+                            title="Pieces KYC requises pour finaliser votre dossier",
+                            body="Completez votre profil et deposez votre CNI et selfie dans BABIFIX PRO pour activer la validation administrateur.",
+                            notif_type=Notification.NotifType.VALIDATION,
+                            reference=f"KYC-REQ-{provider.id}",
+                        )
+                    section = "prestataires"
+                else:
+                    prev_status = provider.statut
+                    provider.statut = next_status
+                    update_fields = ["statut"]
+                    if next_status == Provider.Status.VALID:
+                        provider.refusal_reason = ""
+                        provider.is_approved = True
+                        update_fields += ["refusal_reason", "is_approved"]
+                        if has_kyc and provider.kyc_status in ("pending", "under_review"):
+                            provider.kyc_status = "approved"
+                            provider.kyc_reviewed_at = timezone.now()
+                            provider.kyc_reviewed_by = request.user
+                            update_fields += ["kyc_status", "kyc_reviewed_at", "kyc_reviewed_by"]
+                    elif next_status in (Provider.Status.REFUSED, Provider.Status.SUSPENDED):
+                        provider.is_approved = False
+                        update_fields.append("is_approved")
+                    provider.save(update_fields=update_fields)
+                    Notification.objects.create(
+                        title=f"Statut prestataire mis a jour: {provider.nom} ({next_status})"
+                    )
+                    log_admin_action(
+                        request,
+                        action=(
+                            AdminAuditLog.ActionType.PROVIDER_ACCEPTED
+                            if next_status == Provider.Status.VALID
+                            else AdminAuditLog.ActionType.PROVIDER_SUSPENDED
+                        ),
+                        target_type="Provider",
+                        target_id=provider.id,
+                        target_label=provider.nom,
+                        before={"statut": prev_status},
+                        after={"statut": next_status},
+                        extra={"next_status": next_status},
+                    )
+                    messages.success(request, f"Prestataire {provider.nom} mis a jour ({next_status}).")
+                    section = "prestataires"
+        elif action == "provider_request_kyc":
+            try:
+                provider_id = int(request.POST.get("provider_id") or "0")
+            except ValueError:
+                provider_id = 0
+            provider = Provider.objects.filter(id=provider_id).first()
+            if provider and provider.user_id:
                 Notification.objects.create(
-                    title=f"Statut prestataire mis a jour: {provider.nom} ({next_status})"
+                    user_id=provider.user_id,
+                    title="Completez vos pieces d'identite (KYC)",
+                    body="Ajoutez votre CNI recto/verso et votre selfie dans BABIFIX PRO pour debloquer votre compte.",
+                    notif_type=Notification.NotifType.VALIDATION,
+                    reference=f"KYC-REQ-{provider.id}",
                 )
-                log_admin_action(
-                    request,
-                    action=(
-                        AdminAuditLog.ActionType.PROVIDER_ACCEPTED
-                        if next_status == Provider.Status.VALID
-                        else AdminAuditLog.ActionType.PROVIDER_SUSPENDED
-                    ),
-                    target_type="Provider",
-                    target_id=provider.id,
-                    target_label=provider.nom,
-                    before={"statut": prev_status},
-                    after={"statut": next_status},
-                    extra={"next_status": next_status},
-                )
-                messages.success(request, f"Prestataire {provider.nom} mis a jour ({next_status}).")
+                messages.success(request, f"Rappel de depot KYC envoye a {provider.nom}.")
             section = "prestataires"
         elif action in ("provider_refuse", "reject"):
             try:
@@ -3592,7 +3703,7 @@ def dashboard(request):
     # ses sous-totaux, au lieu d'une liste éclatée où l'on ne sait plus quoi va
     # avec quoi. Les paiements sans réservation forment leur propre bloc.
     paiements_groupes = []
-    if section in ("paiements", "dashboard"):
+    if section == "paiements":
         from collections import OrderedDict as _OD
 
         _grp = _OD()
@@ -3748,6 +3859,8 @@ def dashboard(request):
     context.update(_dashboard_forms_context(request, section))
     from .views_admin_cockpit import compute_cockpit_extras
     context.update(compute_cockpit_extras(section, request))
+    if request.GET.get("partial") == "section":
+        return render(request, "adminpanel/partials/dashboard_section_fragment.html", context)
     return render(request, "adminpanel/dashboard.html", context)
 
 
@@ -4434,10 +4547,13 @@ def api_client_home(request):
         .select_related("category", "user")
         .defer(*PROVIDER_HEAVY_B64_FIELDS)
     )
+    from .services.platform_config_service import get_dynamic_tier_configs
+
+    _tier_cfgs = get_dynamic_tier_configs()
     _scored_providers = []
     for p in _all_valid_providers:
         dist_km = _provider_distance_km(clat, clon, p)
-        elite = _compute_provider_elite_profile(p, dist_km)
+        elite = _compute_provider_elite_profile(p, dist_km, tier_configs=_tier_cfgs)
         _scored_providers.append((p, dist_km, elite))
 
     # Tri intelligent : Disponibles en premier, puis Score d'Elite decroissant
@@ -4483,6 +4599,9 @@ def api_client_home(request):
         )
     site = SiteContent.objects.filter(key="contact_admin_email").first()
     contact_admin = (site.value or "").strip() if site else ""
+    from .views_verify import build_wallet_qr_url
+
+    verify_qr = build_wallet_qr_url("client", uid, request=request) if uid else ""
     return JsonResponse(
         {
             "services": services,
@@ -4492,6 +4611,7 @@ def api_client_home(request):
             "payment_methods": payment_methods,
             "recent_providers": recent_providers,
             "contact_admin_email": contact_admin,
+            "verify_qr_url": verify_qr,
         }
     )
 
@@ -4788,13 +4908,19 @@ def api_public_providers(request):
     sort_param = (request.GET.get("sort", "rating") or "rating").strip().lower()
 
     pub_cache_key = None
-    if not q and not lat and not lon and not radius and not ville_param:
+    if not q and not ville_param:
         try:
             ver = get_catalog_cache_version()
             host = request.get_host()
+            geo_key = "nogeo"
+            if lat and lon:
+                try:
+                    geo_key = f"{round(float(lat), 2)}_{round(float(lon), 2)}_{radius or 'auto'}"
+                except (ValueError, TypeError):
+                    geo_key = "nogeo"
             pub_cache_key = (
                 f"babifix:pub:prov:v{ver}:{host}:{category_id or 'all'}:"
-                f"{disponible_param or 'any'}:{min_rating_param or '0'}:{sort_param}"
+                f"{disponible_param or 'any'}:{min_rating_param or '0'}:{sort_param}:{geo_key}"
             )
             cached_payload = cache.get(pub_cache_key)
             if cached_payload is not None:
@@ -4938,6 +5064,9 @@ def api_public_providers(request):
         [p.id for p in provider_list]
     )
 
+    from .services.platform_config_service import get_dynamic_tier_configs
+
+    _tier_cfgs = get_dynamic_tier_configs()
     items = []
     # Pas d appel reseau Nominatim bloquant dans le catalogue public :
     # si des coordonnees sont deja en cache local pour la ville, on les applique en O(1).
@@ -4970,6 +5099,7 @@ def api_public_providers(request):
             distance_km,
             metrics=metrics_map.get(p.id),
             query_match_score=qm_score,
+            tier_configs=_tier_cfgs,
         )
         items.append(
             {
@@ -7699,10 +7829,13 @@ def api_prestataire_me(request):
         },
     }
 
+    from .views_verify import build_wallet_qr_url
+
     return JsonResponse(
         {
             "provider": {
                 "id": int(prov.id),
+                "verify_qr_url": build_wallet_qr_url("pro", prov.id, request=request),
                 "nom": prov.nom,
                 # Email du compte : sans lui l'app prestataire enregistrait un
                 # email vide dans le profil local (ecran Profil sans adresse).
@@ -7739,6 +7872,16 @@ def api_prestataire_me(request):
                     if prov.contrat_accepte_at else None,
                 "contrat_version": prov.contrat_version or "",
                 "kyc_status": prov.kyc_status or "not_submitted",
+                "kyc_verified": bool(
+                    prov.kyc_status == "approved"
+                    or (
+                        prov.statut == Provider.Status.VALID
+                        and any(
+                            bool((getattr(prov, a, "") or "").strip())
+                            for a in ("cni_recto_url", "kyc_cni_recto_url", "cni_url", "selfie_url", "kyc_selfie_url")
+                        )
+                    )
+                ),
                 "pre_registered": bool(
                     prov.statut == Provider.Status.PENDING
                     and (prov.kyc_status or "not_submitted") in ("", "not_submitted")
@@ -8143,11 +8286,23 @@ def api_auth_google(request):
         return JsonResponse({"error": "invalid_json"}, status=400)
 
     id_token = str(payload.get("id_token") or payload.get("idToken") or "").strip()
-    role = str(payload.get("role") or UserProfile.Role.CLIENT).strip()
-    if role not in (UserProfile.Role.CLIENT, UserProfile.Role.PRESTATAIRE):
-        role = UserProfile.Role.CLIENT
+    requested_role = str(payload.get("role") or "").strip()
+    role = requested_role if requested_role in (UserProfile.Role.CLIENT, UserProfile.Role.PRESTATAIRE) else UserProfile.Role.CLIENT
 
-    if not settings.GOOGLE_CLIENT_ID:
+    primary_google_id = str(getattr(settings, "GOOGLE_CLIENT_ID", "") or "").strip()
+    allowed_google_ids = (
+        [
+            cid
+            for cid in [
+                primary_google_id,
+                *(getattr(settings, "GOOGLE_EXTRA_CLIENT_IDS", []) or []),
+            ]
+            if cid
+        ]
+        if primary_google_id
+        else []
+    )
+    if not allowed_google_ids:
         return JsonResponse(
             {
                 "error": "google_auth_not_configured",
@@ -8170,7 +8325,8 @@ def api_auth_google(request):
         return JsonResponse({"error": "invalid_google_token"}, status=401)
 
     aud = str(token_data.get("aud") or "")
-    if not settings.GOOGLE_CLIENT_ID or not aud or aud != settings.GOOGLE_CLIENT_ID:
+    azp = str(token_data.get("azp") or "")
+    if not aud or (aud not in allowed_google_ids and azp not in allowed_google_ids):
         return JsonResponse({"error": "invalid_audience"}, status=401)
     if str(token_data.get("email_verified")).lower() not in ("true", "1"):
         return JsonResponse({"error": "email_not_verified"}, status=401)
@@ -8204,6 +8360,32 @@ def api_auth_google(request):
         user=user,
         defaults={"role": role, "active": True, "email_verified": True},
     )
+    if requested_role and profile.role != role and profile.role != UserProfile.Role.ADMIN:
+        label = "Prestataire" if profile.role == UserProfile.Role.PRESTATAIRE else "Client"
+        return JsonResponse(
+            {
+                "error": "wrong_app_role",
+                "account_role": profile.role,
+                "message": f"Ce compte Google est deja enregistre comme {label}. Utilisez l'application adaptee.",
+            },
+            status=403,
+        )
+    if profile.role == UserProfile.Role.PRESTATAIRE:
+        Provider.objects.get_or_create(
+            user=user,
+            defaults={
+                "nom": name[:120] or user.username,
+                "specialite": "",
+                "ville": "Abidjan",
+                "statut": Provider.Status.PENDING,
+                "kyc_status": "not_submitted",
+            },
+        )
+    elif profile.role == UserProfile.Role.CLIENT:
+        Client.objects.get_or_create(
+            email=user.email or user.username,
+            defaults={"nom": (user.first_name or user.username)[:120], "ville": "Abidjan"},
+        )
     token = create_token(user.id, profile.role)
     refresh = create_refresh_token(user.id, profile.role)
     return JsonResponse(
@@ -8268,11 +8450,15 @@ def api_auth_apple(request):
     try:
         jwk_client = _pyjwt.PyJWKClient("https://appleid.apple.com/auth/keys", cache_keys=True)
         signing_key = jwk_client.get_signing_key_from_jwt(identity_token)
+        apple_audiences = list(
+            getattr(settings, "APPLE_ALLOWED_BUNDLE_IDS", None)
+            or [settings.APPLE_BUNDLE_ID]
+        )
         claims = _pyjwt.decode(
             identity_token,
             signing_key.key,
             algorithms=["RS256"],
-            audience=settings.APPLE_BUNDLE_ID,
+            audience=apple_audiences,
             issuer="https://appleid.apple.com",
             options={"require": ["iss", "aud", "exp", "sub"]},
         )

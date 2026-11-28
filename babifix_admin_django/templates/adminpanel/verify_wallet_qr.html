@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ qr.title }} | Verification officielle BABIFIX</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --ink: #0f172a;
+      --muted: #475569;
+      --accent: #0e3b2e;
+      --ok-bg: #ecfdf5;
+      --ok-fg: #065f46;
+      --warn-bg: #fffbeb;
+      --warn-fg: #92400e;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .verify-shell {
+      width: 100%;
+      max-width: 480px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px 24px;
+      box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-mark {
+      font-weight: 900;
+      font-size: 16px;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+    }
+    .code-tag {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: var(--muted);
+      background: #f1f5f9;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      margin-bottom: 12px;
+      background: {% if qr.valid and qr.kyc_verified %}var(--ok-bg){% else %}var(--warn-bg){% endif %};
+      color: {% if qr.valid and qr.kyc_verified %}var(--ok-fg){% else %}var(--warn-fg){% endif %};
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 0 0 6px;
+      line-height: 1.25;
+    }
+    .sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0 0 20px;
+      line-height: 1.5;
+    }
+    .spec-list {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .spec-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .spec-row:last-child { border-bottom: none; }
+    .spec-k { color: var(--muted); font-weight: 600; }
+    .spec-v { color: var(--ink); font-weight: 700; text-align: right; }
+    .foot {
+      margin-top: 18px;
+      font-size: 11.5px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main class="verify-shell">
+    <div class="brand-row">
+      <span class="brand-mark">BABIFIX · CONTROLE OFFICIEL</span>
+      <span class="code-tag">{{ qr.code_public }}</span>
+    </div>
+    <span class="status-pill">{{ qr.badge }}</span>
+    <h1>{{ qr.title }}</h1>
+    <p class="sub">{{ qr.subtitle }}</p>
+    {% if qr.details %}
+    <div class="spec-list">
+      {% for k, v in qr.details %}
+      <div class="spec-row">
+        <span class="spec-k">{{ k }}</span>
+        <span class="spec-v">{{ v }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <p class="foot">
+      Verification authentique generee en temps reel par BABIFIX.<br>
+      Donnees masquees conformement a la Loi ivoirienne n° 2013-450.
+    </p>
+  </main>
+</body>
+</html>

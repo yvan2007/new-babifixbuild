@@ -9,6 +9,7 @@ from .geniuspay import (
 from . import views_calls as _calls_views
 from . import views_admin_cockpit as _cockpit_views
 from . import views_observability as _obs_views
+from . import views_verify as _verify_views
 from .views_health import api_admin_health_config
 from .views_media import api_media_upload
 from .views_b2b import (
@@ -852,12 +853,16 @@ urlpatterns = [
         name="api-admin-push-stats",
     ),
 
-    # ── Observabilite & Sante Live ────────────────────────────────────────────
+    # ── Observabilite, Export Sante & Verification QR Wallet ──────────────────
     path("healthz/", api_health_check, name="api-healthz"),
     path("api/admin/observability/", _obs_views.api_admin_observability_list, name="api-admin-observability-list"),
+    path("api/admin/observability/export/", _obs_views.api_admin_observability_export, name="api-admin-observability-export"),
     path("api/admin/observability/<int:pk>/resolve/", _obs_views.api_admin_observability_resolve, name="api-admin-observability-resolve"),
     path("api/admin/observability/purge/", _obs_views.api_admin_observability_purge, name="api-admin-observability-purge"),
+    path("api/admin/sidebar-counts/", _obs_views.api_admin_sidebar_counts, name="api-admin-sidebar-counts"),
     path("api/telemetry/vitrine/", _obs_views.api_vitrine_telemetry_ingest, name="api-telemetry-vitrine"),
+    path("verify/<str:kind>/<str:code>/", _verify_views.public_verify_qr_card, name="public-verify-wallet-qr"),
+    path("verify/<str:kind>/<str:code>", _verify_views.public_verify_qr_card, name="public-verify-wallet-qr-noslash"),
 
     path("erreur/<int:code>/", error_preview, name="admin-error-preview"),
     path("erreur/<int:code>", error_preview, name="admin-error-preview-noslash"),

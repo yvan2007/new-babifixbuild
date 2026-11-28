@@ -367,6 +367,8 @@ def api_client_fidelite(request):
     stats = ReferralService.get_referral_stats(user)
     points = FideliteService.summary(user)
 
+    from .views_verify import build_wallet_qr_url
+
     return JsonResponse({
         "niveau": current[1],
         "couleur": current[2],
@@ -375,6 +377,7 @@ def api_client_fidelite(request):
         "prochain_niveau": nxt[1] if nxt else None,
         "prochain_seuil": nxt[0] if nxt else None,
         "garanties": FIDELITE_GARANTIES,
+        "verify_qr_url": build_wallet_qr_url("client", user.pk, request=request),
         "referral_code": stats.get("code") or "",
         "referral_credits": stats.get("credits_earned", 0),
         "filleuls_count": stats.get("filleuls", 0),

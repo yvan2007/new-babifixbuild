@@ -29,7 +29,19 @@ def parse_enabled_operators(csv_value: str) -> list[str]:
 
 
 def get_dynamic_tier_configs() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
-    """Construit les dictionnaires standard + silver + gold depuis PlatformConfig."""
+    """Construit les dictionnaires standard + silver + gold depuis PlatformConfig (cache 25s)."""
+    from django.core.cache import cache
+
+    cache_key = "babifix:public:tier_configs:v1"
+    try:
+        cached = cache.get(cache_key)
+        if isinstance(cached, tuple) and len(cached) == 2:
+            return cached
+        if isinstance(cached, list) and len(cached) == 2:
+            return cached[0], cached[1]
+    except Exception:
+        pass
+
     try:
         cfg = get_runtime_configs()[1]
         base = int(getattr(cfg, "base_commission_pct", 18) or 18)
@@ -89,11 +101,40 @@ def get_dynamic_tier_configs() -> tuple[dict[str, Any], dict[str, dict[str, Any]
             "devis_quota": None,
         },
     }
+    try:
+        cache.set(cache_key, (standard, premium), 25)
+    except Exception:
+        pass
     return standard, premium
 
 
+def invalidate_platform_config_cache() -> None:
+    """Invalide immediatement les caches configuration et paliers."""
+    try:
+        from django.core.cache import cache
+
+        cache.delete_many(
+            [
+                "babifix:public:tier_configs:v1",
+                "babifix:public:platform_config:v1",
+            ]
+        )
+    except Exception:
+        pass
+
+
 def build_public_platform_config() -> dict[str, Any]:
-    """Payload JSON unifie consomme par Client Flutter, Prestataire Flutter et Vitrine."""
+    """Payload JSON unifie consomme par Client Flutter, Prestataire Flutter et Vitrine (cache 20s)."""
+    from django.core.cache import cache
+
+    cache_key = "babifix:public:platform_config:v1"
+    try:
+        cached = cache.get(cache_key)
+        if isinstance(cached, dict) and "apps" in cached:
+            return cached
+    except Exception:
+        pass
+
     sys_obj, cfg = get_runtime_configs()
     standard, premium = get_dynamic_tier_configs()
     operators = parse_enabled_operators(cfg.enabled_operators_csv)
@@ -114,7 +155,7 @@ def build_public_platform_config() -> dict[str, Any]:
     from adminpanel.services.audio_transcription_service import stt_provider_name
     from adminpanel.services.whatsapp_service import whatsapp_cloud_configured
 
-    return {
+    payload = {
         "commission_base_pct": base_pct,
         "commission_floor_pct": int(cfg.commission_floor_pct or 5),
         "tiers": {
@@ -188,10 +229,16 @@ def build_public_platform_config() -> dict[str, Any]:
         },
         "updated_at": cfg.updated_at.isoformat() if cfg.updated_at else "",
     }
+    try:
+        cache.set(cache_key, payload, 20)
+    except Exception:
+        pass
+    return payload
 
 
 def broadcast_platform_config() -> dict[str, Any]:
     """Diffuse la configuration mise a jour a tous les clients WebSocket (admin + apps)."""
+    invalidate_platform_config_cache()
     payload = build_public_platform_config()
     try:
         from adminpanel import realtime

@@ -361,6 +361,9 @@ def compute_cockpit_extras(section: str, request) -> dict:
             days = 30
         ctx["kpis_days"] = days
         ctx["business_kpis"] = _compute_business_kpis(days)
+        from .fcm_backend import firebase_status
+
+        fb_ready = bool(firebase_status().get("ready", False))
         ctx["app_versions"] = {
             "client_android_min": os.getenv("APP_CLIENT_MIN_VERSION_ANDROID", os.getenv("APP_MIN_VERSION_ANDROID", "1.0.0")),
             "client_android_latest": os.getenv("APP_CLIENT_LATEST_VERSION_ANDROID", os.getenv("APP_LATEST_VERSION_ANDROID", "1.0.0")),
@@ -368,7 +371,7 @@ def compute_cockpit_extras(section: str, request) -> dict:
             "presta_android_latest": os.getenv("APP_PRESTA_LATEST_VERSION_ANDROID", os.getenv("APP_LATEST_VERSION_ANDROID", "1.0.0")),
             "geniuspay_mode": "LIVE" if os.getenv("GENIUSPAY_PUBLIC_KEY", "").startswith("pk_live_") else "SIMULATION / TEST",
             "livekit_ok": bool(os.getenv("LIVEKIT_URL") and os.getenv("LIVEKIT_API_KEY")),
-            "firebase_ok": bool(os.getenv("FIREBASE_PROJECT_ID") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")),
+            "firebase_ok": fb_ready,
             "smtp_ok": bool(os.getenv("EMAIL_HOST") and os.getenv("EMAIL_HOST_USER")),
         }
 

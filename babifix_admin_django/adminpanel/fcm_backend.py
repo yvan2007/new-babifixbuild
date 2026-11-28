@@ -16,6 +16,28 @@ _app_initialized = False
 _warned_no_creds = False
 
 
+def _load_firebase_json_env() -> dict[str, Any] | None:
+    """Charge FIREBASE_CREDENTIALS_JSON (JSON brut ou base64) si fourni en env Render."""
+    import base64
+    import json
+
+    raw = (os.getenv('FIREBASE_CREDENTIALS_JSON') or '').strip()
+    if not raw:
+        return None
+    if not raw.startswith('{'):
+        try:
+            raw = base64.b64decode(raw).decode('utf-8')
+        except Exception:
+            return None
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict) and parsed.get('private_key'):
+            return parsed
+    except Exception:
+        return None
+    return None
+
+
 def firebase_status() -> dict:
     """Diagnostic : pourquoi les push partent ou non (sans rien envoyer)."""
     path = (
@@ -23,6 +45,7 @@ def firebase_status() -> dict:
         or os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
         or ''
     ).strip()
+    json_env_ok = _load_firebase_json_env() is not None
     try:
         import firebase_admin  # noqa: F401
         sdk = True
@@ -30,7 +53,8 @@ def firebase_status() -> dict:
         sdk = False
     return {
         'sdk_installed': sdk,
-        'credentials_env_set': bool(path),
+        'credentials_env_set': bool(path) or json_env_ok,
+        'credentials_json_env_set': json_env_ok,
         'credentials_file_exists': bool(path) and os.path.isfile(path),
         'credentials_path': path,
         'ready': _ensure_firebase_app(),
@@ -46,14 +70,14 @@ def _ensure_firebase_app() -> bool:
         or os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
         or ''
     ).strip()
-    if not path or not os.path.isfile(path):
+    json_dict = None if (path and os.path.isfile(path)) else _load_firebase_json_env()
+    if not (path and os.path.isfile(path)) and json_dict is None:
         if not _warned_no_creds:
             _warned_no_creds = True
             logger.warning(
-                'FCM DÉSACTIVÉ : aucun fichier de compte de service Firebase. '
-                'Définissez FIREBASE_CREDENTIALS_JSON_PATH (ou GOOGLE_APPLICATION_CREDENTIALS) '
-                'vers le JSON telecharge depuis Firebase Console -> Parametres -> '
-                'Comptes de service -> Generer une nouvelle cle privee. '
+                'FCM DÉSACTIVÉ : aucun compte de service Firebase. '
+                'Définissez FIREBASE_CREDENTIALS_JSON_PATH ou FIREBASE_CREDENTIALS_JSON '
+                'depuis Firebase Console -> Parametres -> Comptes de service. '
                 'Chemin actuel : %r',
                 path or '(non défini)',
             )
@@ -62,13 +86,13 @@ def _ensure_firebase_app() -> bool:
         import firebase_admin
         from firebase_admin import credentials
 
-        cred = credentials.Certificate(path)
+        cred = credentials.Certificate(json_dict if json_dict is not None else path)
         try:
             firebase_admin.get_app()
         except ValueError:
             firebase_admin.initialize_app(cred)
         _app_initialized = True
-        logger.info('FCM activé (Firebase initialisé depuis %s)', path)
+        logger.info('FCM activé (Firebase initialisé)')
         return True
     except Exception as e:
         logger.warning('FCM: impossible d’initialiser Firebase (%s)', e)
@@ -127,16 +151,27 @@ def send_push_to_user_ids(
         android_kwargs['ttl'] = timedelta(seconds=60)
     android_cfg = messaging.AndroidConfig(**android_kwargs)
     apns_cfg = messaging.APNSConfig(
+        headers={
+            'apns-push-type': 'alert',
+            'apns-priority': '10',
+        },
         payload=messaging.APNSPayload(
             aps=messaging.Aps(
-                alert=messaging.ApsAlert(title=title, body=body),
+                alert=messaging.ApsAlert(title=str(title), body=str(body)),
                 sound='notification_soft.mp3',
+                badge=1,
+                mutable_content=True,
+                content_available=True,
             ),
         ),
     )
 
     messages = [
         messaging.Message(
+            notification=messaging.Notification(
+                title=str(title),
+                body=str(body),
+            ),
             android=android_cfg,
             apns=apns_cfg,
             data=data_str,

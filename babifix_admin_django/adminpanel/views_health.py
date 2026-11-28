@@ -66,19 +66,25 @@ def api_admin_health_config(request):
         "api_secret": _fingerprint(env.get("LIVEKIT_API_SECRET")),
     }
 
-    fb_path = env.get("GOOGLE_APPLICATION_CREDENTIALS") or env.get(
-        "FIREBASE_CREDENTIALS_JSON_PATH"
-    )
+    from .fcm_backend import firebase_status
+
+    fb_stat = firebase_status()
+    fb_path = fb_stat.get("credentials_path", "")
     firebase = {
-        "project_id": _fingerprint(env.get("FIREBASE_PROJECT_ID"), sensitive=False),
+        "project_id": _fingerprint(env.get("FIREBASE_PROJECT_ID") or "babifix-b6454", sensitive=False),
         "messaging_sender_id": _fingerprint(
-            env.get("FIREBASE_MESSAGING_SENDER_ID"), sensitive=False
+            env.get("FIREBASE_MESSAGING_SENDER_ID") or "583956327591", sensitive=False
         ),
         "credentials_file": (
             {"status": "ok", "path": fb_path, "size": os.path.getsize(fb_path)}
-            if fb_path and os.path.exists(fb_path)
-            else {"status": "missing", "path": fb_path or ""}
+            if fb_stat.get("credentials_file_exists")
+            else (
+                {"status": "ok", "source": "FIREBASE_CREDENTIALS_JSON"}
+                if fb_stat.get("credentials_json_env_set")
+                else {"status": "missing", "path": fb_path or ""}
+            )
         ),
+        "ready": bool(fb_stat.get("ready")),
     }
 
     email = {

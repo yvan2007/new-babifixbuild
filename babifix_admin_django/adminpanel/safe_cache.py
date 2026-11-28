@@ -24,15 +24,15 @@ logger = logging.getLogger("adminpanel.cache")
 
 
 class SafeRedisCache(RedisCache):
-    """RedisCache avec circuit-breaker 45s et repli transparent sur LocMemCache."""
+    """RedisCache avec circuit-breaker 90s et repli transparent sur LocMemCache."""
 
-    _CIRCUIT_COOLDOWN_SEC = 45.0
+    _CIRCUIT_COOLDOWN_SEC = 90.0
 
     def __init__(self, server: str, params: dict[str, Any]) -> None:
         safe_params = dict(params or {})
         options = dict(safe_params.get("OPTIONS") or {})
-        options.setdefault("socket_connect_timeout", 0.8)
-        options.setdefault("socket_timeout", 0.8)
+        options.setdefault("socket_connect_timeout", 0.35)
+        options.setdefault("socket_timeout", 0.35)
         options.setdefault("retry_on_timeout", False)
         safe_params["OPTIONS"] = options
         super().__init__(server, safe_params)

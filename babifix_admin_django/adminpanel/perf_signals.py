@@ -19,6 +19,14 @@ CACHE_KEYS_PUBLIC_CATALOG = (
     "public_providers_featured_v1",
     "public_vitrine_v1",
     "public_actualites_v1",
+    "babifix:public:tier_configs:v1",
+    "babifix:public:platform_config:v1",
+)
+
+CACHE_KEYS_ADMIN_DASHBOARD = (
+    "babifix:admin:kpi_payload:v1",
+    "babifix:admin:risk_radar:v1",
+    "babifix:admin:sidebar_counts:v1",
 )
 
 
@@ -62,10 +70,44 @@ def invalidate_public_catalog_cache(*args, **kwargs):
         pass
 
 
+def invalidate_admin_dashboard_cache(*args, **kwargs):
+    """Invalide les caches KPI et radar du dashboard Admin apres mutation metier."""
+    try:
+        cache.delete_many(list(CACHE_KEYS_ADMIN_DASHBOARD))
+    except Exception:
+        pass
+
+
 def register_cache_invalidation():
     """Connecte les signaux ORM apres demarrage Django."""
-    from .models import Category, Provider, SiteContent, SystemSetting
+    from .models import (
+        Category,
+        Client,
+        Dispute,
+        Notification,
+        Payment,
+        PlatformConfig,
+        Provider,
+        Rating,
+        Reservation,
+        SiteContent,
+        SystemSetting,
+        WalletTransaction,
+    )
 
-    for model_cls in (Provider, Category, SiteContent, SystemSetting):
+    for model_cls in (Provider, Category, SiteContent, SystemSetting, PlatformConfig):
         post_save.connect(invalidate_public_catalog_cache, sender=model_cls, weak=False)
         post_delete.connect(invalidate_public_catalog_cache, sender=model_cls, weak=False)
+
+    for model_cls in (
+        Provider,
+        Reservation,
+        Payment,
+        Dispute,
+        Client,
+        Rating,
+        WalletTransaction,
+        Notification,
+    ):
+        post_save.connect(invalidate_admin_dashboard_cache, sender=model_cls, weak=False)
+        post_delete.connect(invalidate_admin_dashboard_cache, sender=model_cls, weak=False)

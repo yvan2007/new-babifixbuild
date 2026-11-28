@@ -467,6 +467,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          resizeDelay: 120,
           animation: baseAnim,
           interaction: { mode: 'index', intersect: false },
           plugins: {
@@ -504,6 +505,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          resizeDelay: 120,
           animation: baseAnim,
           cutout: '64%',
           plugins: {
@@ -555,6 +557,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          resizeDelay: 120,
           animation: baseAnim,
           onClick: function(evt, elements) {
             if (elements && elements.length > 0) {
@@ -607,6 +610,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          resizeDelay: 120,
           animation: baseAnim,
           onClick: function(evt, elements) {
             if (elements && elements.length > 0) {
@@ -644,6 +648,7 @@
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
+          resizeDelay: 120,
           animation: baseAnim,
           plugins: { legend: { display: false }, tooltip: { backgroundColor: tooltipBg, titleColor: tooltipText, bodyColor: textColor } },
           scales: {
@@ -673,6 +678,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          resizeDelay: 120,
           animation: baseAnim,
           plugins: { legend: { display: false } },
           scales: {
@@ -746,14 +752,24 @@
     });
   }
 
-  bindSpotlightFilters();
-  drawExecutiveCharts();
-  document.body.addEventListener('htmx:afterSwap', function(e){
-    if (e.target && e.target.id === 'dashboard-stats-fragment') {
-      bindSpotlightFilters();
-      drawExecutiveCharts();
-    }
-  });
+  window.bxRedrawExecCharts = function() {
+    bindSpotlightFilters();
+    drawExecutiveCharts();
+  };
+  window.bxRedrawExecCharts();
+  if (!window.__bxExecChartsHooked) {
+    window.__bxExecChartsHooked = true;
+    document.body.addEventListener('htmx:afterSwap', function(e){
+      if (e.target && e.target.id === 'dashboard-stats-fragment' && window.bxRedrawExecCharts) {
+        window.bxRedrawExecCharts();
+      }
+    });
+    document.body.addEventListener('babifix:section-swapped', function(){
+      if (window.bxRedrawExecCharts) {
+        window.bxRedrawExecCharts();
+      }
+    });
+  }
 })();
 </script>
 {% endif %}

@@ -271,7 +271,7 @@ else:
 _database_url = os.getenv("DATABASE_URL", "").strip()
 _pg_db = os.getenv("POSTGRES_DB", "").strip()
 _mysql_db = (os.getenv("MYSQL_DATABASE") or os.getenv("MYSQL_NAME") or "").strip()
-_db_conn_max_age = int(os.getenv("DJANGO_CONN_MAX_AGE", "600"))
+_db_conn_max_age = int(os.getenv("DJANGO_CONN_MAX_AGE", "120"))
 
 if _database_url:
     import dj_database_url
@@ -415,9 +415,35 @@ AUTHENTICATION_BACKENDS = [
 # SOCIAL AUTH (Google & Apple Sign-In)
 # Configurer via .env : GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APPLE_BUNDLE_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY
 # =============================================================================
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_ID = os.getenv(
+    "GOOGLE_CLIENT_ID",
+    "583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com",
+)
+_DEFAULT_GOOGLE_EXTRA_CLIENT_IDS = [
+    "583956327591-0c5hf3ltaa742om2aspp9gjo6aepmfgc.apps.googleusercontent.com",
+    "583956327591-0l9n3anpn4bsndscsfqd18om7j2472pf.apps.googleusercontent.com",
+    "583956327591-id9e65c5eslkldas8vb5304gi16cjp50.apps.googleusercontent.com",
+    "583956327591-9oe4ftnpo6nbp4ismrg3p18rtbu3qdls.apps.googleusercontent.com",
+    "583956327591-272mau9vkvh017cv8r4ll5h3ubidv8n3.apps.googleusercontent.com",
+]
+GOOGLE_EXTRA_CLIENT_IDS = list(
+    dict.fromkeys(
+        _DEFAULT_GOOGLE_EXTRA_CLIENT_IDS
+        + [
+            cid.strip()
+            for cid in os.getenv("GOOGLE_EXTRA_CLIENT_IDS", "").split(",")
+            if cid.strip()
+        ]
+    )
+)
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-APPLE_BUNDLE_ID = os.getenv("APPLE_BUNDLE_ID", "ci.babifix.client")
+APPLE_BUNDLE_ID = os.getenv("APPLE_BUNDLE_ID", "com.babifix.client")
+APPLE_ALLOWED_BUNDLE_IDS = list(
+    dict.fromkeys(
+        [b.strip() for b in APPLE_BUNDLE_ID.split(",") if b.strip()]
+        + ["com.babifix.client", "com.babifix.babifixPrestataireFlutter"]
+    )
+)
 APPLE_TEAM_ID = os.getenv("APPLE_TEAM_ID", "")
 APPLE_KEY_ID = os.getenv("APPLE_KEY_ID", "")
 APPLE_PRIVATE_KEY = os.getenv("APPLE_PRIVATE_KEY", "").replace("\\n", "\n")

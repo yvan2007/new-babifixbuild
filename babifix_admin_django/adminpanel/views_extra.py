@@ -268,9 +268,18 @@ def api_admin_bulk_provider_action(request):
     for provider in providers:
         old_statut = provider.statut
         if action == "ACCEPT":
+            has_docs = any(
+                bool((getattr(provider, attr, "") or "").strip())
+                for attr in ("cni_recto_url", "kyc_cni_recto_url", "cni_url", "selfie_url", "kyc_selfie_url")
+            ) or getattr(provider, "kyc_status", "") in ("pending", "under_review", "approved")
             provider.statut = Provider.Status.VALID
             provider.is_approved = True
-            provider.save(update_fields=["statut", "is_approved"])
+            fields = ["statut", "is_approved"]
+            if has_docs and getattr(provider, "kyc_status", "") in ("pending", "under_review"):
+                provider.kyc_status = "approved"
+                provider.kyc_reviewed_at = timezone.now()
+                fields += ["kyc_status", "kyc_reviewed_at"]
+            provider.save(update_fields=fields)
             email_provider_accepted(provider)
         elif action == "REFUSE":
             provider.statut = Provider.Status.REFUSED
@@ -1456,7 +1465,20 @@ def api_prestataire_wallet(request):
         return JsonResponse({"error": "Profil prestataire introuvable"}, status=404)
 
     from adminpanel.services.wallet_service import WalletService
+    from adminpanel.views_verify import build_wallet_qr_url
+
     summary = WalletService.get_wallet_summary(provider.pk)
+    summary["verify_qr_url"] = build_wallet_qr_url("pro", provider.pk, request=request)
+    summary["kyc_verified"] = bool(
+        provider.kyc_status == "approved"
+        or (
+            provider.statut == Provider.Status.VALID
+            and any(
+                bool((getattr(provider, a, "") or "").strip())
+                for a in ("cni_recto_url", "kyc_cni_recto_url", "cni_url", "selfie_url", "kyc_selfie_url")
+            )
+        )
+    )
     return JsonResponse(summary, status=200)
 
 

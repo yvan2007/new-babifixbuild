@@ -380,6 +380,7 @@ class SmartProviderScorer:
         distance_km: Optional[float] = None,
         metrics: Optional[Dict[str, Any]] = None,
         query_match_score: float = 0.0,
+        tier_configs: Optional[tuple] = None,
     ) -> Dict[str, Any]:
         """
         Calcule le profil de recommandation complet et deterministe d'un prestataire.
@@ -394,8 +395,11 @@ class SmartProviderScorer:
         raw_tier = (getattr(provider, "premium_tier", "") or "").lower().strip()
         tier = raw_tier if (is_active_premium and raw_tier in ("gold", "silver")) else "standard"
         try:
-            from .platform_config_service import get_dynamic_tier_configs
-            _, _prem_cfgs = get_dynamic_tier_configs()
+            if tier_configs is not None:
+                _, _prem_cfgs = tier_configs
+            else:
+                from .platform_config_service import get_dynamic_tier_configs
+                _, _prem_cfgs = get_dynamic_tier_configs()
             _sil_pct = float(_prem_cfgs["silver"].get("visibility_boost_pct", 30) or 30)
             _gld_pct = float(_prem_cfgs["gold"].get("visibility_boost_pct", 60) or 60)
             _sil_badge = str(_prem_cfgs["silver"].get("badge", "Pro vérifié") or "Pro vérifié")
@@ -842,6 +846,16 @@ class AdminRiskRadar:
 
     @classmethod
     def build_summary(cls) -> Dict[str, Any]:
+        from django.core.cache import cache
+
+        cache_key = "babifix:admin:risk_radar:v1"
+        try:
+            cached = cache.get(cache_key)
+            if isinstance(cached, dict) and "alerts" in cached:
+                return cached
+        except Exception:
+            pass
+
         alerts: List[Dict[str, Any]] = []
         now = timezone.now()
 
@@ -934,9 +948,14 @@ class AdminRiskRadar:
         med_cnt = sum(1 for a in alerts if a["level"] == "medium")
         health_score = max(40, 100 - (high_cnt * 15) - (med_cnt * 6))
 
-        return {
+        out = {
             "alerts": alerts,
             "alerts_count": len(alerts),
             "high_count": high_cnt,
             "health_score": health_score,
         }
+        try:
+            cache.set(cache_key, out, 45)
+        except Exception:
+            pass
+        return out

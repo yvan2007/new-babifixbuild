@@ -2285,13 +2285,13 @@ html[data-theme="dark"] table tbody tr:hover {
 
 .charts-row {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
 @media (max-width: 900px) {
-  .charts-row { grid-template-columns: 1fr; }
+  .charts-row { grid-template-columns: minmax(0, 1fr); }
 }
 
 .chart-card {
@@ -2299,6 +2299,9 @@ html[data-theme="dark"] table tbody tr:hover {
   border-radius: var(--radius);
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   padding: 1.2rem 1.2rem 1rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .chart-card__header {
@@ -2322,7 +2325,19 @@ html[data-theme="dark"] table tbody tr:hover {
 .chart-badge--purple { background: rgba(139,92,246,0.15); color: #7C3AED; }
 
 .chart-wrap {
-  position: relative; width: 100%; height: 220px;
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  height: 220px;
+  min-height: 200px;
+  overflow: hidden;
+  contain: layout size style;
+}
+.chart-wrap canvas {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
 }
 .chart-wrap--pie { height: 260px; }
 
@@ -3970,15 +3985,23 @@ html[data-theme="dark"] .adminty-stats .stat-tile {
   margin-bottom: 2rem;
 }
 
+.charts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
 .charts-row-dual {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   gap: 1rem;
+  min-width: 0;
 }
 
 @media (max-width: 960px) {
   .charts-row-dual {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

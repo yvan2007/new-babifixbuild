@@ -1044,6 +1044,18 @@ def api_prestataire_profile_update(request):
                 val = val.strip()[:500]
             setattr(provider, field, val)
             update_fields.append(field)
+    if "category_id" in payload and payload["category_id"] is not None:
+        try:
+            cid = int(payload["category_id"])
+            cat = Category.objects.filter(pk=cid, is_deleted=False).first()
+            if cat:
+                provider.category = cat
+                if not payload.get("specialite"):
+                    provider.specialite = cat.nom
+                    update_fields.append("specialite")
+                update_fields.append("category")
+        except (TypeError, ValueError):
+            pass
     # Photo portrait  :  base64 → fichier sur disque
     portrait = payload.get("photo_portrait_url", "") or payload.get("photo_portrait_b64", "")
     if portrait and isinstance(portrait, str) and portrait.startswith("data:image/"):
@@ -1054,6 +1066,12 @@ def api_prestataire_profile_update(request):
             update_fields.append("photo_portrait_url")
     if update_fields:
         provider.save(update_fields=update_fields)
+        try:
+            from .perf_signals import invalidate_public_catalog_cache
+
+            invalidate_public_catalog_cache()
+        except Exception:
+            pass
     return JsonResponse(
         {
             "ok": True,
