@@ -64,6 +64,9 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
   bool _aNumeroRetrait = false;
   bool _bioOk = false;
   bool _onboardingDismissed = false;
+  String _kycStatus = 'not_submitted';
+  bool _preRegistered = false;
+  bool _kycVerified = false;
   // Données graphique revenus (6 derniers mois)
   List<double> _revenueByMonth = [0, 0, 0, 0, 0, 0];
   List<String> _revenueMonthLabels = ['M-5', 'M-4', 'M-3', 'M-2', 'M-1', 'Ce mois'];
@@ -212,6 +215,11 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
               _contratSigne = prov['contrat_signe'] == true;
               _aNumeroRetrait = prov['a_numero_retrait'] == true;
               _bioOk = '${prov['bio'] ?? ''}'.trim().length >= 10;
+              _kycStatus = '${prov['kyc_status'] ?? 'not_submitted'}'.trim().toLowerCase();
+              _preRegistered = prov['pre_registered'] == true ||
+                  (_provStatut == 'En attente' &&
+                      (_kycStatus.isEmpty || _kycStatus == 'not_submitted'));
+              _kycVerified = prov['kyc_verified'] == true || _kycStatus == 'approved';
               _loadingMe = false;
             });
             return;
@@ -413,6 +421,7 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
     final steps = <({bool done, String label, String target, IconData icon})>[
       (done: _photoUrl != null, label: 'Ajouter une photo de profil', target: 'profile', icon: Icons.photo_camera_rounded),
       (done: _bioOk, label: 'Compléter votre description', target: 'profile', icon: Icons.edit_note_rounded),
+      (done: _kycStatus != 'not_submitted' && _kycStatus.isNotEmpty, label: 'Envoyer vos pieces d\'identite KYC', target: 'kyc', icon: Icons.verified_user_rounded),
       (done: _contratSigne, label: 'Signer le contrat prestataire', target: 'contrat_mandatory', icon: Icons.assignment_turned_in_rounded),
       (done: _aNumeroRetrait, label: 'Ajouter un numéro de retrait', target: 'wallet', icon: Icons.account_balance_wallet_rounded),
     ];
@@ -680,7 +689,83 @@ class _PrestataireDashboardScreenState extends State<PrestataireDashboardScreen>
                             ),
                           ),
                   ),
-                  if (_provStatut == 'En attente')
+                  if (_provStatut == 'En attente' && _preRegistered)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: _isLight
+                                ? const Color(0xFFFFF7ED)
+                                : const Color(0xFF1F160A),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.assignment_late_rounded,
+                                      color: Color(0xFFD97706), size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Finalisez votre dossier prestataire',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14,
+                                        color: _isLight
+                                            ? const Color(0xFF9A3412)
+                                            : const Color(0xFFFDE68A),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Completez votre profil et deposez vos pieces KYC (CNI + selfie) pour activer la validation de votre compte.',
+                                style: TextStyle(
+                                  color: _isLight
+                                      ? const Color(0xFF9A3412)
+                                      : const Color(0xFFFCD34D),
+                                  fontSize: 12.5,
+                                  height: 1.38,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: BabifixButton(
+                                      label: 'Completer mon KYC',
+                                      icon: Icons.verified_user_rounded,
+                                      height: 40,
+                                      onPressed: () => widget.onNavigate('kyc'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: BabifixButton(
+                                      label: 'Mon profil',
+                                      icon: Icons.person_outline_rounded,
+                                      variant: BabifixButtonVariant.outlined,
+                                      height: 40,
+                                      onPressed: () => widget.onNavigate('profile'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (_provStatut == 'En attente')
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),

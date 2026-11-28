@@ -331,6 +331,14 @@ class _KYCScreenState extends State<KYCScreen> {
           _statusKyc = 'pending';
           _step = 5;
         });
+        if (mounted) {
+          showBabifixToast(
+            context,
+            type: BabifixToastType.success,
+            title: 'Dossier transmis',
+            message: 'Vos pieces KYC sont en cours de verification.',
+          );
+        }
       } else {
         final err = jsonDecode(res.body) as Map<String, dynamic>;
         final fields = err['fields'] as Map? ?? {};

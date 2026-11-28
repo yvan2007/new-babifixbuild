@@ -114,6 +114,8 @@ class _WalletScreenState extends State<WalletScreen>
   String _prestataireName = '';
   String _cardLast4 = '';
   String _cardTier = 'standard';
+  String _verifyQrUrl = '';
+  bool _kycVerified = false;
   List<Map<String, dynamic>> _transactions = [];
 
   late final AnimationController _fadeCtrl;
@@ -162,6 +164,8 @@ class _WalletScreenState extends State<WalletScreen>
           _prestataireName = data['prestataire_nom'] as String? ?? 'PRESTATAIRE';
           _cardLast4 = (data['card_last4'] as String?) ?? '';
           _cardTier = (data['premium_tier'] as String?) ?? 'standard';
+          _verifyQrUrl = (data['verify_qr_url'] as String?) ?? '';
+          _kycVerified = data['kyc_verified'] == true;
           _transactions = List<Map<String, dynamic>>.from(
             (data['transactions'] as List?) ?? [],
           );
@@ -414,6 +418,8 @@ class _WalletScreenState extends State<WalletScreen>
                           phoneSecondary: _walletPhone2,
                           operatorSecondary: _walletOperator2,
                           pinActive: _pinActive,
+                          verifyQrUrl: _verifyQrUrl,
+                          kycVerified: _kycVerified,
                           onToggleHidden: () =>
                               setState(() => _balanceHidden = !_balanceHidden),
                         ),

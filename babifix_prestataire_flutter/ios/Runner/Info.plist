@@ -98,5 +98,20 @@
 	<string>BABIFIX utilise le micro pour les appels et messages vocaux avec les clients.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>BABIFIX utilise Face ID pour verrouiller l'accès à votre espace et sécuriser vos retraits.</string>
+	<key>GIDClientID</key>
+	<string>583956327591-0l9n3anpn4bsndscsfqd18om7j2472pf.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>583956327591-oj9n36bdfj4o0ras9ecr265g81c4jkll.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.583956327591-0l9n3anpn4bsndscsfqd18om7j2472pf</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

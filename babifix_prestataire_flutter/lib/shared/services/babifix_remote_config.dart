@@ -162,7 +162,7 @@ class BabifixRemoteConfig {
     await refresh();
   }
 
-  Future<void> refresh() async {
+  Future<bool> refresh() async {
     try {
       final base = babifixApiBaseUrl();
       final resp = await http
@@ -172,9 +172,11 @@ class BabifixRemoteConfig {
         final decoded = jsonDecode(resp.body);
         if (decoded is Map<String, dynamic>) {
           await applyPayload(decoded);
+          return true;
         }
       }
     } catch (_) {}
+    return false;
   }
 
   Future<void> applyPayload(Map<String, dynamic> payload) async {

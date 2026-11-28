@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../babifix_api_config.dart';
 import '../../babifix_design_system.dart';
 import '../../shared/auth_utils.dart';
+import '../../shared/social_auth_service.dart';
 import '../../shared/widgets/babifix_button.dart';
 import '../../shared/widgets/babifix_page_route.dart';
 import 'forgot_password_screen.dart';
@@ -36,6 +37,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _user = TextEditingController();
   final _pass = TextEditingController();
   bool _loading = false;
+  bool _loadingGoogle = false;
   bool _obscure = true;
   late final AnimationController _anim;
   late final Animation<double> _fadeIn;
@@ -115,6 +117,41 @@ class _LoginScreenState extends State<LoginScreen>
         _snack('Impossible de contacter le serveur.');
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _submitGoogle() async {
+    if (_loading || _loadingGoogle) return;
+    setState(() => _loadingGoogle = true);
+    try {
+      final result = await SocialAuthService.signInWithGoogle();
+      if (!mounted) return;
+      if (!result.isSuccess) {
+        _snack(result.error ?? 'Connexion Google impossible.');
+        return;
+      }
+      final role = result.role.trim().toLowerCase();
+      if (role.isNotEmpty && role != 'prestataire' && role != 'provider' && role != 'admin') {
+        _snack('Ce compte Google est un compte Client. Utilisez l\'application BABIFIX Client.');
+        return;
+      }
+      final tok = result.accessToken;
+      if (tok != null && tok.isNotEmpty) {
+        await writeStoredApiToken(tok);
+        if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
+          await writeStoredRefreshToken(result.refreshToken);
+        }
+        await babifixSaveProfile(
+          name: result.name ?? '',
+          email: result.email ?? '',
+        );
+        babifixRegisterFcm(tok);
+        if (mounted) widget.onSuccess();
+      } else {
+        _snack('Session serveur non recue.');
+      }
+    } finally {
+      if (mounted) setState(() => _loadingGoogle = false);
     }
   }
 
@@ -316,7 +353,76 @@ class _LoginScreenState extends State<LoginScreen>
                                     label: 'Se connecter',
                                     loadingLabel: 'Connexion...',
                                     isLoading: _loading,
-                                    onPressed: _submit,
+                                    onPressed: _loadingGoogle ? null : _submit,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Divider(
+                                          color: Colors.white.withValues(alpha: 0.14),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                                        child: Text(
+                                          'ou',
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.45),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Divider(
+                                          color: Colors.white.withValues(alpha: 0.14),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 48,
+                                    child: OutlinedButton.icon(
+                                      onPressed: (_loading || _loadingGoogle)
+                                          ? null
+                                          : _submitGoogle,
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.white,
+                                        backgroundColor:
+                                            Colors.white.withValues(alpha: 0.06),
+                                        side: BorderSide(
+                                          color: Colors.white.withValues(alpha: 0.18),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                      ),
+                                      icon: _loadingGoogle
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Color(0xFF4CC9F0),
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.g_mobiledata_rounded,
+                                              size: 26,
+                                              color: Color(0xFF4CC9F0),
+                                            ),
+                                      label: Text(
+                                        _loadingGoogle
+                                            ? 'Connexion Google...'
+                                            : 'Continuer avec Google',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),

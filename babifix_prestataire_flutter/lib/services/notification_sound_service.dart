@@ -3,6 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+@pragma('vm:entry-point')
+void babifixProBackgroundNotificationTap(NotificationResponse response) {
+  final payload = response.payload;
+  if (payload != null && payload.isNotEmpty) {
+    BabifixNotificationSoundService.pendingPayload = payload;
+  }
+}
+
 /// Service de notification locale avec son personnalisé.
 /// Initialise les canaux Android/iOS et joue un son doux pour chaque notification.
 class BabifixNotificationSoundService {
@@ -78,7 +86,19 @@ class BabifixNotificationSoundService {
       await _plugin.initialize(
         initSettings,
         onDidReceiveNotificationResponse: _onNotificationTap,
+        onDidReceiveBackgroundNotificationResponse:
+            babifixProBackgroundNotificationTap,
       );
+
+      try {
+        final launch = await _plugin.getNotificationAppLaunchDetails();
+        final p = launch?.notificationResponse?.payload;
+        if ((launch?.didNotificationLaunchApp ?? false) &&
+            p != null &&
+            p.isNotEmpty) {
+          _onNotificationTap(launch!.notificationResponse!);
+        }
+      } catch (_) {}
 
       // Channel par défaut
       const androidChannel = AndroidNotificationChannel(

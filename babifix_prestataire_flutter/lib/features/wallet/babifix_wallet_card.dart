@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../babifix_design_system.dart';
 import '../../shared/widgets/animated_money.dart';
@@ -111,6 +112,8 @@ class BabifixWalletCard extends StatefulWidget {
     this.phoneSecondary = '',
     this.operatorSecondary = '',
     this.pinActive = false,
+    this.verifyQrUrl = '',
+    this.kycVerified = false,
     this.onToggleHidden,
     this.compactPreview = false,
   });
@@ -125,6 +128,8 @@ class BabifixWalletCard extends StatefulWidget {
   final String phoneSecondary;
   final String operatorSecondary;
   final bool pinActive;
+  final String verifyQrUrl;
+  final bool kycVerified;
   final VoidCallback? onToggleHidden;
   final bool compactPreview;
 
@@ -298,19 +303,26 @@ class _BabifixWalletCardState extends State<BabifixWalletCard>
               ),
               const SizedBox(height: 12),
               Container(
-                width: 170,
-                height: 170,
+                width: 196,
+                height: 196,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: CustomPaint(
-                  painter: _GeometricQrPainter(
-                    seedText: '$_suffix|$_holderDisplay',
-                    ink: p.bgStart,
-                  ),
-                ),
+                child: widget.verifyQrUrl.trim().isNotEmpty
+                    ? QrImageView(
+                        data: widget.verifyQrUrl.trim(),
+                        version: QrVersions.auto,
+                        backgroundColor: Colors.white,
+                        padding: EdgeInsets.zero,
+                      )
+                    : CustomPaint(
+                        painter: _GeometricQrPainter(
+                          seedText: '$_suffix|$_holderDisplay',
+                          ink: p.bgStart,
+                        ),
+                      ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -724,12 +736,16 @@ class _BabifixWalletCardState extends State<BabifixWalletCard>
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'KYC VERIFIE · CANTONNE',
+                              widget.kycVerified
+                                  ? 'KYC VERIFIE · CANTONNE'
+                                  : 'KYC EN ATTENTE · VERIF. REQUISE',
                               style: TextStyle(
-                                color: p.bgStart,
-                                fontSize: 9,
+                                color: widget.kycVerified
+                                    ? p.bgStart
+                                    : const Color(0xFFB45309),
+                                fontSize: 8.5,
                                 fontWeight: FontWeight.w800,
-                                letterSpacing: 0.7,
+                                letterSpacing: 0.6,
                               ),
                             ),
                             Text(
@@ -853,12 +869,20 @@ class _BabifixWalletCardState extends State<BabifixWalletCard>
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: RepaintBoundary(
-                                child: CustomPaint(
-                                  painter: _GeometricQrPainter(
-                                    seedText: '$_suffix|$_holderDisplay',
-                                    ink: p.bgStart,
-                                  ),
-                                ),
+                                child: widget.verifyQrUrl.trim().isNotEmpty
+                                    ? QrImageView(
+                                        data: widget.verifyQrUrl.trim(),
+                                        version: QrVersions.auto,
+                                        size: 50,
+                                        padding: EdgeInsets.zero,
+                                        backgroundColor: Colors.white,
+                                      )
+                                    : CustomPaint(
+                                        painter: _GeometricQrPainter(
+                                          seedText: '$_suffix|$_holderDisplay',
+                                          ink: p.bgStart,
+                                        ),
+                                      ),
                               ),
                             ),
                           ),

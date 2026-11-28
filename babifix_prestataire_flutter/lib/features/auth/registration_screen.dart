@@ -633,7 +633,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           context,
           type: BabifixToastType.success,
           message:
-              'Inscription enregistree ! Votre dossier est en attente de validation par notre equipe.',
+              'Compte cree ! Completez maintenant votre profil et vos pieces KYC depuis votre tableau de bord.',
         );
         widget.onSubmit();
         return;

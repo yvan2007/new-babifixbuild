@@ -1,6 +1,7 @@
 ﻿import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -39,6 +40,7 @@ class _EditProfilePrestataireScreenState
 
   bool _loading = true;
   bool _saving = false;
+  bool _savedOk = false;
   String? _error;
   String? _success;
   String _statut = '';
@@ -243,34 +245,107 @@ class _EditProfilePrestataireScreenState
   }
 
   Future<void> _save() async {
-    setState(() { _saving = true; _error = null; _success = null; });
-    final token = await _token();
-    if (token == null) return;
+    if (_saving) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _saving = true;
+      _savedOk = false;
+      _error = null;
+      _success = null;
+    });
+    var token = await _token();
+    if (token == null || token.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = 'Session expiree. Reconnectez-vous.';
+        });
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Session expiree. Reconnectez-vous.',
+        );
+      }
+      return;
+    }
     final payload = <String, dynamic>{
-      'nom': _nomCtrl.text.trim(), 'specialite': _specialiteCtrl.text.trim(),
-      'ville': _villeCtrl.text.trim(), 'bio': _bioCtrl.text.trim(),
+      'nom': _nomCtrl.text.trim(),
+      'specialite': _specialiteCtrl.text.trim(),
+      'ville': _villeCtrl.text.trim(),
+      'bio': _bioCtrl.text.trim(),
       if (_lat != null) 'latitude': _lat,
       if (_lon != null) 'longitude': _lon,
     };
-    // tarif_horaire désactivé pour le prestataire — chaque devis a son prix.
-    if (_expCtrl.text.trim().isNotEmpty) payload['years_experience'] = int.tryParse(_expCtrl.text.trim());
-    // Nouvelle photo de profil (base64) → le backend la sauvegarde (Cloudinary).
+    if (_expCtrl.text.trim().isNotEmpty) {
+      payload['years_experience'] = int.tryParse(_expCtrl.text.trim());
+    }
     if (_portraitB64 != null && _portraitB64!.isNotEmpty) {
       payload['photo_portrait_b64'] = _portraitB64;
     }
     try {
-      final req = http.Request('PATCH', Uri.parse('$_base/api/prestataire/profile'));
-      req.headers['Authorization'] = 'Bearer $token';
-      req.headers['Content-Type'] = 'application/json';
-      req.body = jsonEncode(payload);
-      final streamedRes = await req.send().timeout(const Duration(seconds: 12));
-      final body = await streamedRes.stream.bytesToString();
-      if (streamedRes.statusCode == 200) {
-        setState(() { _saving = false; _success = 'Profil mis a jour avec succes.'; });
-      } else {
-        setState(() { _saving = false; _error = (jsonDecode(body)['error'] ?? 'Erreur').toString(); });
+      Future<http.StreamedResponse> sendPatch(String tok) async {
+        final req = http.Request('PATCH', Uri.parse('$_base/api/prestataire/profile'));
+        req.headers['Authorization'] = 'Bearer $tok';
+        req.headers['Content-Type'] = 'application/json';
+        req.body = jsonEncode(payload);
+        return req.send().timeout(const Duration(seconds: 18));
       }
-    } catch (_) { setState(() { _saving = false; _error = 'Erreur reseau.'; }); }
+
+      var streamedRes = await sendPatch(token);
+      if (streamedRes.statusCode == 401) {
+        final fresh = await babifixRefreshAccessToken();
+        if (fresh != null && fresh.isNotEmpty) {
+          token = fresh;
+          streamedRes = await sendPatch(fresh);
+        }
+      }
+      final body = await streamedRes.stream.bytesToString();
+      if (!mounted) return;
+      if (streamedRes.statusCode == 200) {
+        HapticFeedback.mediumImpact();
+        setState(() {
+          _saving = false;
+          _savedOk = true;
+          _success = 'Profil mis a jour avec succes.';
+        });
+        showBabifixToast(
+          context,
+          type: BabifixToastType.success,
+          message: 'Profil enregistre avec succes !',
+        );
+        await Future.delayed(const Duration(milliseconds: 550));
+        if (mounted) Navigator.of(context).pop(true);
+      } else {
+        String errMsg = 'Impossible d\'enregistrer (HTTP ${streamedRes.statusCode}).';
+        try {
+          final parsed = jsonDecode(body);
+          if (parsed is Map) {
+            errMsg = (parsed['message'] ?? parsed['error'] ?? errMsg).toString();
+          }
+        } catch (_) {}
+        setState(() {
+          _saving = false;
+          _error = errMsg;
+        });
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: errMsg,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = 'Erreur reseau. Verifiez votre connexion.';
+        });
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: 'Erreur reseau. Verifiez votre connexion.',
+        );
+      }
+    }
   }
 
   Future<void> _pickPortrait() async {
@@ -829,8 +904,9 @@ class _EditProfilePrestataireScreenState
         left: 16, right: 16, top: 12,
       ),
       child: BabifixButton(
-        label: 'Sauvegarder les modifications',
+        label: _savedOk ? 'Enregistre !' : 'Sauvegarder les modifications',
         loadingLabel: 'Enregistrement...',
+        icon: _savedOk ? Icons.check_circle_rounded : Icons.save_rounded,
         isLoading: _saving,
         onPressed: _saving ? null : _save,
       ),

@@ -313,7 +313,8 @@ class _PrestataireFlow extends StatefulWidget {
   State<_PrestataireFlow> createState() => _PrestataireFlowState();
 }
 
-class _PrestataireFlowState extends State<_PrestataireFlow> {
+class _PrestataireFlowState extends State<_PrestataireFlow>
+    with WidgetsBindingObserver {
   static const _coachKey = 'prestataire_coach_profile_photo_v1';
   static const _onboardingKey = 'prestataire_onboarding_done_v1';
 
@@ -352,6 +353,22 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       <Map<String, dynamic>>[];
   bool _checkingActiveMissions = false;
   bool _hasCheckedActiveOnMaintenance = false;
+  bool _checkingMaintenanceStatus = false;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      BabifixRemoteConfig.instance.refresh();
+      readStoredApiToken().then((tok) {
+        if (tok != null && tok.isNotEmpty) {
+          BabifixFcm.registerTokenWithBackend(tok).catchError((_) {});
+          if (current == 'pending') {
+            _bootstrapSession();
+          }
+        }
+      });
+    }
+  }
 
   void _onRemoteConfigChanged() {
     final cfg = BabifixRemoteConfig.instance.current;
@@ -428,6 +445,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     BabifixRemoteConfig.instance.config.removeListener(_onRemoteConfigChanged);
     _categorySyncTimer?.cancel();
     _proPollTimer?.cancel();
@@ -446,6 +464,7 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _actualitesVersion = ValueNotifier(0);
     _restoreInAppNotifsThenBootstrap();
     // Chargement immédiat des catégories (sans authentification)
@@ -875,6 +894,9 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
       final st = '${prov['statut'] ?? ''}';
       final unread = jsonInt(data['unread_chat_messages']);
       _unreadChat.value = unread;
+      final kycSt = '${prov['kyc_status'] ?? 'not_submitted'}'.trim().toLowerCase();
+      final bool isPreRegistered = prov['pre_registered'] == true ||
+          (st == 'En attente' && (kycSt.isEmpty || kycSt == 'not_submitted'));
       if (st == 'Valide') {
         // Charte obligatoire avant acces au dashboard : si jamais signee,
         // on redirige sur l'ecran contrat en mode bloquant.
@@ -895,9 +917,17 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
             current = 'refused';
           });
         }
+      } else if (isPreRegistered) {
+        // Mode 60s : le prestataire n'a pas encore envoye ses pieces KYC.
+        // On l'ouvre sur le tableau de bord avec banniere de finalisation.
+        if (mounted) {
+          setState(() {
+            current = 'dashboard';
+          });
+        }
+        _syncServerNotifications(t);
       } else {
-        // Statut "En attente" (inscription rapide ou dossier complet soumis) :
-        // meme ecran d'attente PendingScreen dans tous les cas.
+        // Dossier complet ou pieces KYC effectivement soumises : ecran d'attente.
         if (mounted) {
           setState(() {
             current = 'pending';
@@ -1969,14 +1999,45 @@ class _PrestataireFlowState extends State<_PrestataireFlow> {
                               const SizedBox(height: 18),
                               BabifixButton(
                                 label: "Actualiser le statut",
+                                loadingLabel: "Verification...",
+                                isLoading: _checkingMaintenanceStatus,
                                 icon: Icons.refresh_rounded,
-                                onPressed: () async {
-                                  await BabifixRemoteConfig.instance.refresh();
-                                  if (BabifixRemoteConfig
-                                      .instance.current.maintenance) {
-                                    await _refreshActiveMissionsForMaintenance();
-                                  }
-                                },
+                                onPressed: _checkingMaintenanceStatus
+                                    ? null
+                                    : () async {
+                                        setState(() => _checkingMaintenanceStatus = true);
+                                        try {
+                                          final ok = await BabifixRemoteConfig.instance.refresh();
+                                          if (!mounted) return;
+                                          if (!ok) {
+                                            showBabifixToast(
+                                              context,
+                                              type: BabifixToastType.error,
+                                              message: 'Serveur inaccessible pour le moment.',
+                                            );
+                                            return;
+                                          }
+                                          if (BabifixRemoteConfig.instance.current.maintenance) {
+                                            await _refreshActiveMissionsForMaintenance();
+                                            if (!mounted) return;
+                                            showBabifixToast(
+                                              context,
+                                              type: BabifixToastType.info,
+                                              message: 'Maintenance toujours en cours. Merci de patienter.',
+                                            );
+                                          } else {
+                                            showBabifixToast(
+                                              context,
+                                              type: BabifixToastType.success,
+                                              message: 'Service retabli ! Bon retour sur BABIFIX PRO.',
+                                            );
+                                          }
+                                        } finally {
+                                          if (mounted) {
+                                            setState(() => _checkingMaintenanceStatus = false);
+                                          }
+                                        }
+                                      },
                               ),
                             ],
                           ),

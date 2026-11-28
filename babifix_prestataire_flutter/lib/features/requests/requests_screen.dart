@@ -2387,42 +2387,43 @@ class _RequestsScreenState extends State<RequestsScreen> {
     }
   }
 
-  Future<void> _confirmCashPayment(_RequestItem item) async {
-    if (authToken == null) return;
+  Future<bool> _confirmCashPayment(_RequestItem item) async {
     try {
-      final res = await http.post(
-        Uri.parse(
-          '${babifixApiBaseUrl()}/api/prestataire/requests/${item.reference}/cash-confirm',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-        },
+      final res = await babifixAuthPost(
+        '/api/prestataire/requests/${Uri.encodeComponent(item.reference)}/cash-confirm',
+        body: '{}',
       );
-      if (res.statusCode == 200 && mounted) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        final cfs = '${body['cash_flow_status'] ?? 'pending_admin'}';
-        setState(() => item.cashFlowStatus = cfs);
-        showBabifixToast(
-        context,
-        type: BabifixToastType.success,
-        message: 'Espèces confirmées : paiement validé',
-      );
-      } else if (mounted) {
-        showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Erreur ${res.statusCode}',
-      );
+      if (res.statusCode == 200) {
+        if (mounted) {
+          final body = jsonDecode(res.body) as Map<String, dynamic>;
+          final cfs = '${body['cash_flow_status'] ?? 'pending_admin'}';
+          setState(() => item.cashFlowStatus = cfs);
+          showBabifixToast(
+            context,
+            type: BabifixToastType.success,
+            message: 'Especes confirmees : paiement valide.',
+          );
+        }
+        return true;
       }
+      if (mounted) {
+        final msg = apiErrorMessage(res.body) ?? 'Erreur ${res.statusCode}';
+        showBabifixToast(
+          context,
+          type: BabifixToastType.error,
+          message: msg,
+        );
+      }
+      return false;
     } catch (_) {
       if (mounted) {
         showBabifixToast(
-        context,
-        type: BabifixToastType.error,
-        message: 'Confirmation impossible',
-      );
+          context,
+          type: BabifixToastType.error,
+          message: 'Confirmation impossible. Verifiez votre connexion.',
+        );
       }
+      return false;
     }
   }
 }

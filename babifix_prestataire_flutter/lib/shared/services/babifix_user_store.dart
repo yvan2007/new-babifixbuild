@@ -284,12 +284,21 @@ class BabifixUserStore {
   static Future<String?> tryGoogleAuth() async {
     final result = await SocialAuthService.signInWithGoogle();
     if (!result.isSuccess) return result.error;
-    await saveProfile(name: result.name ?? '', email: result.email ?? '');
-    await _setSession(true);
-    await _saveApiToken(result.accessToken);
-    if (result.refreshToken != null) {
+    final token = result.accessToken;
+    if (token == null || token.isEmpty) {
+      return 'Connexion Google acceptee mais session manquante.';
+    }
+    final role = result.role.trim().toLowerCase();
+    if (role.isNotEmpty && role != 'prestataire' && role != 'admin') {
+      return 'Ce compte Google est un compte Client. Utilisez l\'app Client.';
+    }
+    await _saveApiToken(token);
+    if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
       await _saveRefreshToken(result.refreshToken);
     }
+    await saveProfile(name: result.name ?? '', email: result.email ?? '');
+    await _setSession(true);
+    BabifixFcm.registerTokenWithBackend(token).catchError((_) {});
     return null; // success
   }
 
@@ -298,16 +307,23 @@ class BabifixUserStore {
   static Future<String?> tryAppleAuth() async {
     final result = await SocialAuthService.signInWithApple();
     if (!result.isSuccess) return result.error;
-    await saveProfile(name: result.name ?? '', email: result.email ?? '');
-    await _setSession(true);
-    await _saveApiToken(result.accessToken);
-    if (result.refreshToken != null) {
+    final token = result.accessToken;
+    if (token == null || token.isEmpty) {
+      return 'Connexion Apple acceptee mais session manquante.';
+    }
+    await _saveApiToken(token);
+    if (result.refreshToken != null && result.refreshToken!.isNotEmpty) {
       await _saveRefreshToken(result.refreshToken);
     }
+    await saveProfile(name: result.name ?? '', email: result.email ?? '');
+    await _setSession(true);
+    BabifixFcm.registerTokenWithBackend(token).catchError((_) {});
     return null; // success
   }
 
   static Future<void> socialDemoLogin() async {
+    await _saveApiToken(null);
+    await _saveRefreshToken(null);
     await saveProfile(name: '', email: '');
     await _setSession(false);
   }

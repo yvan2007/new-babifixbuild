@@ -47,13 +47,36 @@ String userFriendlyError(dynamic error, [int? statusCode]) {
 
 /// Extrait le message d'erreur d'une réponse JSON Django si possible.
 /// Retourne null si le corps n'est pas du JSON ou n'a pas de champ detail/error.
+String translateErrorCode(String code) {
+  switch (code.trim()) {
+    case 'forbidden_role':
+    case 'role_forbidden':
+    case 'wrong_app_role':
+      return 'Acces reserve a l\'application Prestataire. Reconnectez-vous avec votre compte Pro.';
+    case 'missing_token':
+    case 'invalid_token':
+    case 'authentication_required':
+      return 'Session expiree. Veuillez vous reconnecter.';
+    case 'kyc_required_to_operate':
+      return 'Completez et faites valider votre dossier KYC avant d\'effectuer cette action.';
+    case 'insufficient_wallet_balance':
+      return 'Solde Wallet insuffisant pour cette operation.';
+    case 'account_disabled':
+      return 'Compte suspendu ou desactive. Contactez le support BABIFIX.';
+    default:
+      return code;
+  }
+}
+
 String? apiErrorMessage(String body) {
   try {
     final data = jsonDecode(body) as Map<String, dynamic>;
+    final msg = data['message'] as String?;
+    if (msg != null && msg.isNotEmpty) return msg;
     final detail = data['detail'] as String?;
-    if (detail != null && detail.isNotEmpty) return detail;
+    if (detail != null && detail.isNotEmpty) return translateErrorCode(detail);
     final error = data['error'] as String?;
-    if (error != null && error.isNotEmpty) return error;
+    if (error != null && error.isNotEmpty) return translateErrorCode(error);
   } catch (_) {}
   return null;
 }

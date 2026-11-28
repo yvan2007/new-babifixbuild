@@ -572,7 +572,15 @@ class _AvailabilityScreenState extends State<AvailabilityScreen>
     }
     if (mounted) {
       await _loadAll();
-      _showError('$added créneau${added > 1 ? 'x' : ''} ajouté${added > 1 ? 's' : ''}.');
+      if (added > 0 && mounted) {
+        showBabifixToast(
+          context,
+          type: BabifixToastType.success,
+          message: '$added creneau${added > 1 ? 'x' : ''} ajoute${added > 1 ? 's' : ''}.',
+        );
+      } else {
+        _showError('Aucun creneau n\'a pu etre ajoute.');
+      }
     }
   }
 

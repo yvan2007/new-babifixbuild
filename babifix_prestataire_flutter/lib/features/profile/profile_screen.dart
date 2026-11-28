@@ -393,11 +393,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openEditRegistration() async {
-    final approved = '${_prov['statut'] ?? ''}' == 'Valide';
-    if (!approved) return;
+    final statut = '${_prov['statut'] ?? ''}';
+    final canEdit = statut == 'Valide' || statut == 'En attente';
+    if (!canEdit) return;
     final token = await readStoredApiToken();
     if (!mounted) return;
-    await Navigator.of(context).push<void>(
+    await Navigator.of(context).push<bool>(
       babifixRoute(
         (_) => EditProfilePrestataireScreen(
           apiBase: babifixApiBaseUrl(),
@@ -821,6 +822,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nnote = note != null ? (note as num).toStringAsFixed(1) : '--';
     final rc = jsonInt(_prov['rating_count']);
     final approved = '${_prov['statut'] ?? ''}' == 'Valide';
+    final canEdit = approved || '${_prov['statut'] ?? ''}' == 'En attente';
+    final kycSt = '${_prov['kyc_status'] ?? 'not_submitted'}'.trim().toLowerCase();
+    final bool kycVerified =
+        (_prov['kyc_verified'] == true) || (approved && kycSt == 'approved');
     final photo = '${_prov['photo_url'] ?? ''}'.trim();
     ImageProvider? avatarProvider;
     if (photo.startsWith('http://') || photo.startsWith('https://')) {
@@ -1026,7 +1031,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           ),
                                           const SizedBox(width: 8),
                                           // Bouton modifier
-                                          if (approved)
+                                          if (canEdit)
                                             GestureDetector(
                                               onTap: _openEditRegistration,
                                               child: Container(
@@ -1051,8 +1056,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         ],
                                       ),
 
-                                      // Badge vérifié
-                                      if (approved) ...[
+                                      // Badge verifie uniquement si statut Valide ET KYC approuve
+                                      if (kycVerified) ...[
                                         const SizedBox(height: 16),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -1068,6 +1073,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               SizedBox(width: 6),
                                               Text('Prestataire Vérifié BABIFIX', style: TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w700)),
                                             ],
+                                          ),
+                                        ),
+                                      ] else ...[
+                                        const SizedBox(height: 16),
+                                        GestureDetector(
+                                          onTap: () => widget.onNavigate('kyc'),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.shield_outlined, color: Color(0xFFD97706), size: 16),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  kycSt == 'pending' || kycSt == 'under_review'
+                                                      ? 'Verification KYC en cours'
+                                                      : 'Completer ma verification KYC',
+                                                  style: const TextStyle(color: Color(0xFFD97706), fontSize: 12, fontWeight: FontWeight.w700),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -1591,6 +1622,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ]),
                           ),
 
+                          if (kycVerified) ...[
                           // Badge certifié
                           const SizedBox(height: 16),
                           Container(
@@ -1612,6 +1644,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ])),
                             ]),
                           ),
+                          ],
 
                           // Zone Déconnexion
                           const SizedBox(height: 20),
